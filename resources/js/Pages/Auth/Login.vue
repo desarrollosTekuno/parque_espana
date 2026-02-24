@@ -1,4 +1,6 @@
-<script setup>
+<script setup lang="ts">
+import { ref } from "vue";
+import { email as emailRule } from "@/constants/validationRules";
 import AuthenticationCard from "@/Components/AuthenticationCard.vue";
 import AuthenticationCardLogo from "@/Components/AuthenticationCardLogo.vue";
 import Checkbox from "@/Components/Checkbox.vue";
@@ -7,7 +9,8 @@ import InputError from "@/Components/InputError.vue";
 import Loader from "@/Components/Loader.vue";
 import { isLoading } from "@/loading";
 import { Head, Link, useForm } from "@inertiajs/vue3";
-
+import { email } from "@/constants/validationRules";
+const formLoginSendRef = ref();
 defineProps({
     canResetPassword: Boolean,
     status: String,
@@ -20,11 +23,18 @@ const form = useForm({
 });
 
 const submit = () => {
-    form.transform((data) => ({
-        ...data,
-        remember: form.remember ? "on" : "",
-    })).post(route("login"), {
-        onFinish: () => form.reset("password"),
+    formLoginSendRef.value?.validate().then(({ valid: isValid }) => {
+        console.log(isValid);
+        if (!isValid) {
+            return;
+        } else {
+            form.transform((data) => ({
+                ...data,
+                remember: form.remember ? "on" : "",
+            })).post(route("login"), {
+                onFinish: () => form.reset("password"),
+            });
+        }
     });
 };
 </script>
@@ -44,7 +54,7 @@ const submit = () => {
             {{ status }}
         </div>
 
-        <form @submit.prevent="submit">
+        <v-form @submit.prevent="submit" ref="formLoginSendRef">
             <div>
                 <!-- <InputLabel for="email" value="Email" /> -->
                 <v-text-field
@@ -54,6 +64,7 @@ const submit = () => {
                     label="Correo electrónico"
                     variant="outlined"
                     type="email"
+                    :rules="[emailRule]"
                 ></v-text-field>
 
                 <!-- <TextInput
@@ -77,10 +88,7 @@ const submit = () => {
                     type="password"
                     variant="outlined"
                 ></v-text-field>-->
-                 <PasswordField
-                    v-model="form.password"
-                    label="Contraseña"
-                />
+                <PasswordField v-model="form.password" label="Contraseña" />
                 <!-- <InputLabel for="password" value="Password" />
                 <TextInput
                     id="password"
@@ -120,7 +128,7 @@ const submit = () => {
                 </PrimaryButton> -->
                 <v-btn type="submit" prepend-icon="mdi-login"> Ingresar </v-btn>
             </div>
-        </form>
+        </v-form>
         <Loader :overlay="isLoading" />
     </AuthenticationCard>
 </template>
