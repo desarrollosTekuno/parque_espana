@@ -16,7 +16,16 @@ class PermissionRoleSeeder extends Seeder
     {
         $permissions = array(
             array('name' => 'dashboard', 'description' => 'Acceso al dashboard'),
-        
+            array('name' => 'profile.show', 'description' => 'Ver perfil'),
+            array('name' => 'permissions.index', 'description' => 'Ver permisos'),
+            array('name' => 'permissions.store', 'description' => 'Crear permisos'),
+            array('name' => 'permissions.update', 'description' => 'Actualizar permisos'),
+            array('name' => 'permissions.destroy', 'description' => 'Eliminar permisos'),
+            array('name' => 'roles.index', 'description' => 'Ver roles'),
+            array('name' => 'roles.store', 'description' => 'Crear roles'),
+            array('name' => 'roles.update', 'description' => 'Actualizar roles'),
+            array('name' => 'roles.destroy', 'description' => 'Eliminar roles'),
+            array('name' => 'roles.duplicate', 'description' => 'Duplicar roles'),
         );
         foreach ($permissions as $permission) {
             Permission::create($permission);
@@ -33,7 +42,16 @@ class PermissionRoleSeeder extends Seeder
         /*Define superadmin permissions */
         $superadminPermissions = array(
             'dashboard',
-            
+            'profile.show',
+            'permissions.index',
+            'permissions.store',
+            'permissions.update',
+            'permissions.destroy',
+            'roles.index',
+            'roles.store',
+            'roles.update',
+            'roles.destroy',
+            'roles.duplicate'
         );
         $superadmin = Role::where('name', 'superadmin')->first();
         $superadmin->syncPermissions($superadminPermissions);

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import BaseButton from "@/Components/BaseButton.vue";
-import { required } from "@/constants/validationRules";
+import { required,maxLength } from "@/constants/validationRules";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import { Head, router, useForm, usePage } from "@inertiajs/vue3";
@@ -9,18 +9,19 @@ import { ref, watch } from "vue";
 const can = usePage().props.auth.permissions;
 const canRole = usePage().props.auth.roles;
 interface Props {
-    categories?: any;
+    clubs?: any;
 }
 
-interface Category {
+interface Club {
     id: number | null;
     name: string;
-    description: string;
+    address: string;
+    is_active: boolean;
 }
 
 // const props = defineProps<Props>();
 const props = withDefaults(defineProps<Props>(), {
-    categories: null,
+    clubs: null,
 });
 
 /* refs */
@@ -28,10 +29,11 @@ let showModal = ref(false);
 const formSendRef = ref();
 
 /* forms */
-const form = useForm<Category>({
+const form = useForm<Club>({
     id: null,
     name: "",
-    description: "",
+    address: "",
+    is_active: true,
 });
 
 const create = () => {
@@ -64,25 +66,25 @@ const save = () => {
                 //     },
                 // });
             } else {
-                // form.post(route("head-quarters.store"), {
-                //     onSuccess: () => {
-                //         customToastSwal({
-                //             title: "Rol creado con éxito!",
-                //             icon: "success",
-                //         });
-                //         showModal.value = false;
-                //         form.reset();
-                // fetchItems();
-                //     },
-                //     onError: () => {
-                //         customToastSwal({
-                //             title: `Error: ${form.errors.messageError}`,
-                //             text: `${form.errors.exception}`,
-                //             icon: "error",
-                //         });
-                //         // console.log(form.errors);
-                //     },
-                // });
+                form.post(route("clubs.store"), {
+                    onSuccess: () => {
+                        customToastSwal({
+                            title: "Club creado con éxito!",
+                            icon: "success",
+                        });
+                        showModal.value = false;
+                        form.reset();
+                fetchItems();
+                    },
+                    onError: () => {
+                        customToastSwal({
+                            title: `Error: ${form.errors.messageError}`,
+                            text: `${form.errors.exception}`,
+                            icon: "error",
+                        });
+                        // console.log(form.errors);
+                    },
+                });
             }
         }
     });
@@ -133,8 +135,8 @@ const close = () => {
 const headers = [
     { title: "ID", key: "id" },
     { title: "Nombre", key: "name" },
-    { title: "Contexto", key: "context" },
-    { title: "Descripción", key: "description" },
+    { title: "Dirección", key: "address" },
+    { title: "Activo", key: "is_active" },
     { title: "Acciones", key: "actions", sortable: false },
 ];
 
@@ -148,7 +150,7 @@ const options = ref({
     itemsPerPage: 10,
     sortBy: [{ key: "id", order: "desc" }],
 });
-const prefix = "permissions";
+const prefix = "clubs";
 // función para cargar datos desde Laravel
 const fetchItems = async () => {
     loading.value = true;
@@ -160,7 +162,7 @@ const fetchItems = async () => {
         [`${prefix}_order`]: options.value.sortBy?.[0]?.order ?? "desc",
     };
 
-    router.get(route("superadmin.permissions.index"), params, {
+    router.get(route("clubs.index"), params, {
         preserveState: true,
         replace: true,
         onSuccess: (page) => {
@@ -183,7 +185,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
     <Head title="Dashboard" />
 
     <AppLayout>
-        <template #header> Dashboard </template>
+        <template #header> Clubes </template>
         <template #options>
             <BaseButton
                 variant="elevated"
@@ -214,7 +216,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                         <template #top>
                             <v-text-field
                                 v-model="search"
-                                label="Buscar permisos"
+                                label="Buscar club"
                                 class="mx-4 mt-2"
                                 clearable
                             />
@@ -224,20 +226,12 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                             <BaseButton
                                 action="edit"
                                 @click="edit(item)"
-                                v-if="
-                                    can.includes(
-                                        'superadmin.permissions.update'
-                                    )
-                                "
+                                v-if="can.includes('clubs.update')"
                             />
                             <BaseButton
                                 @click="destroy(item)"
                                 action="delete"
-                                v-if="
-                                    can.includes(
-                                        'superadmin.permissions.destroy'
-                                    )
-                                "
+                                v-if="can.includes('clubs.destroy')"
                             />
                         </template>
                     </v-data-table-server>
@@ -248,16 +242,41 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
         <v-dialog v-model="showModal" max-width="600" persistent>
             <v-form @submit.prevent="save" ref="formSendRef">
                 <v-card
-                    prepend-icon="mdi-account"
-                    :title="`Form|${form.id ? 'Edit' : 'Create'}`"
+                    prepend-icon="mdi-soccer"
+                    :title="`${form.id ? 'Editar Club' : 'Nuevo Club'}`"
                 >
                     <v-card-text class="overflow-y-auto h-full">
-                        <v-text-field
-                            v-model="form.name"
-                            label="Nombre"
-                            persistent-hint
-                            :rules="[required]"
-                        />
+                        <v-col cols="12">
+                            <v-text-field
+                                v-model="form.name"
+                                label="Nombre"
+                                persistent-hint
+                                :rules="[required,maxLength(20)]"
+                            />
+                        </v-col>
+                        <!-- Dirección -->
+                        <v-col cols="12">
+                            <v-textarea
+                                v-model="form.address"
+                                label="Dirección"
+                                persistent-hint
+                                clearable
+                                counter
+                                rows="3"
+                                :rules="[required]"
+                                auto-grow
+                                variant="filled"
+                            />
+                        </v-col>
+                        <v-col cols="12">
+                            <v-switch
+                                v-model="form.is_active"
+                                color="green"
+                                :label="form.is_active ? 'Activo' : 'Inactivo'"
+                                hide-details
+                                inset
+                            ></v-switch>
+                        </v-col>
                     </v-card-text>
                     <v-card-actions>
                         <v-spacer></v-spacer>

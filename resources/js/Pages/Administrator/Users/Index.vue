@@ -1,18 +1,19 @@
 <script setup lang="ts">
-import BaseButton from "@/Components/BaseButton.vue";
 import { required } from "@/constants/validationRules";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import { Head, router, useForm, usePage } from "@inertiajs/vue3";
 import { debounce } from "lodash";
 import { ref, watch } from "vue";
+import BaseButton from '@/Components/BaseButton.vue';
 const can = usePage().props.auth.permissions;
 const canRole = usePage().props.auth.roles;
 interface Props {
-    categories?: any;
+    users?: any;
+    filters: Object;
 }
 
-interface Category {
+interface User {
     id: number | null;
     name: string;
     description: string;
@@ -20,7 +21,8 @@ interface Category {
 
 // const props = defineProps<Props>();
 const props = withDefaults(defineProps<Props>(), {
-    categories: null,
+    users: null,
+    filters: null,
 });
 
 /* refs */
@@ -28,7 +30,7 @@ let showModal = ref(false);
 const formSendRef = ref();
 
 /* forms */
-const form = useForm<Category>({
+const form = useForm<User>({
     id: null,
     name: "",
     description: "",
@@ -52,7 +54,6 @@ const save = () => {
                 //         });
                 //         showModal.value = false;
                 //         form.reset();
-                // fetchItems();
                 //     },
                 //     onError: () => {
                 //         customToastSwal({
@@ -72,7 +73,6 @@ const save = () => {
                 //         });
                 //         showModal.value = false;
                 //         form.reset();
-                // fetchItems();
                 //     },
                 //     onError: () => {
                 //         customToastSwal({
@@ -111,7 +111,6 @@ const destroy = (data: any) => {
                         title: "Registro eliminado correctamente",
                         icon: "success",
                     });
-                    fetchItems();
                 },
                 onError: (err) => {
                     console.error(err);
@@ -128,13 +127,24 @@ const close = () => {
     form.reset();
     showModal.value = false;
 };
-//* INICIO DATATABLE SERVER SIDE */
+// rules validation example
+// const rules = {
+//     name: [
+//         (v) => !!v || 'El nombre es requerido',
+//     ],
+//     latitude: [
+//         (v) => !!v || 'La latitud es requerida',
+//     ],
+//     longitude: [
+//         (v) => !!v || 'La longitud es requerida',
+//     ],
+// }
+/* INICIO DATATABLE SERVER SIDE */
 // Aquí se definen los encabezados de la tabla, donde key es el nombre de la columna en la base de datos
 const headers = [
     { title: "ID", key: "id" },
     { title: "Nombre", key: "name" },
-    { title: "Contexto", key: "context" },
-    { title: "Descripción", key: "description" },
+    { title: "Email", key: "email" },
     { title: "Acciones", key: "actions", sortable: false },
 ];
 
@@ -148,7 +158,7 @@ const options = ref({
     itemsPerPage: 10,
     sortBy: [{ key: "id", order: "desc" }],
 });
-const prefix = "permissions";
+const prefix = "users";
 // función para cargar datos desde Laravel
 const fetchItems = async () => {
     loading.value = true;
@@ -160,7 +170,7 @@ const fetchItems = async () => {
         [`${prefix}_order`]: options.value.sortBy?.[0]?.order ?? "desc",
     };
 
-    router.get(route("superadmin.permissions.index"), params, {
+    router.get(route("users.index"), params, {
         preserveState: true,
         replace: true,
         onSuccess: (page) => {
@@ -180,21 +190,21 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
 </script>
 
 <template>
-    <Head title="Dashboard" />
+    <Head title="Usuarios" />
 
     <AppLayout>
-        <template #header> Dashboard </template>
+        <template #header> Usuarios </template>
         <template #options>
             <BaseButton
                 variant="elevated"
                 :icon-only="false"
                 @click="create"
                 action="add"
+                v-if="can.includes('users.store')"
             />
         </template>
 
         <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
-            <!-- <div class="p-6 border-b border-gray-200"> -->
             <v-row>
                 <v-col cols="12">
                     <v-data-table-server
@@ -214,30 +224,17 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                         <template #top>
                             <v-text-field
                                 v-model="search"
-                                label="Buscar permisos"
+                                label="Buscar usuarios"
                                 class="mx-4 mt-2"
                                 clearable
                             />
                         </template>
 
                         <template #item.actions="{ item }">
-                            <BaseButton
-                                action="edit"
+                            <v-btn
+                                text="Restablecer contraseña"
                                 @click="edit(item)"
-                                v-if="
-                                    can.includes(
-                                        'superadmin.permissions.update'
-                                    )
-                                "
-                            />
-                            <BaseButton
-                                @click="destroy(item)"
-                                action="delete"
-                                v-if="
-                                    can.includes(
-                                        'superadmin.permissions.destroy'
-                                    )
-                                "
+                                v-if="can.includes('users.update')"
                             />
                         </template>
                     </v-data-table-server>
@@ -251,7 +248,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                     prepend-icon="mdi-account"
                     :title="`Form|${form.id ? 'Edit' : 'Create'}`"
                 >
-                    <v-card-text class="overflow-y-auto h-full">
+                    <v-card-text>
                         <v-text-field
                             v-model="form.name"
                             label="Nombre"
@@ -261,18 +258,11 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                     </v-card-text>
                     <v-card-actions>
                         <v-spacer></v-spacer>
-                        <BaseButton
-                            :icon-only="false"
-                            variant="tonal"
-                            action="cancel"
-                            @click="close"
-                        />
-                        <BaseButton
-                            :text="form.id ? 'Actualizar' : 'Guardar'"
-                            variant="flat"
-                            :icon-only="false"
+                        <v-btn text="Cerrar" type="button" @click="close" />
+                        <v-btn
+                            prepend-icon="mdi-home"
+                            :text="form.id ? 'update' : 'save'"
                             type="submit"
-                            action="save"
                         />
                     </v-card-actions>
                 </v-card>

@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Web\Resident;
 use App\Models\Web\ResidentialDevelopment;
 use App\Models\Web\UserType;
+use App\Traits\SerializesDates;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -26,6 +27,7 @@ class User extends Authenticatable
     use Notifiable;
     use TwoFactorAuthenticatable;
     use HasRoles;
+    use SerializesDates;
 
     /**
      * The attributes that are mass assignable.
@@ -37,6 +39,7 @@ class User extends Authenticatable
         'email',
         'password',
     ];
+
 
     /**
      * The attributes that should be hidden for serialization.
