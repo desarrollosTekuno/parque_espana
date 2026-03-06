@@ -61,6 +61,16 @@ class PermissionController extends Controller
     {
         // return $request->all();
         try {
+            // validar que el nombre del permiso sea único para el guard especificado
+            $validator = Validator::make($request->all(), [
+                'name' => 'unique:permissions,name,NULL,id,guard_name,' . $request->guard_name
+            ]);
+            if ($validator->fails()) {
+                return redirect()->back()->withErrors([
+                    'messageError' =>  'El nombre del permiso ya existe para el guard seleccionado',
+                    'exception' => '',
+                ]);
+            }
 
             Permission::create($request->all());
             return redirect()->back();
@@ -79,6 +89,16 @@ class PermissionController extends Controller
     {
         // return $request->all();
         try {
+            // validar que el nombre del permiso sea único para el guard especificado, excluyendo el permiso actual
+            $validator = Validator::make($request->all(), [
+                'name' => 'unique:permissions,name,' . $permission->id . ',id,guard_name,' . $request->guard_name
+            ]);
+            if ($validator->fails()) {
+                return redirect()->back()->withErrors([
+                    'messageError' =>  'El nombre del permiso ya existe para el guard seleccionado',
+                    'exception' => '',
+                ]);
+            }
             $permission->update($request->all());
             return redirect()->back();
         } catch (\Exception $e) {
@@ -99,6 +119,14 @@ class PermissionController extends Controller
         //     'permission' => $permission
         // ]);
         try {
+            // /validar que el permiso no esté asignado a ningún rol antes de eliminarlo
+            if ($permission->roles()->count() > 0) {
+                return redirect()->back()->withErrors([
+                    'messageError' =>  'No se puede eliminar el permiso porque está asignado a
+                        uno o más roles',
+                    'exception' => '',
+                ]);
+            }
             $permission->delete();
             return redirect()->back();
         } catch (\Exception $e) {

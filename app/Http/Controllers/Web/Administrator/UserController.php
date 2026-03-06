@@ -77,6 +77,16 @@ class UserController extends Controller
 
     public function store(Request $request)
     {
+        // validar que el email sea único
+        $validator = Validator::make($request->all(), [
+            'email' => 'unique:users,email'
+        ]);
+        if ($validator->fails()) {
+            return redirect()->back()->withErrors([
+                'messageError' =>  'El correo electrónico ya está registrado',
+                'exception' => '',
+            ]);
+        }
         // return $request->all();
         DB::beginTransaction();
         try {
@@ -113,6 +123,16 @@ class UserController extends Controller
      */
     public function update(Request $request, User $user)
     {
+        // validar que el email sea único, excluyendo el usuario actual
+        $validator = Validator::make($request->all(), [
+            'email' => 'unique:users,email,' . $user->id
+        ]);
+        if ($validator->fails()) {
+            return redirect()->back()->withErrors([
+                'messageError' =>  'El correo electrónico ya está registrado',
+                'exception' => '',
+            ]);
+        }
         try {
             DB::beginTransaction();
             $user->update([

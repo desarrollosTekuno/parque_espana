@@ -134,7 +134,8 @@ const destroy = (data: any) => {
                 onError: (err) => {
                     console.error(err);
                     customToastSwal({
-                        title: "Error al eliminar el registro",
+                        title: `Error: ${form.errors.messageError}`,
+                        text: `${form.errors.exception}`,
                         icon: "error",
                     });
                 },
