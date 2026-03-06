@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Web\Administrator;
 
+use App\Models\Administrator\Club;
+use App\Models\Role;
 use Illuminate\Routing\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -48,7 +50,7 @@ class UserController extends Controller
         // ]);
         $driver = DB::getDriverName();
         $prefix = 'users';
-        $query = User::query()->with('roles:id,name');
+        $query = User::query()->with('roles:id,name') ->with('clubs:id,name');
 
         if ($search = $request->input("{$prefix}_search")) {
             $query->where(function ($q) use ($search, $driver) {
@@ -63,15 +65,37 @@ class UserController extends Controller
         ${$prefix} = $query->orderBy($sort, $order)
             ->paginate($request->input("{$prefix}_per_page", 10), ['*'], "{$prefix}_page")
             ->appends($request->all());
+            $roles = Role::select('id', 'name','description')->get();
+            $clubs = Club::select('id', 'name')->where('is_active',true)->get();
 
         return inertia('Administrator/Users/Index', [
             'users' => $users,
+            'roles' => $roles,
+            'clubs' => $clubs,
         ]);
     }
 
     public function store(Request $request)
     {
-
+        // return $request->all();
+        DB::beginTransaction();
+        try {
+            $user = User::create([
+                'name' => $request->name,
+                'email' => $request->email,
+                'password' => 'Pa$$w0rd', // En un caso real, deberías generar una contraseña segura o permitir que el usuario la establezca
+            ]);
+            $user->roles()->sync($request->roles);
+            $user->clubs()->sync($request->clubs);
+            DB::commit();
+            return redirect()->back();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->back()->withErrors([
+                'messageError' =>  'Ocurrió un error al crear el usuario',
+                'exception' => $e->getMessage(),
+            ]);
+        }
         //$validated = $request->validate([
         //    'field1' => 'required|string|max:255',
         //    'field2' => 'required|email|unique:table,column',
@@ -87,26 +111,45 @@ class UserController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id)
+    public function update(Request $request, User $user)
     {
-        //$validated = $request->validate([
-        //    'field1' => 'required|string|max:255',
-        //    'field2' => 'required|email|unique:table,column,' . $id,
-        //]);
-
-        //Model::where('column', $id)->update([
-        //    'field1' => $validated['field1'],
-        //    'field2' => $validated['field2'],
-        //]);
-
-        return redirect()->back()->with('success', 'Message');
+        try {
+            DB::beginTransaction();
+            $user->update([
+                'name' => $request->name,
+                'email' => $request->email,
+            ]);
+            $user->roles()->sync($request->roles);
+            $user->clubs()->sync($request->clubs);
+            DB::commit();
+            return redirect()->back();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->back()->withErrors([
+                'messageError' =>  'Ocurrió un error al actualizar el usuario',
+                'exception' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(string $id)
+    public function destroy(User $user)
     {
-        return redirect()->back()->with('success', 'Message');
+        try {
+            DB::beginTransaction();
+            $user->roles()->detach();
+            $user->clubs()->detach();
+            $user->delete();
+            DB::commit();
+            return redirect()->back()->with('success', 'Usuario eliminado con éxito');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->back()->withErrors([
+                'messageError' =>  'Ocurrió un error al eliminar el usuario',
+                'exception' => $e->getMessage(),
+            ]);
+        }
     }
 }

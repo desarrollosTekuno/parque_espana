@@ -29,6 +29,15 @@ const routes: Routing[] = [
         group: null,
         // groupItems: null
     },
+        // Clubs deportivos
+    {
+        name: "clubs.index",
+        title: "Clubs deportivos",
+        icon: "mdi-soccer",
+        value: "clubs-deportivos",
+        group: null,
+        // groupItems: null
+    },
    
     //permisos
     {
@@ -57,18 +66,9 @@ const routes: Routing[] = [
         group: null,
         // groupItems: null
     },
-    // Clubs deportivos
-    {
-        name: "clubs.index",
-        title: "Clubs deportivos",
-        icon: "mdi-soccer",
-        value: "clubs-deportivos",
-        group: null,
-        // groupItems: null
-    },
     // Amenidades
     {
-        name: "dashboard",
+        name: "amenities.index",
         title: "Amenidades",
         icon: "mdi-beach",
         value: "amenidades",
@@ -77,7 +77,7 @@ const routes: Routing[] = [
     },
     // Reservaciones
     {
-        name: "dashboard",
+        name: "reservations.index",
         title: "Reservaciones",
         icon: "mdi-calendar-check",
         value: "reservaciones",
