@@ -7,7 +7,7 @@ use Inertia\Inertia;
 Route::get('/', function () {
     return redirect(route('login'));
 });
-
+require __DIR__.'/adminclubs.php';
 Route::middleware([
     'auth:sanctum',
     config('jetstream.auth_session'),
