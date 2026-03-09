@@ -134,7 +134,8 @@ const destroy = (data: any) => {
                 onError: (err) => {
                     console.error(err);
                     customToastSwal({
-                        title: "Error al eliminar el registro",
+                        title: `Error: ${form.errors.messageError}`,
+                        text: `${form.errors.exception}`,
                         icon: "error",
                     });
                 },
@@ -296,7 +297,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                             <v-col cols="12">
                                 <v-text-field
                                     v-model="form.name"
-                                    label="Nombre de Ruta"
+                                    label="Nombre de Ruta (Spatie)"
                                     persistent-hint
                                     :rules="[required, maxLength(50)]"
                                 />

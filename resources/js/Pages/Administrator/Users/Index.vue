@@ -1,27 +1,34 @@
 <script setup lang="ts">
-import { required } from "@/constants/validationRules";
+import { required,selectRequired } from "@/constants/validationRules";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import { Head, router, useForm, usePage } from "@inertiajs/vue3";
 import { debounce } from "lodash";
 import { ref, watch } from "vue";
-import BaseButton from '@/Components/BaseButton.vue';
+import BaseButton from "@/Components/BaseButton.vue";
+import { email } from "../../../constants/validationRules";
 const can = usePage().props.auth.permissions;
 const canRole = usePage().props.auth.roles;
 interface Props {
     users?: any;
+    roles?: any;
+    clubs?: any;
     filters: Object;
 }
 
 interface User {
     id: number | null;
     name: string;
-    description: string;
+    email: string;
+    clubs?: Array<any>;
+    roles ?: Array<any>;
 }
 
 // const props = defineProps<Props>();
 const props = withDefaults(defineProps<Props>(), {
     users: null,
+    roles: null,
+    clubs: null,
     filters: null,
 });
 
@@ -33,7 +40,9 @@ const formSendRef = ref();
 const form = useForm<User>({
     id: null,
     name: "",
-    description: "",
+    email: "",
+    clubs: [],
+    roles: [],
 });
 
 const create = () => {
@@ -46,49 +55,56 @@ const save = () => {
             return;
         } else {
             if (form.id) {
-                // form.put(route("head-quarters.update", form.id), {
-                //     onSuccess: () => {
-                //         customToastSwal({
-                //             title: "Rol actualizado con éxito!",
-                //             icon: "success",
-                //         });
-                //         showModal.value = false;
-                //         form.reset();
-                //     },
-                //     onError: () => {
-                //         customToastSwal({
-                //             title: `Error: ${form.errors.messageError}`,
-                //             text: `${form.errors.exception}`,
-                //             icon: "error",
-                //         });
-                //         // console.log(form.errors);
-                //     },
-                // });
+                form.put(route("users.update", form.id), {
+                    onSuccess: () => {
+                        customToastSwal({
+                            title: "Usuario actualizado con éxito!",
+                            icon: "success",
+                        });
+                        showModal.value = false;
+                        form.reset();
+                        fetchItems();
+                    },
+                    onError: () => {
+                        customToastSwal({
+                            title: `Error: ${form.errors.messageError}`,
+                            text: `${form.errors.exception}`,
+                            icon: "error",
+                        });
+                        // console.log(form.errors);
+                    },
+                });
             } else {
-                // form.post(route("head-quarters.store"), {
-                //     onSuccess: () => {
-                //         customToastSwal({
-                //             title: "Rol creado con éxito!",
-                //             icon: "success",
-                //         });
-                //         showModal.value = false;
-                //         form.reset();
-                //     },
-                //     onError: () => {
-                //         customToastSwal({
-                //             title: `Error: ${form.errors.messageError}`,
-                //             text: `${form.errors.exception}`,
-                //             icon: "error",
-                //         });
-                //         // console.log(form.errors);
-                //     },
-                // });
+                form.post(route("users.store"), {
+                    onSuccess: () => {
+                        customToastSwal({
+                            title: "Usuario creado con éxito!",
+                            icon: "success",
+                        });
+                        showModal.value = false;
+                        form.reset();
+                        fetchItems();
+                    },
+                    onError: () => {
+                        customToastSwal({
+                            title: `Error: ${form.errors.messageError}`,
+                            text: `${form.errors.exception}`,
+                            icon: "error",
+                        });
+                        // console.log(form.errors);
+                    },
+                });
             }
         }
     });
 };
 const edit = (data: any) => {
     console.log(data);
+        form.id = data.id;
+        form.name = data.name;
+        form.email = data.email;
+        form.roles = data.roles.map((role: any) => role.id);
+        form.clubs = data.clubs.map((club: any) => club.id);
 
     // headQuarterForm.id = data.id;
     // headQuarterForm.name = data.name;
@@ -105,12 +121,13 @@ const destroy = (data: any) => {
         title: "¿Está segur@ que desea eliminar este registro?",
     }).then((result) => {
         if (result.isConfirmed) {
-            form.delete(route("Modules.destroy", data.id), {
+            form.delete(route("users.destroy", data.id), {
                 onSuccess: () => {
                     customToastSwal({
                         title: "Registro eliminado correctamente",
                         icon: "success",
                     });
+                    fetchItems();
                 },
                 onError: (err) => {
                     console.error(err);
@@ -142,9 +159,10 @@ const close = () => {
 /* INICIO DATATABLE SERVER SIDE */
 // Aquí se definen los encabezados de la tabla, donde key es el nombre de la columna en la base de datos
 const headers = [
-    { title: "ID", key: "id" },
     { title: "Nombre", key: "name" },
     { title: "Email", key: "email" },
+    { title: "Roles", key: "roles", sortable: false },
+    { title: "Clubs", key: "clubs", sortable: false },
     { title: "Acciones", key: "actions", sortable: false },
 ];
 
@@ -191,7 +209,6 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
 
 <template>
     <Head title="Usuarios" />
-
     <AppLayout>
         <template #header> Usuarios </template>
         <template #options>
@@ -202,6 +219,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                 action="add"
                 v-if="can.includes('users.store')"
             />
+            
         </template>
 
         <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
@@ -229,12 +247,56 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 clearable
                             />
                         </template>
+                        <!-- Roles -->
+                        <template #item.roles="{ item }">
+                            <v-chip
+                                v-for="role in item.roles"
+                                :key="role.id"
+                                class="ma-1"
+                                color="primary"
+                                text-color="white"
+                                small
+                            >
+                                {{ role.name }}
+                            </v-chip>
+                        </template>
+                        <!-- Clubs -->
+                        <template #item.clubs="{ item }">
+                            <v-chip
+                                v-for="club in item.clubs"
+                                :key="club.id"
+                                class="ma-1"
+                                color="green"
+                                text-color="white"
+                                small
+                            >
+                                {{ club.name }}
+                            </v-chip>
+                        </template>
 
                         <template #item.actions="{ item }">
-                            <v-btn
+                            <!-- <v-btn
                                 text="Restablecer contraseña"
                                 @click="edit(item)"
                                 v-if="can.includes('users.update')"
+                            /> -->
+                            <BaseButton
+                                action="edit"
+                                @click="edit(item)"
+                                v-if="
+                                    can.includes(
+                                        'users.update'
+                                    )
+                                "
+                            />
+                            <BaseButton
+                                action="delete"
+                                @click="destroy(item)"
+                                v-if="
+                                    can.includes(
+                                        'users.destroy'
+                                    )
+                                "
                             />
                         </template>
                     </v-data-table-server>
@@ -245,29 +307,94 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
         <v-dialog v-model="showModal" max-width="600" persistent>
             <v-form @submit.prevent="save" ref="formSendRef">
                 <v-card
-                    prepend-icon="mdi-account"
-                    :title="`Form|${form.id ? 'Edit' : 'Create'}`"
+                    prepend-icon="mdi-cube-outline"
+                    :title="`${form.id ? 'Editar Usuario' : 'Nuevo Usuario'}`"
                 >
-                    <v-card-text>
-                        <v-text-field
-                            v-model="form.name"
-                            label="Nombre"
-                            persistent-hint
-                            :rules="[required]"
-                        />
+                    <v-card-text class="overflow-y-auto h-full">
+                       <v-col cols="12">
+                            <v-text-field
+                                v-model="form.name"
+                                label="Nombre"
+                                persistent-hint
+                                :rules="[required]"
+                            />
+                        </v-col>
+                        <v-col cols="12">
+                            <v-text-field
+                                type="email"
+                                v-model="form.email"
+                                label="Email"
+                                persistent-hint
+                                :rules="[required, email]"
+                            />
+                        </v-col>
+                        <!-- Roles -->
+                        <v-col cols="12">
+                            <v-autocomplete
+                                prepend-inner-icon="mdi-account-key"
+                                v-model="form.roles"
+                                chips
+                                closable-chips
+                                multiple
+                                clearable
+                                item-value="id"
+                                :item-title=" (item) => `${item.name} (${item.description})`"
+                                :items="props.roles"
+                                :rules="[selectRequired]"
+                                hint="Roles del usuario"
+                                persistent-hint
+                            >
+                            </v-autocomplete>
+                            <!-- <v-file-input
+                                    label="Subir archivo"
+                                    :rules="[
+
+                                    ]"
+                                /> -->
+                        </v-col>
+                        <v-col cols="12">
+                            <v-autocomplete
+                                prepend-inner-icon="mdi-soccer"
+                                v-model="form.clubs"
+                                chips
+                                closable-chips
+                                multiple
+                                clearable
+                                item-value="id"
+                                item-title="name"
+                                :items="props.clubs"   
+                                hint="Clubes deportivos"
+                                persistent-hint
+                            >
+                            </v-autocomplete>
+                            <!-- <v-file-input
+                                    label="Subir archivo"
+                                    :rules="[
+
+                                    ]"
+                                /> -->
+                        </v-col>
                     </v-card-text>
                     <v-card-actions>
                         <v-spacer></v-spacer>
-                        <v-btn text="Cerrar" type="button" @click="close" />
-                        <v-btn
-                            prepend-icon="mdi-home"
-                            :text="form.id ? 'update' : 'save'"
+                        <BaseButton
+                            :icon-only="false"
+                            variant="tonal"
+                            action="cancel"
+                            @click="close"
+                        />
+                        <BaseButton
+                            :text="form.id ? 'Actualizar' : 'Guardar'"
+                            variant="flat"
+                            :icon-only="false"
                             type="submit"
+                            action="save"
                         />
                     </v-card-actions>
                 </v-card>
             </v-form>
         </v-dialog>
+        
         <!-- <Loader :overlay="form.processing" /> -->
     </AppLayout>
 </template>

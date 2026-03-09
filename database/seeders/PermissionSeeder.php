@@ -2,12 +2,11 @@
 
 namespace Database\Seeders;
 
-use App\Models\Role;
+use App\Models\Permission;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
-use Spatie\Permission\Models\Permission;
 
-class PermissionRoleSeeder extends Seeder
+class PermissionSeeder extends Seeder
 {
     /**
      * Run the database seeds.
@@ -26,34 +25,24 @@ class PermissionRoleSeeder extends Seeder
             array('name' => 'roles.update', 'description' => 'Actualizar roles'),
             array('name' => 'roles.destroy', 'description' => 'Eliminar roles'),
             array('name' => 'roles.duplicate', 'description' => 'Duplicar roles'),
+            // Users
+            array('name' => 'users.index', 'description' => 'Ver usuarios'),
+            array('name' => 'users.store', 'description' => 'Crear usuarios'),
+            array('name' => 'users.update', 'description' => 'Actualizar usuarios'),
+            array('name' => 'users.destroy', 'description' => 'Eliminar usuarios'),
+            // Clubs
+            array('name' => 'clubs.index', 'description' => 'Ver clubes'),
+            array('name' => 'clubs.store', 'description' => 'Crear clubes'),
+            array('name' => 'clubs.update', 'description' => 'Actualizar clubes'),
+            array('name' => 'clubs.destroy', 'description' => 'Eliminar clubes'),
+            // Amenidades
+            array('name' => 'amenities.index', 'description' => 'Ver amenidades'),
+            array('name' => 'amenities.store', 'description' => 'Crear amenidades'),
+            array('name' => 'amenities.update', 'description' => 'Actualizar amenidades'),
+            array('name' => 'amenities.destroy', 'description' => 'Eliminar amenidades'),
         );
         foreach ($permissions as $permission) {
-            Permission::create($permission);
+            Permission::updateOrCreate(['name' => $permission['name']], $permission);
         }
-
-
-        $roles = array(
-            array('name' => 'superadmin', 'description' => 'Super administrador'),
-        );
-        foreach ($roles as $role) {
-            Role::create($role);
-        }
-
-        /*Define superadmin permissions */
-        $superadminPermissions = array(
-            'dashboard',
-            'profile.show',
-            'permissions.index',
-            'permissions.store',
-            'permissions.update',
-            'permissions.destroy',
-            'roles.index',
-            'roles.store',
-            'roles.update',
-            'roles.destroy',
-            'roles.duplicate'
-        );
-        $superadmin = Role::where('name', 'superadmin')->first();
-        $superadmin->syncPermissions($superadminPermissions);
     }
 }

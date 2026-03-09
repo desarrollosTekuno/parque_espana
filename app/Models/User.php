@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Administrator\Club;
 use App\Models\Web\Resident;
 use App\Models\Web\ResidentialDevelopment;
 use App\Models\Web\UserType;
@@ -74,6 +75,11 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    public function clubs() {
+        return $this->belongsToMany(Club::class, 'user_clubs');
+    }
+    
 
     
 }

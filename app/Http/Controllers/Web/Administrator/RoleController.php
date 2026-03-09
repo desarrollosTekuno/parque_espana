@@ -74,6 +74,18 @@ class RoleController extends Controller
     public function store(Request $request)
     {
         try {
+            // validar que el nombre del rol sea único para el guard especificado
+            $validator = Validator::make($request->all(), [
+                'name' => 'unique:roles'
+            ]);
+
+            if ($validator->fails()) {
+                return redirect()->back()->withErrors([
+                    'messageError' =>  'El nombre del rol ya existe',
+                    'exception' => '',
+                ]);
+            }
+
             $role = Role::create($request->except('permissions'));
             $role->syncPermissions($request->permissions);
             return redirect()->back();
@@ -92,6 +104,16 @@ class RoleController extends Controller
     {
         // return $request->all();
         try {
+                // validar que el nombre del rol sea único para el guard especificado, excluyendo el rol actual
+            $validator = Validator::make($request->all(), [
+                'name' => 'unique:roles,name,' . $role->id
+            ]);
+            if ($validator->fails()) {
+                return redirect()->back()->withErrors([
+                    'messageError' =>  'El nombre del rol ya existe',
+                    'exception' => '',
+                ]);
+            }
             $role->update($request->except('permissions'));
             $role->syncPermissions($request->permissions);
             return redirect()->back();
@@ -110,6 +132,14 @@ class RoleController extends Controller
     {
         // return redirect()->back()->with('success', 'Message');
         try {
+            // validar que el rol no esté asignado a ningún usuario antes de eliminarlo
+            if ($role->users()->count() > 0) {
+                return redirect()->back()->withErrors([
+                    'messageError' =>  'No se puede eliminar el rol porque está asignado a
+                        uno o más usuarios',
+                    'exception' => '',
+                ]);
+            }
             $role->delete();
             return redirect()->back();
         } catch (\Exception $e) {
