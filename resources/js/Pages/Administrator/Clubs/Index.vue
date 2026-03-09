@@ -46,25 +46,25 @@ const save = () => {
             return;
         } else {
             if (form.id) {
-                // form.put(route("head-quarters.update", form.id), {
-                //     onSuccess: () => {
-                //         customToastSwal({
-                //             title: "Rol actualizado con éxito!",
-                //             icon: "success",
-                //         });
-                //         showModal.value = false;
-                //         form.reset();
-                // fetchItems();
-                //     },
-                //     onError: () => {
-                //         customToastSwal({
-                //             title: `Error: ${form.errors.messageError}`,
-                //             text: `${form.errors.exception}`,
-                //             icon: "error",
-                //         });
-                //         // console.log(form.errors);
-                //     },
-                // });
+                form.put(route("clubs.update", form.id), {
+                    onSuccess: () => {
+                        customToastSwal({
+                            title: "Rol actualizado con éxito!",
+                            icon: "success",
+                        });
+                        showModal.value = false;
+                        form.reset();
+                fetchItems();
+                    },
+                    onError: () => {
+                        customToastSwal({
+                            title: `Error: ${form.errors.messageError}`,
+                            text: `${form.errors.exception}`,
+                            icon: "error",
+                        });
+                        // console.log(form.errors);
+                    },
+                });
             } else {
                 form.post(route("clubs.store"), {
                     onSuccess: () => {
@@ -91,6 +91,10 @@ const save = () => {
 };
 const edit = (data: any) => {
     console.log(data);
+    form.name = data.name;
+    form.address = data.address;
+    form.is_active = data.is_active;
+    form.id = data.id;
 
     // headQuarterForm.id = data.id;
     // headQuarterForm.name = data.name;
@@ -107,7 +111,7 @@ const destroy = (data: any) => {
         title: "¿Está segur@ que desea eliminar este registro?",
     }).then((result) => {
         if (result.isConfirmed) {
-            form.delete(route("Modules.destroy", data.id), {
+            form.delete(route("clubs.destroy", data.id), {
                 onSuccess: () => {
                     customToastSwal({
                         title: "Registro eliminado correctamente",
