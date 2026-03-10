@@ -9,8 +9,8 @@
     :counter="maxLength"
     :rows="rows"
     :auto-grow="autoGrow"
+    prepend-inner-icon="mdi-text-box-outline"
     clearable
-    required
     @blur="validate"
   />
 </template>
@@ -43,15 +43,35 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits(["update:modelValue"])
+
 const internalValue = ref(props.modelValue || "")
 const errorMessage = ref("")
 const hasError = ref(false)
 
 const rules = computed(() => {
   const r: any[] = []
-  if (props.required) r.push(required)
-  if (props.minLength) r.push(minLength(props.minLength))
-  if (props.maxLength) r.push(maxLength(props.maxLength))
+
+  // required solo si se solicita
+  if (props.required) {
+    r.push(required)
+  }
+
+  // minLength solo si hay texto
+  if (props.minLength) {
+    r.push((v: string) => {
+      if (!v) return true
+      return v.length >= props.minLength || `Debe tener al menos ${props.minLength} caracteres`
+    })
+  }
+
+  // maxLength solo si hay texto
+  if (props.maxLength) {
+    r.push((v: string) => {
+      if (!v) return true
+      return v.length <= props.maxLength || `Debe tener máximo ${props.maxLength} caracteres`
+    })
+  }
+
   return r
 })
 
@@ -77,6 +97,7 @@ function validate() {
       return false
     }
   }
+
   hasError.value = false
   errorMessage.value = ""
   return true

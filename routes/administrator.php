@@ -14,4 +14,6 @@ Route::post('/roles/duplicate', [RoleController::class, 'duplicate'])->name('rol
 Route::resource('/permissions', PermissionController::class)->names('permissions');
 Route::resource('/users', UserController::class)->names('users');
 Route::resource('/clubs', ClubController::class)->names('clubs');
+Route::post('/change-club', [ClubController::class, 'changeClub'])
+    ->name('change.club');
 // php artisan make:model AdminClub/BlockedPeriod -m  && php artisan make:controller Web/AdminClub/BlockedPeriodController --resource

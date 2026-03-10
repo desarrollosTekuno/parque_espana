@@ -37,11 +37,11 @@ watch(
 </script>
 
 <template>
-<v-col cols="12">
     <v-file-input
         accept="image/*"
         :label="label"
-        prepend-icon="mdi-image"
+        prepend-inner-icon="mdi-image"
+        prepend-icon=""
         @change="onFileChange"
     />
 
@@ -53,5 +53,4 @@ watch(
             cover
         />
     </div>
-</v-col>
 </template>

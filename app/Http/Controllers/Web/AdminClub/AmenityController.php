@@ -7,6 +7,7 @@ use Illuminate\Routing\Controller;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 
 class AmenityController extends Controller
@@ -19,33 +20,27 @@ class AmenityController extends Controller
         $this->middleware('permission:amenities.destroy')->only('destroy');
     }
 
-    public function index(Request $request)
-    {
-        $prefix = 'amenities';
-        $driver = DB::getDriverName();
+public function index(Request $request)
+{
+    $clubId = $request->club_id ?? session('club_id');
 
-        $query = Amenity::query();
+    $prefix = 'amenities';
+    $driver = DB::getDriverName();
 
-        if ($search = $request->input("{$prefix}_search")) {
-            $query->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
-                ->orWhere('description', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
-        }
-
-        $sort = $request->input("{$prefix}_sort", 'id');
-        $order = $request->input("{$prefix}_order", 'desc');
-
-        $query->orderBy($sort, $order);
-
-        $amenities = $query->paginate(
-            $request->input("{$prefix}_per_page", 10),
-            ['*'],
-            "{$prefix}_page"
-        )->appends($request->all());
-
-        return Inertia::render('AdminClubs/Amenities/Index', [
-            'amenities' => $amenities,
-        ]);
+    $query = Amenity::where('club_id', $clubId);
+    //dd($query->toSql(), $query->getBindings());
+    if ($search = $request->input("{$prefix}_search")) {
+        $query->where(function ($q) use ($search, $driver) {
+            $q->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
+        });
     }
+    //dd(request()->all());
+    $amenities = $query->paginate(10)->appends($request->all());
+    ;
+    return Inertia::render('AdminClubs/Amenities/Index', [
+        'amenities' => $amenities,
+    ]);
+}
 
     public function store(Request $request)
     {
@@ -57,7 +52,7 @@ class AmenityController extends Controller
             $data['background_image'] = $request->file('background_image')->store('amenities/backgrounds', 'public');
         }
         
-        Amenity::create(array_merge($data, ['club_id' => 1]));
+        Amenity::create(array_merge($data, ['club_id' => session('club_id')]));
         return redirect()->back()->with('success', 'Amenidad creada correctamente');
     }
 

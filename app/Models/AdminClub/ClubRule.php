@@ -11,4 +11,5 @@ class ClubRule extends Model {
 
     protected $guarded = ['id', 'created_at', 'updated_at'];
     protected $dates = ['deleted_at'];
+
 }
