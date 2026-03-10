@@ -35,19 +35,32 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
-         return array_merge(parent::share($request), [
-            // Logo from the company settings table directly from the database without user
-            //'branding' => TenantBranding::where('company_id', $request->user()->company_id)->first(),
+        return array_merge(parent::share($request), [
             'auth' => [
-                'user' => $request->user(),
-                'roles' => $request->user() ? $request->user()->roles->pluck('name') : [],
-                'permissions' => $request->user() ? $request->user()->getAllPermissions()->pluck('name') : [],
+                'user' => $request->user()
+                    ? array_merge(
+                        $request->user()->toArray(),
+                        [
+                            'two_factor_enabled' => $request->user()->two_factor_confirmed_at !== null,
+                        ]
+                    )
+                    : null,
+
+                'roles' => $request->user()
+                    ? $request->user()->roles->pluck('name')
+                    : [],
+
+                'permissions' => $request->user()
+                    ? $request->user()->getAllPermissions()->pluck('name')
+                    : [],
             ],
+
             'flash' => function () use ($request) {
                 return [
                     'success' => $request->session()->get('success'),
                 ];
             },
+
             'showingMobileMenu' => false,
         ]);
     }

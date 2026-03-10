@@ -1,85 +1,106 @@
 <script setup>
-import { Head, useForm } from '@inertiajs/vue3';
-import AuthenticationCard from '@/Components/AuthenticationCard.vue';
-import AuthenticationCardLogo from '@/Components/AuthenticationCardLogo.vue';
-import InputError from '@/Components/InputError.vue';
-import InputLabel from '@/Components/InputLabel.vue';
-import PrimaryButton from '@/Components/PrimaryButton.vue';
-import TextInput from '@/Components/TextInput.vue';
+import { Head, useForm } from "@inertiajs/vue3"
+import { ref } from "vue"
+import { required, passwordRule, confirmPasswordRule } from "@/constants/validationRules"
 
 const props = defineProps({
-    email: String,
-    token: String,
-});
+  email: String,
+  token: String,
+})
+
+const formRef = ref(null)
 
 const form = useForm({
-    token: props.token,
-    email: props.email,
-    password: '',
-    password_confirmation: '',
-});
+  token: props.token,
+  email: props.email,
+  password: "",
+  password_confirmation: "",
+})
 
-const submit = () => {
-    form.post(route('password.update'), {
-        onFinish: () => form.reset('password', 'password_confirmation'),
-    });
-};
+const restablecerContrasena = async () => {
+  const { valid } = await formRef.value.validate()
+  if (!valid) return
+
+  form.post(route("password.update"), {
+    onFinish: () => form.reset("password", "password_confirmation"),
+  })
+}
 </script>
 
 <template>
-    <Head title="Reset Password" />
+  <Head title="Restablecer contraseña" />
 
-    <AuthenticationCard>
-        <template #logo>
-            <AuthenticationCardLogo />
-        </template>
+  <v-container class="fill-height d-flex align-center justify-center">
+    <v-card width="500" class="pa-6">
 
-        <form @submit.prevent="submit">
-            <div>
-                <InputLabel for="email" value="Email" />
-                <TextInput
-                    id="email"
-                    v-model="form.email"
-                    type="email"
-                    class="mt-1 block w-full"
-                    required
-                    autofocus
-                    autocomplete="username"
-                />
-                <InputError class="mt-2" :message="form.errors.email" />
-            </div>
+      <v-card-title class="text-h6 text-center">
+        Restablecer contraseña
+      </v-card-title>
 
-            <div class="mt-4">
-                <InputLabel for="password" value="Password" />
-                <TextInput
-                    id="password"
-                    v-model="form.password"
-                    type="password"
-                    class="mt-1 block w-full"
-                    required
-                    autocomplete="new-password"
-                />
-                <InputError class="mt-2" :message="form.errors.password" />
-            </div>
+      <v-card-text>
 
-            <div class="mt-4">
-                <InputLabel for="password_confirmation" value="Confirm Password" />
-                <TextInput
-                    id="password_confirmation"
-                    v-model="form.password_confirmation"
-                    type="password"
-                    class="mt-1 block w-full"
-                    required
-                    autocomplete="new-password"
-                />
-                <InputError class="mt-2" :message="form.errors.password_confirmation" />
-            </div>
+        <v-alert
+          type="info"
+          variant="tonal"
+          class="mb-4"
+        >
+          Ingresa tu nueva contraseña para completar el proceso.
+        </v-alert>
 
-            <div class="flex items-center justify-end mt-4">
-                <PrimaryButton :class="{ 'opacity-25': form.processing }" :disabled="form.processing">
-                    Reset Password
-                </PrimaryButton>
-            </div>
-        </form>
-    </AuthenticationCard>
+        <v-form ref="formRef" @submit.prevent="restablecerContrasena">
+
+          <!-- Correo -->
+          <v-text-field
+            v-model="form.email"
+            label="Correo electrónico"
+            type="email"
+            prepend-inner-icon="mdi-email-outline"
+            variant="outlined"
+            :error-messages="form.errors.email"
+            :rules="[required]"
+            required
+            class="mb-4"
+          />
+
+          <!-- Nueva contraseña -->
+          <v-text-field
+            v-model="form.password"
+            label="Nueva contraseña"
+            type="password"
+            prepend-inner-icon="mdi-lock-outline"
+            variant="outlined"
+            :error-messages="form.errors.password"
+            :rules="[required, passwordRule]"
+            required
+            class="mb-4"
+          />
+
+          <!-- Confirmar contraseña -->
+          <v-text-field
+            v-model="form.password_confirmation"
+            label="Confirmar nueva contraseña"
+            type="password"
+            prepend-inner-icon="mdi-lock-check"
+            variant="outlined"
+            :error-messages="form.errors.password_confirmation"
+            :rules="[required, confirmPasswordRule(form.password)]"
+            required
+            class="mb-6"
+          />
+
+          <v-btn
+            block
+            color="primary"
+            type="submit"
+            :loading="form.processing"
+            :disabled="form.processing"
+          >
+            Restablecer contraseña
+          </v-btn>
+
+        </v-form>
+
+      </v-card-text>
+    </v-card>
+  </v-container>
 </template>

@@ -29,6 +29,61 @@ const routes: Routing[] = [
         group: null,
         // groupItems: null
     },
+        // Clubs deportivos
+    {
+        name: "clubs.index",
+        title: "Clubs deportivos",
+        icon: "mdi-soccer",
+        value: "clubs-deportivos",
+        group: null,
+        // groupItems: null
+    },
+   
+    //permisos
+    {
+        name: "permissions.index",
+        title: "Permisos",
+        icon: "mdi-key-outline",
+        value: "permisos",
+        group: null,
+        // groupItems: null
+    },
+     // Roles
+    {
+        name: "roles.index",
+        title: "Roles",
+        icon: "mdi-account-key-outline",
+        value: "roles",
+        group: null,
+        // groupItems: null
+    },
+    // Usuarios
+    {
+        name: "users.index",
+        title: "Usuarios",
+        icon: "mdi-account-multiple-outline",
+        value: "usuarios",
+        group: null,
+        // groupItems: null
+    },
+    // Amenidades
+    {
+        name: "amenities.index",
+        title: "Amenidades",
+        icon: "mdi-beach",
+        value: "amenidades",
+        group: null,
+        // groupItems: null
+    },
+    // Reservaciones
+    {
+        name: "reservations.index",
+        title: "Reservaciones",
+        icon: "mdi-calendar-check",
+        value: "reservaciones",
+        group: null,
+        // groupItems: null
+    },
     /* 
     {
         name: ["dashboard"],

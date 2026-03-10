@@ -1,0 +1,43 @@
+<?php
+
+namespace Database\Seeders;
+
+use App\Models\Role;
+use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use Illuminate\Database\Seeder;
+
+class SuperAdminSeeder extends Seeder
+{
+    /**
+     * Run the database seeds.
+     */
+    public function run(): void
+    {
+        //
+        $superadmin =  Role::create(['name' => 'superadmin', 'description' => 'Super Administrador']);
+
+        /*Define superadmin permissions */
+        $superadminPermissions = array(
+            'dashboard',
+            'profile.show',
+            'permissions.index',
+            'permissions.store',
+            'permissions.update',
+            'permissions.destroy',
+            'roles.index',
+            'roles.store',
+            'roles.update',
+            'roles.destroy',
+            'roles.duplicate',
+            'users.index',
+            'users.store',
+            'users.update',
+            'users.destroy',
+            'clubs.index',
+            'clubs.store',
+            'clubs.update',
+            'clubs.destroy',
+        );
+        $superadmin->syncPermissions($superadminPermissions);
+    }
+}

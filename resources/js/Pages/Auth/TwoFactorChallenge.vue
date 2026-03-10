@@ -1,104 +1,123 @@
 <script setup>
-import { nextTick, ref } from 'vue';
-import { Head, useForm } from '@inertiajs/vue3';
-import AuthenticationCard from '@/Components/AuthenticationCard.vue';
-import AuthenticationCardLogo from '@/Components/AuthenticationCardLogo.vue';
-import InputError from '@/Components/InputError.vue';
-import InputLabel from '@/Components/InputLabel.vue';
-import PrimaryButton from '@/Components/PrimaryButton.vue';
-import TextInput from '@/Components/TextInput.vue';
+import { ref, nextTick } from "vue"
+import { Head, useForm } from "@inertiajs/vue3"
 
-const recovery = ref(false);
+const usandoCodigoRecuperacion = ref(false)
+
+const formRef = ref(null)
+const codigoInput = ref(null)
+const codigoRecuperacionInput = ref(null)
 
 const form = useForm({
-    code: '',
-    recovery_code: '',
-});
+  code: "",
+  recovery_code: "",
+})
 
-const recoveryCodeInput = ref(null);
-const codeInput = ref(null);
+const alternarModo = async () => {
+  usandoCodigoRecuperacion.value = !usandoCodigoRecuperacion.value
 
-const toggleRecovery = async () => {
-    recovery.value ^= true;
+  await nextTick()
 
-    await nextTick();
+  if (usandoCodigoRecuperacion.value) {
+    form.code = ""
+    codigoRecuperacionInput.value?.focus()
+  } else {
+    form.recovery_code = ""
+    codigoInput.value?.focus()
+  }
+}
 
-    if (recovery.value) {
-        recoveryCodeInput.value.focus();
-        form.code = '';
-    } else {
-        codeInput.value.focus();
-        form.recovery_code = '';
-    }
-};
+const enviar = async () => {
+  const { valid } = await formRef.value.validate()
+  if (!valid) return
 
-const submit = () => {
-    form.post(route('two-factor.login'));
-};
+  form.post(route("two-factor.login"))
+}
 </script>
 
 <template>
-    <Head title="Two-factor Confirmation" />
+  <Head title="Confirmación en dos factores" />
 
-    <AuthenticationCard>
-        <template #logo>
-            <AuthenticationCardLogo />
-        </template>
+  <v-container class="fill-height d-flex align-center justify-center">
+    <v-card width="500" class="pa-6">
 
-        <div class="mb-4 text-sm text-gray-600 dark:text-gray-400">
-            <template v-if="! recovery">
-                Please confirm access to your account by entering the authentication code provided by your authenticator application.
-            </template>
+      <v-card-title class="text-h6 text-center">
+        Confirmación en dos factores
+      </v-card-title>
 
-            <template v-else>
-                Please confirm access to your account by entering one of your emergency recovery codes.
-            </template>
-        </div>
+      <v-card-text>
 
-        <form @submit.prevent="submit">
-            <div v-if="! recovery">
-                <InputLabel for="code" value="Code" />
-                <TextInput
-                    id="code"
-                    ref="codeInput"
-                    v-model="form.code"
-                    type="text"
-                    inputmode="numeric"
-                    class="mt-1 block w-full"
-                    autofocus
-                    autocomplete="one-time-code"
-                />
-                <InputError class="mt-2" :message="form.errors.code" />
-            </div>
+        <v-alert
+          type="info"
+          variant="tonal"
+          class="mb-4"
+        >
+          <template v-if="!usandoCodigoRecuperacion">
+            Ingresa el código generado por tu aplicación autenticadora.
+          </template>
+          <template v-else>
+            Ingresa uno de tus códigos de recuperación de emergencia.
+          </template>
+        </v-alert>
 
-            <div v-else>
-                <InputLabel for="recovery_code" value="Recovery Code" />
-                <TextInput
-                    id="recovery_code"
-                    ref="recoveryCodeInput"
-                    v-model="form.recovery_code"
-                    type="text"
-                    class="mt-1 block w-full"
-                    autocomplete="one-time-code"
-                />
-                <InputError class="mt-2" :message="form.errors.recovery_code" />
-            </div>
+        <v-form ref="formRef" @submit.prevent="enviar">
 
-            <div class="flex items-center justify-end mt-4">
-                <button type="button" class="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 underline cursor-pointer" @click.prevent="toggleRecovery">
-                    <template v-if="! recovery">
-                        Use a recovery code
-                    </template>
+          <!-- Código normal -->
+          <v-text-field
+            v-if="!usandoCodigoRecuperacion"
+            ref="codigoInput"
+            v-model="form.code"
+            label="Código de autenticación"
+            prepend-inner-icon="mdi-shield-key"
+            inputmode="numeric"
+            variant="outlined"
+            :error-messages="form.errors.code"
+            required
+            autofocus
+            class="mb-4"
+          />
 
-                    <template v-else>
-                        Use an authentication code
-                    </template>
-                </button>
+          <!-- Código recuperación -->
+          <v-text-field
+            v-else
+            ref="codigoRecuperacionInput"
+            v-model="form.recovery_code"
+            label="Código de recuperación"
+            prepend-inner-icon="mdi-key"
+            variant="outlined"
+            :error-messages="form.errors.recovery_code"
+            required
+            class="mb-4"
+          />
 
-                <PrimaryButton class="ms-4" :class="{ 'opacity-25': form.processing }" :disabled="form.processing">
-                    Log in
-                </PrimaryButton>
-            </div>
-        </form>
-    </AuthenticationCard>
+          <div class="d-flex justify-space-between align-center">
+
+            <v-btn
+              variant="text"
+              @click="alternarModo"
+            >
+              <template v-if="!usandoCodigoRecuperacion">
+                Usar código de recuperación
+              </template>
+              <template v-else>
+                Usar código de autenticación
+              </template>
+            </v-btn>
+
+            <v-btn
+              color="primary"
+              type="submit"
+              :loading="form.processing"
+              :disabled="form.processing"
+            >
+              Iniciar sesión
+            </v-btn>
+
+          </div>
+
+        </v-form>
+
+      </v-card-text>
+    </v-card>
+  </v-container>
 </template>

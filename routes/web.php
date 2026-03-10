@@ -15,3 +15,11 @@ Route::middleware([
 ])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 });
+
+Route::middleware(['auth', 'verified'])
+    ->prefix('superadmin')
+    ->group(__DIR__ . '/administrator.php');
+
+Route::middleware(['auth', 'verified'])
+    ->prefix('admin')
+    ->group(__DIR__ . '/adminclubs.php');

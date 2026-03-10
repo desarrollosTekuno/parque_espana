@@ -184,18 +184,17 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
 
     <AppLayout>
         <template #header> Dashboard </template>
+        <template #options>
+            <BaseButton
+                variant="elevated"
+                :icon-only="false"
+                @click="create"
+                action="add"
+            />
+        </template>
 
         <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
             <!-- <div class="p-6 border-b border-gray-200"> -->
-            <div>
-                <!-- <v-btn @click="create" class="mb-2">Crear Area</v-btn> -->
-                <BaseButton
-                    variant="elevated"
-                    :icon-only="false"
-                    @click="create"
-                    action="add"
-                />
-            </div>
             <v-row>
                 <v-col cols="12">
                     <v-data-table-server

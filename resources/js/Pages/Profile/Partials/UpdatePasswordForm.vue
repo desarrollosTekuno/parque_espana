@@ -1,131 +1,98 @@
 <script setup>
-import ActionMessage from "@/Components/ActionMessage.vue";
-import FormSection from "@/Components/FormSection.vue";
-import InputError from "@/Components/InputError.vue";
-import PrimaryButton from "@/Components/PrimaryButton.vue";
-import { confirmPasswordRule, passwordRule, required } from "@/constants/validationRules";
-import { useForm } from "@inertiajs/vue3";
-import { ref } from "vue";
+import { ref } from "vue"
+import { useForm } from "@inertiajs/vue3"
+import { required, passwordRule, confirmPasswordRule } from "@/constants/validationRules"
 
-const passwordInput = ref(null);
-const currentPasswordInput = ref(null);
+const formRef = ref(null)
 
 const form = useForm({
-    current_password: "",
-    password: "",
-    password_confirmation: "",
-});
+  current_password: "",
+  password: "",
+  password_confirmation: "",
+})
 
-const updatePassword = () => {
-    form.put(route("user-password.update"), {
-        errorBag: "updatePassword",
-        preserveScroll: true,
-        onSuccess: () => form.reset(),
-        onError: () => {
-            if (form.errors.password) {
-                form.reset("password", "password_confirmation");
-                passwordInput.value.focus();
-            }
+const actualizarContrasena = async () => {
+  const { valid } = await formRef.value.validate()
+  if (!valid) return
 
-            if (form.errors.current_password) {
-                form.reset("current_password");
-                currentPasswordInput.value.focus();
-            }
-        },
-    });
-};
+  form.put(route("user-password.update"), {
+    preserveScroll: true,
+    onSuccess: () => form.reset(),
+    onError: () => {
+      if (form.errors.password) {
+        form.reset("password", "password_confirmation")
+      }
+      if (form.errors.current_password) {
+        form.reset("current_password")
+      }
+    },
+  })
+}
 </script>
 
 <template>
-    <FormSection @submitted="updatePassword">
-        <template #title> Update Password </template>
+  <v-card class="pa-6">
+    <v-card-title>
+      Actualizar Contraseña
+    </v-card-title>
 
-        <template #description>
-            Ensure your account is using a long, random password to stay secure.
-        </template>
+    <v-card-subtitle class="mb-4">
+      Asegúrate de utilizar una contraseña segura y difícil de adivinar.
+    </v-card-subtitle>
 
-        <template #form>
-            <div class="col-span-6 sm:col-span-4">
-                <!-- <InputLabel for="current_password" value="Current Password" /> -->
-                <v-text-field
-                    v-model="form.current_password"
-                    :rules="[required]"
-                    type="password"
-                    prepend-inner-icon="mdi-key"
-                    placeholder="Contraseña actual"
-                ></v-text-field>
-                <!-- <TextInput
-                    id="current_password"
-                    ref="currentPasswordInput"
-                    v-model="form.current_password"
-                    type="password"
-                    class="mt-1 block w-full"
-                    autocomplete="current-password"
-                /> -->
-                <InputError
-                    :message="form.errors.current_password"
-                    class="mt-2"
-                />
-            </div>
+    <v-form ref="formRef" @submit.prevent="actualizarContrasena">
+      
+      <v-text-field
+        v-model="form.current_password"
+        :rules="[required]"
+        type="password"
+        label="Contraseña actual"
+        prepend-inner-icon="mdi-lock"
+        :error-messages="form.errors.current_password"
+        class="mb-4"
+      />
 
-            <div class="col-span-6 sm:col-span-4">
-                <!-- <InputLabel for="password" value="New Password" /> -->
-                <!-- <TextInput
-                    id="password"
-                    ref="passwordInput"
-                    v-model="form.password"
-                    type="password"
-                    class="mt-1 block w-full"
-                    autocomplete="new-password"
-                /> -->
-                <v-text-field
-                    v-model="form.password"
-                    :rules="[required,passwordRule]"
-                    type="password"
-                    prepend-inner-icon="mdi-key"
-                    placeholder="Nueva contraseña"
-                ></v-text-field>
+      <v-text-field
+        v-model="form.password"
+        :rules="[required, passwordRule]"
+        type="password"
+        label="Nueva contraseña"
+        prepend-inner-icon="mdi-lock-outline"
+        :error-messages="form.errors.password"
+        class="mb-4"
+      />
 
-                <InputError :message="form.errors.password" class="mt-2" />
-            </div>
+      <v-text-field
+        v-model="form.password_confirmation"
+        :rules="[required, confirmPasswordRule(form.password)]"
+        type="password"
+        label="Confirmar nueva contraseña"
+        prepend-inner-icon="mdi-lock-check"
+        :error-messages="form.errors.password_confirmation"
+        class="mb-6"
+      />
 
-            <div class="col-span-6 sm:col-span-4">
-                <!-- <InputLabel
-                    for="password_confirmation"
-                    value="Confirm Password"
-                /> -->
-                <!-- <TextInput
-                    id="password_confirmation"
-                    v-model="form.password_confirmation"
-                    type="password"
-                    class="mt-1 block w-full"
-                    autocomplete="new-password"
-                /> -->
-                <v-text-field
-                    v-model="form.password_confirmation"
-                    :rules="[required, confirmPasswordRule(form.password)]"
-                    type="password"
-                    prepend-inner-icon="mdi-key"
-                    placeholder="Confirmar contraseña"
-                ></v-text-field>
-                <InputError
-                    :message="form.errors.password_confirmation"
-                    class="mt-2"
-                />
-            </div>
-        </template>
+      <div class="d-flex align-center">
+        <v-btn
+          color="primary"
+          type="submit"
+          :loading="form.processing"
+          :disabled="form.processing"
+        >
+          Guardar cambios
+        </v-btn>
 
-        <template #actions>
-            <ActionMessage :on="form.recentlySuccessful" class="me-3">
-                Saved.
-            </ActionMessage>
+        <v-alert
+          v-if="form.recentlySuccessful"
+          type="success"
+          variant="tonal"
+          class="ms-4"
+          density="compact"
+        >
+          Contraseña actualizada correctamente
+        </v-alert>
+      </div>
 
-            <PrimaryButton
-                :class="{ 'opacity-25': form.processing }"
-                :disabled="form.processing"
-            >
-                Save
-            </PrimaryButton>
-        </template>
-    </FormSection>
+    </v-form>
+  </v-card>
 </template>
