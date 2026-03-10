@@ -1,69 +1,78 @@
 <script setup>
-import AuthenticationCard from '@/Components/AuthenticationCard.vue';
-import AuthenticationCardLogo from '@/Components/AuthenticationCardLogo.vue';
-import InputError from '@/Components/InputError.vue';
-import { Head, useForm } from '@inertiajs/vue3';
+import { Head, useForm } from "@inertiajs/vue3"
+import { computed } from "vue"
 
 defineProps({
-    status: String,
-});
+  status: String,
+})
 
 const form = useForm({
-    email: '',
-});
+  email: "",
+})
 
-const submit = () => {
-    form.post(route('password.email'));
-};
+const enviarEnlace = () => {
+  form.post(route("password.email"))
+}
 </script>
 
 <template>
-    <Head title="Forgot Password" />
+  <Head title="Recuperar contraseña" />
 
-    <AuthenticationCard>
-        <template #logo>
-            <AuthenticationCardLogo />
-        </template>
+  <v-container class="fill-height d-flex align-center justify-center">
+    <v-card width="500" class="pa-6">
 
-        <div class="mb-4 text-sm text-gray-600 dark:text-gray-400">
-            Forgot your password? No problem. Just let us know your email address and we will email you a password reset link that will allow you to choose a new one.
-        </div>
+      <v-card-title class="text-h6 text-center">
+        Recuperar contraseña
+      </v-card-title>
 
-        <div v-if="status" class="mb-4 font-medium text-sm text-green-600 dark:text-green-400">
-            {{ status }}
-        </div>
+      <v-card-text>
 
-        <form @submit.prevent="submit">
-            <div>
-                <v-text-field
-                    required
-                    v-model="form.email"
-                    prepend-inner-icon="mdi-lock"
-                    label="Correo electrónico"
-                    type="email"
-                    variant="outlined"
-                ></v-text-field>
-                <!-- <InputLabel for="email" value="Email" />
-                <TextInput
-                    id="email"
-                    v-model="form.email"
-                    type="email"
-                    class="mt-1 block w-full"
-                    required
-                    autofocus
-                    autocomplete="username"
-                /> -->
-                <InputError class="mt-2" :message="form.errors.email" />
-            </div>
+        <v-alert
+          type="info"
+          variant="tonal"
+          class="mb-4"
+        >
+          ¿Olvidaste tu contraseña?  
+          Ingresa tu correo electrónico y te enviaremos un enlace
+          para restablecerla.
+        </v-alert>
 
-            <div class="flex items-center justify-end mt-4">
-                <v-btn type="submit" :disabled="form.processing" prepend-icon="mdi-login">
-                    Resetear contraseña
-                </v-btn>
-                <!-- <PrimaryButton :class="{ 'opacity-25': form.processing }" :disabled="form.processing">
-                    Email Password Reset Link
-                </PrimaryButton> -->
-            </div>
-        </form>
-    </AuthenticationCard>
+        <v-alert
+          v-if="status"
+          type="success"
+          variant="tonal"
+          class="mb-4"
+        >
+          {{ status }}
+        </v-alert>
+
+        <v-form @submit.prevent="enviarEnlace">
+
+          <v-text-field
+            v-model="form.email"
+            label="Correo electrónico"
+            type="email"
+            prepend-inner-icon="mdi-email-outline"
+            variant="outlined"
+            :error-messages="form.errors.email"
+            required
+            autofocus
+            class="mb-4"
+          />
+
+          <v-btn
+            block
+            color="primary"
+            type="submit"
+            :loading="form.processing"
+            :disabled="form.processing"
+          >
+            Enviar enlace de recuperación
+          </v-btn>
+
+        </v-form>
+
+      </v-card-text>
+    </v-card>
+  </v-container>
 </template>
