@@ -33,12 +33,20 @@ class LoginController extends Controller
                 'message' => 'Unauthorized'
             ], 200);
         }
+        $permissions = $request->user()
+            ->getAllPermissions()
+            ->filter(function ($permission) {
+                return $permission->contexts->contains('value', 'mobile_app');
+            })
+            ->values()
+            ->pluck('name');
         return response()->json([
             // 'token' => $request->user()->createToken($request->device)->plainTextToken,
             // 'message' => 'Success'
             'success' => true,
             'message' => 'Login successful',
-            'token' => $request->user()->createToken($request->email)->plainTextToken
+            'token' => $request->user()->createToken($request->email)->plainTextToken,
+            'permissions' => $permissions
         ]);
     }
 

@@ -12,4 +12,8 @@ class Role extends SpatieRole
     use SerializesDates;
     protected $table = 'roles';
 
+    public function context(): BelongsTo
+    {
+        return $this->belongsTo(Context::class);
+    }
 }
