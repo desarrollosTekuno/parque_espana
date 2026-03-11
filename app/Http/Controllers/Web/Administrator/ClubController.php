@@ -93,4 +93,12 @@ class ClubController extends Controller
         }
         
     }
+
+    public function changeClub(Request $request)
+    {
+        session(['club_id' => $request->club_id]);
+
+        return redirect()->back();
+        //dd(session('club_id'));
+    }
 }
