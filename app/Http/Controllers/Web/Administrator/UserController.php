@@ -97,6 +97,8 @@ class UserController extends Controller
             ]);
             $user->roles()->sync($request->roles);
             $user->clubs()->sync($request->clubs);
+            // send verification email
+            $user->sendEmailVerificationNotification();
             DB::commit();
             return redirect()->back();
         } catch (\Exception $e) {

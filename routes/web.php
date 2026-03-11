@@ -7,7 +7,7 @@ use Inertia\Inertia;
 Route::get('/', function () {
     return redirect(route('login'));
 });
-require __DIR__.'/adminclubs.php';
+
 Route::middleware([
     'auth:sanctum',
     config('jetstream.auth_session'),
@@ -15,3 +15,11 @@ Route::middleware([
 ])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 });
+
+Route::middleware(['auth', 'verified'])
+    ->prefix('superadmin')
+    ->group(__DIR__ . '/administrator.php');
+
+Route::middleware(['auth', 'verified'])
+    ->prefix('admin')
+    ->group(__DIR__ . '/adminclubs.php');

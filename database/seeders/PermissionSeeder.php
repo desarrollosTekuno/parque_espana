@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Context;
 use App\Models\Permission;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -14,35 +15,51 @@ class PermissionSeeder extends Seeder
     public function run(): void
     {
         $permissions = array(
-            array('name' => 'dashboard', 'description' => 'Acceso al dashboard'),
-            array('name' => 'profile.show', 'description' => 'Ver perfil'),
-            array('name' => 'permissions.index', 'description' => 'Ver permisos'),
-            array('name' => 'permissions.store', 'description' => 'Crear permisos'),
-            array('name' => 'permissions.update', 'description' => 'Actualizar permisos'),
-            array('name' => 'permissions.destroy', 'description' => 'Eliminar permisos'),
-            array('name' => 'roles.index', 'description' => 'Ver roles'),
-            array('name' => 'roles.store', 'description' => 'Crear roles'),
-            array('name' => 'roles.update', 'description' => 'Actualizar roles'),
-            array('name' => 'roles.destroy', 'description' => 'Eliminar roles'),
-            array('name' => 'roles.duplicate', 'description' => 'Duplicar roles'),
+            array('name' => 'dashboard', 'description' => 'Acceso al dashboard', 'contexts' => ['web']),
+            array('name' => 'profile.show', 'description' => 'Ver perfil', 'contexts' => ['web']),
+            array('name' => 'permissions.index', 'description' => 'Ver permisos', 'contexts' => ['web']),
+            array('name' => 'permissions.store', 'description' => 'Crear permisos', 'contexts' => ['web']),
+            array('name' => 'permissions.update', 'description' => 'Actualizar permisos', 'contexts' => ['web']),
+            array('name' => 'permissions.destroy', 'description' => 'Eliminar permisos', 'contexts' => ['web']),
+            array('name' => 'roles.index', 'description' => 'Ver roles', 'contexts' => ['web']),
+            array('name' => 'roles.store', 'description' => 'Crear roles', 'contexts' => ['web']),
+            array('name' => 'roles.update', 'description' => 'Actualizar roles', 'contexts' => ['web']),
+            array('name' => 'roles.destroy', 'description' => 'Eliminar roles', 'contexts' => ['web']),
+            array('name' => 'roles.duplicate', 'description' => 'Duplicar roles', 'contexts' => ['web']),
             // Users
-            array('name' => 'users.index', 'description' => 'Ver usuarios'),
-            array('name' => 'users.store', 'description' => 'Crear usuarios'),
-            array('name' => 'users.update', 'description' => 'Actualizar usuarios'),
-            array('name' => 'users.destroy', 'description' => 'Eliminar usuarios'),
+            array('name' => 'users.index', 'description' => 'Ver usuarios', 'contexts' => ['web']),
+            array('name' => 'users.store', 'description' => 'Crear usuarios', 'contexts' => ['web']),
+            array('name' => 'users.update', 'description' => 'Actualizar usuarios', 'contexts' => ['web']),
+            array('name' => 'users.destroy', 'description' => 'Eliminar usuarios', 'contexts' => ['web']),
             // Clubs
-            array('name' => 'clubs.index', 'description' => 'Ver clubes'),
-            array('name' => 'clubs.store', 'description' => 'Crear clubes'),
-            array('name' => 'clubs.update', 'description' => 'Actualizar clubes'),
-            array('name' => 'clubs.destroy', 'description' => 'Eliminar clubes'),
+            array('name' => 'clubs.index', 'description' => 'Ver clubes', 'contexts' => ['web']),
+            array('name' => 'clubs.store', 'description' => 'Crear clubes', 'contexts' => ['web']),
+            array('name' => 'clubs.update', 'description' => 'Actualizar clubes', 'contexts' => ['web']),
+            array('name' => 'clubs.destroy', 'description' => 'Eliminar clubes', 'contexts' => ['web']),
             // Amenidades
-            array('name' => 'amenities.index', 'description' => 'Ver amenidades'),
-            array('name' => 'amenities.store', 'description' => 'Crear amenidades'),
-            array('name' => 'amenities.update', 'description' => 'Actualizar amenidades'),
+            array('name' => 'amenities.index', 'description' => 'Ver amenidades', 'contexts' => ['web']),
+            array('name' => 'amenities.store', 'description' => 'Crear amenidades', 'contexts' => ['web']),
+            array('name' => 'amenities.update', 'description' => 'Actualizar amenidades', 'contexts' => ['web']),
             array('name' => 'amenities.destroy', 'description' => 'Eliminar amenidades'),
         );
         foreach ($permissions as $permission) {
-            Permission::updateOrCreate(['name' => $permission['name']], $permission);
+            $createPermission= Permission::updateOrCreate(['name' => $permission['name']], [
+                'description' => $permission['description'],
+            ]);
+            if (isset($permission['contexts'])) {
+                $createPermission->contexts()->sync( 
+                    array_map(function ($context) {
+                        return Context::firstOrCreate([
+                            'value' => $context
+                        ], ['name' => $context, 'value' => $context])->id;
+                    }, $permission['contexts'])
+                );
+            }else{
+                // Sync with web context by default
+                $createPermission->contexts()->sync([
+                    Context::firstOrCreate(['value' => 'web'], ['name' => 'Web', 'value' => 'web'])->id
+                ]);
+            }
         }
     }
 }

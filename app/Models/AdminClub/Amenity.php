@@ -2,13 +2,15 @@
 
 namespace App\Models\AdminClub;
 
+use App\Traits\SerializesDates;
 use App\Models\Administrator\Club;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class Amenity extends Model {
-    use HasFactory, SoftDeletes;
+class Amenity extends Model
+{
+    use HasFactory, SoftDeletes, SerializesDates;
 
     protected $fillable = [
         'name',

@@ -17,19 +17,21 @@ const canRole = usePage().props.auth.roles;
 interface Props {
     permissions?: any;
     guards?: any;
+    permissionContexts?: any;
 }
 
 interface Permissions {
     id: number | null;
     name: string;
     description: string;
-    guard_name: string;
+    permission_contexts?: any;
 }
 
 // const props = defineProps<Props>();
 const props = withDefaults(defineProps<Props>(), {
     permissions: null,
     guards: null,
+    permissionContexts: null,
 });
 
 /* refs */
@@ -41,7 +43,7 @@ const form = useForm<Permissions>({
     id: null,
     name: "",
     description: "",
-    guard_name: "web",
+    permission_contexts: [],
 });
 
 const create = () => {
@@ -103,8 +105,7 @@ const edit = (data: any) => {
     form.id = data.id;
     form.name = data.name;
     form.description = data.description;
-    form.guard_name = data.guard_name;
-
+    form.permission_contexts = data.contexts.map((context: any) => context.id);
     console.log(data);
 
     // headQuarterForm.id = data.id;
@@ -150,8 +151,9 @@ const close = () => {
 /* INICIO DATATABLE SERVER SIDE */
 // Aquí se definen los encabezados de la tabla, donde key es el nombre de la columna en la base de datos
 const headers = [
-    { title: "Nombre", key: "name" },
-    { title: "Guard", key: "guard_name" },
+    { title: "Nombre de ruta(Spatie)", key: "name" },
+    { title: "Disponible en", key: "contexts", sortable: false },
+    // { title: "Guard", key: "guard_name" },
     { title: "Descripción", key: "description" },
     { title: "Creado el", key: "created_at" },
     { title: "Actualizado el", key: "updated_at" },
@@ -216,7 +218,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
 
         <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
             <!-- <div class="p-6 border-b border-gray-200"> -->
-           
+
             <v-row>
                 <v-col cols="12">
                     <v-data-table-server
@@ -246,6 +248,16 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                         </template>
                         <template v-slot:item.updated_at="{ item }">
                             {{ formatDateTime(item.updated_at) }}
+                        </template>
+                        <template v-slot:item.contexts="{ item }">
+                                <v-chip
+                                    v-for="context in item.contexts"
+                                    :key="context.id"
+                                    color="primary"
+                                    class="ma-1"
+                                >
+                                    {{ context.name }}
+                                </v-chip>
                         </template>
 
                         <template #item.actions="{ item }">
@@ -303,22 +315,34 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 />
                             </v-col>
                             <v-col cols="12">
-                                <v-text-field
+                                <v-textarea
                                     v-model="form.description"
                                     label="Descripción"
                                     persistent-hint
+                                    clearable
+                                    counter
+                                    rows="3"
                                     :rules="[optionalLength(0, 75)]"
+                                    auto-grow
+                                    variant="filled"
                                 />
                             </v-col>
                             <v-col cols="12">
-                                <v-select
-                                    v-model="form.guard_name"
-                                    placeholder="Guard"
-                                    hint="Guard"
-                                    persistent-hint
-                                    :items="props.guards"
+                                <v-autocomplete
+                                    prepend-inner-icon="mdi-certificate-outline"
+                                    v-model="form.permission_contexts"
+                                    chips
+                                    closable-chips
+                                    multiple
+                                    clearable
+                                    item-value="id"
+                                    item-title="name"
+                                    :items="props.permissionContexts"
                                     :rules="[selectRequired]"
-                                />
+                                    hint="Disponible en"
+                                    persistent-hint
+                                >
+                                </v-autocomplete>
                             </v-col>
                         </v-row>
                     </v-card-text>

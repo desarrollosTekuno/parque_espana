@@ -9,9 +9,11 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
 
-class ClubController extends Controller {
+class ClubController extends Controller
+{
 
-    public function index(Request $request) {
+    public function index(Request $request)
+    {
         // Detectar el driver de base de datos para adaptar el filtro de búsqueda
         $driver = DB::getDriverName();
 
@@ -45,14 +47,15 @@ class ClubController extends Controller {
         ]);
     }
 
-    public function store(Request $request) {
+    public function store(Request $request)
+    {
 
-         try {
+        try {
             $club = Club::create($request->all());
             return redirect()->back();
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([
-                'messageError' =>  'Ocurrió un error al crear el club',
+                'messageError' => 'Ocurrió un error al crear el club',
                 'exception' => $e->getMessage(),
             ]);
         }
@@ -61,25 +64,34 @@ class ClubController extends Controller {
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id) {
-        //$validated = $request->validate([
-        //    'field1' => 'required|string|max:255',
-        //    'field2' => 'required|email|unique:table,column,' . $id,
-        //]);
-
-        //Model::where('column', $id)->update([
-        //    'field1' => $validated['field1'],
-        //    'field2' => $validated['field2'],
-        //]);
-
-        return redirect()->back()->with('success', 'Message');
+    public function update(Request $request, Club $club)
+    {
+        try {
+            $club->update($request->all());
+            return redirect()->back()->with('success', 'Club actualizado con éxito!');
+        } catch (\Exception $e) {
+            return redirect()->back()->withErrors([
+                'messageError' => 'Ocurrió un error al actualizar el club',
+                'exception' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(string $id) {
-        return redirect()->back()->with('success', 'Message');
+    public function destroy(Club $club)
+    {
+        try {
+            $club->delete();
+            return redirect()->back()->with('success', 'Club eliminado con éxito!');
+        } catch (\Exception $e) {
+            return redirect()->back()->withErrors([
+                'messageError' => 'Ocurrió un error al eliminar el club',
+                'exception' => $e->getMessage(),
+            ]);
+        }
+        
     }
 
     public function changeClub(Request $request)

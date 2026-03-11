@@ -2,8 +2,11 @@
 
 namespace App\Http\Middleware;
 
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
+
+use function Symfony\Component\Clock\now;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -35,19 +38,58 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
-         return array_merge(parent::share($request), [
-            // Logo from the company settings table directly from the database without user
-            //'branding' => TenantBranding::where('company_id', $request->user()->company_id)->first(),
+        return array_merge(parent::share($request), [
             'auth' => [
-                'user' => $request->user(),
-                'roles' => $request->user() ? $request->user()->roles->pluck('name') : [],
-                'permissions' => $request->user() ? $request->user()->getAllPermissions()->pluck('name') : [],
+                'user' => $request->user()
+                    ? array_merge(
+                        $request->user()->toArray(),
+                        [
+                            'two_factor_enabled' => $request->user()->two_factor_confirmed_at !== null,
+                        ]
+                    )
+                    : null,
+
+                'roles' => $request->user()
+                    ? $request->user()->roles->pluck('name')
+                    : [],
+                // 'roles' => cache()->remember(
+                //     "user_roles_{$request->user()->id}",
+                //     Carbon::now()->addMinutes(10),
+                //     fn () => $request->user()
+                //         ? $request->user()->roles->pluck('name')
+                //         : []
+                // ),
+
+                'permissions' => $request->user()
+                    ? $request->user()
+                        ->getAllPermissions()
+                        ->filter(function ($permission) {
+                            return $permission->contexts->contains('value', 'web');
+                        })
+                        ->pluck('name')
+                        ->values()
+                    : [],
+                // 'permissions' => cache()->remember(
+                //     "user_permissions_{$request->user()->id}",
+                //     Carbon::now()->addMinutes(10),
+                //     fn () => $request->user()
+                //         ? $request->user()
+                //             ->getAllPermissions()
+                //             ->filter(function ($permission) {
+                //                 return $permission->contexts->contains('value', 'web');
+                //             })
+                //             ->pluck('name')
+                //             ->values()
+                //         : []
+                // )
             ],
+
             'flash' => function () use ($request) {
                 return [
                     'success' => $request->session()->get('success'),
                 ];
             },
+
             'showingMobileMenu' => false,
         ]);
     }
