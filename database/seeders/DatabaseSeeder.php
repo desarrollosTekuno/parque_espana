@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
         // User::factory(10)->create();
 
         $this->call([
+            ContextSeeder::class,
             PermissionSeeder::class,
             SuperAdminSeeder::class,
             UserSeeder::class,

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web\Administrator;
 
+use App\Models\Context;
 use App\Models\Permission;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -29,7 +30,8 @@ class PermissionController extends Controller
         $prefix = 'permissions';
 
         // Query base
-        $query = Permission::query();
+        // $query = Permission::query();
+        $query = Permission::with('contexts:id,name');
 
         // Filtro de búsqueda
         if ($search = $request->input("{$prefix}_search")) {
@@ -49,11 +51,13 @@ class PermissionController extends Controller
             ['*'],
             "{$prefix}_page" // nombre del query param para la página
         )->appends($request->all()); // mantener todos los query params
+        $permissionContexts = Context::select('id', 'name', 'value')->get();
 
         return Inertia::render('Administrator/Permissions/Index', [
             // return Inertia::render('Template', [
             'permissions' => $permissions,
             'guards' => $guards,
+            'permissionContexts' => $permissionContexts,
         ]);
     }
 
@@ -61,20 +65,26 @@ class PermissionController extends Controller
     {
         // return $request->all();
         try {
+            DB::beginTransaction();
             // validar que el nombre del permiso sea único para el guard especificado
             $validator = Validator::make($request->all(), [
                 'name' => 'unique:permissions,name,NULL,id,guard_name,' . $request->guard_name
             ]);
             if ($validator->fails()) {
+                DB::rollBack();
                 return redirect()->back()->withErrors([
-                    'messageError' =>  'El nombre del permiso ya existe para el guard seleccionado',
+                    'messageError' => 'El nombre del permiso ya existe para el guard seleccionado',
                     'exception' => '',
                 ]);
             }
 
-            Permission::create($request->all());
+            $permission = Permission::create($request->all());
+            $permission->contexts()->sync($request->permission_contexts ?? []);
+            app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+            DB::commit();
             return redirect()->back();
         } catch (\Exception $e) {
+            DB::rollBack();
             return redirect()->back()->withErrors([
                 'messageError' => 'Ocurrió un error al crear el permiso',
                 'exception' => $e->getMessage(),
@@ -89,19 +99,25 @@ class PermissionController extends Controller
     {
         // return $request->all();
         try {
+            DB::beginTransaction();
             // validar que el nombre del permiso sea único para el guard especificado, excluyendo el permiso actual
             $validator = Validator::make($request->all(), [
                 'name' => 'unique:permissions,name,' . $permission->id . ',id,guard_name,' . $request->guard_name
             ]);
             if ($validator->fails()) {
+                DB::rollBack();
                 return redirect()->back()->withErrors([
-                    'messageError' =>  'El nombre del permiso ya existe para el guard seleccionado',
+                    'messageError' => 'El nombre del permiso ya existe para el guard seleccionado',
                     'exception' => '',
                 ]);
             }
             $permission->update($request->all());
+            $permission->contexts()->sync($request->permission_contexts ?? []);
+            app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+            DB::commit();
             return redirect()->back();
         } catch (\Exception $e) {
+            DB::rollBack();
             return redirect()->back()->withErrors([
                 'messageError' => 'Ocurrió un error al actualizar el permiso',
                 'exception' => $e->getMessage(),
@@ -114,22 +130,28 @@ class PermissionController extends Controller
      */
     public function destroy(Permission $permission)
     {
+        DB::beginTransaction();
         // dd($permission->roles);
         // return response()->json([
         //     'permission' => $permission
         // ]);
         try {
+            $permission->contexts()->detach();
             // /validar que el permiso no esté asignado a ningún rol antes de eliminarlo
             if ($permission->roles()->count() > 0) {
+                DB::rollBack();
                 return redirect()->back()->withErrors([
-                    'messageError' =>  'No se puede eliminar el permiso porque está asignado a
+                    'messageError' => 'No se puede eliminar el permiso porque está asignado a
                         uno o más roles',
                     'exception' => '',
                 ]);
             }
             $permission->delete();
+            app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+            DB::commit();
             return redirect()->back();
         } catch (\Exception $e) {
+            DB::rollBack();
             return redirect()->back()->withErrors([
                 'messageError' => 'Ocurrió un error al eliminar el permiso',
                 'exception' => $e->getMessage(),

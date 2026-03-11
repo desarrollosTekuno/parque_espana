@@ -6,8 +6,6 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
-use Inertia\Inertia;
-
 
 class LoginController extends Controller
 {
@@ -33,21 +31,37 @@ class LoginController extends Controller
                 'message' => 'Unauthorized'
             ], 200);
         }
+        $permissions = $request->user()
+            ->getAllPermissions()
+            ->filter(function ($permission) {
+                return $permission->contexts->contains('value', 'mobile_app');
+            })
+            ->values()
+            ->pluck('name');
         return response()->json([
             // 'token' => $request->user()->createToken($request->device)->plainTextToken,
             // 'message' => 'Success'
             'success' => true,
             'message' => 'Login successful',
-            'token' => $request->user()->createToken($request->email)->plainTextToken
+            'token' => $request->user()->createToken($request->email)->plainTextToken,
+            'permissions' => $permissions
         ]);
     }
 
     public function logout(Request $request)
     {
-        $request->user()->tokens()->delete();
-        return response()->json([
-            'success' => true,
-            'message' => 'Logout successful'
-        ]);
+        try {
+            $request->user()->currentAccessToken()->delete();
+            return response()->json([
+                'success' => true,
+                'message' => 'Logout successful'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Logout failed',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }

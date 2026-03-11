@@ -1,8 +1,20 @@
 <script setup lang="ts">
 import Loader from "@/Components/Loader.vue";
 import Navigation from "@/Layouts/Navigation.vue";
+import { router, usePage } from "@inertiajs/vue3";
 import { isLoading } from "@/loading";
 import { ref } from "vue";
+
+const page = usePage<any>();
+
+const clubs = page.props.auth?.clubs ?? [];
+const selectedClub = ref(page.props.auth?.currentClub ?? null);
+
+const changeClub = () => {
+    router.post(route("change.club"), {
+        club_id: selectedClub.value
+    });
+};
 const drawer = ref(true);
 const rail = ref(false);
 const clicStop = (displayMobile: boolean) => {
