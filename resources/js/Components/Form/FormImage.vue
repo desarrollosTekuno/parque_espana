@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed } from "vue";
+import { ref, computed } from "vue";
 
 const props = defineProps({
   modelValue: File || null,
@@ -9,91 +9,64 @@ const props = defineProps({
   },
   maxSizeMB: {
     type: Number,
-    default: 2, // tamaño máximo 2MB
+    default: 2,
   },
   allowedExtensions: {
     type: Array as () => string[],
-    default: () => ["jpg", "jpeg", "png", "webp"], // extensiones permitidas
+    default: () => ["jpg", "jpeg", "png", "webp"],
   },
 });
 
 const emit = defineEmits(["update:modelValue"]);
 
-const preview = ref<string | null>(null);
-const errorMessage = ref<string>("");
+const errorMessage = ref("");
 
-// --- Validación estricta para v-form ---
-const validate = (): boolean => {
+const isValid = computed(() => {
   return !!props.modelValue && !errorMessage.value;
-};
+});
 
-// --- Computed que indica si el input es válido ---
-const isValid = computed(() => validate());
+const handleFile = (file: File | null) => {
+  if (!file) {
+    emit("update:modelValue", null);
+    errorMessage.value = "";
+    return;
+  }
 
-const onFileChange = (event: any) => {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  // --- Validación de extensión ---
   const fileExt = file.name.split(".").pop()?.toLowerCase();
+
   if (!fileExt || !props.allowedExtensions.includes(fileExt)) {
     errorMessage.value = `Solo se permiten: ${props.allowedExtensions.join(", ")}`;
-    preview.value = null;
     emit("update:modelValue", null);
     return;
   }
 
-  // --- Validación de tamaño ---
   const maxBytes = props.maxSizeMB * 1024 * 1024;
+
   if (file.size > maxBytes) {
     errorMessage.value = `El archivo no puede superar ${props.maxSizeMB} MB`;
-    preview.value = null;
     emit("update:modelValue", null);
     return;
   }
 
-  // --- Archivo válido ---
   errorMessage.value = "";
   emit("update:modelValue", file);
-
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    preview.value = e.target?.result as string;
-  };
-  reader.readAsDataURL(file);
 };
 
-watch(
-  () => props.modelValue,
-  (file: any) => {
-    if (!file) {
-      preview.value = null;
-      errorMessage.value = "";
-    }
-  }
-);
-
-defineExpose({ validate, isValid });
+defineExpose({ isValid });
 </script>
 
 <template>
-  <v-file-input
-    accept="image/*"
-    :label="label"
-    prepend-inner-icon="mdi-image-area"
-    prepend-icon=""
-    :error="!!errorMessage"
-    :error-messages="errorMessage"
-    @change="onFileChange"
-    clearable
-  />
 
-  <div v-if="preview" class="mt-3">x
-    <v-img
-      :src="preview"
-      height="150"
-      cover
-      class="rounded"
-    />
-  </div>
+<v-file-input
+  :model-value="modelValue"
+  @update:modelValue="handleFile"
+  accept="image/*"
+  :label="label"
+  prepend-inner-icon="mdi-image-area"
+  prepend-icon=""
+  :error="!!errorMessage"
+  :error-messages="errorMessage"
+  clearable
+/>
+
 </template>

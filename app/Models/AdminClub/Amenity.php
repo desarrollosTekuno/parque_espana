@@ -18,7 +18,7 @@ class Amenity extends Model {
         'reservation_type',
         'capacity',
         'is_active',
-        'slot_durations_minutes',
+        'slot_duration_minutes',
         'club_id',
     ];
     protected $guarded = ['id', 'created_at', 'updated_at'];

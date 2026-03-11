@@ -62,13 +62,8 @@ public function index(Request $request)
         $amenity = Amenity::findOrFail($id);
 
         $data = $request->all();
-        if ($request->hasFile('icon')) {
-            if ($amenity->icon) {
-                Storage::disk('public')->delete($amenity->icon);
-            }
-            $data['icon'] = $request->file('icon')->store('amenities/icons', 'public');
-        }
-        if ($request->hasFile('background_image')) {
+
+        /*if ($request->hasFile('background_image')) {
 
             if ($amenity->background_image) {
                 Storage::disk('public')->delete($amenity->background_image);
@@ -76,7 +71,38 @@ public function index(Request $request)
 
             $data['background_image'] = $request->file('background_image')->store('amenities/backgrounds', 'public');
         }
+        else{
+            unset($data['background_image']);
+        }
+        if ($request->remove_background_image === true) {
+            Storage::disk('public')->delete($amenity->background_image);
+            $amenity->background_image = null;
+        }*/
 
+        if ($request->hasFile('icon')) {
+            if ($amenity->icon) {
+                Storage::disk('public')->delete($amenity->icon);
+            }
+        $data['icon'] = $request->file('icon')->store('amenities/icons', 'public');
+        } elseif ($request->remove_icon) {
+            if ($amenity->icon) {
+                Storage::disk('public')->delete($amenity->icon);
+            }
+        $data['icon'] = null;
+        }
+
+        if ($request->hasFile('background_image')) {
+            if ($amenity->background_image) {
+            Storage::disk('public')->delete($amenity->background_image);
+            }
+        $data['background_image'] = $request->file('background_image')->store('amenities/backgrounds', 'public');
+        } elseif ($request->remove_background_image) {
+            if ($amenity->background_image) {
+                Storage::disk('public')->delete($amenity->background_image);
+            }
+        $data['background_image'] = null;
+        }
+        //dd($request->all());
         $amenity->update($data);
         return redirect()->back()->with('success', 'Amenidad actualizada correctamente');
     }
