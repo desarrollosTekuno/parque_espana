@@ -73,7 +73,13 @@ const form = useForm<Amenity>({
     is_active: true,
     slot_duration_minutes: null,
 });
+const showCapacity = computed(() => {
+    return form.reservation_type === 'capacity_based'
+})
 
+const showSlotDuration = computed(() => {
+    return form.reservation_type === 'exclusive'
+})
 const create = () => {
     form.reset();
     imagePreview.value = null;
@@ -252,6 +258,17 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
 watch(() => page.props.auth.currentClub, () => {
     fetchItems();
 });
+watch(() => form.reservation_type, (type) => {
+
+    if (type === 'capacity_based') {
+        form.slot_duration_minutes = null
+    }
+
+    if (type === 'exclusive') {
+        form.capacity = null
+    }
+
+})
 
 </script>
 
@@ -378,14 +395,14 @@ watch(() => page.props.auth.currentClub, () => {
                                 :rules="[required]"
                             />
                         </v-col>
-                        <v-col cols="12">
+                        <v-col cols="12" v-if="showCapacity">
                             <FormNumber
                                 v-model="form.capacity" 
                                 label="Capacidad"
                                 :min="0"
                             />
                         </v-col>
-                        <v-col cols="12">
+                        <v-col cols="12" v-if="showSlotDuration">
                             <FormNumber
                                 v-model="form.slot_duration_minutes"
                                 label="Espacio de reserva en minutos"
