@@ -3,6 +3,7 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { ref, watch } from 'vue';
 import { debounce } from 'lodash';
+import { formatDate, formatTime } from '@/constants/formatDates';
 
 const can = usePage().props.auth.permissions;
 const canRole = usePage().props.auth.roles;
@@ -13,6 +14,7 @@ interface Props {
 
 interface Reservation {
     id: number | null;
+    date: string;
     start_time: string;
     end_time: string;
     status: string;
@@ -29,6 +31,7 @@ const props = withDefaults(defineProps<Props>(), {
 // Forms
 const form = useForm<Reservation>({
     id: null,
+    date: "",
     start_time: "",
     end_time: "",
     status: "",
@@ -50,6 +53,7 @@ const showModal = ref(false);
 // Aquí se definen los encabezados de la tabla, donde key es el nombre de la columna en la base de datos
 const headers = [
     { title: "ID", key: "id" },
+    { title: "Fecha", key: "date" },
     { title: "Hora Inicio", key: "start_time" },
     { title: "Hora Fin", key: "end_time" },
     { title: "Estatus", key: "status" },
@@ -137,6 +141,18 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 class="mx-4 mt-2"
                                 clearable
                             />
+                        </template>
+
+                        <template v-slot:item.date="{ item }">
+                            {{ formatDate(item.date) }}
+                        </template>
+
+                        <template v-slot:item.start_time="{ item }">
+                            {{ formatTime(item.start_time)}}
+                        </template>
+
+                        <template v-slot:item.end_time="{ item }">
+                            {{ formatTime(item.end_time)}}
                         </template>
 
                         <template #item.actions="{ item }">
