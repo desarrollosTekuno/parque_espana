@@ -82,4 +82,41 @@ class ReservationController extends Controller {
         }
 
     }
+
+    public function destroy(Reservation $reservation)
+    {
+        try {
+            $reservation->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Reservación eliminada correctamente'
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Ocurrió un error al eliminar la reservación',
+                'error_details' => $e->getMessage()
+            ], 500);
+        }
+
+    }
+
+    public function myReservations(Request $request)
+    {
+        try {
+            $reservations = Reservation::with(['amenity', 'status'])->where('user_id', $request->user()->id)->get();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Reservaciones obtenidas correctamente',
+                'reservaciones' => $reservations
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Ocurrió un error al obtener las reservaciones',
+                'error_details' => $e->getMessage()
+            ], 500);
+        }
+
+    }
 }
