@@ -16,6 +16,7 @@ import { computed, ref, watch } from "vue";
 
 const can = usePage().props.auth.permissions;
 const canRole = usePage().props.auth.roles;
+const page = usePage<any>();
 
 interface Props {
     roles?: any;
@@ -71,7 +72,7 @@ const save = () => {
             form.put(route("roles.update", form.id), {
                 onSuccess: () => {
                     customToastSwal({
-                        title: "Rol actualizado con éxito!",
+                        title: page.props.flash.success || "",
                         icon: "success",
                     });
                     showModal.value = false;
@@ -90,7 +91,7 @@ const save = () => {
             form.post(route("roles.store"), {
                 onSuccess: () => {
                     customToastSwal({
-                        title: "Rol creado con éxito!",
+                        title: page.props.flash.success || "",
                         icon: "success",
                     });
                     showModal.value = false;
@@ -140,10 +141,17 @@ const duplicate = (data: any) => {
             form.post(route("roles.duplicate"), {
                 onSuccess: () => {
                     customToastSwal({
-                        title: "Rol creado correctamente",
+                        title: page.props.flash.success || "",
                         icon: "success",
                     });
                     fetchItems();
+                },
+                onError: () => {
+                    customToastSwal({
+                        title: `Error: ${form.errors.messageError}`,
+                        text: `${form.errors.exception}`,
+                        icon: "error",
+                    });
                 },
             });
         }
@@ -158,10 +166,17 @@ const destroy = (data: any) => {
             form.delete(route("roles.destroy", data.id), {
                 onSuccess: () => {
                     customToastSwal({
-                        title: "Rol eliminado correctamente",
+                        title: page.props.flash.success || "",
                         icon: "success",
                     });
                     fetchItems();
+                },
+                onError: () => {
+                    customToastSwal({
+                        title: `Error: ${form.errors.messageError}`,
+                        text: `${form.errors.exception}`,
+                        icon: "error",
+                    });
                 },
             });
         }

@@ -82,7 +82,7 @@ class PermissionController extends Controller
             $permission->contexts()->sync($request->permission_contexts ?? []);
             app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
             DB::commit();
-            return redirect()->back();
+            return redirect()->back()->with('success', 'Permiso creado con éxito!');
         } catch (\Exception $e) {
             DB::rollBack();
             return redirect()->back()->withErrors([
@@ -115,7 +115,7 @@ class PermissionController extends Controller
             $permission->contexts()->sync($request->permission_contexts ?? []);
             app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
             DB::commit();
-            return redirect()->back();
+            return redirect()->back()->with('success', 'Permiso actualizado con éxito!');
         } catch (\Exception $e) {
             DB::rollBack();
             return redirect()->back()->withErrors([
@@ -149,7 +149,7 @@ class PermissionController extends Controller
             $permission->delete();
             app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
             DB::commit();
-            return redirect()->back();
+            return redirect()->back()->with('success', 'Permiso eliminado con éxito!');
         } catch (\Exception $e) {
             DB::rollBack();
             return redirect()->back()->withErrors([

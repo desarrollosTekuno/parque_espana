@@ -93,7 +93,7 @@ class RoleController extends Controller
             $role = Role::create($request->except('permissions'));
             $role->syncPermissions($request->permissions);
             app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
-            return redirect()->back();
+            return redirect()->back() ->with('success', 'Rol creado con éxito!');
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([
                 'messageError' =>  'Ocurrió un error al crear el rol',
@@ -122,7 +122,7 @@ class RoleController extends Controller
             $role->update($request->except('permissions'));
             $role->syncPermissions($request->permissions);
             app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
-            return redirect()->back();
+            return redirect()->back()->with('success', 'Rol actualizado con éxito!');
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([
                 'messageError' =>  'Ocurrió un error al actualizar el rol',
@@ -148,7 +148,7 @@ class RoleController extends Controller
             }
             $role->delete();
             app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
-            return redirect()->back();
+            return redirect()->back()->with('success', 'Rol eliminado con éxito!');
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([
                 'messageError' =>  'Ocurrió un error al eliminar el rol',
@@ -168,7 +168,7 @@ class RoleController extends Controller
             );
             $role->syncPermissions($request->permissions);
             app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
-            return redirect()->back();
+            return redirect()->back()->with('success', 'Rol duplicado con éxito!');
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([
                 'messageError' =>  'Ocurrió un error al crear el rol',
