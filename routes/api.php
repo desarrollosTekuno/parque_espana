@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\LoginController;
+use App\Http\Controllers\Api\V1\ReservationController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -13,4 +14,8 @@ Route::prefix('v1')->group(function () {
 // Get user
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return response()->json($request->user());
+
+// Route::post('reservations', [ReservationController::class, 'store'])->middleware('auth:sanctum');
+
+Route::apiResource('reservations', ReservationController::class)->only(['store'])->middleware('auth:sanctum');
 });

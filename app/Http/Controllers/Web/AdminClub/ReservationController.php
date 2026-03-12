@@ -2,16 +2,58 @@
 
 namespace App\Http\Controllers\Web\AdminClub;
 
-use App\Http\Controllers\Controller;
+use App\Models\AdminClub\Reservation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
+use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\DB;
 
 class ReservationController extends Controller {
 
-    public function index() {
-        //$items = Model::get();
-        //return Inertia::render('Ruta/Vista', compact('items'));
+    public function _construct()
+    {
+        $this->middleware('permission:reservations.index')->only('index');
+    }
+
+    public function index(Request $request)
+    {
+        // Detectar el driver de base de datos para adaptar el filtro de búsqueda
+        $driver = DB::getDriverName();
+
+        // Prefijo para evitar conflicto con otras tablas
+        $prefix = 'reservations';
+
+        // Query base
+        $query = Reservation::with(['amenity']);
+
+        if ($search = $request->input("{$prefix}_search")) {
+
+            $query->where(function ($q) use ($driver, $search) {
+                // $q->where('start_time', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
+                // ->orWhere('end_time', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
+                $q->where('status', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
+                ->orWhereHas('amenity', function ($q2) use ($driver, $search){
+                    $q2->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
+                });
+            });
+        }
+
+        $sort = $request->input("{$prefix}_sort", 'id');
+        $order = $request->input("{$prefix}_order", 'desc');
+
+        $query->orderBy($sort, $order);
+
+        $reservations = $query->paginate(
+            $request->input("{$prefix}_per_page", 10),
+            ['*'],
+            "{$prefix}_page"
+        )->appends($request->all());
+
+        return Inertia::render('AdminClubs/Reservations/Index', [
+            'reservations' => $reservations
+        ]);
+
     }
 
     public function store(Request $request) {
