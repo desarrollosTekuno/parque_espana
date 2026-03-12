@@ -12,7 +12,7 @@ import { Form, Head, router, useForm, usePage } from "@inertiajs/vue3";
 import { debounce } from "lodash";
 import { ref, watch, computed } from "vue";
 
-const page = usePage();
+const page = usePage<any>();
 const can = usePage().props.auth.permissions;
 const imageRef = ref<any>(null);
 const iconRef = ref<any>(null);
@@ -100,7 +100,7 @@ const save = () => {
                     forceFormData: true,
                     onSuccess: () => {
                         customToastSwal({
-                            title: "Amenidad actualizada con éxito!",
+                            title: page.props.flash.success || "",
                             icon: "success"
                         });
                         showModal.value = false;
@@ -109,7 +109,15 @@ const save = () => {
                         imagePreview.value = null;
                         iconPreview.value = null;
                         fetchItems();
-                    }
+                    },
+                    onError: () => {
+                        customToastSwal({
+                            title: `Error: ${form.errors.messageError}`,
+                            text: `${form.errors.exception}`,
+                            icon: "error",
+                        });
+                        // console.log(form.errors);
+                    },
                 });
         } else {
             form
@@ -121,7 +129,7 @@ const save = () => {
                     onSuccess: () => {
 
                         customToastSwal({
-                            title: "Amenidad creada con éxito!",
+                            title: page.props.flash.success || "",
                             icon: "success"
                         });
 
@@ -131,7 +139,15 @@ const save = () => {
                         iconPreview.value = null;
 
                         fetchItems();
-                    }
+                    },
+                    onError: () => {
+                        customToastSwal({
+                            title: `Error: ${form.errors.messageError}`,
+                            text: `${form.errors.exception}`,
+                            icon: "error",
+                        });
+                        // console.log(form.errors);
+                    },
                 });
 
         }
@@ -165,8 +181,16 @@ const destroy = (data: any) => {
         if (result.isConfirmed) {
             form.delete(route("amenities.destroy", data.id), {
                 onSuccess: () => {
-                    customToastSwal({ title: "Registro eliminado correctamente", icon: "success" });
+                    customToastSwal({ title: page.props.flash.success || "", icon: "success" });
                     fetchItems();
+                },
+                onError: () => {
+                    customToastSwal({
+                        title: `Error: ${form.errors.messageError}`,
+                        text: `${form.errors.exception}`,
+                        icon: "error",
+                    });
+                    // console.log(form.errors);
                 },
             });
         }
@@ -277,7 +301,7 @@ watch(() => form.reservation_type, (type) => {
     <AppLayout>
         <template #header>Amenidades</template>
         <template #options>
-            <BaseButton variant="elevated" :icon-only="false" @click="create" action="add" />
+            <BaseButton variant="elevated" :icon-only="false" @click="create" action="add" v-if="can.includes('amenities.store')" />
         </template>
 
         <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">

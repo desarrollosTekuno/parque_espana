@@ -14,6 +14,8 @@ import { ref, watch } from "vue";
 import { formatDateTime } from "../../../constants/formatDates";
 const can = usePage().props.auth.permissions;
 const canRole = usePage().props.auth.roles;
+const page = usePage<any>();
+
 interface Props {
     permissions?: any;
     guards?: any;
@@ -59,7 +61,7 @@ const save = () => {
                 form.put(route("permissions.update", form.id), {
                     onSuccess: () => {
                         customToastSwal({
-                            title: "Permiso actualizado con éxito!",
+                            title: page.props.flash.success || "",
                             icon: "success",
                         });
                         showModal.value = false;
@@ -80,7 +82,7 @@ const save = () => {
                 form.post(route("permissions.store"), {
                     onSuccess: () => {
                         customToastSwal({
-                            title: "Permiso creado con éxito!",
+                            title: page.props.flash.success || "",
                             icon: "success",
                         });
                         showModal.value = false;
@@ -126,7 +128,7 @@ const destroy = (data: any) => {
             form.delete(route("permissions.destroy", data.id), {
                 onSuccess: () => {
                     customToastSwal({
-                        title: "Registro eliminado correctamente",
+                        title: page.props.flash.success || "",
                         icon: "success",
                     });
                     /* Es necesario invocar fetchPermission para refrescar el datatable */

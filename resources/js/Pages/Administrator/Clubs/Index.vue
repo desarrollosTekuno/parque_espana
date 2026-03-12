@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import BaseButton from "@/Components/BaseButton.vue";
-import { required,maxLength } from "@/constants/validationRules";
+import { required, maxLength } from "@/constants/validationRules";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import { Head, router, useForm, usePage } from "@inertiajs/vue3";
@@ -8,6 +8,7 @@ import { debounce } from "lodash";
 import { ref, watch } from "vue";
 const can = usePage().props.auth.permissions;
 const canRole = usePage().props.auth.roles;
+const page = usePage<any>();
 interface Props {
     clubs?: any;
 }
@@ -49,12 +50,12 @@ const save = () => {
                 form.put(route("clubs.update", form.id), {
                     onSuccess: () => {
                         customToastSwal({
-                            title: "Rol actualizado con éxito!",
+                            title: page.props.flash.success || "",
                             icon: "success",
                         });
                         showModal.value = false;
                         form.reset();
-                fetchItems();
+                        fetchItems();
                     },
                     onError: () => {
                         customToastSwal({
@@ -69,12 +70,12 @@ const save = () => {
                 form.post(route("clubs.store"), {
                     onSuccess: () => {
                         customToastSwal({
-                            title: "Club creado con éxito!",
+                            title: page.props.flash.success || "",
                             icon: "success",
                         });
                         showModal.value = false;
                         form.reset();
-                fetchItems();
+                        fetchItems();
                     },
                     onError: () => {
                         customToastSwal({
@@ -114,7 +115,7 @@ const destroy = (data: any) => {
             form.delete(route("clubs.destroy", data.id), {
                 onSuccess: () => {
                     customToastSwal({
-                        title: "Registro eliminado correctamente",
+                        title: page.props.flash.success || "",
                         icon: "success",
                     });
                     fetchItems();
@@ -122,7 +123,8 @@ const destroy = (data: any) => {
                 onError: (err) => {
                     console.error(err);
                     customToastSwal({
-                        title: "Error al eliminar el registro",
+                        title: `Error: ${form.errors.messageError}`,
+                        text: `${form.errors.exception}`,
                         icon: "error",
                     });
                 },
@@ -255,7 +257,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 v-model="form.name"
                                 label="Nombre"
                                 persistent-hint
-                                :rules="[required,maxLength(20)]"
+                                :rules="[required, maxLength(20)]"
                             />
                         </v-col>
                         <!-- Dirección -->
