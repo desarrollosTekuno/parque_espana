@@ -52,7 +52,7 @@ class ClubController extends Controller
 
         try {
             $club = Club::create($request->all());
-            return redirect()->back();
+            return redirect()->back()->with('success', 'Club creado con éxito!');
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([
                 'messageError' => 'Ocurrió un error al crear el club',
@@ -83,6 +83,19 @@ class ClubController extends Controller
     public function destroy(Club $club)
     {
         try {
+            // validar que el club no tenga dependencias antes de eliminarlo
+            if ($club->userClub()->count() > 0) {
+                return redirect()->back()->withErrors([
+                    'messageError' => 'No se puede eliminar el club porque tiene usuarios asociados',
+                    'exception'=> ''
+                ]);
+            }
+            if ($club->amenities()->count() > 0) {
+                return redirect()->back()->withErrors([
+                    'messageError' => 'No se puede eliminar el club porque tiene amenidades asociadas',
+                    'exception'=> ''
+                ]);
+            }
             $club->delete();
             return redirect()->back()->with('success', 'Club eliminado con éxito!');
         } catch (\Exception $e) {
