@@ -13,6 +13,8 @@ return new class extends Migration
     {
         Schema::table('reservations', function (Blueprint $table) {
             $table->date('date')->nullable();
+            $table->unsignedBigInteger('reservation_status_id')->nullable();
+            $table->foreign('reservation_status_id')->references('id')->on('reservation_status');
         });
     }
 
@@ -23,6 +25,8 @@ return new class extends Migration
     {
         Schema::table('reservations', function (Blueprint $table) {
             $table->dropColumn('date');
+            $table->dropForeign(['reservation_status_id']);
+            $table->dropColumn('reservation_status_id');
         });
     }
 };

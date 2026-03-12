@@ -13,7 +13,9 @@ return new class extends Migration
     {
         Schema::create('reservation_status', function (Blueprint $table) {
             $table->id();
+            $table->string('name');
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 
@@ -22,6 +24,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('reservation_statuses');
+        Schema::dropIfExists('reservation_status');
     }
 };
