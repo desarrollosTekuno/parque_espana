@@ -30,4 +30,8 @@ class Amenity extends Model
     {
         return $this->belongsTo(Club::class, 'club_id');
     }
+    public function schedules()
+    {
+        return $this->hasMany(AmenitySchedule::class, 'amenity_id');
+    }
 }

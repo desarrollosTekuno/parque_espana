@@ -23,11 +23,10 @@ class AmenityController extends Controller
 public function index(Request $request)
 {
     $clubId = $request->club_id ?? session('club_id');
-
     $prefix = 'amenities';
     $driver = DB::getDriverName();
 
-    $query = Amenity::where('club_id', $clubId);
+    $query = Amenity::with('schedules')->where('club_id', $clubId);
     //dd($query->toSql(), $query->getBindings());
     if ($search = $request->input("{$prefix}_search")) {
         $query->where(function ($q) use ($search, $driver) {

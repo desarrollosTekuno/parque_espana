@@ -1,18 +1,21 @@
 <script setup lang="ts">
+import '@/../css/amenities.css';
 import BaseButton from "@/Components/BaseButton.vue";
 import FormDescripcion from "@/Components/Form/FormDescripcion.vue";
 import FormIcon from "@/Components/Form/FormIcon.vue";
 import FormImage from "@/Components/Form/FormImage.vue";
 import FormName from "@/Components/Form/FormName.vue";
 import FormNumber from "@/Components/Form/FormNumber.vue";
+import TimePicker from "@/Components/TimePicker.vue";
 import { required, maxLength } from "@/constants/validationRules";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import { Form, Head, router, useForm, usePage } from "@inertiajs/vue3";
+import { mdiCalendar } from '@mdi/js';
 import { debounce } from "lodash";
-import { ref, watch, computed } from "vue";
+import { ref, watch, computed, reactive } from "vue";
 
-const page = usePage<any>();
+const page = usePage();
 const can = usePage().props.auth.permissions;
 const imageRef = ref<any>(null);
 const iconRef = ref<any>(null);
@@ -73,6 +76,19 @@ const form = useForm<Amenity>({
     is_active: true,
     slot_duration_minutes: null,
 });
+const formSchedule = useForm({
+    amenity_id: null,
+    days: [
+        { day: 'monday', open: null, close: null, active: false },
+        { day: 'tuesday', open: null, close: null, active: false },
+        { day: 'wednesday', open: null, close: null, active: false },
+        { day: 'thursday', open: null, close: null, active: false },
+        { day: 'friday', open: null, close: null, active: false },
+        { day: 'saturday', open: null, close: null, active: false },
+        { day: 'sunday', open: null, close: null, active: false },
+    ]
+});
+const scheduleErrors = reactive<Record<string, string>>({})
 const showCapacity = computed(() => {
     return form.reservation_type === 'capacity_based'
 })
@@ -80,6 +96,13 @@ const showCapacity = computed(() => {
 const showSlotDuration = computed(() => {
     return form.reservation_type === 'exclusive'
 })
+
+const activeDaysCount = computed(() => {
+    return formSchedule.days.filter(day => day.active).length
+})
+
+const amenityName = ref('')
+
 const create = () => {
     form.reset();
     imagePreview.value = null;
@@ -123,21 +146,16 @@ const save = () => {
             form
                 .transform(data => data) 
                 .post(route("amenities.store"), {
-
                     forceFormData: true,
-
                     onSuccess: () => {
-
                         customToastSwal({
                             title: page.props.flash.success || "",
                             icon: "success"
                         });
-
                         showModal.value = false;
                         form.reset();
                         imagePreview.value = null;
                         iconPreview.value = null;
-
                         fetchItems();
                     },
                     onError: () => {
@@ -149,7 +167,6 @@ const save = () => {
                         // console.log(form.errors);
                     },
                 });
-
         }
 
     });
@@ -174,6 +191,84 @@ const edit = (data: any) => {
     iconPreview.value = data.icon ? `/storage/${data.icon}` : null;
     imagePreview.value = data.background_image ? `/storage/${data.background_image}` : null;
     showModal.value = true;
+};
+const schedule = () => {
+
+    Object.keys(scheduleErrors).forEach(key => delete scheduleErrors[key])
+
+    let hasError = false
+
+    formSchedule.days.forEach(day => {
+
+        if (!day.active) return
+
+        if (!day.open) {
+            scheduleErrors[`${day.day}_open`] = "Requerido"
+            hasError = true
+        }
+
+        if (!day.close) {
+            scheduleErrors[`${day.day}_close`] = "Requerido"
+            hasError = true
+        }
+
+        if (day.open && day.close && day.close <= day.open) {
+            scheduleErrors[`${day.day}_close`] = "Error"
+            customToastSwal({
+                title: "El horario de cierre debe ser mayor al de apertura",
+                icon: "warning"
+            })
+            hasError = true
+        }
+
+    })
+
+    if (hasError) return;
+
+    
+    /*const invalidDay = formSchedule.days.find(
+        day => day.active && (!day.open || !day.close)
+    )
+
+    if (invalidDay) {
+        customToastSwal({
+            title: "Debes indicar horario de apertura y cierre",
+            icon: "warning"
+        })
+        return
+    }
+    const invalidRange = formSchedule.days.find(
+        day => day.active && day.close <= day.open
+    )
+
+    if (invalidRange) {
+        customToastSwal({
+            title: "El horario de cierre debe ser mayor al de apertura",
+            icon: "warning"
+        })
+        return
+    }*/
+    const schedules = formSchedule.days
+        .filter(day => day.active)
+        .map(day => ({
+            day_of_week: day.day,
+            open_time: day.open,
+            close_time: day.close,
+            amenity_id: formSchedule.amenity_id
+        }));
+    router.post(route('amenitySchedule.store'), {
+        schedules: schedules
+    }, {
+        onSuccess: () => {
+            customToastSwal({
+                title: "Horarios guardados correctamente",
+                icon: "success"
+            });
+
+            closeScheduleModal();
+            fetchItems();
+        }
+    });
 };
 
 const destroy = (data: any) => {
@@ -226,6 +321,19 @@ watch(() => form.background_image, (file) => {
 
 });
 
+/*watch(
+    () => formSchedule.days,
+    (days) => {
+        days.forEach(day => {
+            if (!day.active) {
+                day.open = null
+                day.close = null
+            }
+        })
+    },
+    { deep: true }
+)*/
+
 const headers = [
     { title: "ID", key: "id" },
     { title: "Nombre", key: "name" },
@@ -264,6 +372,52 @@ const fetchItems = async () => {
     });
 };
 
+const showScheduleModal = ref(false);
+
+const openScheduleModal = (amenity: any) => {
+    
+    amenityName.value = amenity.name;
+    formSchedule.amenity_id = amenity.id;
+    formSchedule.days.forEach(day => {
+        day.active = false
+        day.open = null
+        day.close = null
+    })
+
+    if (amenity.schedules) {
+        amenity.schedules.forEach((schedule: any) => {
+
+            const map = {
+                1: 'monday',
+                2: 'tuesday',
+                3: 'wednesday',
+                4: 'thursday',
+                5: 'friday',
+                6: 'saturday',
+                7: 'sunday'
+            }
+
+            const dayName = map[schedule.day_of_week]
+
+            const day = formSchedule.days.find(d => d.day === dayName)
+
+            if (day) {
+                day.active = true
+                day.open = schedule.open_time
+                day.close = schedule.close_time
+            }
+
+        })
+    }
+
+    showScheduleModal.value = true
+}
+
+const closeScheduleModal = () => {
+    showScheduleModal.value = false
+    Object.keys(scheduleErrors).forEach(key => delete scheduleErrors[key])
+};
+
 const removeBackgroundImage = () => {
     form.background_image = null
     form.background_image_path = null
@@ -291,9 +445,17 @@ watch(() => form.reservation_type, (type) => {
     if (type === 'exclusive') {
         form.capacity = null
     }
-
 })
-
+watch(
+  () => formSchedule.days,
+  (days) => {
+    days.forEach(day => {
+      if (day.open) delete scheduleErrors[`${day.day}_open`]
+      if (day.close) delete scheduleErrors[`${day.day}_close`]
+    })
+  },
+  { deep: true }
+)
 </script>
 
 <template>
@@ -332,6 +494,9 @@ watch(() => form.reservation_type, (type) => {
                         </template>
 
                         <template #item.actions="{ item }">
+                            <BaseButton text="Agregar horario" action="add" icon="mdi-calendar"
+                                @click="openScheduleModal(item)"
+                            />
                             <BaseButton action="edit" @click="edit(item)"
                                 v-if="can.includes('amenities.update')" />
                             <BaseButton action="delete" @click="destroy(item)"
@@ -450,6 +615,82 @@ watch(() => form.reservation_type, (type) => {
                         <BaseButton :text="form.id ? 'Actualizar' : 'Guardar'" variant="flat" :icon-only="false"
                             type="submit" action="save" :disabled="isSaveDisabled" />
                     </v-card-actions>
+                </v-card>
+            </v-form>
+        </v-dialog>
+       <v-dialog v-model="showScheduleModal" max-width="700" persistent>
+           <v-form @submit.prevent="schedule">
+            <v-card>
+                <v-card-title class="schedule-header">
+                    <div class="title-container">
+                        <span class="title"><v-icon size="25">mdi-calendar-clock</v-icon> Horarios de la amenidad</span>
+                        <span class="subtitle">
+                            {{ amenityName }} · {{ activeDaysCount }} días activos
+                        </span>
+                    </div>
+                </v-card-title>
+                <v-card-text class="schedule-container">
+                    <div v-for="day in formSchedule.days"
+                        :key="day.day"
+                        class="schedule-row"
+                        :class="{ inactive: !day.active }"
+                    >
+                        <div class="day-section">
+                            <v-switch
+                                v-model="day.active"
+                                hide-details
+                                inset
+                                color="black"
+                            />
+                            <span class="day-label">
+                                {{
+                                    {
+                                        monday: 'Lun',
+                                        tuesday: 'Mar',
+                                        wednesday: 'Mié',
+                                        thursday: 'Jue',
+                                        friday: 'Vie',
+                                        saturday: 'Sáb',
+                                        sunday: 'Dom'
+                                    }[day.day]
+                                }}
+                            </span>
+                        </div>
+                        <transition name="fade-slide">
+                            <div v-if="day.active" class="time-section">
+                                <v-icon size="16">mdi-clock-outline</v-icon>
+                                <TimePicker
+                                    v-model="day.open"
+                                    label-menu="Apertura"
+                                    density="compact"
+                                    class="time-input custom-time"
+                                    :rules="[required]" 
+                                    :error="!!scheduleErrors[`${day.day}_open`]"
+                                    :error-messages="scheduleErrors[`${day.day}_open`]"
+                                />
+                                <span class="time-separator">-</span>
+                                <TimePicker
+                                    v-model="day.close"
+                                    label-menu="Cierre"
+                                    density="compact"
+                                    class="time-input custom-time"
+                                    :rules="[required]" 
+                                    :error="!!scheduleErrors[`${day.day}_close`]"
+                                    :error-messages="scheduleErrors[`${day.day}_close`]"
+                                />
+
+                            </div>
+                            <div v-else class="not-available">
+                                No disponible
+                            </div>
+                        </transition>
+                    </div>
+                </v-card-text>
+                <v-card-actions>
+                       <v-spacer />
+                       <BaseButton :text="'Cancelar'" variant="tonal" :icon-only="false" action="cancel" @click="closeScheduleModal" />
+                       <BaseButton :text="'Guardar horario'" variant="flat" :icon-only="false" type="submit" action="save" />
+                   </v-card-actions>
                 </v-card>
             </v-form>
         </v-dialog>
