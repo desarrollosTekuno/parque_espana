@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\AdminClub\Reservation;
+use App\Models\AdminClub\ReservationStatus;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -26,18 +27,17 @@ class ReservationController extends Controller {
                 'date' => 'required|date_format:d-m-Y',
                 'start_time' => 'required|date_format:H:i',
                 'end_time' => 'required|date_format:H:i|after:start_time',
-                'status' => 'required|string',
                 'club_id' =>  'required|exists:clubs,id',
-                'amenity_id' => 'required|exists:amenities,id',
-                'user_id' => 'required|exists:users,id'
+                'amenity_id' => 'required|exists:amenities,id'
             ]);
 
             // Valida que no exista una reservación en el mismo horario
-            $fecha = Carbon::CreateFromFormat('d-m-Y', $validated['date'])->format('Y-m-d'); 
+            $fecha = Carbon::CreateFromFormat('d-m-Y', $validated['date'])->format('Y-m-d');
 
             $reservation = Reservation::where('date', $fecha)
                 ->where('amenity_id', $validated['amenity_id'])
                 ->where('club_id', $validated['club_id'])
+                ->where('reservation_status_id', '!=', ReservationStatus::CANCELADA)
                 ->where(function ($query) use ($validated){
                     $query->where('start_time', '<', $validated['end_time'])
                           ->where('end_time', '>', $validated['start_time']);
@@ -46,33 +46,34 @@ class ReservationController extends Controller {
 
             if ($reservation){
                 return response()->json([
+                    'success' => false,
                     'message' => 'Ya existe una reservación para la fecha y horario indicados',
                     'reservación' => $reservation
-                ], 422);
+                ], 200);
             }
-
-            // return "Disponible";
 
             $reservacion = Reservation::create([
                 'date' => $validated['date'],
                 'start_time' => $validated['start_time'],
                 'end_time' => $validated['end_time'],
-                'status' => $validated['status'],
+                'reservation_status_id' => ReservationStatus::ACTIVA,
                 'club_id' => $validated['club_id'],
                 'amenity_id' => $validated['amenity_id'],
-                'user_id' => $validated['user_id']
+                'user_id' => $request->user()->id
             ]);
 
             return response()->json([
+                'success' => true,
                 'message' => 'Reservación creada correctamente',
                 'reservación' => $reservacion
             ], 200);
 
         } catch ( ValidationException $e){
             return response()->json([
+                'success' => false,
                 'error' => 'Error de validación',
                 'error_details' => $e->errors()
-            ], 422);
+            ], 200);
         } catch (\Exception $e) {
             return response()->json([
                 'error' => 'Ocurrió un error al crear la reservación',

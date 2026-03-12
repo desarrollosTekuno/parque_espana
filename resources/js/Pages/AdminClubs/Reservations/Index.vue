@@ -4,12 +4,17 @@ import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { ref, watch } from 'vue';
 import { debounce } from 'lodash';
 import { formatDate, formatTime } from '@/constants/formatDates';
+import { customConfirmSwal, customToastSwal } from "@/utils/swal";
+import BaseButton from "@/Components/BaseButton.vue";
 
+const page = usePage();
 const can = usePage().props.auth.permissions;
 const canRole = usePage().props.auth.roles;
+const showModalCancel = ref(false);
 
 interface Props {
     reservations?: any;
+    activeStatus?: any;
 }
 
 interface Reservation {
@@ -26,6 +31,7 @@ interface Reservation {
 
 const props = withDefaults(defineProps<Props>(), {
     reservations: null,
+    activeStatus: null
 });
 
 // Forms
@@ -45,8 +51,23 @@ const create = () => {
 
 };
 
-// Refs
-const showModal = ref(false);
+const cancel = (data: any) => {
+    customConfirmSwal({
+        title: "¿Está segur@ que desea cancelar este registro?",
+        confirmButtonText: "Sí, cancelar",
+        cancelButtonText: "No",
+    }).then((result) => {
+        if (result.isConfirmed) {
+            form.put(route("reservations.update", data.id), {
+                onSuccess: () => {
+                    customToastSwal({ title: "Reservación cancelada correctamente", icon: "success" });
+                    fetchItems();
+                },
+            });
+        }
+    });
+};
+
 
 
 //* INICIO DATATABLE SERVER SIDE */
@@ -56,7 +77,7 @@ const headers = [
     { title: "Fecha", key: "date" },
     { title: "Hora Inicio", key: "start_time" },
     { title: "Hora Fin", key: "end_time" },
-    { title: "Estatus", key: "status" },
+    { title: "Estatus", key: "status.name" },
     { title: "Amenidad", key: "amenity.name" },
     { title: "Acciones", key: "actions", sortable: false },
 ];
@@ -76,6 +97,7 @@ const prefix = "reservations";
 const fetchItems = async () => {
     loading.value = true;
     const params = {
+        club_id: page.props.auth.currentClub,
         [`${prefix}_page`]: options.value.page,
         [`${prefix}_per_page`]: options.value.itemsPerPage,
         [`${prefix}_search`]: search.value,
@@ -101,6 +123,10 @@ const fetchItems = async () => {
 watch([options, search], debounce(fetchItems, 400), { deep: true });
 /* FIN DATATABLE SERVER SIDE */
 
+watch(() => page.props.auth.currentClub, () => {
+    fetchItems();
+});
+
 </script>
 
 <template>
@@ -109,12 +135,12 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
     <AppLayout>
         <template #header> Reservaciones </template>
         <template #options>
-            <BaseButton
+            <!-- <BaseButton
                 variant="elevated"
                 :icon-only="false"
                 @click="create()"
                 action="add"
-            />
+            /> -->
         </template>
 
         <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
@@ -155,24 +181,31 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                             {{ formatTime(item.end_time)}}
                         </template>
 
+                        <template v-slot:item.status.name="{ item }">
+                            <v-chip :color="item.status.color" dark>
+                                {{ item.status.name }}
+                            </v-chip>
+                        </template>
+
                         <template #item.actions="{ item }">
                             <!-- <BaseButton
                                 action="edit"
                                 @click="edit(item)"
                                 v-if="can.includes('clubs.update')"
-                            />
-                            <BaseButton
-                                @click="destroy(item)"
-                                action="delete"
-                                v-if="can.includes('clubs.destroy')"
                             /> -->
+                            <BaseButton
+                                @click="cancel(item)"
+                                action="cancel"
+                                :disabled="item.reservation_status_id != activeStatus"
+                                v-if="can.includes('reservations.update')"
+                            />
                         </template>
 
                     </v-data-table-server>
                 </v-col>
             </v-row>
 
-            <pre>{{ reservations }}</pre>
+            <!-- <pre>{{ activeStatus }}</pre> -->
         </div>
 
     </AppLayout>

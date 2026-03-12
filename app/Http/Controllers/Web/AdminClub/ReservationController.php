@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web\AdminClub;
 
 use App\Models\AdminClub\Reservation;
+use App\Models\AdminClub\ReservationStatus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
@@ -14,10 +15,12 @@ class ReservationController extends Controller {
     public function _construct()
     {
         $this->middleware('permission:reservations.index')->only('index');
+        $this->middleware('permission:reservations.update')->only('update');
     }
 
     public function index(Request $request)
     {
+        $clubId = $request->club_id ?? session('club_id');
         // Detectar el driver de base de datos para adaptar el filtro de búsqueda
         $driver = DB::getDriverName();
 
@@ -25,16 +28,16 @@ class ReservationController extends Controller {
         $prefix = 'reservations';
 
         // Query base
-        $query = Reservation::with(['amenity']);
+        $query = Reservation::with(['amenity', 'status'])->where('club_id', $clubId);
 
         if ($search = $request->input("{$prefix}_search")) {
 
             $query->where(function ($q) use ($driver, $search) {
                 // $q->where('start_time', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
                 // ->orWhere('end_time', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
-                $q->where('status', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
+                $q->where('date', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
                 ->orWhereHas('amenity', function ($q2) use ($driver, $search){
-                    $q2->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
+                        $q2->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
                 });
             });
         }
@@ -51,7 +54,8 @@ class ReservationController extends Controller {
         )->appends($request->all());
 
         return Inertia::render('AdminClubs/Reservations/Index', [
-            'reservations' => $reservations
+            'reservations' => $reservations,
+            'activeStatus' => ReservationStatus::ACTIVA
         ]);
 
     }
@@ -73,18 +77,18 @@ class ReservationController extends Controller {
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id) {
-        //$validated = $request->validate([
-        //    'field1' => 'required|string|max:255',
-        //    'field2' => 'required|email|unique:table,column,' . $id,
-        //]);
-
-        //Model::where('column', $id)->update([
-        //    'field1' => $validated['field1'],
-        //    'field2' => $validated['field2'],
-        //]);
-
-        return redirect()->back()->with('success', 'Message');
+    public function update(Request $request, Reservation $reservation) {
+        try {
+            $reservation->update([
+                'reservation_status_id' => ReservationStatus::CANCELADA
+            ]);
+            return redirect()->back()->with('success', 'Reservación cancelada con éxito!');
+        } catch (\Exception $e) {
+            return redirect()->back()->withErrors([
+                'messageError' => 'Ocurrió un error al cancelar la reservación',
+                'exception' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**

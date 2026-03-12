@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\AdminClub\ReservationStatus;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -12,6 +13,14 @@ class ReservationStatusSeeder extends Seeder
      */
     public function run(): void
     {
-        //
+        $status = [
+            ['name' => 'ACTIVA', 'color' => 'green'],
+            ['name' => 'CANCELADA', 'color' => 'red'],
+            ['name' => 'FINALIZADA', 'color' => 'blue'],
+        ];
+
+        foreach ($status as $stat){
+            ReservationStatus::create($stat);
+        }
     }
 }

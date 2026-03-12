@@ -8,4 +8,4 @@ use Illuminate\Support\Facades\Route;
 
 Route::resource('/amenities', AmenityController::class)->names('amenities');
 
-Route::resource('/reservations', ReservationController::class)->only(['index'])->names('reservations');
+Route::resource('/reservations', ReservationController::class)->only(['index', 'update'])->names('reservations');
