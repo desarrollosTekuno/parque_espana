@@ -20,106 +20,134 @@ class AmenityController extends Controller
         $this->middleware('permission:amenities.destroy')->only('destroy');
     }
 
-public function index(Request $request)
-{
-    $clubId = $request->club_id ?? session('club_id');
+    public function index(Request $request)
+    {
+        try {
 
-    $prefix = 'amenities';
-    $driver = DB::getDriverName();
+            $clubId = $request->club_id ?? session('club_id');
+            $prefix = 'amenities';
+            $driver = DB::getDriverName();
 
-    $query = Amenity::where('club_id', $clubId);
-    //dd($query->toSql(), $query->getBindings());
-    if ($search = $request->input("{$prefix}_search")) {
-        $query->where(function ($q) use ($search, $driver) {
-            $q->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
-        });
+            $query = Amenity::with('schedules')->where('club_id', $clubId);
+            //dd($query->toSql(), $query->getBindings());
+            if ($search = $request->input("{$prefix}_search")) {
+                $query->where(function ($q) use ($search, $driver) {
+                    $q->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
+                });
+            }
+            //dd(request()->all());
+            $amenities = $query->paginate(10)->appends($request->all());
+            ;
+            return Inertia::render('AdminClubs/Amenities/Index', [
+                'amenities' => $amenities,
+            ]);
+
+        } catch (\Exception $e) {
+
+            return redirect()->back()->with('error', $e->getMessage());
+
+        }
     }
-    //dd(request()->all());
-    $amenities = $query->paginate(10)->appends($request->all());
-    ;
-    return Inertia::render('AdminClubs/Amenities/Index', [
-        'amenities' => $amenities,
-    ]);
-}
 
     public function store(Request $request)
     {
-        $data = $request->all();
-        if ($request->hasFile('icon')) {
-            $data['icon'] = $request->file('icon')->store('amenities/icons', 'public');
+        try {
+
+            $data = $request->all();
+            if ($request->hasFile('icon')) {
+                $data['icon'] = $request->file('icon')->store('amenities/icons', 'public');
+            }
+            if ($request->hasFile('background_image')) {
+                $data['background_image'] = $request->file('background_image')->store('amenities/backgrounds', 'public');
+            }
+            
+            Amenity::create(array_merge($data, ['club_id' => session('club_id')]));
+            return redirect()->back()->with('success', 'Amenidad creada correctamente');
+
+        } catch (\Exception $e) {
+
+            return redirect()->back()->with('error', $e->getMessage());
+
         }
-        if ($request->hasFile('background_image')) {
-            $data['background_image'] = $request->file('background_image')->store('amenities/backgrounds', 'public');
-        }
-        
-        Amenity::create(array_merge($data, ['club_id' => session('club_id')]));
-        return redirect()->back()->with('success', 'Amenidad creada correctamente');
     }
 
 
-    public function update(Request $request, string $id)
+    public function update(Request $request, Amenity $amenity)
     {
-        $amenity = Amenity::findOrFail($id);
+        try {
 
-        $data = $request->all();
+            $data = $request->except(['icon', 'background_image']);
 
-        /*if ($request->hasFile('background_image')) {
+            if ($request->hasFile('icon')) {
+
+                if ($amenity->icon) {
+                    Storage::disk('public')->delete($amenity->icon);
+                }
+
+                $data['icon'] = $request->file('icon')->store('amenities/icons', 'public');
+
+            } elseif ($request->boolean('remove_icon')) {
+
+                if ($amenity->icon) {
+                    Storage::disk('public')->delete($amenity->icon);
+                }
+
+                $data['icon'] = null;
+            }
+
+            if ($request->hasFile('background_image')) {
+
+                if ($amenity->background_image) {
+                    Storage::disk('public')->delete($amenity->background_image);
+                }
+
+                $data['background_image'] = $request->file('background_image')->store('amenities/backgrounds', 'public');
+
+            } elseif ($request->boolean('remove_background_image')) {
+
+                if ($amenity->background_image) {
+                    Storage::disk('public')->delete($amenity->background_image);
+                }
+
+                $data['background_image'] = null;
+            }
+
+
+            $amenity->update($data);
+
+            return redirect()->back()->with('success', 'Amenidad actualizada correctamente');
+
+        } catch (\Throwable $e) {
+
+            return redirect()->back()->withErrors([
+                'messageError' => 'Error al actualizar la amenidad',
+                'exception' => $e->getMessage(),
+            ]);
+
+        }
+    }
+
+    public function destroy(Amenity $amenity)
+    {
+        try {
+
+            //$amenity = Amenity::findOrFail($id);
+
+            if ($amenity->icon) {
+                Storage::disk('public')->delete($amenity->icon);
+            }
 
             if ($amenity->background_image) {
                 Storage::disk('public')->delete($amenity->background_image);
             }
 
-            $data['background_image'] = $request->file('background_image')->store('amenities/backgrounds', 'public');
-        }
-        else{
-            unset($data['background_image']);
-        }
-        if ($request->remove_background_image === true) {
-            Storage::disk('public')->delete($amenity->background_image);
-            $amenity->background_image = null;
-        }*/
+            $amenity->delete();
+            return redirect()->back()->with('success', 'Amenidad eliminada correctamente');
 
-        if ($request->hasFile('icon')) {
-            if ($amenity->icon) {
-                Storage::disk('public')->delete($amenity->icon);
-            }
-        $data['icon'] = $request->file('icon')->store('amenities/icons', 'public');
-        } elseif ($request->remove_icon) {
-            if ($amenity->icon) {
-                Storage::disk('public')->delete($amenity->icon);
-            }
-        $data['icon'] = null;
+        } catch (\Exception $e) {
+
+            return redirect()->back()->with('error', $e->getMessage());
+
         }
-
-        if ($request->hasFile('background_image')) {
-            if ($amenity->background_image) {
-            Storage::disk('public')->delete($amenity->background_image);
-            }
-        $data['background_image'] = $request->file('background_image')->store('amenities/backgrounds', 'public');
-        } elseif ($request->remove_background_image) {
-            if ($amenity->background_image) {
-                Storage::disk('public')->delete($amenity->background_image);
-            }
-        $data['background_image'] = null;
-        }
-        //dd($request->all());
-        $amenity->update($data);
-        return redirect()->back()->with('success', 'Amenidad actualizada correctamente');
-    }
-
-    public function destroy(string $id)
-    {
-        $amenity = Amenity::findOrFail($id);
-
-        if ($amenity->icon) {
-            Storage::disk('public')->delete($amenity->icon);
-        }
-
-        if ($amenity->background_image) {
-            Storage::disk('public')->delete($amenity->background_image);
-        }
-
-        $amenity->delete();
-        return redirect()->back()->with('success', 'Amenidad eliminada correctamente');
     }
 }
