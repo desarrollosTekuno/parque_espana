@@ -13,13 +13,16 @@ import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import { Head, router, useForm, usePage } from "@inertiajs/vue3";
 import { debounce } from "lodash";
 import { computed, ref, watch } from "vue";
+
 const can = usePage().props.auth.permissions;
 const canRole = usePage().props.auth.roles;
+const page = usePage<any>();
 
 interface Props {
     roles?: any;
     permissions?: any;
     guards?: any;
+    contexts?: any;
 }
 
 interface Role {
@@ -28,9 +31,9 @@ interface Role {
     description: string;
     permissions: any[];
     guard_name: string;
+    context_id: number | null;
 }
 
-// const props = defineProps<Props>();
 const props = withDefaults(defineProps<Props>(), {
     roles: null,
     permissions: null,
@@ -41,6 +44,9 @@ const props = withDefaults(defineProps<Props>(), {
 let showModal = ref(false);
 const formSendRef = ref();
 
+/* almacenamiento temporal de permisos por contexto */
+const permissionsByContext = ref<Record<number, number[]>>({});
+
 /* forms */
 const form = useForm<Role>({
     id: null,
@@ -48,73 +54,75 @@ const form = useForm<Role>({
     description: "",
     permissions: [],
     guard_name: "web",
+    context_id: null,
 });
 
+/* acciones */
+
 const create = () => {
+    permissionsByContext.value = {};
     showModal.value = true;
 };
+
 const save = () => {
     formSendRef.value?.validate().then(({ valid: isValid }) => {
-        console.log(isValid);
-        if (!isValid) {
-            return;
+        if (!isValid) return;
+
+        if (form.id) {
+            form.put(route("roles.update", form.id), {
+                onSuccess: () => {
+                    customToastSwal({
+                        title: page.props.flash.success || "",
+                        icon: "success",
+                    });
+                    showModal.value = false;
+                    form.reset();
+                    fetchItems();
+                },
+                onError: () => {
+                    customToastSwal({
+                        title: `Error: ${form.errors.messageError}`,
+                        text: `${form.errors.exception}`,
+                        icon: "error",
+                    });
+                },
+            });
         } else {
-            if (form.id) {
-                form.put(route("roles.update", form.id), {
-                    onSuccess: () => {
-                        customToastSwal({
-                            title: "Rol actualizado con éxito!",
-                            icon: "success",
-                        });
-                        showModal.value = false;
-                        form.reset();
-                        fetchItems();
-                    },
-                    onError: () => {
-                        customToastSwal({
-                            title: `Error: ${form.errors.messageError}`,
-                            text: `${form.errors.exception}`,
-                            icon: "error",
-                        });
-                        // console.log(form.errors);
-                    },
-                });
-            } else {
-                form.post(route("roles.store"), {
-                    onSuccess: () => {
-                        customToastSwal({
-                            title: "Rol creado con éxito!",
-                            icon: "success",
-                        });
-                        showModal.value = false;
-                        form.reset();
-                        fetchItems();
-                    },
-                    onError: () => {
-                        customToastSwal({
-                            title: `Error: ${form.errors.messageError}`,
-                            text: `${form.errors.exception}`,
-                            icon: "error",
-                        });
-                        // console.log(form.errors);
-                    },
-                });
-            }
+            form.post(route("roles.store"), {
+                onSuccess: () => {
+                    customToastSwal({
+                        title: page.props.flash.success || "",
+                        icon: "success",
+                    });
+                    showModal.value = false;
+                    form.reset();
+                    fetchItems();
+                },
+                onError: () => {
+                    customToastSwal({
+                        title: `Error: ${form.errors.messageError}`,
+                        text: `${form.errors.exception}`,
+                        icon: "error",
+                    });
+                },
+            });
         }
     });
 };
+
 const edit = (data: any) => {
+    permissionsByContext.value = {};
+
     form.id = data.id;
     form.name = data.name;
     form.description = data.description;
-    form.permissions = data.permissions.map((permission: any) => permission.id);
     form.guard_name = data.guard_name;
-    console.log(data);
+    form.context_id = data.context_id;
 
-    // headQuarterForm.id = data.id;
-    // headQuarterForm.name = data.name;
-    // headQuarterForm.latitude = data.latitude;
-    // headQuarterForm.longitude = data.longitude;
+    form.permissions = data.permissions.map((permission: any) => permission.id);
+
+    permissionsByContext.value[data.context_id] = [...form.permissions];
+
     showModal.value = true;
 };
 
@@ -123,6 +131,8 @@ const duplicate = (data: any) => {
     form.name = data.name;
     form.description = data.description;
     form.permissions = data.permissions.map((permission: any) => permission.id);
+    form.context_id = data.context_id;
+
     customConfirmSwal({
         title: "¿Está segur@ que desea duplicar este rol?",
         confirmButtonText: "Sí, duplicar",
@@ -131,13 +141,12 @@ const duplicate = (data: any) => {
             form.post(route("roles.duplicate"), {
                 onSuccess: () => {
                     customToastSwal({
-                        title: "Rol creado correctamente",
+                        title: page.props.flash.success || "",
                         icon: "success",
                     });
                     fetchItems();
                 },
-                onError: (err) => {
-                    console.error(err);
+                onError: () => {
                     customToastSwal({
                         title: `Error: ${form.errors.messageError}`,
                         text: `${form.errors.exception}`,
@@ -150,9 +159,6 @@ const duplicate = (data: any) => {
 };
 
 const destroy = (data: any) => {
-    // headQuarterForm.delete(route('head-quarters.destroy', data.id), {
-    //     onSuccess: () => { },
-    // });
     customConfirmSwal({
         title: "¿Está segur@ que desea eliminar este registro?",
     }).then((result) => {
@@ -160,13 +166,12 @@ const destroy = (data: any) => {
             form.delete(route("roles.destroy", data.id), {
                 onSuccess: () => {
                     customToastSwal({
-                        title: "Rol eliminado correctamente",
+                        title: page.props.flash.success || "",
                         icon: "success",
                     });
                     fetchItems();
                 },
-                onError: (err) => {
-                    console.error(err);
+                onError: () => {
                     customToastSwal({
                         title: `Error: ${form.errors.messageError}`,
                         text: `${form.errors.exception}`,
@@ -177,55 +182,67 @@ const destroy = (data: any) => {
         }
     });
 };
+
 const close = () => {
     form.reset();
+    permissionsByContext.value = {};
     showModal.value = false;
 };
 
-/* Watches and observers */
+/* watch contexto */
+
 watch(
-    () => form.guard_name,
-    (newId) => {
-        form.permissions = [];
-    },
+    () => form.context_id,
+    (newContext, oldContext) => {
+        if (oldContext) {
+            permissionsByContext.value[oldContext] = [...form.permissions];
+        }
+
+        if (permissionsByContext.value[newContext]) {
+            form.permissions = [...permissionsByContext.value[newContext]];
+        } else {
+            form.permissions = [];
+        }
+    }
 );
-/* Computed */
+
+/* permisos filtrados por contexto */
+
 const permissionsList = computed(() => {
-    // if (form.permissions) {
-    //     return form.permissions.map((permissionId) =>
-    //         props.permissions.find((permission) => permission.id === permissionId)
-    //     );
-    // }
-    // return [];
-    return props.permissions.filter(
-        (permission) => permission.guard_name === form.guard_name,
+    return props.permissions.filter((permission) =>
+        permission.contexts.some(
+            (context) => context.id === form.context_id
+        )
     );
 });
-//* INICIO DATATABLE SERVER SIDE */
-// Aquí se definen los encabezados de la tabla, donde key es el nombre de la columna en la base de datos
+
+/* DATATABLE */
+
 const headers = [
     { title: "Nombre", key: "name" },
-    { title: "Guard", key: "guard_name" },
     { title: "Descripción", key: "description" },
+    { title: "Contexto", key: "context" },
     { title: "Creado el", key: "created_at" },
     { title: "Actualizado el", key: "updated_at" },
     { title: "Acciones", key: "actions", sortable: false },
 ];
 
-// variables reactivas
 const items = ref([]);
 const total = ref(0);
 const loading = ref(false);
 const search = ref("");
+
 const options = ref({
     page: 1,
     itemsPerPage: 10,
     sortBy: [{ key: "id", order: "desc" }],
 });
+
 const prefix = "roles";
-// función para cargar datos desde Laravel
+
 const fetchItems = async () => {
     loading.value = true;
+
     const params = {
         [`${prefix}_page`]: options.value.page,
         [`${prefix}_per_page`]: options.value.itemsPerPage,
@@ -238,19 +255,14 @@ const fetchItems = async () => {
         preserveState: true,
         replace: true,
         onSuccess: (page) => {
-            const data = page.props[prefix]?.data ?? [];
-            const totalCount = page.props[prefix]?.total ?? 0;
-
-            items.value = data;
-            total.value = totalCount;
+            items.value = page.props[prefix]?.data ?? [];
+            total.value = page.props[prefix]?.total ?? 0;
             loading.value = false;
         },
     });
 };
 
-// 🔁 Observadores con debounce para evitar muchas peticiones
 watch([options, search], debounce(fetchItems, 400), { deep: true });
-/* FIN DATATABLE SERVER SIDE */
 </script>
 
 <template>
@@ -294,6 +306,9 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 class="mx-4 mt-2"
                                 clearable
                             />
+                        </template>
+                        <template v-slot:item.context="{ item }">
+                            <v-chip color="primary">{{ item.context?.name }}</v-chip>
                         </template>
                         <template v-slot:item.created_at="{ item }">
                             {{ formatDateTime(item.created_at) }}
@@ -353,21 +368,30 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 />
                             </v-col>
                             <v-col cols="12">
-                                <v-text-field
+                                <v-textarea
                                     v-model="form.description"
                                     label="Descripción"
                                     persistent-hint
+                                    clearable
+                                    counter
+                                    rows="3"
                                     :rules="[optionalLength(0, 75)]"
+                                    auto-grow
+                                    variant="filled"
                                 />
                             </v-col>
+                            <!-- Contexto -->
+                            
                             <v-col cols="12">
-                                <v-select
-                                    v-model="form.guard_name"
-                                    placeholder="Guard"
-                                    hint="Guard"
-                                    persistent-hint
-                                    :items="props.guards"
+                                <v-autocomplete
+                                    prepend-inner-icon="mdi-cog"
+                                    v-model="form.context_id"
+                                    item-value="id"
+                                    item-title="name"
+                                    :items="contexts"
                                     :rules="[selectRequired]"
+                                    hint="Contexto"
+                                    persistent-hint
                                 />
                             </v-col>
                             <v-col cols="12">

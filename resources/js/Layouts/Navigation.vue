@@ -2,8 +2,28 @@
 import routes from '@/routing';
 import { Link, usePage } from '@inertiajs/vue3';
 import { onMounted, ref } from 'vue';
+import { router } from "@inertiajs/vue3";
 const can = usePage().props.auth.permissions;
 const auth = usePage().props.auth;
+
+const page = usePage<any>();
+
+const clubs = page.props.auth?.clubs ?? [];
+
+const selectedClub = ref(page.props.auth?.currentClub ?? null);
+
+const changeClub = () => {
+    router.post(route("change.club"), {
+        club_id: selectedClub.value
+    }, {
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: () => {
+            router.reload();
+        }
+    });
+};
+
 const drawer = defineModel('drawer');
 const props = defineProps<{
     rail: boolean
@@ -46,6 +66,16 @@ onMounted(() => {
         </v-list>
         <!-- {{ can }} -->
         <v-divider></v-divider>
+            <v-select
+                v-if="clubs?.length"
+                v-model="selectedClub"
+                :items="clubs"
+                item-title="name"
+                item-value="id"
+                label="Club"
+                density="compact"
+                @update:modelValue="changeClub"
+            />
         <v-list class="bg-[url(/assets/images/Logo.png)]" open-strategy="multiple" :opened="opened" @update:opened="newOpened => {
             opened = newOpened;
         }" density="comfortable" nav>

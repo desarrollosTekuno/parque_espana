@@ -1,57 +1,74 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, computed } from "vue";
 
 const props = defineProps({
-    modelValue: File || null,
-    label: {
-        type: String,
-        default: "Icono"
-    }
+  modelValue: File || null,
+  label: {
+    type: String,
+    default: "Icono de la amenidad",
+  },
+  maxSizeKB: {
+    type: Number,
+    default: 0.5,
+  },
+  allowedExtensions: {
+    type: Array as () => string[],
+    default: () => ["jpg", "jpeg", "png", "webp", "svg"],
+  },
 });
 
 const emit = defineEmits(["update:modelValue"]);
 
-const preview = ref<string | null>(null);
+const errorMessage = ref("");
 
-const onFileChange = (event: any) => {
-    const file = event.target.files[0];
+const isValid = computed(() => {
+  return !!props.modelValue && !errorMessage.value;
+});
 
-    if (!file) return;
+const handleFile = (file: File | null) => {
 
-    emit("update:modelValue", file);
+  // limpiar archivo
+  if (!file) {
+    emit("update:modelValue", null);
+    errorMessage.value = "";
+    return;
+  }
 
-    const reader = new FileReader();
-    reader.onload = e => {
-        preview.value = e.target?.result as string;
-    };
+  const fileExt = file.name.split(".").pop()?.toLowerCase();
 
-    reader.readAsDataURL(file);
+  if (!fileExt || !props.allowedExtensions.includes(fileExt)) {
+    errorMessage.value = `Solo se permiten: ${props.allowedExtensions.join(", ")}`;
+    emit("update:modelValue", null);
+    return;
+  }
+
+  const maxBytes = props.maxSizeKB * 1024 * 1024;
+
+  if (file.size > maxBytes) {
+    errorMessage.value = `El archivo no puede superar ${props.maxSizeKB} MB`;
+    emit("update:modelValue", null);
+    return;
+  }
+
+  errorMessage.value = "";
+  emit("update:modelValue", file);
 };
 
-watch(
-    () => props.modelValue,
-    (file: any) => {
-        if (!file) preview.value = null;
-    }
-);
+defineExpose({ isValid });
 </script>
 
 <template>
-<v-col cols="12">
-    <v-file-input
-        accept="image/*"
-        :label="label"
-        prepend-icon="mdi-image"
-        @change="onFileChange"
-    />
 
-    <div v-if="preview" class="mt-2">
-        <v-img
-            :src="preview"
-            max-width="80"
-            max-height="80"
-            cover
-        />
-    </div>
-</v-col>
+<v-file-input
+  :model-value="modelValue"
+  @update:modelValue="handleFile"
+  accept="image/*"
+  :label="label"
+  prepend-inner-icon="mdi-image-area"
+  prepend-icon=""
+  :error="!!errorMessage"
+  :error-messages="errorMessage"
+  clearable
+/>
+
 </template>

@@ -2,14 +2,16 @@
 
 namespace App\Http\Controllers\Web\Administrator;
 
+use App\Models\Context;
 use App\Models\Role;
 use App\Models\Web\UserType;
 use Illuminate\Routing\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
-use Spatie\Permission\Models\Permission;
+use App\Models\Permission;
 
 class RoleController extends Controller
 {
@@ -40,7 +42,7 @@ class RoleController extends Controller
         $guards = ['web', 'api'];
         $prefix = 'roles'; // Prefijo para query params de la tabla
 
-        $query = Role::with(['permissions:id'])->orderBy('id', 'desc');
+        $query = Role::with(['permissions:id', 'context:id,name,value'])->orderBy('id', 'desc');
 
         // Filtro de búsqueda
         if ($search = $request->input("{$prefix}_search")) {
@@ -62,11 +64,13 @@ class RoleController extends Controller
         )->appends($request->all());
 
         // Datos adicionales
-        $permissions = Permission::select('id', 'name', 'description', 'guard_name')->get();
+         $permissions = Permission::with('contexts')->select('id', 'name', 'description', 'guard_name')->get();
+        $contexts = Context::select('id', 'name', 'value')->get();
 
         return Inertia::render('Administrator/Roles/Index', [
             'roles' => $roles,
             'permissions' => $permissions,
+            'contexts' => $contexts,
             'guards' => $guards,
         ]);
     }
@@ -88,7 +92,8 @@ class RoleController extends Controller
 
             $role = Role::create($request->except('permissions'));
             $role->syncPermissions($request->permissions);
-            return redirect()->back();
+            app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+            return redirect()->back() ->with('success', 'Rol creado con éxito!');
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([
                 'messageError' =>  'Ocurrió un error al crear el rol',
@@ -116,7 +121,8 @@ class RoleController extends Controller
             }
             $role->update($request->except('permissions'));
             $role->syncPermissions($request->permissions);
-            return redirect()->back();
+            app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+            return redirect()->back()->with('success', 'Rol actualizado con éxito!');
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([
                 'messageError' =>  'Ocurrió un error al actualizar el rol',
@@ -141,7 +147,8 @@ class RoleController extends Controller
                 ]);
             }
             $role->delete();
-            return redirect()->back();
+            app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+            return redirect()->back()->with('success', 'Rol eliminado con éxito!');
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([
                 'messageError' =>  'Ocurrió un error al eliminar el rol',
@@ -152,6 +159,7 @@ class RoleController extends Controller
 
     public function duplicate(Request $request)
     {
+        // return $request->all();
         try {
             $roleName = $request->name;
             $roleName = $roleName . '- Copia';
@@ -159,7 +167,8 @@ class RoleController extends Controller
                 collect($request->all())->put('name', $roleName)->toArray()
             );
             $role->syncPermissions($request->permissions);
-            return redirect()->back();
+            app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+            return redirect()->back()->with('success', 'Rol duplicado con éxito!');
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([
                 'messageError' =>  'Ocurrió un error al crear el rol',

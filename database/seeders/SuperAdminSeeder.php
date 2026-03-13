@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Context;
 use App\Models\Role;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -14,7 +15,16 @@ class SuperAdminSeeder extends Seeder
     public function run(): void
     {
         //
-        $superadmin =  Role::create(['name' => 'superadmin', 'description' => 'Super Administrador']);
+        $superadmin = Role::create([
+            'name' => 'superadmin',
+            'description' => 'Super Administrador',
+            'context_id' => Context::firstOrCreate([
+                'value' => 'web',
+            ], [
+                'name' => 'Web',
+                'value' => 'web'
+            ])->id
+        ]);
 
         /*Define superadmin permissions */
         $superadminPermissions = array(
