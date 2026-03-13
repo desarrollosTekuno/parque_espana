@@ -41,13 +41,17 @@ class PermissionSeeder extends Seeder
             array('name' => 'amenities.store', 'description' => 'Crear amenidades', 'contexts' => ['web']),
             array('name' => 'amenities.update', 'description' => 'Actualizar amenidades', 'contexts' => ['web']),
             array('name' => 'amenities.destroy', 'description' => 'Eliminar amenidades'),
+            // Reservaciones
+            array('name' => 'reservations.index', 'description' => 'Ver reservaciones', 'contexts' => ['web']),
+            array('name' => 'reservations.update', 'description' => 'Cancelar reservaciones', 'contexts' => ['web']),
+
         );
         foreach ($permissions as $permission) {
             $createPermission= Permission::updateOrCreate(['name' => $permission['name']], [
                 'description' => $permission['description'],
             ]);
             if (isset($permission['contexts'])) {
-                $createPermission->contexts()->sync( 
+                $createPermission->contexts()->sync(
                     array_map(function ($context) {
                         return Context::firstOrCreate([
                             'value' => $context

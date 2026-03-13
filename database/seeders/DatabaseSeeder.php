@@ -20,6 +20,7 @@ class DatabaseSeeder extends Seeder
             PermissionSeeder::class,
             SuperAdminSeeder::class,
             UserSeeder::class,
+            ReservationStatusSeeder::class
         ]);
     }
 }

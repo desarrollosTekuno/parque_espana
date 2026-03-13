@@ -12,3 +12,7 @@ export const formatDateTime = (date: string | null) => {
     if (!date) return "";
     return DateTime.fromISO(date).toFormat("dd/MM/yyyy hh:mm a");
 };
+export const formatTime = (time: string | null) => {
+    if (!time) return "";
+    return DateTime.fromISO(time).toFormat("hh:mm a");
+}; 
