@@ -19,17 +19,14 @@
     flex-direction:column;
     height:520px;
 }
-
 .scroll-area{
     overflow-y:auto;
 }
-
 .schedule-container{
     display:flex;
     flex-direction:column;
     gap:20px;
 }
-
 .schedule-row{
     display:flex;
     align-items:center;
@@ -112,4 +109,16 @@ v-card-actions{
 .fade-slide-leave-to {
   opacity: 0;
   transform: translateX(-10px);
+}
+.btn-delete-image{
+  margin-top: 15px;
+}
+.v-file-input .v-field__input {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.v-card {
+  border: 1px solid #c9c4c4;
+  padding-top: 30px;
 }
