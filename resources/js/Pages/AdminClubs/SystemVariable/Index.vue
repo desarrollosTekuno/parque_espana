@@ -10,75 +10,40 @@ import BaseButton from "@/Components/BaseButton.vue";
 const page = usePage();
 const can = usePage().props.auth.permissions;
 const canRole = usePage().props.auth.roles;
-const showModalCancel = ref(false);
 
 interface Props {
-    reservations?: any;
-    activeStatus?: any;
-}
-
-interface Reservation {
-    id: number | null;
-    date: string;
-    start_time: string;
-    end_time: string;
-    status: string;
-    cancelled_at: string | null;
-    club_id: string,
-    amenity_id: string,
-    user_id: string
+    systemVariables?: any;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-    reservations: null,
-    activeStatus: null
+    systemVariables: null,
 });
 
-// Forms
-const form = useForm<Reservation>({
+interface SystemVariable {
+    id: number | null;
+    name: string;
+    value: string;
+    description: string;
+}
+
+const form = useForm<SystemVariable>({
     id: null,
-    date: "",
-    start_time: "",
-    end_time: "",
-    status: "",
-    cancelled_at: "",
-    club_id: "",
-    amenity_id: "",
-    user_id: ""
+    name: '',
+    value: '',
+    description: '',
 });
 
 const create = () => {
 
-};
-
-const cancel = (data: any) => {
-    customConfirmSwal({
-        title: "¿Está segur@ que desea cancelar este registro?",
-        confirmButtonText: "Sí, cancelar",
-        cancelButtonText: "No",
-    }).then((result) => {
-        if (result.isConfirmed) {
-            form.put(route("reservations.update", data.id), {
-                onSuccess: () => {
-                    customToastSwal({ title: "Reservación cancelada correctamente", icon: "success" });
-                    fetchItems();
-                },
-            });
-        }
-    });
-};
-
-
+}
 
 //* INICIO DATATABLE SERVER SIDE */
 // Aquí se definen los encabezados de la tabla, donde key es el nombre de la columna en la base de datos
 const headers = [
     { title: "ID", key: "id" },
-    { title: "Fecha", key: "date" },
-    { title: "Hora Inicio", key: "start_time" },
-    { title: "Hora Fin", key: "end_time" },
-    { title: "Estatus", key: "status.name" },
-    { title: "Amenidad", key: "amenity.name" },
+    { title: "Nombre", key: "name" },
+    { title: "Descripción", key: "description" },
+    { title: "Valor", key: "value" },
     { title: "Acciones", key: "actions", sortable: false },
 ];
 
@@ -92,7 +57,7 @@ const options = ref({
     itemsPerPage: 10,
     sortBy: [{ key: "id", order: "desc" }],
 });
-const prefix = "reservations";
+const prefix = "systemVariables";
 // función para cargar datos desde Laravel
 const fetchItems = async () => {
     loading.value = true;
@@ -105,7 +70,7 @@ const fetchItems = async () => {
         [`${prefix}_order`]: options.value.sortBy?.[0]?.order ?? "desc",
     };
 
-    router.get(route("reservations.index"), params, {
+    router.get(route("system-variables.index"), params, {
         preserveState: true,
         replace: true,
         onSuccess: (page) => {
@@ -127,13 +92,14 @@ watch(() => page.props.auth.currentClub, () => {
     fetchItems();
 });
 
+
 </script>
 
 <template>
     <Head title="Dashboard"/>
 
     <AppLayout>
-        <template #header> Reservaciones </template>
+        <template #header> Variables del Sistema</template>
         <template #options>
             <!-- <BaseButton
                 variant="elevated"
@@ -163,13 +129,13 @@ watch(() => page.props.auth.currentClub, () => {
                         <template #top>
                             <v-text-field
                                 v-model="search"
-                                label="Buscar reservación"
+                                label="Buscar"
                                 class="mx-4 mt-2"
                                 clearable
                             />
                         </template>
 
-                        <template v-slot:item.date="{ item }">
+                        <!-- <template v-slot:item.date="{ item }">
                             {{ formatDate(item.date) }}
                         </template>
 
@@ -188,18 +154,18 @@ watch(() => page.props.auth.currentClub, () => {
                         </template>
 
                         <template #item.actions="{ item }">
-                            <!-- <BaseButton
+                            <BaseButton
                                 action="edit"
                                 @click="edit(item)"
                                 v-if="can.includes('clubs.update')"
-                            /> -->
+                            /> 
                             <BaseButton
                                 @click="cancel(item)"
                                 action="cancel"
                                 :disabled="item.reservation_status_id != activeStatus"
                                 v-if="can.includes('reservations.update')"
                             />
-                        </template>
+                        </template> -->
 
                     </v-data-table-server>
                 </v-col>

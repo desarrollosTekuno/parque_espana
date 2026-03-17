@@ -22,4 +22,10 @@ class Reservation extends Model {
     public function user(){
         return $this->belongsTo(User::class);
     }
+
+    public function status(){
+        return $this->belongsTo(ReservationStatus::class, 'reservation_status_id');
+    }
+
+    // Accesor para la fecha
 }

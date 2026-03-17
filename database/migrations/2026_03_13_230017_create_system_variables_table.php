@@ -11,10 +11,17 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('reservation_status', function (Blueprint $table) {
+        Schema::create('system_variables', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
-            $table->string('color');
+            $table->string('name', 100);
+            $table->string('description')->nullable();
+            $table->string('value')->nullable();
+
+            $table->unsignedBigInteger('club_id')->nullable();
+            $table->foreign('club_id')->references('id')->on('clubs');
+
+            $table->unique(['name', 'club_id']);
+
             $table->timestamps();
             $table->softDeletes();
         });
@@ -25,6 +32,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('reservation_status');
+        Schema::dropIfExists('system_variables');
     }
 };
