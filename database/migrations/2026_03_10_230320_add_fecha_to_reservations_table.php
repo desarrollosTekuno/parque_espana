@@ -12,7 +12,6 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('reservations', function (Blueprint $table) {
-            $table->date('date')->nullable();
             $table->unsignedBigInteger('reservation_status_id')->nullable();
             $table->foreign('reservation_status_id')->references('id')->on('reservation_status');
             $table->dropColumn('status');
@@ -25,7 +24,6 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('reservations', function (Blueprint $table) {
-            $table->dropColumn('date');
             $table->dropForeign(['reservation_status_id']);
             $table->dropColumn('reservation_status_id');
             $table->string('status');
