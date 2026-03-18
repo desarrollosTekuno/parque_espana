@@ -13,8 +13,8 @@ return new class extends Migration
     {
         Schema::create('reservations', function (Blueprint $table) {
             $table->id();
-            $table->time('start_time');
-            $table->time('end_time');
+            $table->dateTime('start_datetime');
+            $table->dateTime('end_datetime');
             $table->string('status');
             // cancelled_at
             $table->timestamp('cancelled_at')->nullable();

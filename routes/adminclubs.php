@@ -11,6 +11,5 @@ use Illuminate\Support\Facades\Route;
 Route::resource('/amenities', AmenityController::class)->names('amenities');
 Route::resource('/amenitySchedule', AmenityScheduleController::class)->names('amenitySchedule');
 
-Route::resource('/reservations', ReservationController::class)->only(['index', 'update'])->names('reservations');
-
+Route::resource('/reservations', ReservationController::class)->only(['index'])->names('reservations');
 Route::resource('/system-variables', SystemVariableController::class)->only(['index'])->names('system-variables');
