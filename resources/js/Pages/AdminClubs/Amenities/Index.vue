@@ -15,20 +15,21 @@ import { mdiCalendar } from '@mdi/js';
 import { debounce } from "lodash";
 import { ref, watch, computed, reactive } from "vue";
 
+const tab = ref('amenities');
 const page = usePage();
 const can = usePage().props.auth.permissions;
 const imageRef = ref<any>(null);
 const iconRef = ref<any>(null);
 const isSaveDisabled = computed(() => {
-const imageInvalid =
-      imageRef.value &&
-      form.background_image &&
-      imageRef.value.isValid === false;
+    const imageInvalid =
+        imageRef.value &&
+        form.background_image &&
+        imageRef.value.isValid === false;
 
-const iconInvalid =
-      iconRef.value &&
-      form.icon &&
-      iconRef.value.isValid === false;
+    const iconInvalid =
+        iconRef.value &&
+        form.icon &&
+        iconRef.value.isValid === false;
     return imageInvalid || iconInvalid;
 });
 interface Props {
@@ -46,7 +47,6 @@ interface Amenity {
     remove_background_image: boolean;
     description: string;
     reservation_type: string;
-    capacity: number | null;
     is_active: boolean;
     slot_duration_minutes: number | null;
 }
@@ -183,25 +183,18 @@ const edit = (data: any) => {
     showModal.value = true;
 };
 const schedule = () => {
-
     Object.keys(scheduleErrors).forEach(key => delete scheduleErrors[key])
-
     let hasError = false
-
     formSchedule.days.forEach(day => {
-
         if (!day.active) return
-
         if (!day.open) {
             scheduleErrors[`${day.day}_open`] = "Requerido"
             hasError = true
         }
-
         if (!day.close) {
             scheduleErrors[`${day.day}_close`] = "Requerido"
             hasError = true
         }
-
         if (day.open && day.close && day.close <= day.open) {
             scheduleErrors[`${day.day}_close`] = "Error"
             customToastSwal({
@@ -210,34 +203,10 @@ const schedule = () => {
             })
             hasError = true
         }
-
     })
 
     if (hasError) return;
 
-    
-    /*const invalidDay = formSchedule.days.find(
-        day => day.active && (!day.open || !day.close)
-    )
-
-    if (invalidDay) {
-        customToastSwal({
-            title: "Debes indicar horario de apertura y cierre",
-            icon: "warning"
-        })
-        return
-    }
-    const invalidRange = formSchedule.days.find(
-        day => day.active && day.close <= day.open
-    )
-
-    if (invalidRange) {
-        customToastSwal({
-            title: "El horario de cierre debe ser mayor al de apertura",
-            icon: "warning"
-        })
-        return
-    }*/
     const schedules = formSchedule.days
         .filter(day => day.active)
         .map(day => ({
@@ -311,6 +280,7 @@ watch(() => form.background_image, (file) => {
 
 });
 
+//   Tabla, items y fetch de amenidades    
 const headers = [
     { title: "ID", key: "id" },
     { title: "Nombre", key: "name" },
@@ -349,10 +319,44 @@ const fetchItems = async () => {
     });
 };
 
+
+//   Tabla, items y fetch de recursos    
+const resourceHeaders = [
+    { title: "ID", key: "id" },
+    { title: "Amenidad", key: "amenity_name" },
+    { title: "Nombre", key: "name" },
+    { title: "Capacidad", key: "capacity" },
+    { title: "Activo", key: "is_active" },
+    { title: "Acciones", key: "actions", sortable: false },
+];
+const resourceItems = ref([]);
+const resourceTotal = ref(0);
+const resourceLoading = ref(false);
+const fetchResources = () => {
+
+    resourceLoading.value = true
+
+    router.get(route('amenityResources.index'), {
+        club_id: page.props.auth.currentClub
+    }, {
+        preserveState: true,
+        replace: true,
+        onSuccess: (page) => {
+
+            resourceItems.value = page.props.resources?.data ?? []
+            resourceTotal.value = page.props.resources?.total ?? 0
+            resourceLoading.value = false
+
+        }
+    })
+
+}
+
+
 const showScheduleModal = ref(false);
 
 const openScheduleModal = (amenity: any) => {
-    
+
     amenityName.value = amenity.name;
     formSchedule.amenity_id = amenity.id;
     formSchedule.days.forEach(day => {
@@ -409,6 +413,75 @@ const removeIcon = () => {
     iconPreview.value = null
 }
 
+
+//    Formulario de recursos y sus funciones
+const showResourceModal = ref(false)
+const resourceForm = useForm({
+    id: null,
+    amenity_id: null,
+    name: "",
+    capacity: 1,
+    is_active: true
+})
+const createResource = () => {
+    resourceForm.reset()
+    showResourceModal.value = true
+
+}
+const editResource = (resource: any) => {
+    resourceForm.id = resource.id
+    resourceForm.amenity_id = resource.amenity_id
+    resourceForm.name = resource.name
+    resourceForm.capacity = resource.capacity
+    resourceForm.is_active = resource.is_active
+    showResourceModal.value = true
+
+}
+const saveResource = () => {
+    resourceForm
+        .transform((data) => {
+            const payload: any = { ...data }
+
+            if (resourceForm.id) {
+                payload._method = "PUT"
+            }
+            return payload
+        })
+        .post(
+            resourceForm.id
+                ? route('amenityResources.update', resourceForm.id)
+                : route('amenityResources.store'),
+            {
+                onSuccess: () => {
+                    customToastSwal({
+                        title: "Recurso guardado",
+                        icon: "success"
+                    })
+
+                    showResourceModal.value = false
+                    fetchResources()
+                }
+            })
+
+}
+const deleteResource = (item: any) => {
+    customConfirmSwal({
+        title: "¿Eliminar recurso?"
+    }).then(result => {
+        if (result.isConfirmed) {
+            router.delete(route('amenityResources.destroy', item.id), {
+                onSuccess: () => {
+                    customToastSwal({
+                        title: "Recurso eliminado",
+                        icon: "success"
+                    })
+
+                    fetchResources()
+                }
+            })
+        }
+    })
+}
 watch([options, search], debounce(fetchItems, 400), { deep: true });
 watch(() => page.props.auth.currentClub, () => {
     fetchItems();
@@ -421,64 +494,96 @@ watch(() => form.reservation_type, (type) => {
 
 })
 watch(
-  () => formSchedule.days,
-  (days) => {
-    days.forEach(day => {
-      if (day.open) delete scheduleErrors[`${day.day}_open`]
-      if (day.close) delete scheduleErrors[`${day.day}_close`]
-    })
-  },
-  { deep: true }
+    () => formSchedule.days,
+    (days) => {
+        days.forEach(day => {
+            if (day.open) delete scheduleErrors[`${day.day}_open`]
+            if (day.close) delete scheduleErrors[`${day.day}_close`]
+        })
+    },
+    { deep: true }
 )
 </script>
 
 <template>
+
     <Head title="Amenidades" />
     <AppLayout>
         <template #header>Amenidades</template>
         <template #options>
-            <BaseButton variant="elevated" :icon-only="false" @click="create" action="add" v-if="can.includes('amenities.store')" />
+            <BaseButton variant="elevated" :icon-only="false" @click="create" action="add"
+                v-if="can.includes('amenities.store')" />
+            <BaseButton v-if="tab === 'amenities' && can.includes('amenities.store')" variant="elevated"
+                :icon-only="false" @click="create" action="add" label="Agregar Amenidad" />
         </template>
 
         <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
-            <v-row><v-col cols="12">
-                    <v-data-table-server fixed-header hover height="500px" :headers="headers" :items="items"
-                        :items-length="total" :loading="loading" v-model:options="options" class="elevation-1"
-                        :items-per-page-options="[10, 25, 50, 100]" items-per-page-text=" Mostrar"
-                        no-data-text="No hay registros para mostrar">
+            <v-tabs v-model="tab" bg-color="white">
+                <v-tab value="amenities">Amenidades</v-tab>
+                <v-tab value="resources">Recursos</v-tab>
+            </v-tabs>
+            <v-window v-model="tab">
+                <v-window-item value="amenities">
+                    <v-row>
+                        <v-col cols="12">
+                            <v-data-table-server fixed-header hover height="500px" :headers="headers" :items="items"
+                                :items-length="total" :loading="loading" v-model:options="options" class="elevation-1"
+                                :items-per-page-options="[10, 25, 50, 100]" items-per-page-text="Mostrar"
+                                no-data-text="No hay registros para mostrar">
+                                <template #top>
+                                    <v-text-field v-model="search" label="Buscar amenidad" class="mx-4 mt-2"
+                                        clearable />
+                                </template>
+                                <template #item.icon="{ item }">
+                                    <v-img v-if="item.icon" :src="`/storage/${item.icon}`" max-height="30"
+                                        max-width="30" class="rounded-lg" />
+                                </template>
+                                <template #item.background_image="{ item }">
+                                    <v-img v-if="item.background_image" :src="`/storage/${item.background_image}`"
+                                        max-height="80" max-width="80" class="rounded-lg" />
+                                </template>
+                                <template #item.is_active="{ item }">
+                                    <v-chip :color="item.is_active ? 'green' : 'red'" dark>
+                                        {{ item.is_active ? 'Activo' : 'Inactivo' }}
+                                    </v-chip>
+                                </template>
+                                <template #item.actions="{ item }">
+                                    <BaseButton text="Agregar horario" action="add" icon="mdi-calendar"
+                                        @click="openScheduleModal(item)" />
 
-                        <template #top>
-                            <v-text-field v-model="search" label="Buscar amenidad" class="mx-4 mt-2" clearable />
-                        </template>
+                                    <BaseButton action="edit" @click="edit(item)"
+                                        v-if="can.includes('amenities.update')" />
 
-                        <template #item.icon="{ item }">
-                            <v-img v-if="item.icon" :src="`/storage/${item.icon}`"
-                                max-height="30" max-width="30" class="rounded-lg" />
-                        </template>
+                                    <BaseButton action="delete" @click="destroy(item)"
+                                        v-if="can.includes('amenities.destroy')" />
+                                </template>
+                            </v-data-table-server>
+                        </v-col>
+                    </v-row>
 
-                        <template #item.background_image="{ item }">
-                            <v-img v-if="item.background_image" :src="`/storage/${item.background_image}`"
-                                max-height="80" max-width="80" class="rounded-lg" />
-                        </template>
-
-                        <template #item.is_active="{ item }">
-                            <v-chip :color="item.is_active ? 'green' : 'red'" dark>
-                                {{ item.is_active ? 'Activo' : 'Inactivo' }}
-                            </v-chip>
-                        </template>
-
-                        <template #item.actions="{ item }">
-                            <BaseButton text="Agregar horario" action="add" icon="mdi-calendar"
-                                @click="openScheduleModal(item)"
-                            />
-                            <BaseButton action="edit" @click="edit(item)"
-                                v-if="can.includes('amenities.update')" />
-                            <BaseButton action="delete" @click="destroy(item)"
-                                v-if="can.includes('amenities.destroy')" />
-                        </template>
-
-                    </v-data-table-server>
-                </v-col></v-row>
+                </v-window-item>
+                <!-- TAB RECURSOS -->
+                <v-window-item value="resources">
+                    <v-row>
+                        <v-col cols="12">
+                            <BaseButton text="Nuevo recurso" action="add" @click="createResource" />
+                            <v-data-table-server :headers="resourceHeaders" :items="resourceItems"
+                                :items-length="resourceTotal" :loading="resourceLoading" class="elevation-1"
+                                no-data-text="No hay recursos registrados">
+                                <template #item.is_active="{ item }">
+                                    <v-chip :color="item.is_active ? 'green' : 'red'">
+                                        {{ item.is_active ? 'Activo' : 'Inactivo' }}
+                                    </v-chip>
+                                </template>
+                                <template #item.actions="{ item }">
+                                    <BaseButton action="edit" @click="editResource(item)" />
+                                    <BaseButton action="delete" @click="deleteResource(item)" />
+                                </template>
+                            </v-data-table-server>
+                        </v-col>
+                    </v-row>
+                </v-window-item>
+            </v-window>
         </div>
 
         <v-dialog v-model="showModal" max-width="600" persistent>
@@ -487,130 +592,66 @@ watch(
                     <v-card-text class="overflow-y-auto h-full">
                         <v-row>
                             <v-col cols="12">
-                                <FormName 
-                                    v-model="form.name" 
-                                    label="Nombre" 
-                                    :rules="[required, maxLength(50)]" />
+                                <FormName v-model="form.name" label="Nombre" :rules="[required, maxLength(50)]" />
                             </v-col>
-                
-                            <v-col cols="6">
-                                <FormIcon 
-                                    v-model="form.icon" 
-                                    label="Icono"
-                                    ref="iconRef"
-                                />
 
-                                <v-card height="150"
-                                    variant="outlined"
-                                    class="mt-2 pa-2 d-flex flex-column align-center justify-center imagePreview"
-                                >
-                                    <v-img
-                                        v-if="iconPreview"
-                                        :src="iconPreview"
-                                        width="90"
-                                        height="60"
-                                        cover
-                                        class="rounded"
-                                    />
+                            <v-col cols="6">
+                                <FormIcon v-model="form.icon" label="Icono" ref="iconRef" />
+
+                                <v-card height="150" variant="outlined"
+                                    class="mt-2 pa-2 d-flex flex-column align-center justify-center imagePreview">
+                                    <v-img v-if="iconPreview" :src="iconPreview" width="90" height="60" cover
+                                        class="rounded" />
                                     <v-icon v-else size="40" color="grey">
                                         mdi-image-outline
                                     </v-icon>
 
-                                    <v-btn
-                                        v-if="iconPreview"
-                                        size="x-small"
-                                        color="error"
-                                        variant="text"
-                                        class="mt-2"
-                                        @click="removeIcon"
-                                    >
+                                    <v-btn v-if="iconPreview" size="x-small" color="error" variant="text" class="mt-2"
+                                        @click="removeIcon">
                                         Eliminar
                                     </v-btn>
                                 </v-card>
                             </v-col>
                             <v-col cols="6">
-                                <FormImage 
-                                    v-model="form.background_image"
-                                    label="Imagen de fondo"
-                                    ref="imageRef"
-                                />
+                                <FormImage v-model="form.background_image" label="Imagen de fondo" ref="imageRef" />
 
-                                <v-card height="150"
-                                    variant="outlined"
-                                    class="mt-2 d-flex flex-column align-center justify-center imagePreview"
-                                >
-                                    <v-img
-                                        v-if="imagePreview"
-                                        :src="imagePreview"
-                                        height="90"
-                                        width="200"
-                                        cover
-                                        class="rounded"
-                                    />
+                                <v-card height="150" variant="outlined"
+                                    class="mt-2 d-flex flex-column align-center justify-center imagePreview">
+                                    <v-img v-if="imagePreview" :src="imagePreview" height="90" width="200" cover
+                                        class="rounded" />
 
                                     <v-icon v-else size="40" color="grey">
                                         mdi-image-outline
                                     </v-icon>
 
-                                    <v-btn
-                                        v-if="imagePreview"
-                                        size="x-small"
-                                        color="error"
-                                        variant="text"
-                                        class="mt-2"
-                                        @click="removeBackgroundImage"
-                                    >
+                                    <v-btn v-if="imagePreview" size="x-small" color="error" variant="text" class="mt-2"
+                                        @click="removeBackgroundImage">
                                         Eliminar
                                     </v-btn>
                                 </v-card>
                             </v-col>
 
                             <v-col cols="12">
-                                <FormDescripcion 
-                                    v-model="form.description" 
-                                    label="Descripción" rows="3" 
-                                    :required="false"
-                                    :min-length="0"
-                                    auto-grow 
-                                />
+                                <FormDescripcion v-model="form.description" label="Descripción" rows="3"
+                                    :required="false" :min-length="0" auto-grow />
                             </v-col>
                             <v-col cols="12">
-                                <v-select 
-                                    v-model="form.reservation_type"  
-                                    prepend-inner-icon="mdi-calendar-check"
-                                    label="Tipo de reserva"
-                                    placeholder=" "
-                                    :items="[
+                                <v-select v-model="form.reservation_type" prepend-inner-icon="mdi-calendar-check"
+                                    label="Tipo de reserva" placeholder=" " :items="[
                                         { title: 'Uso exclusivo (1 reserva por horario)', value: 'exclusive' },
                                         { title: 'Por capacidad (múltiples reservas por horario)', value: 'capacity_based' }
-                                    ]" 
-                                    item-title="title" 
-                                    item-value="value" 
-                                    :rules="[required]"
-                                />
+                                    ]" item-title="title" item-value="value" :rules="[required]" />
                             </v-col>
-                            <v-col cols="12" v-if="showCapacity">
-                                <FormNumber
-                                    v-model="form.capacity" 
-                                    label="Capacidad"
-                                    :min="0"
-                                />
-                            </v-col>
+                            <!--<v-col cols="12" v-if="showCapacity">
+                                <FormNumber v-model="form.capacity" label="Capacidad" :min="0" />
+                            </v-col>-->
                             <v-col cols="12">
-                                <FormNumber
-                                    v-model="form.slot_duration_minutes"
-                                    label="Espacio de reserva en minutos"
-                                    :min="0"
-                                    :rules="[required]"
-                                />
+                                <FormNumber v-model="form.slot_duration_minutes" label="Espacio de reserva en minutos"
+                                    :min="0" :rules="[required]" />
                             </v-col>
                             <v-col cols="12" v-if="form.id">
-                                <v-switch 
-                                    v-model="form.is_active" 
-                                    color="green"
-                                    :label="form.is_active ? 'Activo' : 'Inactivo'" 
-                                    inset
-                                />
+                                <v-switch v-model="form.is_active" color="green"
+                                    :label="form.is_active ? 'Activo' : 'Inactivo'" inset />
                             </v-col>
                         </v-row>
                     </v-card-text>
@@ -624,79 +665,92 @@ watch(
                 </v-card>
             </v-form>
         </v-dialog>
-       <v-dialog v-model="showScheduleModal" max-width="700" persistent>
-           <v-form @submit.prevent="schedule">
-            <v-card>
-                <v-card-title style="max-height: 60vh;">
-                    <div class="title-container">
-                        <span class="title"><v-icon size="25">mdi-calendar-clock</v-icon> Horarios de la amenidad</span>
-                        <span class="subtitle">
-                            {{ amenityName }} · {{ activeDaysCount }} días activos
-                        </span>
-                    </div>
-                </v-card-title>
-                <v-card-text class="schedule-container overflow-y-auto h-full">
-                    <div v-for="day in formSchedule.days"
-                        :key="day.day"
-                        class="schedule-row"
-                        :class="{ inactive: !day.active }"
-                    >
-                        <div class="day-section">
-                            <v-switch
-                                v-model="day.active"
-                                hide-details
-                                inset
-                                color="black"
-                            />
-                            <span class="day-label">
-                                {{
-                                    {
-                                        monday: 'Lun',
-                                        tuesday: 'Mar',
-                                        wednesday: 'Mié',
-                                        thursday: 'Jue',
-                                        friday: 'Vie',
-                                        saturday: 'Sáb',
-                                        sunday: 'Dom'
-                                    }[day.day]
-                                }}
+        <v-dialog v-model="showScheduleModal" max-width="700" persistent>
+            <v-form @submit.prevent="schedule">
+                <v-card>
+                    <v-card-title style="max-height: 60vh;">
+                        <div class="title-container">
+                            <span class="title"><v-icon size="25">mdi-calendar-clock</v-icon> Horarios de la
+                                amenidad</span>
+                            <span class="subtitle">
+                                {{ amenityName }} · {{ activeDaysCount }} días activos
                             </span>
                         </div>
-                        <transition name="fade-slide">
-                            <div v-if="day.active" class="time-section">
-                                <v-icon size="16">mdi-clock-outline</v-icon>
-                                <TimePicker
-                                    v-model="day.open"
-                                    label-menu="Apertura"
-                                    density="compact"
-                                    class="time-input custom-time"
-                                    :rules="[required]" 
-                                    :error="!!scheduleErrors[`${day.day}_open`]"
-                                    :error-messages="scheduleErrors[`${day.day}_open`]"
-                                />
-                                <span class="time-separator">-</span>
-                                <TimePicker
-                                    v-model="day.close"
-                                    label-menu="Cierre"
-                                    density="compact"
-                                    class="time-input custom-time"
-                                    :rules="[required]" 
-                                    :error="!!scheduleErrors[`${day.day}_close`]"
-                                    :error-messages="scheduleErrors[`${day.day}_close`]"
-                                />
+                    </v-card-title>
+                    <v-card-text class="schedule-container overflow-y-auto h-full">
+                        <div v-for="day in formSchedule.days" :key="day.day" class="schedule-row"
+                            :class="{ inactive: !day.active }">
+                            <div class="day-section">
+                                <v-switch v-model="day.active" hide-details inset color="black" />
+                                <span class="day-label">
+                                    {{
+                                        {
+                                            monday: 'Lun',
+                                            tuesday: 'Mar',
+                                            wednesday: 'Mié',
+                                            thursday: 'Jue',
+                                            friday: 'Vie',
+                                            saturday: 'Sáb',
+                                            sunday: 'Dom'
+                                        }[day.day]
+                                    }}
+                                </span>
+                            </div>
+                            <transition name="fade-slide">
+                                <div v-if="day.active" class="time-section">
+                                    <v-icon size="16">mdi-clock-outline</v-icon>
+                                    <TimePicker v-model="day.open" label-menu="Apertura" density="compact"
+                                        class="time-input custom-time" :rules="[required]"
+                                        :error="!!scheduleErrors[`${day.day}_open`]"
+                                        :error-messages="scheduleErrors[`${day.day}_open`]" />
+                                    <span class="time-separator">-</span>
+                                    <TimePicker v-model="day.close" label-menu="Cierre" density="compact"
+                                        class="time-input custom-time" :rules="[required]"
+                                        :error="!!scheduleErrors[`${day.day}_close`]"
+                                        :error-messages="scheduleErrors[`${day.day}_close`]" />
 
-                            </div>
-                            <div v-else class="not-available">
-                                No disponible
-                            </div>
-                        </transition>
-                    </div>
-                </v-card-text>
-                <v-card-actions class="sticky-footer">
-                       <v-spacer />
-                       <BaseButton :text="'Cancelar'" variant="tonal" :icon-only="false" action="cancel" @click="closeScheduleModal" />
-                       <BaseButton :text="'Guardar horario'" variant="flat" :icon-only="false" type="submit" action="save" />
-                   </v-card-actions>
+                                </div>
+                                <div v-else class="not-available">
+                                    No disponible
+                                </div>
+                            </transition>
+                        </div>
+                    </v-card-text>
+                    <v-card-actions class="sticky-footer">
+                        <v-spacer />
+                        <BaseButton :text="'Cancelar'" variant="tonal" :icon-only="false" action="cancel"
+                            @click="closeScheduleModal" />
+                        <BaseButton :text="'Guardar horario'" variant="flat" :icon-only="false" type="submit"
+                            action="save" />
+                    </v-card-actions>
+                </v-card>
+            </v-form>
+        </v-dialog>
+        <v-dialog v-model="showResourceModal" max-width="500">
+            <v-form @submit.prevent="saveResource">
+                <v-card title="Recurso">
+                    <v-card-text>
+                        <v-row>
+                            <v-col cols="12">
+                                <v-select v-model="resourceForm.amenity_id" label="Amenidad" :item-title="'name'"
+                                    :item-value="'id'" :items="items" />
+                            </v-col>
+                            <v-col cols="12">
+                                <FormName v-model="resourceForm.name" label="Nombre" />
+                            </v-col>
+                            <v-col cols="12">
+                                <FormNumber v-model="resourceForm.capacity" label="Capacidad" />
+                            </v-col>
+                            <v-col cols="12">
+                                <v-switch v-model="resourceForm.is_active" label="Activo" />
+                            </v-col>
+                        </v-row>
+                    </v-card-text>
+                    <v-card-actions>
+                        <v-spacer />
+                        <BaseButton text="Cancelar" variant="tonal" action="cancel" @click="showResourceModal = false" />
+                        <BaseButton text="Guardar" variant="flat" action="save" type="submit" />
+                    </v-card-actions>
                 </v-card>
             </v-form>
         </v-dialog>
