@@ -19,7 +19,6 @@ const page = usePage();
 const can = usePage().props.auth.permissions;
 const imageRef = ref<any>(null);
 const iconRef = ref<any>(null);
-const requiredTrue = (v: boolean) => v === true || "Debe estar activo";
 const isSaveDisabled = computed(() => {
 const imageInvalid =
       imageRef.value &&
@@ -366,13 +365,13 @@ const openScheduleModal = (amenity: any) => {
         amenity.schedules.forEach((schedule: any) => {
 
             const map = {
-                1: 'monday',
-                2: 'tuesday',
-                3: 'wednesday',
-                4: 'thursday',
-                5: 'friday',
-                6: 'saturday',
-                7: 'sunday'
+                0: 'monday',
+                1: 'tuesday',
+                2: 'wednesday',
+                3: 'thursday',
+                4: 'friday',
+                5: 'saturday',
+                6: 'sunday'
             }
 
             const dayName = map[schedule.day_of_week]
@@ -605,13 +604,12 @@ watch(
                                     :rules="[required]"
                                 />
                             </v-col>
-                            <v-col cols="12">
+                            <v-col cols="12" v-if="form.id">
                                 <v-switch 
                                     v-model="form.is_active" 
                                     color="green"
                                     :label="form.is_active ? 'Activo' : 'Inactivo'" 
-                                    inset 
-                                    :rules="[requiredTrue]"
+                                    inset
                                 />
                             </v-col>
                         </v-row>
@@ -629,7 +627,7 @@ watch(
        <v-dialog v-model="showScheduleModal" max-width="700" persistent>
            <v-form @submit.prevent="schedule">
             <v-card>
-                <v-card-title class="schedule-header">
+                <v-card-title style="max-height: 60vh;">
                     <div class="title-container">
                         <span class="title"><v-icon size="25">mdi-calendar-clock</v-icon> Horarios de la amenidad</span>
                         <span class="subtitle">
@@ -637,7 +635,7 @@ watch(
                         </span>
                     </div>
                 </v-card-title>
-                <v-card-text class="schedule-container">
+                <v-card-text class="schedule-container overflow-y-auto h-full">
                     <div v-for="day in formSchedule.days"
                         :key="day.day"
                         class="schedule-row"
@@ -694,7 +692,7 @@ watch(
                         </transition>
                     </div>
                 </v-card-text>
-                <v-card-actions>
+                <v-card-actions class="sticky-footer">
                        <v-spacer />
                        <BaseButton :text="'Cancelar'" variant="tonal" :icon-only="false" action="cancel" @click="closeScheduleModal" />
                        <BaseButton :text="'Guardar horario'" variant="flat" :icon-only="false" type="submit" action="save" />

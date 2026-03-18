@@ -146,7 +146,7 @@ class UserController extends Controller
             if ($user->wasChanged('email')) {
                 $user->email_verified_at = null;
                 $user->save();
-                $user->sendEmailVerificationNotification();
+                $user->sendEmailVerificationNotification(); 
             }
             DB::commit();
             if ($user->wasChanged('email')) {

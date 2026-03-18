@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\ReservationResource;
 use App\Models\AdminClub\Reservation;
 use App\Models\AdminClub\ReservationStatus;
 use Carbon\Carbon;
@@ -65,7 +66,7 @@ class ReservationController extends Controller {
             return response()->json([
                 'success' => true,
                 'message' => 'Reservación creada correctamente',
-                'reservación' => $reservacion
+                'reservación' => new ReservationResource($reservacion)
             ], 200);
 
         } catch ( ValidationException $e){
@@ -109,7 +110,7 @@ class ReservationController extends Controller {
             return response()->json([
                 'success' => true,
                 'message' => 'Reservaciones obtenidas correctamente',
-                'reservaciones' => $reservations
+                'reservations' => ReservationResource::collection($reservations)
             ], 200);
         } catch (\Exception $e) {
             return response()->json([

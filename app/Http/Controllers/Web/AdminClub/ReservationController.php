@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\AdminClub;
 
 use App\Models\AdminClub\Reservation;
 use App\Models\AdminClub\ReservationStatus;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
@@ -32,10 +33,24 @@ class ReservationController extends Controller {
 
         if ($search = $request->input("{$prefix}_search")) {
 
-            $query->where(function ($q) use ($driver, $search) {
-                // $q->where('start_time', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
-                // ->orWhere('end_time', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
-                $q->where('date', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
+            // Filtro de fecha
+            $searchDate = trim($search);
+
+            if(preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $search)){
+                $searchDate = Carbon::createFromFormat('d/m/Y', $search)->format('Y-m-d');
+
+            } elseif(preg_match('/^\d{2}\/\d{4}$/', $search)){
+                [$month, $year] = explode('/', $search);
+                $searchDate = "{$year}-{$month}";
+
+            } elseif(preg_match('/^\d{2}\/\d{2}$/', $search)) {
+                [$day, $month] = explode('/', $search);
+                $searchDate = "{$month}-{$day}";
+            }
+
+            $query->where(function ($q) use ($driver, $search, $searchDate) {
+
+                $q->where('date', $driver == 'pgsql' ? 'ilike' : 'like', "%{$searchDate}%")
                 ->orWhereHas('amenity', function ($q2) use ($driver, $search){
                         $q2->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
                 });
@@ -80,6 +95,7 @@ class ReservationController extends Controller {
     public function update(Request $request, Reservation $reservation) {
         try {
             $reservation->update([
+                'cancelled_at' => now(),
                 'reservation_status_id' => ReservationStatus::CANCELADA
             ]);
             return redirect()->back()->with('success', 'Reservación cancelada con éxito!');

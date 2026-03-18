@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\AdminClub;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use App\Models\AdminClub\Reservation;
 use App\Models\AdminClub\AmenitySchedule;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
@@ -15,10 +16,10 @@ class AmenityScheduleController extends Controller {
         //return Inertia::render('Ruta/Vista', compact('items'));
     }
 
-    public function store(Request $request)
+public function store(Request $request)
 {
     $schedules = $request->input('schedules', []);
-
+    dd($request->input('schedules'));
     if (empty($schedules)) {
         return back()->with('error', 'No hay horarios para guardar');
     }
@@ -26,32 +27,80 @@ class AmenityScheduleController extends Controller {
     try {
 
         $daysMap = [
-            'monday' => 1,
-            'tuesday' => 2,
-            'wednesday' => 3,
-            'thursday' => 4,
-            'friday' => 5,
-            'saturday' => 6,
-            'sunday' => 7,
+            'monday' => 0,
+            'tuesday' => 1,
+            'wednesday' => 2,
+            'thursday' => 3,
+            'friday' => 4,
+            'saturday' => 5,
+            'sunday' => 6,
         ];
 
         $amenityId = $schedules[0]['amenity_id'];
 
-        AmenitySchedule::where('amenity_id', $amenityId)->forceDelete();
+        $newSchedules = [];
 
         foreach ($schedules as $schedule) {
+            $dayNumber = $daysMap[$schedule['day_of_week']];
+
+            $newSchedules[$dayNumber] = [
+                'open_time' => $schedule['open_time'],
+                'close_time' => $schedule['close_time'],
+            ];
+        }
+
+        $reservations = Reservation::selectRaw("
+                date,
+                start_time,
+                end_time,
+                WEEKDAY(date) as weekday
+            ")
+            ->where('amenity_id', $amenityId)
+            ->whereDate('date', '>=', now()->toDateString())
+            ->get();
+
+        foreach ($reservations as $reservation) {
+
+            $weekday = $reservation->weekday;
+            if (!isset($newSchedules[$weekday])) {
+                return back()->with(
+                    'error',
+                    'No puedes eliminar un día que tiene reservaciones futuras.'
+                );
+            }
+
+            $schedule = $newSchedules[$weekday];
+
+            // Detecta reducción de horario
+            if (
+                $reservation->start_time < $schedule['open_time'] ||
+                $reservation->end_time > $schedule['close_time']
+            ) {
+                return back()->with(
+                    'error',
+                    'No puedes reducir el horario porque existen reservaciones fuera del nuevo rango.'
+                );
+            }
+        }
+
+        AmenitySchedule::where('amenity_id', $amenityId)->forceDelete();
+
+        foreach ($newSchedules as $day => $schedule) {
+
             AmenitySchedule::create([
-                'amenity_id' => $schedule['amenity_id'],
-                'day_of_week' => $daysMap[$schedule['day_of_week']],
+                'amenity_id' => $amenityId,
+                'day_of_week' => $day,
                 'open_time' => $schedule['open_time'],
                 'close_time' => $schedule['close_time'],
             ]);
         }
 
-        return back()->with('success','Horarios guardados');
+        return back()->with('success', 'Horarios guardados');
 
     } catch (\Throwable $e) {
+
         report($e);
+
         return back()->with('error', $e->getMessage());
     }
 }

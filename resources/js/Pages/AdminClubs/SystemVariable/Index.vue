@@ -1,0 +1,179 @@
+<script setup lang="ts">
+import AppLayout from '@/Layouts/AppLayout.vue';
+import { Head, router, useForm, usePage } from '@inertiajs/vue3';
+import { ref, watch } from 'vue';
+import { debounce } from 'lodash';
+import { formatDate, formatTime } from '@/constants/formatDates';
+import { customConfirmSwal, customToastSwal } from "@/utils/swal";
+import BaseButton from "@/Components/BaseButton.vue";
+
+const page = usePage();
+const can = usePage().props.auth.permissions;
+const canRole = usePage().props.auth.roles;
+
+interface Props {
+    systemVariables?: any;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+    systemVariables: null,
+});
+
+interface SystemVariable {
+    id: number | null;
+    name: string;
+    value: string;
+    description: string;
+}
+
+const form = useForm<SystemVariable>({
+    id: null,
+    name: '',
+    value: '',
+    description: '',
+});
+
+const create = () => {
+
+}
+
+//* INICIO DATATABLE SERVER SIDE */
+// Aquí se definen los encabezados de la tabla, donde key es el nombre de la columna en la base de datos
+const headers = [
+    { title: "ID", key: "id" },
+    { title: "Nombre", key: "name" },
+    { title: "Descripción", key: "description" },
+    { title: "Valor", key: "value" },
+    { title: "Acciones", key: "actions", sortable: false },
+];
+
+// variables reactivas
+const items = ref([]);
+const total = ref(0);
+const loading = ref(false);
+const search = ref("");
+const options = ref({
+    page: 1,
+    itemsPerPage: 10,
+    sortBy: [{ key: "id", order: "desc" }],
+});
+const prefix = "systemVariables";
+// función para cargar datos desde Laravel
+const fetchItems = async () => {
+    loading.value = true;
+    const params = {
+        club_id: page.props.auth.currentClub,
+        [`${prefix}_page`]: options.value.page,
+        [`${prefix}_per_page`]: options.value.itemsPerPage,
+        [`${prefix}_search`]: search.value,
+        [`${prefix}_sort`]: options.value.sortBy?.[0]?.key ?? "id",
+        [`${prefix}_order`]: options.value.sortBy?.[0]?.order ?? "desc",
+    };
+
+    router.get(route("system-variables.index"), params, {
+        preserveState: true,
+        replace: true,
+        onSuccess: (page) => {
+            const data = page.props[prefix]?.data ?? [];
+            const totalCount = page.props[prefix]?.total ?? 0;
+
+            items.value = data;
+            total.value = totalCount;
+            loading.value = false;
+        },
+    });
+};
+
+// 🔁 Observadores con debounce para evitar muchas peticiones
+watch([options, search], debounce(fetchItems, 400), { deep: true });
+/* FIN DATATABLE SERVER SIDE */
+
+watch(() => page.props.auth.currentClub, () => {
+    fetchItems();
+});
+
+
+</script>
+
+<template>
+    <Head title="Dashboard"/>
+
+    <AppLayout>
+        <template #header> Variables del Sistema</template>
+        <template #options>
+            <!-- <BaseButton
+                variant="elevated"
+                :icon-only="false"
+                @click="create()"
+                action="add"
+            /> -->
+        </template>
+
+        <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
+            <v-row>
+                <v-col cols="12">
+                    <v-data-table-server
+                        fixed-header
+                        hover
+                        height="500px"
+                        :headers="headers"
+                        :items="items"
+                        :items-length="total"
+                        :loading="loading"
+                        v-model:options="options"
+                        class="elevation-1"
+                        :items-per-page-options="[10, 25, 50, 100]"
+                        items-per-page-text=" Mostrar"
+                        no-data-text="No hay registros para mostrar"
+                    >
+                        <template #top>
+                            <v-text-field
+                                v-model="search"
+                                label="Buscar"
+                                class="mx-4 mt-2"
+                                clearable
+                            />
+                        </template>
+
+                        <!-- <template v-slot:item.date="{ item }">
+                            {{ formatDate(item.date) }}
+                        </template>
+
+                        <template v-slot:item.start_time="{ item }">
+                            {{ formatTime(item.start_time)}}
+                        </template>
+
+                        <template v-slot:item.end_time="{ item }">
+                            {{ formatTime(item.end_time)}}
+                        </template>
+
+                        <template v-slot:item.status.name="{ item }">
+                            <v-chip :color="item.status.color" dark>
+                                {{ item.status.name }}
+                            </v-chip>
+                        </template>
+
+                        <template #item.actions="{ item }">
+                            <BaseButton
+                                action="edit"
+                                @click="edit(item)"
+                                v-if="can.includes('clubs.update')"
+                            /> 
+                            <BaseButton
+                                @click="cancel(item)"
+                                action="cancel"
+                                :disabled="item.reservation_status_id != activeStatus"
+                                v-if="can.includes('reservations.update')"
+                            />
+                        </template> -->
+
+                    </v-data-table-server>
+                </v-col>
+            </v-row>
+
+            <!-- <pre>{{ activeStatus }}</pre> -->
+        </div>
+
+    </AppLayout>
+
+</template>

@@ -84,6 +84,15 @@ const routes: Routing[] = [
         group: null,
         // groupItems: null
     },
+    // Variables de sistema
+    {
+        name: "system-variables.index",
+        title: "Variables del Sistema",
+        icon: "mdi-cog",
+        value: "variables-sistema",
+        group: null,
+        // groupItems: null
+    },
     /* 
     {
         name: ["dashboard"],
