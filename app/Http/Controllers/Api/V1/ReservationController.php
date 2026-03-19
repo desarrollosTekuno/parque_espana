@@ -38,43 +38,53 @@ class ReservationController extends Controller {
                 'start_datetime' => 'required|date_format:Y-m-d H:i',
                 'end_datetime' => 'required|date_format:Y-m-d H:i|after:start_time',
                 'club_id' =>  'required|exists:clubs,id',
-                'amenity_id' => 'required|exists:amenities,id'
+                'amenity_resource_id' => 'required|exists:amenity_resources,id'
             ]);
 
+            $amenityResource = AmenityResource::with('amenity')->where('id', $validated['amenity_resource_id'])->first();
+            $amenity = $amenityResource->amenity;
+
             // Valida que no exista una reservación en el mismo horario
-            // $fecha = Carbon::CreateFromFormat('d-m-Y', $validated['date'])->format('Y-m-d');
+            $reservations = Reservation::where('amenity_resource_id', $validated['amenity_resource_id'])
+                ->where('club_id', $validated['club_id'])
+                ->where('reservation_status_id', '!=', ReservationStatus::CANCELADA)
+                ->where(function ($query) use ($validated){
+                    $query->where('start_datetime', '<', $validated['end_datetime'])
+                          ->where('end_datetime', '>', $validated['start_datetime']);
+                })
+                ->count();
 
-            // $reservation = Reservation::where('amenity_id', $validated['amenity_id'])
-            //     ->where('club_id', $validated['club_id'])
-            //     ->where('reservation_status_id', '!=', ReservationStatus::CANCELADA)
-            //     ->where(function ($query) use ($validated){
-            //         $query->where('start_datetime', '<', $validated['end_datetime'])
-            //               ->where('end_datetime', '>', $validated['start_datetime']);
-            //     })
-            //     ->first();
+            if ($amenity->reservation_type == 'daily' && $reservations >= 1)
+            {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ya no hay capacidad disponible para esta amenidad en este horario'
+                ], 200);
+            }
 
-            // if ($reservation){
-            //     return response()->json([
-            //         'success' => false,
-            //         'message' => 'Ya existe una reservación para la fecha y horario indicados',
-            //         'reservación' => $reservation
-            //     ], 200);
-            // }
+            if ($reservations >= $amenityResource->capacity){
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ya no hay capacidad disponible para esta amenidad en este horario'
+                ], 200);
+            }
 
-            // $reservacion = Reservation::create([
-            //     'start_datetime' => $validated['start_datetime'],
-            //     'end_datetime' => $validated['end_datetime'],
-            //     'reservation_status_id' => ReservationStatus::ACTIVA,
-            //     'club_id' => $validated['club_id'],
-            //     'amenity_id' => $validated['amenity_id'],
-            //     'user_id' => $request->user()->id
-            // ]);
+            $reservacion = Reservation::create([
+                'start_datetime' => $validated['start_datetime'],
+                'end_datetime' => $validated['end_datetime'],
+                'reservation_status_id' => ReservationStatus::ACTIVA,
+                'club_id' => $validated['club_id'],
+                'amenity_id' => $amenity->id,
+                'amenity_resource_id' => $validated['amenity_resource_id'],
+                'user_id' => $request->user()->id,
+                'reservation_date' => $amenity->reservation_type == 'daily' ? Carbon::parse($validated['start_datetime'])->format('Y-m-d') : null
+            ]);
 
-            // return response()->json([
-            //     'success' => true,
-            //     'message' => 'Reservación creada correctamente',
-            //     'reservación' => new ReservationResource($reservacion)
-            // ], 200);
+            return response()->json([
+                'success' => true,
+                'message' => 'Reservación creada correctamente',
+                'reservación' => new ReservationResource($reservacion)
+            ], 200);
 
         } catch ( ValidationException $e){
             return response()->json([
@@ -128,25 +138,23 @@ class ReservationController extends Controller {
 
     }
 
-    // public function availableSlots(Request $request, AmenityResource $amenityResource)
-    // {
-    //     try {
+    public function availableSlots(Request $request, AmenityResource $amenityResource)
+    {
+        try {
 
-    //         return $amenityResource;
+            $availableSlots = $this->amenityAvailabilityService->getSlots($amenityResource, $request->date);
 
-    //         // $availableSlots = $this->amenityAvailabilityService->getSlots($amenity, $request->date);
+            return response()->json([
+                'success' => true,
+                'message' => 'Horarios obtenidos correctamente',
+                'available_slots' => $availableSlots
+            ], 200);
 
-    //         return response()->json([
-    //             'success' => true,
-    //             'message' => 'Horarios obtenidos correctamente',
-    //             'available_slots' => $availableSlots
-    //         ], 200);
-
-    //     } catch (\Exception $e) {
-    //         return response()->json([
-    //             'error' => 'Ocurrió un error al obtener los horarios',
-    //             'error_details' => $e->getMessage()
-    //         ], 500);
-    //     }
-    // }
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Ocurrió un error al obtener los horarios',
+                'error_details' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

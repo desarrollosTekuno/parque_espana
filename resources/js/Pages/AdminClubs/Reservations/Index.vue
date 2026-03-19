@@ -3,7 +3,7 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { ref, watch } from 'vue';
 import { debounce } from 'lodash';
-import { formatDate, formatTime } from '@/constants/formatDates';
+import { formatDate, formatTime, formatDateTime } from '@/constants/formatDates';
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import BaseButton from "@/Components/BaseButton.vue";
 
@@ -20,8 +20,8 @@ interface Props {
 interface Reservation {
     id: number | null;
     date: string;
-    start_time: string;
-    end_time: string;
+    start_datetime: string;
+    end_datetime: string;
     status: string;
     cancelled_at: string | null;
     club_id: string,
@@ -38,8 +38,8 @@ const props = withDefaults(defineProps<Props>(), {
 const form = useForm<Reservation>({
     id: null,
     date: "",
-    start_time: "",
-    end_time: "",
+    start_datetime: "",
+    end_datetime: "",
     status: "",
     cancelled_at: "",
     club_id: "",
@@ -74,11 +74,11 @@ const cancel = (data: any) => {
 // Aquí se definen los encabezados de la tabla, donde key es el nombre de la columna en la base de datos
 const headers = [
     { title: "ID", key: "id" },
-    { title: "Fecha", key: "date" },
-    { title: "Hora Inicio", key: "start_time" },
-    { title: "Hora Fin", key: "end_time" },
+    { title: "Fecha Inicio", key: "start_datetime" },
+    { title: "Fecha Fin", key: "end_datetime" },
     { title: "Estatus", key: "status.name" },
     { title: "Amenidad", key: "amenity.name" },
+    { title: "Recurso", key: "amenity_resource.name" },
     { title: "Acciones", key: "actions", sortable: false },
 ];
 
@@ -169,16 +169,12 @@ watch(() => page.props.auth.currentClub, () => {
                             />
                         </template>
 
-                        <template v-slot:item.date="{ item }">
-                            {{ formatDate(item.date) }}
-                        </template>
-
                         <template v-slot:item.start_time="{ item }">
-                            {{ formatTime(item.start_time)}}
+                            {{ formatDateTime(item.start_datetime)}}
                         </template>
 
                         <template v-slot:item.end_time="{ item }">
-                            {{ formatTime(item.end_time)}}
+                            {{ formatDateTime(item.end_datetime)}}
                         </template>
 
                         <template v-slot:item.status.name="{ item }">
@@ -205,7 +201,7 @@ watch(() => page.props.auth.currentClub, () => {
                 </v-col>
             </v-row>
 
-            <!-- <pre>{{ activeStatus }}</pre> -->
+            <pre>{{ reservations }}</pre>
         </div>
 
     </AppLayout>

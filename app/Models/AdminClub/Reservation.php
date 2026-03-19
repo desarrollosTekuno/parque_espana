@@ -19,6 +19,11 @@ class Reservation extends Model {
         return $this->belongsTo(Amenity::class);
     }
 
+    public function amenityResource()
+    {
+        return $this->belongsTo(AmenityResource::class);
+    }
+
     public function user(){
         return $this->belongsTo(User::class);
     }
