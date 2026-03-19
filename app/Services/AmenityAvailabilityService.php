@@ -127,7 +127,7 @@ class AmenityAvailabilityService
                     ->count();
 
                 // Determinar cantidad de espacios disponibles
-                if ($amenity->reservation_type === 'exclusive')
+                if ($amenity->reservation_type === 'hourly')
                 {
                     $availableSpots = 1 - $reservationsCount;
                 }else{

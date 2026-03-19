@@ -49,11 +49,14 @@ class ReservationController extends Controller {
             // }
 
             $query->where(function ($q) use ($driver, $search, $searchDate) {
-                $q->where('date', $driver == 'pgsql' ? 'ilike' : 'like', "%{$searchDate}%")
-                ->orWhereHas('amenity', function ($q2) use ($driver, $search){
+                // $q->where('date', $driver == 'pgsql' ? 'ilike' : 'like', "%{$searchDate}%")
+                $q->WhereHas('amenity', function ($q2) use ($driver, $search){
                     $q2->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
                 })
                 ->orWhereHas('amenityResource', function ($q2) use ($driver, $search){
+                    $q2->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
+                })
+                ->orWhereHas('status', function ($q2) use ($driver, $search){
                     $q2->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
                 });
             });

@@ -3,7 +3,7 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { ref, watch } from 'vue';
 import { debounce } from 'lodash';
-import { formatDate, formatTime, formatDateTime } from '@/constants/formatDates';
+import { formatDateTimeNoTZ } from '@/constants/formatDates';
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import BaseButton from "@/Components/BaseButton.vue";
 
@@ -169,12 +169,12 @@ watch(() => page.props.auth.currentClub, () => {
                             />
                         </template>
 
-                        <template v-slot:item.start_time="{ item }">
-                            {{ formatDateTime(item.start_datetime)}}
+                        <template v-slot:item.start_datetime="{ item }">
+                            {{ formatDateTimeNoTZ(item.start_datetime)}}
                         </template>
 
-                        <template v-slot:item.end_time="{ item }">
-                            {{ formatDateTime(item.end_datetime)}}
+                        <template v-slot:item.end_datetime="{ item }">
+                            {{ formatDateTimeNoTZ(item.end_datetime)}}
                         </template>
 
                         <template v-slot:item.status.name="{ item }">
@@ -201,7 +201,7 @@ watch(() => page.props.auth.currentClub, () => {
                 </v-col>
             </v-row>
 
-            <pre>{{ reservations }}</pre>
+            <!-- <pre>{{ reservations }}</pre> -->
         </div>
 
     </AppLayout>

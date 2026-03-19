@@ -13,6 +13,7 @@ class Reservation extends Model {
 
     protected $guarded = ['id', 'created_at', 'updated_at'];
     protected $dates = ['deleted_at'];
+    protected $casts = [ 'start_datetime' => 'datetime', 'end_datetime' => 'datetime' ];
 
     public function amenity()
     {
