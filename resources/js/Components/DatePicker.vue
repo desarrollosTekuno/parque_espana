@@ -41,8 +41,8 @@ interface Props {
   modelValue: string;
   label?: string;
   showIcon: boolean;
-  icon: string;
-  rules: any;
+  icon?: string;
+  rules?: any;
   min?: Date; // ← opcionales para mayor flexibilidad
   max?: Date;
 }
@@ -68,7 +68,9 @@ const maxDateISO = computed(() => {
 });
 
 const emit = defineEmits(["update:modelValue"]);
-const internalValue = ref(props.modelValue);
+const internalValue = ref<Date | null>(
+  props.modelValue ? new Date(props.modelValue) : null
+);
 const showPicker = ref(false);
 
 /* ─────────────────────────────
@@ -76,15 +78,24 @@ const showPicker = ref(false);
  * ───────────────────────────── */
 watch(
   () => props.modelValue,
-  (val) => (internalValue.value = val)
+  (val) => {
+    internalValue.value = val ? new Date(val) : null;
+  }
 );
 
 /* ─────────────────────────────
  * EVENTOS
  * ───────────────────────────── */
-function updateValue(val: string) {
-  internalValue.value = val;
-  emit("update:modelValue", val);
+function updateValue(val: Date | null) {
+  if (!val) return;
+
+  const formatted = new Date(
+    val.getTime() - val.getTimezoneOffset() * 60000
+  )
+    .toISOString()
+    .split("T")[0];
+
+  emit("update:modelValue", formatted);
   showPicker.value = false;
 }
 
@@ -93,8 +104,8 @@ function updateValue(val: string) {
  * ───────────────────────────── */
 const formattedDate = computed(() => {
   if (!internalValue.value) return "";
-  const date = new Date(internalValue.value);
-  return date.toLocaleDateString("es-MX", {
+
+  return internalValue.value.toLocaleDateString("es-MX", {
     year: "numeric",
     month: "long",
     day: "numeric",

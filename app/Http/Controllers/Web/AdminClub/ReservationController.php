@@ -21,6 +21,8 @@ class ReservationController extends Controller {
 
     public function index(Request $request)
     {
+        $reservationStatus = ReservationStatus::catalogo();
+
         $clubId = $request->club_id ?? session('club_id');
         // Detectar el driver de base de datos para adaptar el filtro de búsqueda
         $driver = DB::getDriverName();
@@ -75,7 +77,8 @@ class ReservationController extends Controller {
 
         return Inertia::render('AdminClubs/Reservations/Index', [
             'reservations' => $reservations,
-            'activeStatus' => ReservationStatus::ACTIVA
+            'activeStatus' => ReservationStatus::ACTIVA,
+            'reservationStatus' => $reservationStatus
         ]);
 
     }

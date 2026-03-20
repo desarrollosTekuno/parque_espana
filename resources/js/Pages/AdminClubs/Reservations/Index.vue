@@ -6,15 +6,19 @@ import { debounce } from 'lodash';
 import { formatDateTimeNoTZ } from '@/constants/formatDates';
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import BaseButton from "@/Components/BaseButton.vue";
+import DatePicker from '@/Components/DatePicker.vue';
 
 const page = usePage();
 const can = usePage().props.auth.permissions;
 const canRole = usePage().props.auth.roles;
 const showModalCancel = ref(false);
+const filterDate = ref("");
+const filterStatus = ref(null);
 
 interface Props {
     reservations?: any;
     activeStatus?: any;
+    reservationStatus?: any;
 }
 
 interface Reservation {
@@ -31,7 +35,8 @@ interface Reservation {
 
 const props = withDefaults(defineProps<Props>(), {
     reservations: null,
-    activeStatus: null
+    activeStatus: null,
+    reservationStatus: null
 });
 
 // Forms
@@ -127,6 +132,13 @@ watch(() => page.props.auth.currentClub, () => {
     fetchItems();
 });
 
+watch(filterDate, () => {
+    // options.value.page = 1;
+    // fetchItems();
+
+    console.log(filterDate.value);
+});
+
 </script>
 
 <template>
@@ -141,6 +153,21 @@ watch(() => page.props.auth.currentClub, () => {
                 @click="create()"
                 action="add"
             /> -->
+
+            <DatePicker
+                v-model="filterDate"
+                :showIcon="false"
+            />
+
+            <!-- <v-select
+                v-model="filterStatus"
+                :items="reservationStatus"
+                label="Estatus"
+                variant="outlined"
+                density="compact"
+                value="value"
+                item-title="text"
+            ></v-select> -->
         </template>
 
         <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">

@@ -17,4 +17,13 @@ class ReservationStatus extends Model {
 
     protected $guarded = ['id', 'created_at', 'updated_at'];
     protected $dates = ['deleted_at'];
+
+    public static function catalogo() {
+        return self::orderBy('id')->get()->map(function ($item) {
+            return [
+                'value' => $item->id,
+                'text' => $item->name,
+            ];
+        });
+    }
 }
