@@ -56,6 +56,11 @@ const props = withDefaults(defineProps<Props>(), {
 
 const today = new Date();
 
+function parseLocalDate(dateString: string): Date {
+  const [year, month, day] = dateString.split("-").map(Number);
+  return new Date(year, month - 1, day); // 👈 LOCAL, no UTC
+}
+
 // 🔹 Recalcula automáticamente si cambian las props
 const minDateISO = computed(() => {
   const min = props.min ?? today;
@@ -69,7 +74,7 @@ const maxDateISO = computed(() => {
 
 const emit = defineEmits(["update:modelValue"]);
 const internalValue = ref<Date | null>(
-  props.modelValue ? new Date(props.modelValue) : null
+  props.modelValue ? parseLocalDate(props.modelValue) : null
 );
 const showPicker = ref(false);
 
@@ -79,7 +84,7 @@ const showPicker = ref(false);
 watch(
   () => props.modelValue,
   (val) => {
-    internalValue.value = val ? new Date(val) : null;
+    internalValue.value = val ? parseLocalDate(val) : null;
   }
 );
 
@@ -105,7 +110,16 @@ function updateValue(val: Date | null) {
 const formattedDate = computed(() => {
   if (!internalValue.value) return "";
 
-  return internalValue.value.toLocaleDateString("es-MX", {
+  const d = internalValue.value;
+
+  // Creamos fecha LOCAL (no UTC)
+  const date = new Date(
+    d.getFullYear(),
+    d.getMonth(),
+    d.getDate()
+  );
+
+  return date.toLocaleDateString("es-MX", {
     year: "numeric",
     month: "long",
     day: "numeric",

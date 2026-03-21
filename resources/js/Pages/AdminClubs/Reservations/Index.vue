@@ -52,8 +52,13 @@ const form = useForm<Reservation>({
     user_id: ""
 });
 
-const create = () => {
+const clearFilters = () => {
 
+    if (filterDate.value !== "" || filterStatus.value !== null) {
+        filterDate.value = "";
+        filterStatus.value = null;
+        fetchItems();
+    }
 };
 
 const cancel = (data: any) => {
@@ -108,6 +113,8 @@ const fetchItems = async () => {
         [`${prefix}_search`]: search.value,
         [`${prefix}_sort`]: options.value.sortBy?.[0]?.key ?? "id",
         [`${prefix}_order`]: options.value.sortBy?.[0]?.order ?? "desc",
+        [`${prefix}_filter_date`]: filterDate.value,
+        [`${prefix}_filter_status`]: filterStatus.value
     };
 
     router.get(route("reservations.index"), params, {
@@ -133,10 +140,14 @@ watch(() => page.props.auth.currentClub, () => {
 });
 
 watch(filterDate, () => {
-    // options.value.page = 1;
-    // fetchItems();
+    options.value.page = 1;
+    fetchItems();
+});
 
-    console.log(filterDate.value);
+watch(filterStatus, () => {
+    options.value.page = 1;
+    fetchItems();
+    // console.log(filterStatus.value);
 });
 
 </script>
@@ -153,21 +164,36 @@ watch(filterDate, () => {
                 @click="create()"
                 action="add"
             /> -->
+            <div class="flex flex-col sm:flex-row sm:items-center gap-3 w-full pl-3">
+                <div class="w-full sm:w-auto sm:flex-1 min-w-[160px]">
+                    <DatePicker
+                        v-model="filterDate"
+                        :showIcon="false"
+                        class="w-full"
+                    />
+                </div>
 
-            <DatePicker
-                v-model="filterDate"
-                :showIcon="false"
-            />
+                <div class="w-full sm:w-auto sm:flex-1 min-w-[160px]">
+                    <v-select
+                        v-model="filterStatus"
+                        :items="reservationStatus"
+                        label="Estatus"
+                        item-title="text"
+                    ></v-select>
+                </div>
 
-            <!-- <v-select
-                v-model="filterStatus"
-                :items="reservationStatus"
-                label="Estatus"
-                variant="outlined"
-                density="compact"
-                value="value"
-                item-title="text"
-            ></v-select> -->
+                <div class="w-full sm:w-auto flex justify-end">
+                    <BaseButton
+                        variant="elevated"
+                        :icon-only="false"
+                        @click="clearFilters()"
+                        color="grey"
+                        text="Limpiar"
+                        icon="mdi-filter-off"
+                    />
+                </div>
+
+            </div>
         </template>
 
         <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
