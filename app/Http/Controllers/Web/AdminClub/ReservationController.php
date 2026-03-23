@@ -21,6 +21,8 @@ class ReservationController extends Controller {
 
     public function index(Request $request)
     {
+        $reservationStatus = ReservationStatus::catalogo();
+
         $clubId = $request->club_id ?? session('club_id');
         // Detectar el driver de base de datos para adaptar el filtro de búsqueda
         $driver = DB::getDriverName();
@@ -28,33 +30,34 @@ class ReservationController extends Controller {
         // Prefijo para evitar conflicto con otras tablas
         $prefix = 'reservations';
 
+        $filterData = $request->input("{$prefix}_filter_date");
+        $filterStatus = $request->input("{$prefix}_filter_status");
+
         // Query base
-        $query = Reservation::with(['amenity', 'status'])->where('club_id', $clubId);
+        $query = Reservation::with(['amenity', 'amenityResource', 'status'])->where('club_id', $clubId);
 
         if ($search = $request->input("{$prefix}_search")) {
 
-            // Filtro de fecha
-            $searchDate = trim($search);
-
-            if(preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $search)){
-                $searchDate = Carbon::createFromFormat('d/m/Y', $search)->format('Y-m-d');
-
-            } elseif(preg_match('/^\d{2}\/\d{4}$/', $search)){
-                [$month, $year] = explode('/', $search);
-                $searchDate = "{$year}-{$month}";
-
-            } elseif(preg_match('/^\d{2}\/\d{2}$/', $search)) {
-                [$day, $month] = explode('/', $search);
-                $searchDate = "{$month}-{$day}";
-            }
-
-            $query->where(function ($q) use ($driver, $search, $searchDate) {
-
-                $q->where('date', $driver == 'pgsql' ? 'ilike' : 'like', "%{$searchDate}%")
-                ->orWhereHas('amenity', function ($q2) use ($driver, $search){
-                        $q2->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
+            $query->where(function ($q) use ($driver, $search) {
+                $q->WhereHas('amenity', function ($q2) use ($driver, $search){
+                    $q2->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
+                })
+                ->orWhereHas('amenityResource', function ($q2) use ($driver, $search){
+                    $q2->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
                 });
             });
+        }
+
+        if ($filterData) {
+            $query->where(function ($q) use ($filterData) {
+                $q->whereDate('start_datetime', $filterData)
+                ->orWhereDate('end_datetime', $filterData);
+            });
+                
+        }
+
+        if ($filterStatus) {
+            $query->where('reservation_status_id', $filterStatus);
         }
 
         $sort = $request->input("{$prefix}_sort", 'id');
@@ -70,7 +73,8 @@ class ReservationController extends Controller {
 
         return Inertia::render('AdminClubs/Reservations/Index', [
             'reservations' => $reservations,
-            'activeStatus' => ReservationStatus::ACTIVA
+            'activeStatus' => ReservationStatus::ACTIVA,
+            'reservationStatus' => $reservationStatus
         ]);
 
     }

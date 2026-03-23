@@ -3,25 +3,29 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { ref, watch } from 'vue';
 import { debounce } from 'lodash';
-import { formatDate, formatTime } from '@/constants/formatDates';
+import { formatDateTimeNoTZ } from '@/constants/formatDates';
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import BaseButton from "@/Components/BaseButton.vue";
+import DatePicker from '@/Components/DatePicker.vue';
 
 const page = usePage();
 const can = usePage().props.auth.permissions;
 const canRole = usePage().props.auth.roles;
 const showModalCancel = ref(false);
+const filterDate = ref("");
+const filterStatus = ref(null);
 
 interface Props {
     reservations?: any;
     activeStatus?: any;
+    reservationStatus?: any;
 }
 
 interface Reservation {
     id: number | null;
     date: string;
-    start_time: string;
-    end_time: string;
+    start_datetime: string;
+    end_datetime: string;
     status: string;
     cancelled_at: string | null;
     club_id: string,
@@ -31,15 +35,16 @@ interface Reservation {
 
 const props = withDefaults(defineProps<Props>(), {
     reservations: null,
-    activeStatus: null
+    activeStatus: null,
+    reservationStatus: null
 });
 
 // Forms
 const form = useForm<Reservation>({
     id: null,
     date: "",
-    start_time: "",
-    end_time: "",
+    start_datetime: "",
+    end_datetime: "",
     status: "",
     cancelled_at: "",
     club_id: "",
@@ -47,8 +52,13 @@ const form = useForm<Reservation>({
     user_id: ""
 });
 
-const create = () => {
+const clearFilters = () => {
 
+    if (filterDate.value !== "" || filterStatus.value !== null) {
+        filterDate.value = "";
+        filterStatus.value = null;
+        fetchItems();
+    }
 };
 
 const cancel = (data: any) => {
@@ -74,11 +84,11 @@ const cancel = (data: any) => {
 // Aquí se definen los encabezados de la tabla, donde key es el nombre de la columna en la base de datos
 const headers = [
     { title: "ID", key: "id" },
-    { title: "Fecha", key: "date" },
-    { title: "Hora Inicio", key: "start_time" },
-    { title: "Hora Fin", key: "end_time" },
+    { title: "Fecha Inicio", key: "start_datetime" },
+    { title: "Fecha Fin", key: "end_datetime" },
     { title: "Estatus", key: "status.name" },
     { title: "Amenidad", key: "amenity.name" },
+    { title: "Recurso", key: "amenity_resource.name" },
     { title: "Acciones", key: "actions", sortable: false },
 ];
 
@@ -103,6 +113,8 @@ const fetchItems = async () => {
         [`${prefix}_search`]: search.value,
         [`${prefix}_sort`]: options.value.sortBy?.[0]?.key ?? "id",
         [`${prefix}_order`]: options.value.sortBy?.[0]?.order ?? "desc",
+        [`${prefix}_filter_date`]: filterDate.value,
+        [`${prefix}_filter_status`]: filterStatus.value
     };
 
     router.get(route("reservations.index"), params, {
@@ -127,6 +139,17 @@ watch(() => page.props.auth.currentClub, () => {
     fetchItems();
 });
 
+watch(filterDate, () => {
+    options.value.page = 1;
+    fetchItems();
+});
+
+watch(filterStatus, () => {
+    options.value.page = 1;
+    fetchItems();
+    // console.log(filterStatus.value);
+});
+
 </script>
 
 <template>
@@ -141,6 +164,36 @@ watch(() => page.props.auth.currentClub, () => {
                 @click="create()"
                 action="add"
             /> -->
+            <div class="flex flex-col sm:flex-row sm:items-center gap-3 w-full pl-3">
+                <div class="w-full sm:w-auto sm:flex-1 min-w-[160px]">
+                    <DatePicker
+                        v-model="filterDate"
+                        :showIcon="false"
+                        class="w-full"
+                    />
+                </div>
+
+                <div class="w-full sm:w-auto sm:flex-1 min-w-[160px]">
+                    <v-select
+                        v-model="filterStatus"
+                        :items="reservationStatus"
+                        label="Estatus"
+                        item-title="text"
+                    ></v-select>
+                </div>
+
+                <div class="w-full sm:w-auto flex justify-end">
+                    <BaseButton
+                        variant="elevated"
+                        :icon-only="false"
+                        @click="clearFilters()"
+                        color="grey"
+                        text="Limpiar"
+                        icon="mdi-filter-off"
+                    />
+                </div>
+
+            </div>
         </template>
 
         <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
@@ -169,16 +222,12 @@ watch(() => page.props.auth.currentClub, () => {
                             />
                         </template>
 
-                        <template v-slot:item.date="{ item }">
-                            {{ formatDate(item.date) }}
+                        <template v-slot:item.start_datetime="{ item }">
+                            {{ formatDateTimeNoTZ(item.start_datetime)}}
                         </template>
 
-                        <template v-slot:item.start_time="{ item }">
-                            {{ formatTime(item.start_time)}}
-                        </template>
-
-                        <template v-slot:item.end_time="{ item }">
-                            {{ formatTime(item.end_time)}}
+                        <template v-slot:item.end_datetime="{ item }">
+                            {{ formatDateTimeNoTZ(item.end_datetime)}}
                         </template>
 
                         <template v-slot:item.status.name="{ item }">
@@ -205,7 +254,7 @@ watch(() => page.props.auth.currentClub, () => {
                 </v-col>
             </v-row>
 
-            <!-- <pre>{{ activeStatus }}</pre> -->
+            <!-- <pre>{{ reservations }}</pre> -->
         </div>
 
     </AppLayout>

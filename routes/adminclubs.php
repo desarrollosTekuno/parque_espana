@@ -15,5 +15,4 @@ Route::resource('/amenityResource', AmenityResourceController::class)->names('am
 Route::resource('/amenitySchedule', AmenityScheduleController::class)->names('amenitySchedule');
 
 Route::resource('/reservations', ReservationController::class)->only(['index', 'update'])->names('reservations');
-
 Route::resource('/system-variables', SystemVariableController::class)->only(['index'])->names('system-variables');
