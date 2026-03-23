@@ -8,18 +8,22 @@ use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class SystemVariableController extends Controller {
 
     public function _construct() {
-        $this->middleware('permission:systemVariables.index')->only('index');
+        $this->middleware('permission:system-variables.index')->only('index');
+        $this->middleware('permission:system-variables.store')->only('store');
+        $this->middleware('permission:system-variables.update')->only('update');
+        $this->middleware('permission:system-variables.destroy')->only('destroy');
     }
 
-    public function index(Request $request) 
+    public function index(Request $request)
     {
 
         $clubId = $request->club_id ?? session('club_id');
-        
+
         // Detectar el driver de base de datos para adaptar el filtro de búsqueda
         $driver = DB::getDriverName();
 
@@ -35,7 +39,7 @@ class SystemVariableController extends Controller {
 
                 $q->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
                 ->orWhere('description', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
-                ->orWhere('value', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");   
+                ->orWhere('value', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
             });
         }
 
@@ -55,7 +59,68 @@ class SystemVariableController extends Controller {
         ]);
     }
 
-    public function MyFunction(Request $request) {
-        return "MyFunction";
+    public function store(Request $request)
+    {
+        try {
+
+            $validated = $request->validate([
+                'name' => [
+                    'required',
+                    'string',
+                    'max:50',
+                    Rule::unique('system_variables', 'name')
+                        ->where(fn ($query) => $query->where('club_id', session('club_id'))),
+                ],
+                'description' => 'required|string|max:255',
+                'value' => 'required|string|max:50',
+            ]);
+
+            SystemVariable::create(array_merge($validated, ['club_id' => session('club_id')]));
+            return redirect()->back()->with('success', 'Variable creada correctamente');
+
+        } catch (\Exception $e) {
+            return redirect()->back()->withErrors([
+                'messageError' => 'Ocurrió un error al crear la variable',
+                'exception' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public function update(Request $request, SystemVariable $systemVariable)
+    {
+        try {
+
+            $validated = $request->validate([
+                'name' => ['required', 'string', 'max:50'],
+                'description' => 'required|string|max:255',
+                'value' => 'required|string|max:50',
+                Rule::unique('system_variables', 'name')
+                    ->ignore($systemVariable->id)
+                    ->where(fn ($query) => $query->where('club_id', session('club_id'))),
+            ]);
+
+            $systemVariable->update($validated);
+            return redirect()->back()->with('success', 'Variable actualizada correctamente');
+
+        } catch (\Exception $e) {
+            return redirect()->back()->withErrors([
+                'messageError' => 'Ocurrió un error al actualizar la variable',
+                'exception' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public function destroy(SystemVariable $systemVariable)
+    {
+        try {
+            $systemVariable->delete();
+            return redirect()->back()->with('success', 'Variable eliminada correctamente');
+        } catch (\Exception $e) {
+            return redirect()->back()->withErrors([
+                'messageError' => 'Ocurrió un error al eliminar la variable',
+                'exception' => $e->getMessage(),
+            ]);
+        }
+
     }
 }

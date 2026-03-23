@@ -45,6 +45,12 @@ class PermissionSeeder extends Seeder
             array('name' => 'reservations.index', 'description' => 'Ver reservaciones', 'contexts' => ['web']),
             array('name' => 'reservations.update', 'description' => 'Cancelar reservaciones', 'contexts' => ['web']),
 
+            // Variables de sistema
+            array('name' => 'system-variables.index', 'description' => 'Ver variables de sistema', 'contexts' => ['web']),
+            array('name' => 'system-variables.store', 'description' => 'Crear variables de sistema', 'contexts' => ['web']),
+            array('name' => 'system-variables.update', 'description' => 'Actualizar variables de sistema', 'contexts' => ['web']),
+            array('name' => 'system-variables.destroy', 'description' => 'Eliminar variables de sistema', 'contexts' => ['web']),
+
         );
         foreach ($permissions as $permission) {
             $createPermission= Permission::updateOrCreate(['name' => $permission['name']], [

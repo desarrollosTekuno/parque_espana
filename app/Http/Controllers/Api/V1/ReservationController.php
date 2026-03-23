@@ -36,7 +36,7 @@ class ReservationController extends Controller {
 
             $validated = $request->validate([
                 'start_datetime' => 'required|date_format:Y-m-d H:i',
-                'end_datetime' => 'required|date_format:Y-m-d H:i|after:start_time',
+                'end_datetime' => 'required|date_format:Y-m-d H:i|after:start_datetime',
                 'club_id' =>  'required|exists:clubs,id',
                 'amenity_resource_id' => 'required|exists:amenity_resources,id'
             ]);

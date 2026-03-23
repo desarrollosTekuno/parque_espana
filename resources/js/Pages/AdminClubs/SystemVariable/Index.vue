@@ -3,13 +3,15 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { ref, watch } from 'vue';
 import { debounce } from 'lodash';
-import { formatDate, formatTime } from '@/constants/formatDates';
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import BaseButton from "@/Components/BaseButton.vue";
+import { required, maxLength } from "@/constants/validationRules";
 
 const page = usePage();
 const can = usePage().props.auth.permissions;
 const canRole = usePage().props.auth.roles;
+const showModal = ref(false);
+const formSendRef = ref();
 
 interface Props {
     systemVariables?: any;
@@ -34,8 +36,98 @@ const form = useForm<SystemVariable>({
 });
 
 const create = () => {
+    showModal.value = true;
+};
 
+const save = () => {
+    formSendRef.value?.validate().then(({ valid: isValid }) => {
+        // console.log(isValid);
+        if (!isValid) {
+            return;
+        } else {
+            if (form.id) {
+                form.put(route("system-variables.update", form.id), {
+                    onSuccess: () => {
+                        customToastSwal({
+                            title: page.props.flash.success || "",
+                            icon: "success",
+                        });
+                        showModal.value = false;
+                        form.reset();
+                        fetchItems();
+                    },
+                    onError: () => {
+                        customToastSwal({
+                            title: `Error: ${form.errors.messageError}`,
+                            text: `${form.errors.exception}`,
+                            icon: "error",
+                        });
+                        // console.log(form.errors);
+                    },
+                });
+            } else {
+                form.post(route("system-variables.store"), {
+                    onSuccess: () => {
+                        customToastSwal({
+                            title: page.props.flash.success || "",
+                            icon: "success",
+                        });
+                        showModal.value = false;
+                        form.reset();
+                        fetchItems();
+                    },
+                    onError: () => {
+                        customToastSwal({
+                            title: `Error: ${form.errors.messageError}`,
+                            text: `${form.errors.exception}`,
+                            icon: "error",
+                        });
+                        // console.log(form.errors);
+                    },
+                });
+            }
+        }
+    });
+};
+
+const edit = (data: any) => {
+    form.id = data.id;
+    form.name = data.name;
+    form.value = data.value;
+    form.description = data.description;
+    showModal.value = true;
 }
+
+const destroy = (data: any) => {
+    customConfirmSwal({
+        title: "¿Está segur@ que desea eliminar este registro?",
+    }).then((result) => {
+        if (result.isConfirmed) {
+            form.delete(route("system-variables.destroy", data.id), {
+                onSuccess: () => {
+                    customToastSwal({
+                        title: page.props.flash.success || "",
+                        icon: "success",
+                    });
+                    fetchItems();
+                },
+                onError: (err) => {
+                    console.error(err);
+                    customToastSwal({
+                        title: `Error: ${form.errors.messageError}`,
+                        text: `${form.errors.exception}`,
+                        icon: "error",
+                    });
+                },
+            });
+        }
+    });
+};
+
+const close = () => {
+    form.reset();
+    showModal.value = false;
+};
 
 //* INICIO DATATABLE SERVER SIDE */
 // Aquí se definen los encabezados de la tabla, donde key es el nombre de la columna en la base de datos
@@ -101,12 +193,13 @@ watch(() => page.props.auth.currentClub, () => {
     <AppLayout>
         <template #header> Variables del Sistema</template>
         <template #options>
-            <!-- <BaseButton
+            <BaseButton
                 variant="elevated"
                 :icon-only="false"
                 @click="create()"
                 action="add"
-            /> -->
+                v-if="can.includes('system-variables.store')"
+            />
         </template>
 
         <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
@@ -135,44 +228,81 @@ watch(() => page.props.auth.currentClub, () => {
                             />
                         </template>
 
-                        <!-- <template v-slot:item.date="{ item }">
-                            {{ formatDate(item.date) }}
-                        </template>
-
-                        <template v-slot:item.start_time="{ item }">
-                            {{ formatTime(item.start_time)}}
-                        </template>
-
-                        <template v-slot:item.end_time="{ item }">
-                            {{ formatTime(item.end_time)}}
-                        </template>
-
-                        <template v-slot:item.status.name="{ item }">
-                            <v-chip :color="item.status.color" dark>
-                                {{ item.status.name }}
-                            </v-chip>
-                        </template>
-
                         <template #item.actions="{ item }">
                             <BaseButton
                                 action="edit"
                                 @click="edit(item)"
-                                v-if="can.includes('clubs.update')"
-                            /> 
-                            <BaseButton
-                                @click="cancel(item)"
-                                action="cancel"
-                                :disabled="item.reservation_status_id != activeStatus"
-                                v-if="can.includes('reservations.update')"
+                                v-if="can.includes('system-variables.update')"
                             />
-                        </template> -->
+                            <BaseButton
+                                @click="destroy(item)"
+                                action="delete"
+                                v-if="can.includes('system-variables.destroy')"
+                            />
+                        </template>
 
                     </v-data-table-server>
                 </v-col>
             </v-row>
-
-            <!-- <pre>{{ activeStatus }}</pre> -->
         </div>
+
+        <v-dialog v-model="showModal" max-width="600" persistent>
+            <v-form @submit.prevent="save" ref="formSendRef">
+                <v-card
+                    prepend-icon="mdi-cube-outline"
+                    :title="`${form.id ? 'Editar Variable' : 'Nueva Variable'}`"
+                >
+                    <v-card-text class="overflow-y-auto h-full">
+                        <v-col cols="12">
+                            <v-text-field
+                                v-model="form.name"
+                                label="Nombre"
+                                persistent-hint
+                                :rules="[required, maxLength(50)]"
+                                :disabled="form.id ? true : false"
+                            />
+                        </v-col>
+                        <v-col cols="12">
+                            <v-text-field
+                                v-model="form.value"
+                                label="Valor"
+                                persistent-hint
+                                :rules="[required, maxLength(50)]"
+                            />
+                        </v-col>
+                        <v-col cols="12">
+                            <v-textarea
+                                v-model="form.description"
+                                label="Descripción"
+                                persistent-hint
+                                clearable
+                                counter
+                                rows="3"
+                                :rules="[required]"
+                                auto-grow
+                                variant="filled"
+                            />
+                        </v-col>
+                    </v-card-text>
+                    <v-card-actions>
+                        <v-spacer></v-spacer>
+                        <BaseButton
+                            :icon-only="false"
+                            variant="tonal"
+                            action="cancel"
+                            @click="close"
+                        />
+                        <BaseButton
+                            :text="form.id ? 'Actualizar' : 'Guardar'"
+                            variant="flat"
+                            :icon-only="false"
+                            type="submit"
+                            action="save"
+                        />
+                    </v-card-actions>
+                </v-card>
+            </v-form>
+        </v-dialog>
 
     </AppLayout>
 
