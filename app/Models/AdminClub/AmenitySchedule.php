@@ -18,15 +18,9 @@ class AmenitySchedule extends Model
     ];
     protected $guarded = ['id', 'created_at', 'updated_at'];
     protected $dates = ['deleted_at'];
-    public function getDayNameAttribute(){
-        return [
-            1 => 'Lunes',
-            2 => 'Martes',
-            3 => 'Miércoles',
-            4 => 'Jueves',
-            5 => 'Viernes',
-            6 => 'Sábado',
-            7 => 'Domingo',
-        ][$this->day_of_week] ?? null;
+
+    public function amenity()
+    {
+        return $this->belongsTo(Amenity::class, 'amenity_id');
     }
 }

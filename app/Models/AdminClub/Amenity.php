@@ -34,4 +34,5 @@ class Amenity extends Model
     {
         return $this->hasMany(AmenitySchedule::class, 'amenity_id');
     }
+    
 }
