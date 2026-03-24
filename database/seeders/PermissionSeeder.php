@@ -51,6 +51,13 @@ class PermissionSeeder extends Seeder
             array('name' => 'system-variables.update', 'description' => 'Actualizar variables de sistema', 'contexts' => ['web']),
             array('name' => 'system-variables.destroy', 'description' => 'Eliminar variables de sistema', 'contexts' => ['web']),
 
+            array('name'=> 'amenityResource.index', 'description'=> 'Ver recursos de la amenidad', 'contexts' => ['web']),
+            array('name'=> 'amenityResource.store', 'description'=> 'Crear recursos de la amenidad', 'contexts' => ['web']),
+            array('name'=> 'amenityResource.update', 'description'=> 'Actualizar recursos de la amenidad', 'contexts' => ['web']),
+            array('name'=> 'amenityResource.destroy', 'description'=> 'Eliminar recursos de la amenidad', 'contexts' => ['web']),
+            // store, update and destroy to amenityResource
+
+
         );
         foreach ($permissions as $permission) {
             $createPermission= Permission::updateOrCreate(['name' => $permission['name']], [
