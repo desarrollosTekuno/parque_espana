@@ -88,6 +88,7 @@ const form = useForm<Amenity>({
     slot_duration_minutes: null,
 });
 const formSchedule = useForm({
+    id: null,
     amenity_id: null,
     days: [
         { day: 'monday', open: null, close: null, active: false },
@@ -250,7 +251,7 @@ const schedule = () => {
                     title: flash.success,
                     icon: "success"
                 })
-
+                originalSchedule.value = JSON.stringify(formSchedule.days)
                 closeScheduleModal()
                 fetchItems()
             }
@@ -288,7 +289,6 @@ const destroy = (data: any) => {
     });
 };
 
-
 // Cierre de modales 
 const close = () => {
     form.reset();
@@ -298,6 +298,7 @@ const close = () => {
 };
 const closeScheduleModal = () => {
     showScheduleModal.value = false
+    formSchedule.id = null
     Object.keys(scheduleErrors).forEach(key => delete scheduleErrors[key])
 };
 const closeResourcesModal = () => {
@@ -381,8 +382,11 @@ const fetchItems = () => {
         },
     });
 };
+const reservationTypeLabel: Record<string,string> = {
+    daily: 'Reserva por día',
+    hourly: 'Reserva por tiempo'
+}
 
-console.log(page.props.amenities)
 //   Tabla, items y fetch de recursos    
 const resourceHeaders = [
     { title: "ID", key: "id" },
@@ -455,10 +459,13 @@ const formatScheduleSmart = (schedules: any[]) => {
         const sortedDays = [...new Set(days)].sort((a, b) => a - b);
 
         let label = "";
+        const ALL_WEEK = [0,1,2,3,4,5,6];
+        const isAllWeek = ALL_WEEK.every(d => sortedDays.includes(d)) && sortedDays.length === 7;
         const isWeekdays = WEEKDAYS.every(d => sortedDays.includes(d)) && sortedDays.length === 5;
         const isWeekend = WEEKEND.every(d => sortedDays.includes(d)) && sortedDays.length === 2;
-
-        if (isWeekdays) {
+        if (isAllWeek) {
+            label = "Toda la semana";
+        }else if (isWeekdays) {
             label = "Lun-Vie";
         } else if (isWeekend) {
             label = "Fin de semana";
@@ -515,13 +522,16 @@ const applyToAllDays = () => {
         title: "Horario aplicado",
         icon: "success"
     })
+    bulkSchedule.open = null
+    bulkSchedule.close = null
 }
 const showScheduleModal = ref(false);
-
+const originalSchedule = ref<string>("")
 const openScheduleModal = (amenity: any) => {
 
     amenityName.value = amenity.name;
     formSchedule.amenity_id = amenity.id;
+    formSchedule.id = amenity.schedules?.length ? amenity.id : null;
     formSchedule.days.forEach(day => {
         day.active = false
         day.open = null
@@ -554,6 +564,9 @@ const openScheduleModal = (amenity: any) => {
         })
 
     showScheduleModal.value = true
+    originalSchedule.value = JSON.stringify(
+        normalizeSchedule(formSchedule.days)
+    )
 }
 const removeBackgroundImage = () => {
     form.background_image = null
@@ -812,7 +825,7 @@ watch(tab, (value) => {
         <v-dialog v-model="showModal" max-width="600" persistent>
             <v-form @submit.prevent="save" ref="formSendRef">
                 <v-card :title="`${form.id ? 'Editar Amenidad' : 'Nueva Amenidad'}`">
-                    <v-card-text class="">
+                    <v-card-text class="overflow-y-auto h-full" style="max-height:70vh; overflow-y:auto;">
                         <v-row>
                             <v-col cols="12">
                                 <FormName v-model="form.name" label="Nombre" :rules="[required, maxLength(50)]" />
@@ -861,9 +874,10 @@ watch(tab, (value) => {
                             <v-col cols="12">
                                 <v-select v-model="form.reservation_type" prepend-inner-icon="mdi-calendar-check"
                                     label="Tipo de reserva" placeholder=" " :items="[
-                                        { title: 'Uso exclusivo (1 reserva por horario)', value: 'exclusive' },
-                                        { title: 'Por capacidad (múltiples reservas por horario)', value: 'capacity_based' }
-                                    ]" item-title="title" item-value="value" :rules="[required]" />
+                                        { title: 'Reserva por día', value: 'daily' },
+                                        { title: 'Reserva por tiempo', value: 'hourly' }
+                                    ]" item-title="title" item-value="value" :rules="[required]" 
+                                    />
                             </v-col>
                             <!--<v-col cols="12" v-if="showCapacity">
                                 <FormNumber v-model="form.capacity" label="Capacidad" :min="0" />
@@ -979,7 +993,7 @@ watch(tab, (value) => {
                         <v-spacer />
                         <BaseButton :text="'Cancelar'" variant="tonal" :icon-only="false" action="cancel"
                             @click="closeScheduleModal" />
-                        <BaseButton :text="'Guardar horario'" variant="flat" :icon-only="false" type="submit"
+                        <BaseButton :text="formSchedule.id ? 'Actualizar horario' : 'Guardar horario'" variant="flat" :icon-only="false" type="submit"
                             action="save" />
                     </v-card-actions>
                 </v-card>
