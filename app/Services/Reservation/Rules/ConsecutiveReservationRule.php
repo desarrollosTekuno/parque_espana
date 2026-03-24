@@ -20,11 +20,9 @@ class ConsecutiveReservationRule
             ->where('club_id', $data['club_id'])
             ->where('reservation_status_id', '!=', ReservationStatus::CANCELADA)
             ->where(function ($query) use ($data){
-                $query->where('start_datetime', '<', $data['end_datetime'])
-                      ->where('end_datetime', '>', $data['start_datetime']);
+                $query->where('end_datetime', $data['start_datetime'])
+                    ->orWhere('start_datetime', $data['end_datetime']);
             })
-            ->orWhere('end_datetime', $data['start_datetime'])
-            ->orWhere('start_datetime', $data['end_datetime'])
             ->count();
 
         if ($reservations >= 1)

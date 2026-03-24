@@ -10,6 +10,7 @@ use App\Models\AdminClub\AmenityResource;
 use App\Models\AdminClub\Reservation;
 use App\Models\AdminClub\ReservationStatus;
 use App\Services\Reservation\Context\ReservationContext;
+use App\Services\Reservation\Validators\CancelReservationValidator;
 use App\Services\Reservation\Validators\CreateReservationValidator;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -25,9 +26,11 @@ class ReservationController extends Controller {
         //return Inertia::render('Ruta/Index', compact('items'));
     }
 
-    public function store(Request $request, CreateReservationValidator $validator) {
+    public function store(Request $request) {
 
         try {
+
+            $validator = new CreateReservationValidator();
 
             $validated = $request->validate([
                 'start_datetime' => 'required|date_format:Y-m-d H:i',
@@ -39,8 +42,12 @@ class ReservationController extends Controller {
             $amenityResource = AmenityResource::with('amenity')->where('id', $validated['amenity_resource_id'])->first();
             $amenity = $amenityResource->amenity;
 
-            $context = new ReservationContext($validated, $amenity, $amenityResource, $request->user());
-
+            $context = new ReservationContext(
+                data: $validated,
+                amenity: $amenity,
+                amenityResource: $amenityResource,
+                user:$request->user()
+            );
             $validator->validate($context);
 
             $reservacion = Reservation::create([
@@ -80,6 +87,42 @@ class ReservationController extends Controller {
             ], 500);
         }
 
+    }
+
+    public function update(Request $request, Reservation $reservation)
+    {
+        try {
+
+            $validator = new CancelReservationValidator();
+
+            $context = new ReservationContext(
+                user: $request->user(),
+                reservation: $reservation
+            );
+            $validator->validate($context);
+
+            $reservation->update([
+                'cancelled_at' => now(),
+                'reservation_status_id' => ReservationStatus::CANCELADA
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Reservación cancelada correctamente',
+            ], 200);
+
+        } catch (ReservationException $e){
+            return response()->json([
+                'success' => false,
+                'error' => 'Error de regla',
+                'error_details' => $e->getMessage()
+            ], 200);
+        } catch (\Exception $e) {
+            return redirect()->back()->withErrors([
+                'messageError' => 'Ocurrió un error al cancelar la reservación',
+                'exception' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     public function destroy(Reservation $reservation)

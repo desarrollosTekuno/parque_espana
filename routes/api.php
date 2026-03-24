@@ -12,7 +12,7 @@ Route::prefix('v1')->group(function () {
     Route::post('logout', [LoginController::class, 'logout'])->middleware('auth:sanctum');
 
     // Reservations
-    Route::apiResource('reservations', ReservationController::class)->only(['store', 'destroy'])->middleware('auth:sanctum');
+    Route::apiResource('reservations', ReservationController::class)->only(['store', 'destroy', 'update'])->middleware('auth:sanctum');
     Route::get('my-reservations', [ReservationController::class, 'myReservations'])->middleware('auth:sanctum');
 
     // Amenities
