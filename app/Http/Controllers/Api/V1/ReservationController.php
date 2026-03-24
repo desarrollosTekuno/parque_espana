@@ -9,6 +9,7 @@ use App\Models\AdminClub\AmenityResource;
 use App\Models\AdminClub\Reservation;
 use App\Models\AdminClub\ReservationStatus;
 use App\Services\AmenityAvailabilityService;
+use App\Services\Reservation\ReservationValidator;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -30,7 +31,7 @@ class ReservationController extends Controller {
         //return Inertia::render('Ruta/Index', compact('items'));
     }
 
-    public function store(Request $request) {
+    public function store(Request $request, ReservationValidator $validator) {
 
         try {
 
@@ -44,30 +45,7 @@ class ReservationController extends Controller {
             $amenityResource = AmenityResource::with('amenity')->where('id', $validated['amenity_resource_id'])->first();
             $amenity = $amenityResource->amenity;
 
-            // Valida que no exista una reservación en el mismo horario
-            $reservations = Reservation::where('amenity_resource_id', $validated['amenity_resource_id'])
-                ->where('club_id', $validated['club_id'])
-                ->where('reservation_status_id', '!=', ReservationStatus::CANCELADA)
-                ->where(function ($query) use ($validated){
-                    $query->where('start_datetime', '<', $validated['end_datetime'])
-                          ->where('end_datetime', '>', $validated['start_datetime']);
-                })
-                ->count();
-
-            if ($amenity->reservation_type == 'daily' && $reservations >= 1)
-            {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Ya no hay capacidad disponible para esta amenidad en este horario'
-                ], 200);
-            }
-
-            if ($reservations >= $amenityResource->capacity){
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Ya no hay capacidad disponible para esta amenidad en este horario'
-                ], 200);
-            }
+            $validator->validate($validated, $amenity, $amenityResource);
 
             $reservacion = Reservation::create([
                 'start_datetime' => $validated['start_datetime'],
