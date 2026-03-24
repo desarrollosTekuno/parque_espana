@@ -20,6 +20,11 @@ class ReservationResource extends JsonResource
             'end_time' => $this->end_datetime,
             'cancelled_at' => $this->cancelled_at,
 
+            'amenityResource' => [
+                'id' => $this->amenityResource?->id,
+                'name' => $this->amenityResource?->name,
+            ],
+
             'amenity' => [
                 'id' => $this->amenity?->id,
                 'name' => $this->amenity?->name,

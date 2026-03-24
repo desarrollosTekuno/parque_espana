@@ -20,7 +20,7 @@ class AmenityController extends Controller
         $this->middleware('permission:amenities.destroy')->only('destroy');
     }
 
-    public function index(Request $request)
+   /* public function index(Request $request)
     {
         try {
 
@@ -29,13 +29,12 @@ class AmenityController extends Controller
             $driver = DB::getDriverName();
 
             $query = Amenity::with('schedules')->where('club_id', $clubId);
-            //dd($query->toSql(), $query->getBindings());
+            
             if ($search = $request->input("{$prefix}_search")) {
                 $query->where(function ($q) use ($search, $driver) {
                     $q->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
                 });
             }
-            //dd(request()->all());
             $amenities = $query->paginate(10)->appends($request->all());
             ;
             return Inertia::render('AdminClubs/Amenities/Index', [
@@ -47,7 +46,45 @@ class AmenityController extends Controller
             return redirect()->back()->with('error', $e->getMessage());
 
         }
+    }*/
+
+    public function index(Request $request)
+{
+    try {
+
+        $clubId = $request->club_id ?? session('club_id');
+        $prefix = 'amenities';
+        $driver = DB::getDriverName();
+        $query = Amenity::with('schedules')->where('club_id', $clubId);
+        if ($search = $request->input("{$prefix}_search")) {
+            $query->where(function ($q) use ($search, $driver) {
+                $q->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
+            });
+        }
+        $sort = $request->input("{$prefix}_sort", 'id');
+        $order = $request->input("{$prefix}_order", 'desc');
+
+        $query->orderBy($sort, $order);
+
+        $amenities = $query->paginate(
+            $request->input("{$prefix}_per_page", 10)
+        )->appends($request->all());
+
+        return Inertia::render('AdminClubs/Amenities/Index', [
+            'amenities' => $amenities,
+        ]);
+
+    } catch (\Exception $e) {
+        report($e);
+        return Inertia::render('AdminClubs/Amenities/Index', [
+            'amenities' => [
+                'data' => [],
+                'total' => 0
+            ],
+            'error' => $e->getMessage()
+        ]);
     }
+}
 
     public function store(Request $request)
     {

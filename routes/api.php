@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AmenityController;
 use App\Http\Controllers\Api\V1\LoginController;
 use App\Http\Controllers\Api\V1\ReservationController;
 use Illuminate\Http\Request;
@@ -11,7 +12,9 @@ Route::prefix('v1')->group(function () {
     Route::post('logout', [LoginController::class, 'logout'])->middleware('auth:sanctum');
     Route::apiResource('reservations', ReservationController::class)->only(['store', 'destroy'])->middleware('auth:sanctum');
     Route::get('my-reservations', [ReservationController::class, 'myReservations'])->middleware('auth:sanctum');
-    Route::get('/amenities/{amenity}/available-slots', [ReservationController::class, 'availableSlots'])->middleware('auth:sanctum');
+    Route::get('/amenities/{amenityResource}/available-slots', [ReservationController::class, 'availableSlots'])->middleware('auth:sanctum');
+    // Route::apiResource('amenities', AmenityController::class)->only(['index'])->middleware('auth:sanctum');
+    Route::get('/clubs/{club}/amenities', [AmenityController::class, 'amenitiesByClub'])->middleware('auth:sanctum');
 });
 
 // Get user

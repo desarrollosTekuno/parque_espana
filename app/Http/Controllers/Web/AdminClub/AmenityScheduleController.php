@@ -4,45 +4,56 @@ namespace App\Http\Controllers\Web\AdminClub;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use App\Models\AdminClub\Reservation;
 use App\Models\AdminClub\AmenitySchedule;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class AmenityScheduleController extends Controller {
+
+   /* public function __construct()
+    {
+        $this->middleware('permission:amenitySchedule.index')->only('index');
+        $this->middleware('permission:amenitySchedule.store')->only('store');
+        $this->middleware('permission:amenitySchedule.update')->only('update');
+        $this->middleware('permission:amenitySchedule.destroy')->only('destroy');
+    }*/
 
     public function index() {
         //$items = Model::get();
         //return Inertia::render('Ruta/Vista', compact('items'));
     }
 
-public function store(Request $request)
+    public function store(Request $request)
 {
     $schedules = $request->input('schedules', []);
-    dd($request->input('schedules'));
+
     if (empty($schedules)) {
-        return back()->with('error', 'No hay horarios para guardar');
+        return back()->with('messageError', 'No hay horarios para guardar');
     }
 
+    DB::beginTransaction();
+
     try {
-
-        $daysMap = [
-            'monday' => 0,
-            'tuesday' => 1,
-            'wednesday' => 2,
-            'thursday' => 3,
-            'friday' => 4,
-            'saturday' => 5,
-            'sunday' => 6,
-        ];
-
-        $amenityId = $schedules[0]['amenity_id'];
-
+        $resourceId  = $schedules[0]['amenity_id'];
         $newSchedules = [];
+        $dayNames = [
+            0 => 'Domingo',
+            1 => 'Lunes',
+            2 => 'Martes',
+            3 => 'Miércoles',
+            4 => 'Jueves',
+            5 => 'Viernes',
+            6 => 'Sábado',
+        ];
+        $conflicts = [];
 
         foreach ($schedules as $schedule) {
-            $dayNumber = $daysMap[$schedule['day_of_week']];
-
+            $dayNumber = $schedule['day_of_week'];
             $newSchedules[$dayNumber] = [
                 'open_time' => $schedule['open_time'],
                 'close_time' => $schedule['close_time'],
@@ -53,55 +64,97 @@ public function store(Request $request)
                 date,
                 start_time,
                 end_time,
-                WEEKDAY(date) as weekday
+                EXTRACT(DOW FROM date) as weekday
             ")
-            ->where('amenity_id', $amenityId)
+            ->where('amenity_id', $resourceId)
             ->whereDate('date', '>=', now()->toDateString())
             ->get();
+        
+        // Verificar conflictos
+       /* foreach ($reservations as $reservation) {
+            $weekday = (int)$reservation->weekday;
+
+            if (!isset($newSchedules[$weekday])) continue;
+
+            $schedule = $newSchedules[$weekday];
+            $newOpen  = Carbon::parse($schedule['open_time']);
+            $newClose = Carbon::parse($schedule['close_time']);
+            $resStart = Carbon::parse($reservation->start_time);
+            $resEnd   = Carbon::parse($reservation->end_time);
+
+            if ($resStart->lt($newOpen) || $resEnd->gt($newClose)) {
+                Log::info('ENTRE AL IFFFF');
+                return back()->with('messageError', "Conflicto el día {$weekday}: {$resStart->format('H:i')} - {$resEnd->format('H:i')}");
+            }
+        }*/
 
         foreach ($reservations as $reservation) {
 
-            $weekday = $reservation->weekday;
+            $weekday = (int)$reservation->weekday;
+
             if (!isset($newSchedules[$weekday])) {
-                return back()->with(
-                    'error',
-                    'No puedes eliminar un día que tiene reservaciones futuras.'
-                );
+                continue;
             }
 
             $schedule = $newSchedules[$weekday];
 
-            // Detecta reducción de horario
-            if (
-                $reservation->start_time < $schedule['open_time'] ||
-                $reservation->end_time > $schedule['close_time']
-            ) {
-                return back()->with(
-                    'error',
-                    'No puedes reducir el horario porque existen reservaciones fuera del nuevo rango.'
-                );
+            $newOpen  = Carbon::parse($schedule['open_time']);
+            $newClose = Carbon::parse($schedule['close_time']);
+
+            $resStart = Carbon::parse($reservation->start_time);
+            $resEnd   = Carbon::parse($reservation->end_time);
+
+            Log::info('DEBUG HORARIOS', [
+                'weekday' => $weekday,
+                'resStart' => $resStart->format('H:i:s'),
+                'newOpen' => $newOpen->format('H:i:s'),
+                'resEnd' => $resEnd->format('H:i:s'),
+                'newClose' => $newClose->format('H:i:s'),
+                'lt_open' => $resStart->lt($newOpen),
+                'gt_close' => $resEnd->gt($newClose),
+            ]);
+
+            if ($resStart->lt($newOpen) || $resEnd->gt($newClose)) {
+
+                $conflicts[] = [
+                    'day' => $dayNames[$weekday],
+                    'start' => $resStart->format('H:i'),
+                    'end' => $resEnd->format('H:i'),
+                ];
             }
         }
 
-        AmenitySchedule::where('amenity_id', $amenityId)->forceDelete();
+        if (!empty($conflicts)) {
 
+            $message = collect($conflicts)
+                ->map(fn($c) => "{$c['day']} {$c['start']} - {$c['end']}")
+                ->join(', ');
+
+            DB::rollBack();
+
+            return back()->with('messageError', "Existen reservas fuera del nuevo horario: {$message}");
+        }
+        // Guardar horarios sin conflictos
+        AmenitySchedule::where('amenity_id', $resourceId)->forceDelete();
         foreach ($newSchedules as $day => $schedule) {
-
             AmenitySchedule::create([
-                'amenity_id' => $amenityId,
+                'amenity_id' => $resourceId,
                 'day_of_week' => $day,
                 'open_time' => $schedule['open_time'],
-                'close_time' => $schedule['close_time'],
+                'close_time' => $schedule['close_time'], 
             ]);
         }
 
-        return back()->with('success', 'Horarios guardados');
+        DB::commit();
 
-    } catch (\Throwable $e) {
+        return back()->with('success', 'Horarios guardados correctamente');
 
-        report($e);
-
-        return back()->with('error', $e->getMessage());
+    } catch (\Exception $e) {
+        DB::rollBack();
+        Log::error('ERROR HORARIOS', [
+            'exception' => $e->getMessage()
+        ]);
+        return back()->with('messageError', 'Ocurrió un error al agregar el horario'); 
     }
 }
 
