@@ -10,9 +10,13 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('v1')->group(function () {
     Route::post('login', [LoginController::class, 'login']);
     Route::post('logout', [LoginController::class, 'logout'])->middleware('auth:sanctum');
+
+    // Reservations
     Route::apiResource('reservations', ReservationController::class)->only(['store', 'destroy'])->middleware('auth:sanctum');
     Route::get('my-reservations', [ReservationController::class, 'myReservations'])->middleware('auth:sanctum');
-    Route::get('/amenities/{amenityResource}/available-slots', [ReservationController::class, 'availableSlots'])->middleware('auth:sanctum');
+
+    // Amenities
+    Route::get('/amenities/{amenityResource}/available-slots', [AmenityController::class, 'availableSlots'])->middleware('auth:sanctum');
     // Route::apiResource('amenities', AmenityController::class)->only(['index'])->middleware('auth:sanctum');
     Route::get('/clubs/{club}/amenities', [AmenityController::class, 'amenitiesByClub'])->middleware('auth:sanctum');
 });

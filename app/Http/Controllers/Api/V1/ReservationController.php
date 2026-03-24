@@ -9,7 +9,6 @@ use App\Models\AdminClub\Amenity;
 use App\Models\AdminClub\AmenityResource;
 use App\Models\AdminClub\Reservation;
 use App\Models\AdminClub\ReservationStatus;
-use App\Services\AmenityAvailabilityService;
 use App\Services\Reservation\Context\ReservationContext;
 use App\Services\Reservation\Validators\CreateReservationValidator;
 use Carbon\Carbon;
@@ -20,13 +19,6 @@ use Inertia\Inertia;
 
 
 class ReservationController extends Controller {
-
-    protected $amenityAvailabilityService;
-
-    public function __construct(AmenityAvailabilityService $amenityAvailabilityService)
-    {
-        $this->amenityAvailabilityService = $amenityAvailabilityService;
-    }
 
     public function index() {
         //$items = Model::get();
@@ -127,23 +119,4 @@ class ReservationController extends Controller {
 
     }
 
-    public function availableSlots(Request $request, AmenityResource $amenityResource)
-    {
-        try {
-
-            $availableSlots = $this->amenityAvailabilityService->getSlots($amenityResource, $request->date);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Horarios obtenidos correctamente',
-                'available_slots' => $availableSlots
-            ], 200);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'error' => 'Ocurrió un error al obtener los horarios',
-                'error_details' => $e->getMessage()
-            ], 500);
-        }
-    }
 }
