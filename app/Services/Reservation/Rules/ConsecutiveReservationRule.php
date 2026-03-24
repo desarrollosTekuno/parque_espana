@@ -5,7 +5,7 @@ namespace App\Services\Reservation\Rules;
 use App\Exceptions\ReservationException;
 use App\Models\AdminClub\Reservation;
 use App\Models\AdminClub\ReservationStatus;
-use App\Services\Reservation\ReservationContext;
+use App\Services\Reservation\Context\ReservationContext;
 
 class ConsecutiveReservationRule
 {

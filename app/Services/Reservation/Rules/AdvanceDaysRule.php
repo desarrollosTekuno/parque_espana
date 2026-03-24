@@ -4,7 +4,7 @@ namespace App\Services\Reservation\Rules;
 
 use App\Exceptions\ReservationException;
 use App\Models\AdminClub\SystemVariable;
-use App\Services\Reservation\ReservationContext;
+use App\Services\Reservation\Context\ReservationContext;
 use Carbon\Carbon;
 
 class AdvanceDaysRule implements ReservationRule

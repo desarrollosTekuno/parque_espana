@@ -10,8 +10,8 @@ use App\Models\AdminClub\AmenityResource;
 use App\Models\AdminClub\Reservation;
 use App\Models\AdminClub\ReservationStatus;
 use App\Services\AmenityAvailabilityService;
-use App\Services\Reservation\ReservationContext;
-use App\Services\Reservation\ReservationValidator;
+use App\Services\Reservation\Context\ReservationContext;
+use App\Services\Reservation\Validators\CreateReservationValidator;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -33,7 +33,7 @@ class ReservationController extends Controller {
         //return Inertia::render('Ruta/Index', compact('items'));
     }
 
-    public function store(Request $request, ReservationValidator $validator) {
+    public function store(Request $request, CreateReservationValidator $validator) {
 
         try {
 

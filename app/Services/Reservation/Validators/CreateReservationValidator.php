@@ -1,13 +1,14 @@
 <?php
 
-namespace App\Services\Reservation;
+namespace App\Services\Reservation\Validators;
 
+use App\Services\Reservation\Context\ReservationContext;
 use App\Services\Reservation\Rules\AdvanceDaysRule;
 use App\Services\Reservation\Rules\CapacityRule;
 use App\Services\Reservation\Rules\ConsecutiveReservationRule;
 use App\Services\Reservation\Rules\UserOverlapRule;
 
-class ReservationValidator
+class CreateReservationValidator
 {
     protected array $rules;
 

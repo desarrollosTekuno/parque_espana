@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Reservation;
+namespace App\Services\Reservation\Context;
 
 class ReservationContext
 {

@@ -2,7 +2,7 @@
 
 namespace App\Services\Reservation\Rules;
 
-use App\Services\Reservation\ReservationContext;
+use App\Services\Reservation\Context\ReservationContext;
 
 interface ReservationRule
 {
