@@ -7,16 +7,16 @@ use App\Models\AdminClub\Reservation;
 use App\Models\AdminClub\ReservationStatus;
 use App\Services\Reservation\ReservationContext;
 
-class CapacityRule implements ReservationRule
+class UserOverlapRule implements ReservationRule
 {
     public function validate(ReservationContext $context): void
     {
         $data = $context->data;
-        $amenity = $context->amenity;
-        $amenityResource = $context->amenityResource;
+        $user = $context->user;
 
-        // Valida que no exista una reservación en el mismo horario
-        $reservations = Reservation::where('amenity_resource_id', $data['amenity_resource_id'])
+        //Valida que el usuario no pueda reservar en el mismo horario
+        $reservations = Reservation::where('user_id', $user->id)
+            ->where('amenity_resource_id', $data['amenity_resource_id'])
             ->where('club_id', $data['club_id'])
             ->where('reservation_status_id', '!=', ReservationStatus::CANCELADA)
             ->where(function ($query) use ($data){
@@ -25,14 +25,10 @@ class CapacityRule implements ReservationRule
             })
             ->count();
 
-        if ($amenity->reservation_type == 'daily' && $reservations >= 1)
+        if ($reservations >= 1)
         {
-            throw new ReservationException('Ya no hay capacidad disponible para esta amenidad en este horario');
+            throw new ReservationException('No puedes reservar en el mismo horario');
         }
 
-        if ($reservations >= $amenityResource->capacity)
-        {
-            throw new ReservationException('Ya no hay capacidad disponible para esta amenidad en este horario');
-        }
     }
 }

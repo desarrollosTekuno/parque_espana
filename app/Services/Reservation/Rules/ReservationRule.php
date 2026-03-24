@@ -2,8 +2,10 @@
 
 namespace App\Services\Reservation\Rules;
 
+use App\Services\Reservation\ReservationContext;
+
 interface ReservationRule
 {
-    public function validate(array $data, $amenity, $amenityResource): void;
+    public function validate(ReservationContext $context): void;
 }
 

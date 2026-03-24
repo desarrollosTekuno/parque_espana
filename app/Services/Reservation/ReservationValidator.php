@@ -2,7 +2,10 @@
 
 namespace App\Services\Reservation;
 
+use App\Services\Reservation\Rules\AdvanceDaysRule;
 use App\Services\Reservation\Rules\CapacityRule;
+use App\Services\Reservation\Rules\ConsecutiveReservationRule;
+use App\Services\Reservation\Rules\UserOverlapRule;
 
 class ReservationValidator
 {
@@ -11,14 +14,17 @@ class ReservationValidator
     public function __construct()
     {
         $this->rules = [
+            new AdvanceDaysRule(),
+            new UserOverlapRule(),
+            new ConsecutiveReservationRule(),
             new CapacityRule(),
         ];
     }
 
-    public function validate(array $data, $amenity, $amenityResource): void
+    public function validate(ReservationContext $context): void
     {
         foreach ($this->rules as $rule) {
-            $rule->validate($data, $amenity, $amenityResource);
+            $rule->validate($context);
         }
     }
 }

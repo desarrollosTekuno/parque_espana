@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Exceptions\ReservationException;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ReservationResource;
 use App\Models\AdminClub\Amenity;
@@ -9,6 +10,7 @@ use App\Models\AdminClub\AmenityResource;
 use App\Models\AdminClub\Reservation;
 use App\Models\AdminClub\ReservationStatus;
 use App\Services\AmenityAvailabilityService;
+use App\Services\Reservation\ReservationContext;
 use App\Services\Reservation\ReservationValidator;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -45,7 +47,9 @@ class ReservationController extends Controller {
             $amenityResource = AmenityResource::with('amenity')->where('id', $validated['amenity_resource_id'])->first();
             $amenity = $amenityResource->amenity;
 
-            $validator->validate($validated, $amenity, $amenityResource);
+            $context = new ReservationContext($validated, $amenity, $amenityResource, $request->user());
+
+            $validator->validate($context);
 
             $reservacion = Reservation::create([
                 'start_datetime' => $validated['start_datetime'],
@@ -62,6 +66,13 @@ class ReservationController extends Controller {
                 'success' => true,
                 'message' => 'Reservación creada correctamente',
                 'reservación' => new ReservationResource($reservacion)
+            ], 200);
+
+        } catch (ReservationException $e){
+            return response()->json([
+                'success' => false,
+                'error' => 'Error de regla',
+                'error_details' => $e->getMessage()
             ], 200);
 
         } catch ( ValidationException $e){
