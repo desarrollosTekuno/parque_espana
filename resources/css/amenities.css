@@ -119,9 +119,9 @@ v-card-actions{
   border: 1px solid #c9c4c4;
 }
 .custom-tabs {
-    background: #f8fafc;
-    border-radius: 12px;
-    padding: 4px;
+  background: #f8fafc;
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
 }
 
 .custom-tabs .v-tab {
@@ -151,4 +151,14 @@ v-card-actions{
 }
 .v-card {
     overflow: visible !important;
+}
+
+/*  Espacio cuando se oculta el botón de horarios  */
+.action-slot{
+    justify-content: start;
+    display:inline-flex;
+    width:50px; 
+}
+.mdi-calendar-month{
+  transform: translateY(5px);
 }

@@ -19,6 +19,9 @@ const page = usePage();
 const can = usePage().props.auth.permissions;
 const imageRef = ref<any>(null);
 const iconRef = ref<any>(null);
+const tab = ref('amenities')
+
+//    Computeds
 const isSaveDisabled = computed(() => {
     const imageInvalid =
         imageRef.value &&
@@ -31,7 +34,6 @@ const isSaveDisabled = computed(() => {
         iconRef.value.isValid === false;
     return imageInvalid || iconInvalid;
 });
-const tab = ref('amenities')
 const isAmenities = computed(() => tab.value === 'amenities')
 const handleCreate = () => {
     if (isAmenities.value) {
@@ -40,6 +42,19 @@ const handleCreate = () => {
         createResource()
     }
 }
+const activeDaysCount = computed(() => {
+    return formSchedule.days.filter(day => day.active).length
+})
+const showSlotDuration = computed(() => {
+    return form.reservation_type !== 'daily'
+})
+const selectedAmenity = computed(() => {
+    return items.value.find(a => a.id === resourceForm.amenity_id)
+})
+
+const showCapacity = computed(() => {
+    return selectedAmenity.value?.reservation_type !== 'hourly'
+})
 const bulkSchedule = reactive({
     open: null as string | null,
     close: null as string | null
@@ -101,9 +116,7 @@ const formSchedule = useForm({
     ]
 });
 const scheduleErrors = reactive<Record<string, string>>({})
-const activeDaysCount = computed(() => {
-    return formSchedule.days.filter(day => day.active).length
-})
+
 const amenityName = ref('')
 const dayMap = {
         monday: 1,
@@ -194,6 +207,18 @@ const edit = (data: any) => {
     showModal.value = true;
 };
 const schedule = () => {
+    const current = JSON.stringify(
+        normalizeSchedule(formSchedule.days)
+    )
+
+    if(current === originalSchedule.value){
+        customToastSwal({
+            title: "No hubo cambios",
+            icon: "info"
+        })
+        closeScheduleModal()
+        return
+    }
     Object.keys(scheduleErrors).forEach(key => delete scheduleErrors[key])
     let hasError = false
     formSchedule.days.forEach(day => {
@@ -331,10 +356,9 @@ watch(() => form.background_image, (file) => {
 
 //   Tabla, items y fetch de amenidades    
 const headers = [
-    { title: "ID", key: "id" },
     { title: "Nombre", key: "name" },
-    { title: "Icono", key: "icon", sortable: false },
     { title: "Imagen", key: "background_image", sortable: false },
+    { title: "Tipo de reserva", key: "reservation_type", sortable: false},
     { title: "Horario", key: "schedule_text", sortable: false },
     { title: "Activo", key: "is_active" },
     { title: "Acciones", key: "actions", sortable: false },
@@ -384,7 +408,8 @@ const fetchItems = () => {
 };
 const reservationTypeLabel: Record<string,string> = {
     daily: 'Reserva por día',
-    hourly: 'Reserva por tiempo'
+    hourly: 'Reserva por tiempo',
+    capacity: 'Reserva por capacidad'
 }
 
 //   Tabla, items y fetch de recursos    
@@ -527,6 +552,14 @@ const applyToAllDays = () => {
 }
 const showScheduleModal = ref(false);
 const originalSchedule = ref<string>("")
+const normalizeSchedule = (days:any[]) => {
+    return days.map(d => ({
+        day: d.day,
+        open: d.open,
+        close: d.close,
+        active: d.active
+    }))
+}
 const openScheduleModal = (amenity: any) => {
 
     amenityName.value = amenity.name;
@@ -674,23 +707,25 @@ watch(() => page.props.auth.currentClub, () => {
     fetchItems();
 });
 watch(
-    () => formSchedule.days,
-    (days) => {
-        days.forEach(day => {
-            if (day.open) delete scheduleErrors[`${day.day}_open`]
-            if (day.close) delete scheduleErrors[`${day.day}_close`]
+    () => formSchedule.days.map(d => [d.open,d.close]),
+    (days)=>{
+        days.forEach((_,index)=>{
+            const day = formSchedule.days[index]
+
+            if(day.open)
+                delete scheduleErrors[`${day.day}_open`]
+
+            if(day.close)
+                delete scheduleErrors[`${day.day}_close`]
         })
-    },
-    { deep: true }
+    }
 )
 watch([resourceOptions, resourceSearch], debounce(fetchResources, 400), { deep: true });
 
 watch(tab, (value) => {
-    if (value === 'resources') {
-        resourceOptions.value.page = 1;
-        fetchResources();
-    }else{
-        options.value.page = 1;
+    if(value === 'resources' && !resourcesLoaded.value){
+        fetchResources()
+        resourcesLoaded.value = true
     }
 });
 
@@ -741,13 +776,16 @@ watch(tab, (value) => {
                                             class="mx-4 mt-4"
                                         />
                                 </template>
-                                <template #item.icon="{ item }">
+                                <!--<template #item.icon="{ item }">
                                     <v-img v-if="item.icon" :src="`/storage/${item.icon}`" max-height="30"
                                         max-width="30" class="rounded-lg" />
-                                </template>
+                                </template>-->
                                 <template #item.background_image="{ item }">
                                     <v-img v-if="item.background_image" :src="`/storage/${item.background_image}`"
                                         max-height="80" max-width="80" class="rounded-lg" />
+                                </template>
+                                <template #item.reservation_type="{ item }">
+                                    {{ reservationTypeLabel[item.reservation_type] }}
                                 </template>
                                 <template #item.is_active="{ item }">
                                     <v-chip :color="item.is_active ? 'green' : 'red'" dark>
@@ -778,8 +816,10 @@ watch(tab, (value) => {
                                     </div>
                                 </template>
                                 <template #item.actions="{ item }">
-                                    <BaseButton text="Agregar horario" action="add" icon="mdi-calendar"
-                                        @click="openScheduleModal(item)" />
+                                    <span class="action-slot">
+                                        <BaseButton v-if="item.reservation_type !== 'daily'" text="Agregar horario" action="add" icon="mdi-calendar-month"
+                                            @click="openScheduleModal(item)" />
+                                    </span>
                                     <BaseButton action="edit" @click="edit(item)"
                                         v-if="can.includes('amenities.update')" />
 
@@ -875,14 +915,12 @@ watch(tab, (value) => {
                                 <v-select v-model="form.reservation_type" prepend-inner-icon="mdi-calendar-check"
                                     label="Tipo de reserva" placeholder=" " :items="[
                                         { title: 'Reserva por día', value: 'daily' },
-                                        { title: 'Reserva por tiempo', value: 'hourly' }
+                                        { title: 'Reserva por tiempo', value: 'hourly' },
+                                        { title: 'Reserva por capacidad', value: 'capacity' }
                                     ]" item-title="title" item-value="value" :rules="[required]" 
                                     />
                             </v-col>
-                            <!--<v-col cols="12" v-if="showCapacity">
-                                <FormNumber v-model="form.capacity" label="Capacidad" :min="0" />
-                            </v-col>-->
-                            <v-col cols="12">
+                            <v-col cols="12" v-if="showSlotDuration">
                                 <FormNumber v-model="form.slot_duration_minutes" label="Espacio de reserva en minutos"
                                     :min="0" :rules="[required]" />
                             </v-col>
@@ -1011,7 +1049,7 @@ watch(tab, (value) => {
                             <v-col cols="12">
                                 <v-text-field v-model="resourceForm.name" label="Nombre" :required="true" :min-length="2" />
                             </v-col>
-                            <v-col cols="12">
+                            <v-col cols="12" v-if="showCapacity">
                                 <FormNumber v-model="resourceForm.capacity" label="Capacidad" :required="true"/>
                             </v-col>
                         </v-row>
