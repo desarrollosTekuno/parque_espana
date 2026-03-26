@@ -20,34 +20,6 @@ class AmenityController extends Controller
         $this->middleware('permission:amenities.destroy')->only('destroy');
     }
 
-   /* public function index(Request $request)
-    {
-        try {
-
-            $clubId = $request->club_id ?? session('club_id');
-            $prefix = 'amenities';
-            $driver = DB::getDriverName();
-
-            $query = Amenity::with('schedules')->where('club_id', $clubId);
-            
-            if ($search = $request->input("{$prefix}_search")) {
-                $query->where(function ($q) use ($search, $driver) {
-                    $q->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
-                });
-            }
-            $amenities = $query->paginate(10)->appends($request->all());
-            ;
-            return Inertia::render('AdminClubs/Amenities/Index', [
-                'amenities' => $amenities,
-            ]);
-
-        } catch (\Exception $e) {
-
-            return redirect()->back()->with('error', $e->getMessage());
-
-        }
-    }*/
-
     public function index(Request $request)
 {
     try {
@@ -68,7 +40,7 @@ class AmenityController extends Controller
 
         $amenities = $query->paginate(
             $request->input("{$prefix}_per_page", 10)
-        )->appends($request->all());
+        )->appends( $request->except('club_id'));
 
         return Inertia::render('AdminClubs/Amenities/Index', [
             'amenities' => $amenities,

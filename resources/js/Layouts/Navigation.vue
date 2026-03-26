@@ -17,6 +17,18 @@ const changeClub = () => {
         club_id: selectedClub.value
     }, {
         preserveScroll: true,
+        onSuccess: () => {
+
+            const params = { ...route().params };
+
+            delete params.club_id;
+
+            router.get(route('amenities.index'), params, {
+                preserveScroll: true,
+                replace: true
+            });
+
+        }
     });
 };
 

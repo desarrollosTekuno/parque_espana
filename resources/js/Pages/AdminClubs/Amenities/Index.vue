@@ -749,7 +749,7 @@ watch(tab, (value) => {
         <div class="pa-4 bg-grey-lighten-4 rounded-xl mt-5">
             <v-tabs v-model="tab" class="custom-tabs" grow>
                 <v-tab value="amenities">
-                    <v-icon start>mdi-domain</v-icon>
+                    <v-icon start>mdi-beach</v-icon>
                     Amenidades
                 </v-tab>
 
@@ -768,7 +768,7 @@ watch(tab, (value) => {
                                 no-data-text="No hay registros para mostrar">
                                 <template #top>
                                         <v-text-field
-                                            v-model="search"
+                                            v-model="search" 
                                             label="Buscar amenidad..."
                                             prepend-inner-icon="mdi-magnify"
                                             variant="outlined"
@@ -817,7 +817,7 @@ watch(tab, (value) => {
                                 </template>
                                 <template #item.actions="{ item }">
                                     <span class="action-slot">
-                                        <BaseButton v-if="item.reservation_type !== 'daily'" text="Agregar horario" action="add" icon="mdi-calendar-month"
+                                        <BaseButton text="Agregar horario" action="add" icon="mdi-calendar-month"
                                             @click="openScheduleModal(item)" />
                                     </span>
                                     <BaseButton action="edit" @click="edit(item)"
