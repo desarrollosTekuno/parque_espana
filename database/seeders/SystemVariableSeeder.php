@@ -15,21 +15,21 @@ class SystemVariableSeeder extends Seeder
     {
         $system_variables = [
             [
-                'name' => 'dias_para_crear_reserva', 
-                'value' => '2', 
+                'name' => 'dias_para_crear_reserva',
+                'value' => '2',
                 'description' => 'Total de días en los que el socio puede crear reservaciones (día actual y siguiente)',
                 'club_id' => 1
             ],
             [
-                'name' => 'dias_para_cancelar_reserva', 
-                'value' => '2', 
+                'name' => 'dias_para_cancelar_reserva',
+                'value' => '2',
                 'description' => 'Total de días en los que el socio puede cancelar reservaciones',
                 'club_id' => 1
             ],
             [
-                'name' => 'dias_suspension_reserva', 
-                'value' => '3', 
-                'description' => 'Total de dias de suspensión para reservar',
+                'name' => 'horas_suspension_reserva',
+                'value' => '48',
+                'description' => 'Total de horas de suspensión para reservar',
                 'club_id' => 1
             ],
         ];

@@ -16,7 +16,7 @@ class UserNoShowPenaltyRule
         $user = $context->user;
 
         // Valida que el usuario no tenga dos inasistencias seguidas
-        $daysPenalty = (int) SystemVariable::where('name', 'dias_suspension_reserva')->first()->value;
+        $hoursPenalty = (int) SystemVariable::where('name', 'horas_suspension_reserva')->first()->value;
 
         $reservations = Reservation::where('user_id', $user->id)
             ->where('start_datetime', '<', now())
@@ -34,7 +34,7 @@ class UserNoShowPenaltyRule
 
                 if (!$foundFirstNoShow) {
                     $foundFirstNoShow = true;
-                    $lastNoShowDate = Carbon::parse($reservation->start_datetime);
+                    $lastNoShowDate = Carbon::parse($reservation->end_datetime);
                 }
 
                 $consecutiveNoShows++;
@@ -45,20 +45,18 @@ class UserNoShowPenaltyRule
                 if ($foundFirstNoShow) {
                     break;
                 }
-
-                // si no has encontrado ninguna inasistencia, sigue buscando
             }
         }
 
         if ($consecutiveNoShows >= 2) {
 
-            $unlockDate = $lastNoShowDate->copy()->addDays($daysPenalty);
+            $unlockDate = $lastNoShowDate->copy()->addHours($hoursPenalty);
 
             if (now()->lt($unlockDate)) {
 
                 throw new ReservationException(
-                    'No puedes reservar debido a inasistencias recientes. Podrás reservar nuevamente a partir de ' 
-                    . $unlockDate->format('Y-m-d')
+                    'No puedes reservar debido a inasistencias recientes. Podrás reservar nuevamente a partir del '
+                    . $unlockDate->format('Y-m-d') . ' a las ' . $unlockDate->format('h:i A')
                 );
             }
         }
