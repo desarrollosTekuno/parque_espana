@@ -46,6 +46,12 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('reservations');
+        Schema::dropIfExists('reservations.reservations');
+        $driver = DB::getDriverName();
+        if ($driver === 'pgsql') {
+            DB::statement('DROP SCHEMA IF EXISTS reservations');
+        } else {
+            DB::statement('DROP SCHEMA reservations');
+        }
     }
 };

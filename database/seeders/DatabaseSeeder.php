@@ -20,6 +20,7 @@ class DatabaseSeeder extends Seeder
             PermissionSeeder::class,
             SuperAdminSeeder::class,
             UserSeeder::class,
+            ClubSeeder::class,
             ReservationStatusSeeder::class,
             SystemVariableSeeder::class
         ]);
