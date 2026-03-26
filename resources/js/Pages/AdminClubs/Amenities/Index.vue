@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import axios from "axios";
 import '@/../css/amenities.css';
 import BaseButton from "@/Components/BaseButton.vue";
 import FormDescripcion from "@/Components/Form/FormDescripcion.vue";
@@ -11,15 +12,16 @@ import { required, maxLength } from "@/constants/validationRules";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import { Form, Head, router, useForm, usePage } from "@inertiajs/vue3";
-import { mdiCalendar } from '@mdi/js';
 import { debounce } from "lodash";
 import { ref, watch, computed, reactive } from "vue";
 
-const tab = ref('amenities');
 const page = usePage();
 const can = usePage().props.auth.permissions;
 const imageRef = ref<any>(null);
 const iconRef = ref<any>(null);
+const tab = ref('amenities')
+
+//    Computeds
 const isSaveDisabled = computed(() => {
     const imageInvalid =
         imageRef.value &&
@@ -32,6 +34,32 @@ const isSaveDisabled = computed(() => {
         iconRef.value.isValid === false;
     return imageInvalid || iconInvalid;
 });
+const isAmenities = computed(() => tab.value === 'amenities')
+const handleCreate = () => {
+    if (isAmenities.value) {
+        create()
+    } else {
+        createResource()
+    }
+}
+const activeDaysCount = computed(() => {
+    return formSchedule.days.filter(day => day.active).length
+})
+const showSlotDuration = computed(() => {
+    return form.reservation_type !== 'daily'
+})
+const selectedAmenity = computed(() => {
+    return items.value.find(a => a.id === resourceForm.amenity_id)
+})
+
+const showCapacity = computed(() => {
+    return selectedAmenity.value?.reservation_type !== 'hourly'
+})
+const bulkSchedule = reactive({
+    open: null as string | null,
+    close: null as string | null
+})
+
 interface Props {
     amenities?: any;
 }
@@ -71,11 +99,11 @@ const form = useForm<Amenity>({
     remove_background_image: false,
     description: "",
     reservation_type: null,
-    capacity: null,
     is_active: true,
     slot_duration_minutes: null,
 });
 const formSchedule = useForm({
+    id: null,
     amenity_id: null,
     days: [
         { day: 'monday', open: null, close: null, active: false },
@@ -88,27 +116,26 @@ const formSchedule = useForm({
     ]
 });
 const scheduleErrors = reactive<Record<string, string>>({})
-const showCapacity = computed(() => {
-    return form.reservation_type === 'capacity_based'
-})
-
-const activeDaysCount = computed(() => {
-    return formSchedule.days.filter(day => day.active).length
-})
 
 const amenityName = ref('')
-
+const dayMap = {
+        monday: 1,
+        tuesday: 2,
+        wednesday: 3,
+        thursday: 4,
+        friday: 5,
+        saturday: 6,
+        sunday: 0
+    };
 const create = () => {
     form.reset();
     imagePreview.value = null;
     iconPreview.value = null;
     showModal.value = true;
 };
-
 const save = () => {
     formSendRef.value?.validate().then(({ valid }) => {
         if (!valid) return;
-
         form
             .transform((data) => {
 
@@ -146,7 +173,6 @@ const save = () => {
 
                         imagePreview.value = null;
                         iconPreview.value = null;
-
                         fetchItems();
                     },
                     onError: () => {
@@ -168,7 +194,6 @@ const edit = (data: any) => {
     form.name = data.name;
     form.description = data.description;
     form.reservation_type = data.reservation_type;
-    form.capacity = data.capacity;
     form.is_active = data.is_active;
     form.slot_duration_minutes = data.slot_duration_minutes;
     form.icon = null;
@@ -177,18 +202,29 @@ const edit = (data: any) => {
     form.background_image = null;
     form.remove_background_image = false;
     form.background_image_path = data.background_image || null;
-
     iconPreview.value = data.icon ? `/storage/${data.icon}` : null;
     imagePreview.value = data.background_image ? `/storage/${data.background_image}` : null;
     showModal.value = true;
 };
 const schedule = () => {
+    const current = JSON.stringify(
+        normalizeSchedule(formSchedule.days)
+    )
+
+    if(current === originalSchedule.value){
+        customToastSwal({
+            title: "No hubo cambios",
+            icon: "info"
+        })
+        closeScheduleModal()
+        return
+    }
     Object.keys(scheduleErrors).forEach(key => delete scheduleErrors[key])
     let hasError = false
     formSchedule.days.forEach(day => {
         if (!day.active) return
         if (!day.open) {
-            scheduleErrors[`${day.day}_open`] = "Requerido"
+            scheduleErrors[`${day.day}_open`] = "Requerido" 
             hasError = true
         }
         if (!day.close) {
@@ -206,28 +242,55 @@ const schedule = () => {
     })
 
     if (hasError) return;
+    
 
     const schedules = formSchedule.days
         .filter(day => day.active)
         .map(day => ({
-            day_of_week: day.day,
+            day_of_week: dayMap[day.day],
             open_time: day.open,
             close_time: day.close,
             amenity_id: formSchedule.amenity_id
         }));
-    router.post(route('amenitySchedule.store'), {
-        schedules: schedules
-    }, {
-        onSuccess: () => {
-            customToastSwal({
-                title: "Horarios guardados correctamente",
-                icon: "success"
-            });
+        router.post(route('amenitySchedule.store'), { schedules }, {
+        preserveState: true,
+        preserveScroll: true,
 
-            closeScheduleModal();
-            fetchItems();
+        onSuccess: (page) => {
+
+            const flash = page.props.flash || {}
+
+            if (flash.messageError) {
+
+                customToastSwal({
+                    title: flash.messageError,
+                    icon: "error"
+                })
+
+                return
+            }
+
+            if (flash.success) {
+
+                customToastSwal({
+                    title: flash.success,
+                    icon: "success"
+                })
+                originalSchedule.value = JSON.stringify(formSchedule.days)
+                closeScheduleModal()
+                fetchItems()
+            }
+        },
+
+        onError: (errors) => {
+
+            customToastSwal({
+                title: errors.messageError || "Error al guardar horario",
+                icon: "error"
+            })
+
         }
-    });
+    })
 };
 
 const destroy = (data: any) => {
@@ -251,11 +314,22 @@ const destroy = (data: any) => {
     });
 };
 
+// Cierre de modales 
 const close = () => {
     form.reset();
     iconPreview.value = null;
     imagePreview.value = null;
     showModal.value = false;
+};
+const closeScheduleModal = () => {
+    showScheduleModal.value = false
+    formSchedule.id = null
+    Object.keys(scheduleErrors).forEach(key => delete scheduleErrors[key])
+};
+const closeResourcesModal = () => {
+    resourceForm.reset()
+    resourceForm.id = null
+    showResourceModal.value = false
 };
 
 watch(() => form.icon, (file) => {
@@ -282,11 +356,10 @@ watch(() => form.background_image, (file) => {
 
 //   Tabla, items y fetch de amenidades    
 const headers = [
-    { title: "ID", key: "id" },
     { title: "Nombre", key: "name" },
-    { title: "Icono", key: "icon", sortable: false },
     { title: "Imagen", key: "background_image", sortable: false },
-    { title: "Capacidad", key: "capacity" },
+    { title: "Tipo de reserva", key: "reservation_type", sortable: false},
+    { title: "Horario", key: "schedule_text", sortable: false },
     { title: "Activo", key: "is_active" },
     { title: "Acciones", key: "actions", sortable: false },
 ];
@@ -294,12 +367,23 @@ const headers = [
 const items = ref([]);
 const total = ref(0);
 const loading = ref(false);
-const search = ref("");
-const options = ref({ page: 1, itemsPerPage: 10, sortBy: [{ key: "id", order: "desc" }] });
+/*const search = ref("");
+const options = ref({ page: 1, itemsPerPage: 10, sortBy: [{ key: "id", order: "desc" }] });*/
+const search = ref(page.props.ziggy?.query?.amenities_search ?? "")
+const options = ref({
+    page: Number(page.props.ziggy?.query?.amenities_page ?? 1),
+    itemsPerPage: Number(page.props.ziggy?.query?.amenities_per_page ?? 10),
+    sortBy: [{
+        key: page.props.ziggy?.query?.amenities_sort ?? "id",
+        order: page.props.ziggy?.query?.amenities_order ?? "desc"
+    }]
+});
+
 const prefix = "amenities";
 
-const fetchItems = async () => {
+const fetchItems = () => {
     loading.value = true;
+
     const params = {
         club_id: page.props.auth.currentClub,
         [`${prefix}_page`]: options.value.page,
@@ -308,17 +392,25 @@ const fetchItems = async () => {
         [`${prefix}_sort`]: options.value.sortBy?.[0]?.key ?? "id",
         [`${prefix}_order`]: options.value.sortBy?.[0]?.order ?? "desc",
     };
+
     router.get(route("amenities.index"), params, {
         preserveState: true,
         replace: true,
         onSuccess: (page) => {
-            items.value = page.props[prefix]?.data ?? [];
-            total.value = page.props[prefix]?.total ?? 0;
+            const amenities = page.props.amenities;
+
+            items.value = amenities?.data ?? [];
+            total.value = amenities?.total ?? 0;
+
             loading.value = false;
         },
     });
 };
-
+const reservationTypeLabel: Record<string,string> = {
+    daily: 'Reserva por día',
+    hourly: 'Reserva por tiempo',
+    capacity: 'Reserva por capacidad'
+}
 
 //   Tabla, items y fetch de recursos    
 const resourceHeaders = [
@@ -332,50 +424,164 @@ const resourceHeaders = [
 const resourceItems = ref([]);
 const resourceTotal = ref(0);
 const resourceLoading = ref(false);
-const fetchResources = () => {
+const resourceOptions = ref({
+    page: 1,
+    itemsPerPage: 10,
+    sortBy: [{ key: "id", order: "desc" }]
+});
+const resourceSearch = ref("");
+const fetchResources = async () => {
+    resourceLoading.value = true;
 
-    resourceLoading.value = true
+    try {
+        const response = await axios.get(route('amenityResource.index'), {
+            params: {
+                club_id: page.props.auth.currentClub,
+                page: resourceOptions.value.page,
+                per_page: resourceOptions.value.itemsPerPage,
+                search: resourceSearch.value,
+                sort: resourceOptions.value.sortBy?.[0]?.key ?? "id",
+                order: resourceOptions.value.sortBy?.[0]?.order ?? "desc",
+            }
+        });
+        resourceItems.value = response.data.data;
+        resourceTotal.value = response.data.total;
 
-    router.get(route('amenityResources.index'), {
-        club_id: page.props.auth.currentClub
-    }, {
-        preserveState: true,
-        replace: true,
-        onSuccess: (page) => {
+    } catch (error) {
+        console.error(error);
+    } finally {
+        resourceLoading.value = false;
+    }
+};
 
-            resourceItems.value = page.props.resources?.data ?? []
-            resourceTotal.value = page.props.resources?.total ?? 0
-            resourceLoading.value = false
+// Función para agrupar y mostrar los horarios
+const formatScheduleSmart = (schedules: any[]) => {
+    if (!schedules || !schedules.length) return [];
 
+    const dayNames: any = {
+        0: "Dom",
+        1: "Lun",
+        2: "Mar",
+        3: "Mié",
+        4: "Jue",
+        5: "Vie",
+        6: "Sáb",
+    };
+
+    const WEEKDAYS = [1,2,3,4,5];
+    const WEEKEND = [6,0];
+    const groupedByTime: Record<string, number[]> = {};
+
+    schedules.forEach(s => {
+        const key = `${s.open_time}-${s.close_time}`;
+        if (!groupedByTime[key]) groupedByTime[key] = [];
+        groupedByTime[key].push(s.day_of_week);
+    });
+
+    const result: string[] = [];
+
+    Object.entries(groupedByTime).forEach(([time, days]) => {
+        const sortedDays = [...new Set(days)].sort((a, b) => a - b);
+
+        let label = "";
+        const ALL_WEEK = [0,1,2,3,4,5,6];
+        const isAllWeek = ALL_WEEK.every(d => sortedDays.includes(d)) && sortedDays.length === 7;
+        const isWeekdays = WEEKDAYS.every(d => sortedDays.includes(d)) && sortedDays.length === 5;
+        const isWeekend = WEEKEND.every(d => sortedDays.includes(d)) && sortedDays.length === 2;
+        if (isAllWeek) {
+            label = "Toda la semana";
+        }else if (isWeekdays) {
+            label = "Lun-Vie";
+        } else if (isWeekend) {
+            label = "Fin de semana";
+        } else {
+            const parts: string[] = [];
+            let start = sortedDays[0];
+            let prev = sortedDays[0];
+
+            for (let i = 1; i <= sortedDays.length; i++) {
+                const current = sortedDays[i];
+
+                if (current !== prev + 1) {
+                    if (start === prev) {
+                        parts.push(dayNames[start]);
+                    } else {
+                        parts.push(`${dayNames[start]}-${dayNames[prev]}`);
+                    }
+                    start = current;
+                }
+
+                prev = current;
+            }
+
+            label = parts.join(", ");
+        }
+
+        const [open, close] = time.split("-");
+        const formattedTime = `${open.slice(0,5)}–${close.slice(0,5)}`;
+
+        result.push(`${label} ${formattedTime}`);
+    });
+
+    return result;
+};
+
+// Función para aplicar un horario a varios días
+const applyToAllDays = () => {
+    if (!bulkSchedule.open || !bulkSchedule.close) {
+        customToastSwal({
+            title: "Define apertura y cierre primero",
+            icon: "warning"
+        })
+        return
+    }
+
+    formSchedule.days.forEach(day => {
+        if (day.active) {
+            day.open = bulkSchedule.open
+            day.close = bulkSchedule.close
         }
     })
 
+    customToastSwal({
+        title: "Horario aplicado",
+        icon: "success"
+    })
+    bulkSchedule.open = null
+    bulkSchedule.close = null
 }
-
-
 const showScheduleModal = ref(false);
-
+const originalSchedule = ref<string>("")
+const normalizeSchedule = (days:any[]) => {
+    return days.map(d => ({
+        day: d.day,
+        open: d.open,
+        close: d.close,
+        active: d.active
+    }))
+}
 const openScheduleModal = (amenity: any) => {
 
     amenityName.value = amenity.name;
     formSchedule.amenity_id = amenity.id;
+    formSchedule.id = amenity.schedules?.length ? amenity.id : null;
     formSchedule.days.forEach(day => {
         day.active = false
         day.open = null
         day.close = null
     })
 
-    if (amenity.schedules) {
-        amenity.schedules.forEach((schedule: any) => {
+  const schedules = amenity.schedules || amenity.amenityResource?.schedules || [];
+    schedules.forEach((schedule) => {
 
             const map = {
-                0: 'monday',
-                1: 'tuesday',
-                2: 'wednesday',
-                3: 'thursday',
-                4: 'friday',
-                5: 'saturday',
-                6: 'sunday'
+                1: 'monday',
+                2: 'tuesday',
+                3: 'wednesday',
+                4: 'thursday',
+                5: 'friday',
+                6: 'saturday',
+                0: 'sunday'
             }
 
             const dayName = map[schedule.day_of_week]
@@ -389,16 +595,12 @@ const openScheduleModal = (amenity: any) => {
             }
 
         })
-    }
 
     showScheduleModal.value = true
+    originalSchedule.value = JSON.stringify(
+        normalizeSchedule(formSchedule.days)
+    )
 }
-
-const closeScheduleModal = () => {
-    showScheduleModal.value = false
-    Object.keys(scheduleErrors).forEach(key => delete scheduleErrors[key])
-};
-
 const removeBackgroundImage = () => {
     form.background_image = null
     form.background_image_path = null
@@ -449,17 +651,18 @@ const saveResource = () => {
         })
         .post(
             resourceForm.id
-                ? route('amenityResources.update', resourceForm.id)
-                : route('amenityResources.store'),
+                ? route('amenityResource.update', resourceForm.id)
+                : route('amenityResource.store'),
             {
                 onSuccess: () => {
                     customToastSwal({
                         title: "Recurso guardado",
                         icon: "success"
                     })
-
+                    resourceForm.reset();
                     showResourceModal.value = false
                     fetchResources()
+
                 }
             })
 
@@ -469,7 +672,7 @@ const deleteResource = (item: any) => {
         title: "¿Eliminar recurso?"
     }).then(result => {
         if (result.isConfirmed) {
-            router.delete(route('amenityResources.destroy', item.id), {
+            router.delete(route('amenityResource.destroy', item.id), {
                 onSuccess: () => {
                     customToastSwal({
                         title: "Recurso eliminado",
@@ -482,45 +685,78 @@ const deleteResource = (item: any) => {
         }
     })
 }
-watch([options, search], debounce(fetchItems, 400), { deep: true });
+
+watch(
+    () => props.amenities,
+    (val) => {
+        items.value = val?.data ?? [];
+        total.value = val?.total ?? 0;
+    },
+    { immediate: true }
+);
+const isFirstLoad = ref(true);
+watch([options, search], debounce(() => {
+    if (isFirstLoad.value) {
+        isFirstLoad.value = false;
+        return;
+    }
+    fetchItems();
+}, 400), { deep: true });
+const resourcesLoaded = ref(false);
 watch(() => page.props.auth.currentClub, () => {
     fetchItems();
 });
-watch(() => form.reservation_type, (type) => {
-
-    if (type === 'exclusive') {
-        form.capacity = null
-    }
-
-})
 watch(
-    () => formSchedule.days,
-    (days) => {
-        days.forEach(day => {
-            if (day.open) delete scheduleErrors[`${day.day}_open`]
-            if (day.close) delete scheduleErrors[`${day.day}_close`]
+    () => formSchedule.days.map(d => [d.open,d.close]),
+    (days)=>{
+        days.forEach((_,index)=>{
+            const day = formSchedule.days[index]
+
+            if(day.open)
+                delete scheduleErrors[`${day.day}_open`]
+
+            if(day.close)
+                delete scheduleErrors[`${day.day}_close`]
         })
-    },
-    { deep: true }
+    }
 )
+watch([resourceOptions, resourceSearch], debounce(fetchResources, 400), { deep: true });
+
+watch(tab, (value) => {
+    if(value === 'resources' && !resourcesLoaded.value){
+        fetchResources()
+        resourcesLoaded.value = true
+    }
+});
+
 </script>
 
 <template>
 
     <Head title="Amenidades" />
     <AppLayout>
-        <template #header>Amenidades</template>
         <template #options>
-            <BaseButton variant="elevated" :icon-only="false" @click="create" action="add"
-                v-if="can.includes('amenities.store')" />
-            <BaseButton v-if="tab === 'amenities' && can.includes('amenities.store')" variant="elevated"
-                :icon-only="false" @click="create" action="add" label="Agregar Amenidad" />
+            <BaseButton 
+                v-if="can.includes(isAmenities ? 'amenities.store' : 'amenityResource.store')"
+                variant="elevated"
+                :icon-only="false" 
+                @click="handleCreate" 
+                action="add" 
+                :text="isAmenities ? 'Agregar Amenidad' : 'Agregar Recurso'" 
+            />
         </template>
+        <template #header>Amenidades</template>
+        <div class="pa-4 bg-grey-lighten-4 rounded-xl mt-5">
+            <v-tabs v-model="tab" class="custom-tabs" grow>
+                <v-tab value="amenities">
+                    <v-icon start>mdi-domain</v-icon>
+                    Amenidades
+                </v-tab>
 
-        <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
-            <v-tabs v-model="tab" bg-color="white">
-                <v-tab value="amenities">Amenidades</v-tab>
-                <v-tab value="resources">Recursos</v-tab>
+                <v-tab value="resources">
+                    <v-icon start>mdi-cube-outline</v-icon>
+                    Recursos
+                </v-tab>
             </v-tabs>
             <v-window v-model="tab">
                 <v-window-item value="amenities">
@@ -531,26 +767,59 @@ watch(
                                 :items-per-page-options="[10, 25, 50, 100]" items-per-page-text="Mostrar"
                                 no-data-text="No hay registros para mostrar">
                                 <template #top>
-                                    <v-text-field v-model="search" label="Buscar amenidad" class="mx-4 mt-2"
-                                        clearable />
+                                        <v-text-field
+                                            v-model="search"
+                                            label="Buscar amenidad..."
+                                            prepend-inner-icon="mdi-magnify"
+                                            variant="outlined"
+                                            density="comfortable"
+                                            class="mx-4 mt-4"
+                                        />
                                 </template>
-                                <template #item.icon="{ item }">
+                                <!--<template #item.icon="{ item }">
                                     <v-img v-if="item.icon" :src="`/storage/${item.icon}`" max-height="30"
                                         max-width="30" class="rounded-lg" />
-                                </template>
+                                </template>-->
                                 <template #item.background_image="{ item }">
                                     <v-img v-if="item.background_image" :src="`/storage/${item.background_image}`"
                                         max-height="80" max-width="80" class="rounded-lg" />
+                                </template>
+                                <template #item.reservation_type="{ item }">
+                                    {{ reservationTypeLabel[item.reservation_type] }}
                                 </template>
                                 <template #item.is_active="{ item }">
                                     <v-chip :color="item.is_active ? 'green' : 'red'" dark>
                                         {{ item.is_active ? 'Activo' : 'Inactivo' }}
                                     </v-chip>
                                 </template>
-                                <template #item.actions="{ item }">
-                                    <BaseButton text="Agregar horario" action="add" icon="mdi-calendar"
-                                        @click="openScheduleModal(item)" />
+                                <template #item.schedule_text="{ item }">
+                                    <div class="d-flex flex-wrap ga-1">
+                                        <v-chip
+                                            v-for="(block, index) in formatScheduleSmart(item.schedules)"
+                                            :key="index"
+                                            size="x-small"
+                                            variant="tonal"
+                                            :color="index % 2 === 0 ? 'primary' : 'secondary'"
+                                        >
+                                            <v-icon start size="14">mdi-clock-outline</v-icon>
+                                            {{ block }}
+                                        </v-chip>
 
+                                        <v-chip
+                                            v-if="!formatScheduleSmart(item.schedules).length"
+                                            size="x-small"
+                                            color="grey"
+                                            variant="outlined"
+                                        >
+                                            Sin horario
+                                        </v-chip>
+                                    </div>
+                                </template>
+                                <template #item.actions="{ item }">
+                                    <span class="action-slot">
+                                        <BaseButton v-if="item.reservation_type !== 'daily'" text="Agregar horario" action="add" icon="mdi-calendar-month"
+                                            @click="openScheduleModal(item)" />
+                                    </span>
                                     <BaseButton action="edit" @click="edit(item)"
                                         v-if="can.includes('amenities.update')" />
 
@@ -566,14 +835,21 @@ watch(
                 <v-window-item value="resources">
                     <v-row>
                         <v-col cols="12">
-                            <BaseButton text="Nuevo recurso" action="add" @click="createResource" />
                             <v-data-table-server :headers="resourceHeaders" :items="resourceItems"
                                 :items-length="resourceTotal" :loading="resourceLoading" class="elevation-1"
-                                no-data-text="No hay recursos registrados">
+                                no-data-text="No hay recursos registrados" v-model:options="resourceOptions">
                                 <template #item.is_active="{ item }">
                                     <v-chip :color="item.is_active ? 'green' : 'red'">
                                         {{ item.is_active ? 'Activo' : 'Inactivo' }}
                                     </v-chip>
+                                </template>
+                                <template #top>
+                                    <v-text-field
+                                        v-model="resourceSearch"
+                                        label="Buscar recurso"
+                                        class="mx-4 mt-2"
+                                        clearable
+                                    />
                                 </template>
                                 <template #item.actions="{ item }">
                                     <BaseButton action="edit" @click="editResource(item)" />
@@ -589,7 +865,7 @@ watch(
         <v-dialog v-model="showModal" max-width="600" persistent>
             <v-form @submit.prevent="save" ref="formSendRef">
                 <v-card :title="`${form.id ? 'Editar Amenidad' : 'Nueva Amenidad'}`">
-                    <v-card-text class="overflow-y-auto h-full">
+                    <v-card-text class="overflow-y-auto h-full" style="max-height:70vh; overflow-y:auto;">
                         <v-row>
                             <v-col cols="12">
                                 <FormName v-model="form.name" label="Nombre" :rules="[required, maxLength(50)]" />
@@ -638,14 +914,13 @@ watch(
                             <v-col cols="12">
                                 <v-select v-model="form.reservation_type" prepend-inner-icon="mdi-calendar-check"
                                     label="Tipo de reserva" placeholder=" " :items="[
-                                        { title: 'Uso exclusivo (1 reserva por horario)', value: 'exclusive' },
-                                        { title: 'Por capacidad (múltiples reservas por horario)', value: 'capacity_based' }
-                                    ]" item-title="title" item-value="value" :rules="[required]" />
+                                        { title: 'Reserva por día', value: 'daily' },
+                                        { title: 'Reserva por tiempo', value: 'hourly' },
+                                        { title: 'Reserva por capacidad', value: 'capacity' }
+                                    ]" item-title="title" item-value="value" :rules="[required]" 
+                                    />
                             </v-col>
-                            <!--<v-col cols="12" v-if="showCapacity">
-                                <FormNumber v-model="form.capacity" label="Capacidad" :min="0" />
-                            </v-col>-->
-                            <v-col cols="12">
+                            <v-col cols="12" v-if="showSlotDuration">
                                 <FormNumber v-model="form.slot_duration_minutes" label="Espacio de reserva en minutos"
                                     :min="0" :rules="[required]" />
                             </v-col>
@@ -668,7 +943,7 @@ watch(
         <v-dialog v-model="showScheduleModal" max-width="700" persistent>
             <v-form @submit.prevent="schedule">
                 <v-card>
-                    <v-card-title style="max-height: 60vh;">
+                    <v-card-title>
                         <div class="title-container">
                             <span class="title"><v-icon size="25">mdi-calendar-clock</v-icon> Horarios de la
                                 amenidad</span>
@@ -677,7 +952,43 @@ watch(
                             </span>
                         </div>
                     </v-card-title>
-                    <v-card-text class="schedule-container overflow-y-auto h-full">
+                    <v-card-text class="schedule-container overflow-y-auto">
+                        <v-card class="mb-4 pa-3 bg-whitesmoke" variant="flat">
+                            <div class="d-flex align-center ga-2 flex-nowrap">
+
+                                <v-icon size="18">mdi-lightning-bolt</v-icon>
+
+                                <span class="text-body-2 font-weight-medium">
+                                    Aplicar horario rápido
+                                </span>
+
+                                <TimePicker
+                                    v-model="bulkSchedule.open"
+                                    density="compact"
+                                    class="time-input custom-time"
+                                    label-menu="Apertura"
+                                />
+                                <span>-</span>
+
+                                <TimePicker
+                                    v-model="bulkSchedule.close"
+                                    density="compact"
+                                    class="time-input custom-time"
+                                     label-menu="Cierre"
+                                />
+
+                                <BaseButton
+                                    :text="'Aplicar'"
+                                    variant="flat"
+                                    size="small"
+                                    :icon-only="false"
+                                    icon="mdi-clock"
+                                    action="edit"
+                                    @click="applyToAllDays"
+                                />
+
+                            </div>
+                        </v-card>   
                         <div v-for="day in formSchedule.days" :key="day.day" class="schedule-row"
                             :class="{ inactive: !day.active }">
                             <div class="day-section">
@@ -720,7 +1031,7 @@ watch(
                         <v-spacer />
                         <BaseButton :text="'Cancelar'" variant="tonal" :icon-only="false" action="cancel"
                             @click="closeScheduleModal" />
-                        <BaseButton :text="'Guardar horario'" variant="flat" :icon-only="false" type="submit"
+                        <BaseButton :text="formSchedule.id ? 'Actualizar horario' : 'Guardar horario'" variant="flat" :icon-only="false" type="submit"
                             action="save" />
                     </v-card-actions>
                 </v-card>
@@ -736,20 +1047,18 @@ watch(
                                     :item-value="'id'" :items="items" />
                             </v-col>
                             <v-col cols="12">
-                                <FormName v-model="resourceForm.name" label="Nombre" />
+                                <v-text-field v-model="resourceForm.name" label="Nombre" :required="true" :min-length="2" />
                             </v-col>
-                            <v-col cols="12">
-                                <FormNumber v-model="resourceForm.capacity" label="Capacidad" />
-                            </v-col>
-                            <v-col cols="12">
-                                <v-switch v-model="resourceForm.is_active" label="Activo" />
+                            <v-col cols="12" v-if="showCapacity">
+                                <FormNumber v-model="resourceForm.capacity" label="Capacidad" :required="true"/>
                             </v-col>
                         </v-row>
                     </v-card-text>
                     <v-card-actions>
                         <v-spacer />
-                        <BaseButton text="Cancelar" variant="tonal" action="cancel" @click="showResourceModal = false" />
-                        <BaseButton text="Guardar" variant="flat" action="save" type="submit" />
+                        <BaseButton :text="'Cancelar'" variant="tonal" action="cancel" :icon-only="false" @click="closeResourcesModal" />
+                        <BaseButton :text="resourceForm.id ? 'Actualizar' : 'Guardar'" variant="flat" :icon-only="false"
+                            type="submit" action="save" />
                     </v-card-actions>
                 </v-card>
             </v-form>

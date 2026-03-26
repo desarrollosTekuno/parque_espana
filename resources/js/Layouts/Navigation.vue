@@ -16,11 +16,7 @@ const changeClub = () => {
     router.post(route("change.club"), {
         club_id: selectedClub.value
     }, {
-        preserveState: true,
         preserveScroll: true,
-        onSuccess: () => {
-            router.reload();
-        }
     });
 };
 
