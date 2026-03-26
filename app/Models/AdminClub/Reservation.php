@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Reservation extends Model {
     use HasFactory, SoftDeletes, SerializesDates;
 
+    protected $table = 'reservations.reservations';
+
     protected $guarded = ['id', 'created_at', 'updated_at'];
     protected $dates = ['deleted_at'];
     protected $casts = [ 'start_datetime' => 'datetime', 'end_datetime' => 'datetime' ];

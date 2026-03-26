@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -11,13 +12,27 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('reservations', function (Blueprint $table) {
+        $driver = DB::getDriverName();
+
+        if ($driver === 'pgsql') {
+            DB::statement('CREATE SCHEMA IF NOT EXISTS reservations');
+        } else {
+            // sqlserver
+            DB::statement("
+                IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = 'reservations')
+                BEGIN
+                    EXEC('CREATE SCHEMA reservations');
+                END
+            ");
+        }
+
+        Schema::create('reservations.reservations', function (Blueprint $table) {
             $table->id();
             $table->dateTime('start_datetime');
             $table->dateTime('end_datetime');
-            $table->string('status');
             // cancelled_at
             $table->timestamp('cancelled_at')->nullable();
+            $table->date('reservation_date')->nullable();
             $table->foreignId('club_id')->constrained('clubs');
             $table->foreignId('amenity_id')->constrained('amenities');
             $table->foreignId('user_id')->constrained('users');
