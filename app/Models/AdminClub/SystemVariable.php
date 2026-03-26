@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class SystemVariable extends Model {
     use HasFactory, SoftDeletes;
 
+    protected $table = 'reservations.system_variables';
+
     protected $guarded = ['id', 'created_at', 'updated_at'];
     protected $dates = ['deleted_at'];
 }

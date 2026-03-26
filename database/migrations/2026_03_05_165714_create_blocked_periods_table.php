@@ -11,12 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('blocked_periods', function (Blueprint $table) {
+        Schema::create('amenities.blocked_periods', function (Blueprint $table) {
             $table->id();
             $table->time('start_time');
             $table->time('end_time');
             $table->string('reason');
-            $table->foreignId('amenity_id')->constrained('amenities');
+            $table->foreignId('amenity_id')->constrained('amenities.amenities');
             $table->timestamps();
             $table->softDeletes();
         });
@@ -27,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('blocked_periods');
+        Schema::dropIfExists('amenities.blocked_periods');
     }
 };

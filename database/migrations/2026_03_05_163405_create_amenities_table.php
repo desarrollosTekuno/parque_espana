@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration {
@@ -10,7 +11,21 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        Schema::create('amenities', function (Blueprint $table) {
+        $driver = DB::getDriverName();
+
+        if ($driver === 'pgsql') {
+            DB::statement('CREATE SCHEMA IF NOT EXISTS amenities');
+        } else {
+            // sqlserver
+            DB::statement("
+                IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = 'amenities')
+                BEGIN
+                    EXEC('CREATE SCHEMA amenities');
+                END
+            ");
+        }
+
+        Schema::create('amenities.amenities', function (Blueprint $table) {
             $table->id();
             $table->string('name');
             // icon and background image
@@ -21,7 +36,7 @@ return new class extends Migration {
             $table->integer('capacity')->nullable();
             $table->integer('slot_duration_minutes')->nullable();
             $table->boolean('is_active')->default(true);
-            $table->foreignId('club_id')->constrained('clubs');
+            $table->foreignId('club_id')->constrained('clubs.clubs');
             $table->timestamps();
             $table->softDeletes();
         });
@@ -32,6 +47,12 @@ return new class extends Migration {
      */
     public function down(): void
     {
-        Schema::dropIfExists('amenities');
+        Schema::dropIfExists('amenities.amenities');
+        $driver = DB::getDriverName();
+        if ($driver === 'pgsql') {
+            DB::statement('DROP SCHEMA IF EXISTS amenities');
+        } else {
+            DB::statement('DROP SCHEMA amenities');
+        }
     }
 };
