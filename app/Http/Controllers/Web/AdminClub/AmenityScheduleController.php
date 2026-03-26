@@ -28,7 +28,7 @@ class AmenityScheduleController extends Controller {
         //return Inertia::render('Ruta/Vista', compact('items'));
     }
 
-    public function store(Request $request)
+   /* public function store(Request $request)
 {
     $schedules = $request->input('schedules', []);
 
@@ -69,24 +69,6 @@ class AmenityScheduleController extends Controller {
             ->where('amenity_id', $resourceId)
             ->whereDate('date', '>=', now()->toDateString())
             ->get();
-        
-        // Verificar conflictos
-       /* foreach ($reservations as $reservation) {
-            $weekday = (int)$reservation->weekday;
-
-            if (!isset($newSchedules[$weekday])) continue;
-
-            $schedule = $newSchedules[$weekday];
-            $newOpen  = Carbon::parse($schedule['open_time']);
-            $newClose = Carbon::parse($schedule['close_time']);
-            $resStart = Carbon::parse($reservation->start_time);
-            $resEnd   = Carbon::parse($reservation->end_time);
-
-            if ($resStart->lt($newOpen) || $resEnd->gt($newClose)) {
-                Log::info('ENTRE AL IFFFF');
-                return back()->with('messageError', "Conflicto el día {$weekday}: {$resStart->format('H:i')} - {$resEnd->format('H:i')}");
-            }
-        }*/
 
         foreach ($reservations as $reservation) {
 
@@ -106,7 +88,7 @@ class AmenityScheduleController extends Controller {
 
             Log::info('DEBUG HORARIOS', [
                 'weekday' => $weekday,
-                'resStart' => $resStart->format('H:i:s'),
+                'resStart' => $resStart->format('H:i:s'), 
                 'newOpen' => $newOpen->format('H:i:s'),
                 'resEnd' => $resEnd->format('H:i:s'),
                 'newClose' => $newClose->format('H:i:s'),
@@ -155,6 +137,115 @@ class AmenityScheduleController extends Controller {
             'exception' => $e->getMessage()
         ]);
         return back()->with('messageError', 'Ocurrió un error al agregar el horario'); 
+    }
+}*/
+public function store(Request $request)
+{
+    $schedules = $request->input('schedules', []);
+    if (empty($schedules)) {
+        return back()->with('messageError', 'No hay horarios para guardar');
+    }
+
+    DB::beginTransaction();
+    try {
+
+        $resourceId = $schedules[0]['amenity_id'];
+        $newSchedules = [];
+        $dayNames = [
+            0 => 'Domingo',
+            1 => 'Lunes',
+            2 => 'Martes',
+            3 => 'Miércoles',
+            4 => 'Jueves',
+            5 => 'Viernes',
+            6 => 'Sábado',
+        ];
+
+        $conflicts = [];
+        foreach ($schedules as $schedule) {
+            $dayNumber = $schedule['day_of_week'];
+            $newSchedules[$dayNumber] = [
+                'open_time' => $schedule['open_time'],
+                'close_time' => $schedule['close_time'],
+            ];
+        }
+
+        $reservations = Reservation::selectRaw("
+                start_time,
+                end_time,
+                EXTRACT(DOW FROM start_time) as weekday
+            ")
+            ->where('amenity_id', $resourceId)
+            ->where('start_time', '>=', now())
+            ->get();
+
+
+        foreach ($reservations as $reservation) {
+
+            $weekday = (int)$reservation->weekday;
+            if (!isset($newSchedules[$weekday])) {
+                continue;
+            }
+            $schedule = $newSchedules[$weekday];
+            $newOpen = Carbon::parse($schedule['open_time']);
+            $newClose = Carbon::parse($schedule['close_time']);
+
+            $resStart = Carbon::parse($reservation->start_time);
+            $resEnd   = Carbon::parse($reservation->end_time);
+
+            $resStartTime = Carbon::parse($resStart->format('H:i'));
+            $resEndTime   = Carbon::parse($resEnd->format('H:i'));
+
+            if (
+                $resStartTime->lt($newOpen)
+                || $resEndTime->gt($newClose)
+            ) {
+
+                $conflicts[] = [
+                    'day' => $dayNames[$weekday],
+                    'date' => $resStart->format('Y-m-d'),
+                    'start' => $resStart->format('H:i'),
+                    'end' => $resEnd->format('H:i'),
+                ];
+            }
+        }
+
+        if (!empty($conflicts)) {
+
+            $message = collect($conflicts)
+                ->map(fn($c) =>
+                    "{$c['day']} {$c['date']} {$c['start']} - {$c['end']}"
+                )
+                ->join(', ');
+
+            DB::rollBack();
+
+            return back()->with(
+                'messageError',
+                "Existen reservas fuera del nuevo horario: {$message}"
+            );
+        }
+
+        AmenitySchedule::where('amenity_id', $resourceId)->forceDelete();
+        foreach ($newSchedules as $day => $schedule) {
+            AmenitySchedule::create([
+                'amenity_id' => $resourceId,
+                'day_of_week' => $day,
+                'open_time' => $schedule['open_time'],
+                'close_time' => $schedule['close_time'],
+            ]);
+        }
+        DB::commit();
+        return back()->with('success', 'Horarios guardados correctamente');
+    } catch (\Exception $e) {
+        DB::rollBack();
+        Log::error('ERROR HORARIOS', [
+            'exception' => $e->getMessage()
+        ]);
+        return back()->with(
+            'messageError',
+            'Ocurrió un error al agregar el horario'
+        );
     }
 }
 
