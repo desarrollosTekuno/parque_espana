@@ -14,6 +14,7 @@ class ReservationStatus extends Model {
     const ACTIVA = 1;
     const CANCELADA = 2;
     const FINALIZADA = 3;
+    const INASISTENCIA = 4;
 
     protected $guarded = ['id', 'created_at', 'updated_at'];
     protected $dates = ['deleted_at'];

@@ -14,9 +14,24 @@ class SystemVariableSeeder extends Seeder
     public function run(): void
     {
         $system_variables = [
-            ['name' => 'dias_para_crear_reserva', 'value' => '2', 'description' => 'Total de días en los que el socio puede crear reservaciones (día actual y siguiente)'],
-            ['name' => 'dias_para_cancelar_reserva', 'value' => '2', 'description' => 'Total de días en los que el socio puede cancelar reservaciones'],
-            ['name' => 'dias_suspension_reserva', 'value' => '3', 'description' => 'Total de dias de suspensión para reservar'],
+            [
+                'name' => 'dias_para_crear_reserva', 
+                'value' => '2', 
+                'description' => 'Total de días en los que el socio puede crear reservaciones (día actual y siguiente)',
+                'club_id' => 1
+            ],
+            [
+                'name' => 'dias_para_cancelar_reserva', 
+                'value' => '2', 
+                'description' => 'Total de días en los que el socio puede cancelar reservaciones',
+                'club_id' => 1
+            ],
+            [
+                'name' => 'dias_suspension_reserva', 
+                'value' => '3', 
+                'description' => 'Total de dias de suspensión para reservar',
+                'club_id' => 1
+            ],
         ];
 
         foreach ($system_variables as $system_variable) {

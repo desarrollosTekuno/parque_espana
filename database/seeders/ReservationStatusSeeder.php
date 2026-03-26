@@ -17,7 +17,7 @@ class ReservationStatusSeeder extends Seeder
             ['name' => 'ACTIVA', 'color' => 'green'],
             ['name' => 'CANCELADA', 'color' => 'red'],
             ['name' => 'FINALIZADA', 'color' => 'blue'],
-            ['name' => 'NO ASISTIDA', 'color' => 'red']
+            ['name' => 'INASISTENCIA', 'color' => 'red']
         ];
 
         foreach ($status as $stat){

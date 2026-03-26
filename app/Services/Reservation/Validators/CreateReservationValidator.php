@@ -6,6 +6,7 @@ use App\Services\Reservation\Context\ReservationContext;
 use App\Services\Reservation\Rules\AdvanceDaysRule;
 use App\Services\Reservation\Rules\CapacityRule;
 use App\Services\Reservation\Rules\ConsecutiveReservationRule;
+use App\Services\Reservation\Rules\UserNoShowPenaltyRule;
 use App\Services\Reservation\Rules\UserOverlapRule;
 
 class CreateReservationValidator
@@ -16,6 +17,7 @@ class CreateReservationValidator
     {
         $this->rules = [
             new AdvanceDaysRule(),
+            new UserNoShowPenaltyRule(),
             new UserOverlapRule(),
             new ConsecutiveReservationRule(),
             new CapacityRule(),
