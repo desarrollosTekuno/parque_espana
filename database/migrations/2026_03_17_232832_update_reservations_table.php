@@ -20,19 +20,12 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::table('reservations', function (Blueprint $table) {
-
-            if (Schema::hasColumn('reservations', 'amenity_resource_id')) {
-
-                $table->dropForeign(['amenity_resource_id']);
-                $table->dropColumn('amenity_resource_id');
-
-            }
-
+        Schema::table('reservations.reservations', function (Blueprint $table) {
+            $table->dropForeign(['amenity_resource_id']);
+            $table->dropColumn('amenity_resource_id');
+            $table->dropForeign(['reservation_status_id']);
+            $table->dropColumn('reservation_status_id');
+            DB::statement('DROP INDEX IF EXISTS reservations.amenity_resource_id_reservation_date_index'); 
         });
-
-        DB::statement("
-            DROP INDEX IF EXISTS amenity_resource_id_date_index
-        ");
     }
 };
