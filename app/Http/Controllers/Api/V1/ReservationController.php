@@ -15,6 +15,7 @@ use App\Services\Reservation\Validators\CreateReservationValidator;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
@@ -35,8 +36,8 @@ class ReservationController extends Controller {
             $validated = $request->validate([
                 'start_datetime' => 'required|date_format:Y-m-d H:i',
                 'end_datetime' => 'required|date_format:Y-m-d H:i|after:start_datetime',
-                'club_id' =>  'required|exists:clubs,id',
-                'amenity_resource_id' => 'required|exists:amenity_resources,id'
+                'club_id' =>  'required', Rule::exists('clubs.clubs as c', 'id'),
+                'amenity_resource_id' => 'required', Rule::exists('amenities.resources as ar', 'id') 
             ]);
 
             $amenityResource = AmenityResource::with('amenity')->where('id', $validated['amenity_resource_id'])->first();
