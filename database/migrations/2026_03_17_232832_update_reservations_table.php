@@ -9,24 +9,13 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('reservations', function (Blueprint $table) {
-
-            if (!Schema::hasColumn('reservations', 'amenity_resource_id')) {
-
-                $table->foreignId('amenity_resource_id')->nullable();
-
-                $table->foreign('amenity_resource_id')
-                    ->references('id')
-                    ->on('amenity_resources');
-
-            }
-
+        Schema::table('reservations.reservations', function (Blueprint $table) {
+            $table->foreignId('amenity_resource_id')->nullable();
+            $table->foreign('amenity_resource_id')->references('id')->on('amenities.resources');
+            $table->unsignedBigInteger('reservation_status_id')->nullable();
+            $table->foreign('reservation_status_id')->references('id')->on('reservations.status');
+            $table->index(['amenity_resource_id', 'reservation_date'], 'amenity_resource_id_reservation_date_index');
         });
-
-        DB::statement("
-            CREATE INDEX IF NOT EXISTS amenity_resource_id_date_index
-            ON reservations (amenity_resource_id, date)
-        ");
     }
 
     public function down(): void

@@ -10,6 +10,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class AmenitySchedule extends Model
 {
     use HasFactory, SoftDeletes, SerializesDates;
+
+    protected $table = 'amenities.schedules';
+
     protected $fillable = [
         'amenity_id',
         'day_of_week',

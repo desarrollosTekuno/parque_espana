@@ -88,7 +88,7 @@ class AmenityScheduleController extends Controller {
 
             Log::info('DEBUG HORARIOS', [
                 'weekday' => $weekday,
-                'resStart' => $resStart->format('H:i:s'), 
+                'resStart' => $resStart->format('H:i:s'),
                 'newOpen' => $newOpen->format('H:i:s'),
                 'resEnd' => $resEnd->format('H:i:s'),
                 'newClose' => $newClose->format('H:i:s'),
@@ -123,7 +123,7 @@ class AmenityScheduleController extends Controller {
                 'amenity_id' => $resourceId,
                 'day_of_week' => $day,
                 'open_time' => $schedule['open_time'],
-                'close_time' => $schedule['close_time'], 
+                'close_time' => $schedule['close_time'],
             ]);
         }
 
@@ -136,7 +136,7 @@ class AmenityScheduleController extends Controller {
         Log::error('ERROR HORARIOS', [
             'exception' => $e->getMessage()
         ]);
-        return back()->with('messageError', 'Ocurrió un error al agregar el horario'); 
+        return back()->with('messageError', 'Ocurrió un error al agregar el horario');
     }
 }*/
 public function store(Request $request)
@@ -171,12 +171,12 @@ public function store(Request $request)
         }
 
         $reservations = Reservation::selectRaw("
-                start_time,
-                end_time,
-                EXTRACT(DOW FROM start_time) as weekday
+                start_datetime,
+                end_datetime,
+                EXTRACT(DOW FROM start_datetime) as weekday
             ")
             ->where('amenity_id', $resourceId)
-            ->where('start_time', '>=', now())
+            ->where('start_datetime', '>=', now())
             ->get();
 
 
@@ -190,8 +190,8 @@ public function store(Request $request)
             $newOpen = Carbon::parse($schedule['open_time']);
             $newClose = Carbon::parse($schedule['close_time']);
 
-            $resStart = Carbon::parse($reservation->start_time);
-            $resEnd   = Carbon::parse($reservation->end_time);
+            $resStart = Carbon::parse($reservation->start_datetime);
+            $resEnd   = Carbon::parse($reservation->end_datetime);
 
             $resStartTime = Carbon::parse($resStart->format('H:i'));
             $resEndTime   = Carbon::parse($resEnd->format('H:i'));

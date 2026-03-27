@@ -8,7 +8,7 @@ return new class extends Migration {
 
     public function up(): void
     {
-        Schema::table('amenity_resources', function (Blueprint $table) {
+        Schema::table('amenities.resources', function (Blueprint $table) {
 
             $table->unique(['amenity_id', 'name', 'deleted_at'], 'amenity_resource_unique');
 
@@ -17,7 +17,7 @@ return new class extends Migration {
 
     public function down(): void
     {
-        Schema::table('amenity_resources', function (Blueprint $table) {
+        Schema::table('amenities.resources', function (Blueprint $table) {
 
             $table->dropUnique('amenity_resource_unique');
 

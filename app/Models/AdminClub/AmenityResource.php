@@ -11,6 +11,8 @@ class AmenityResource extends Model
 {
     use HasFactory;
 
+    protected $table = 'amenities.resources';
+
     protected $fillable = [
         'amenity_id',
         'name',

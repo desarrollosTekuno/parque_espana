@@ -13,6 +13,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Club extends Model {
     use HasFactory, SoftDeletes,SerializesDates;
 
+    protected $table = 'clubs.clubs';
+
     protected $guarded = ['id', 'created_at', 'updated_at'];
     protected $dates = ['deleted_at'];
 

@@ -33,8 +33,8 @@ return new class extends Migration
             // cancelled_at
             $table->timestamp('cancelled_at')->nullable();
             $table->date('reservation_date')->nullable();
-            $table->foreignId('club_id')->constrained('clubs');
-            $table->foreignId('amenity_id')->constrained('amenities');
+            $table->foreignId('club_id')->constrained('clubs.clubs');
+            $table->foreignId('amenity_id')->constrained('amenities.amenities');
             $table->foreignId('user_id')->constrained('users');
             $table->timestamps();
             $table->softDeletes();

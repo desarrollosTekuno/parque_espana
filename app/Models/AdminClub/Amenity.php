@@ -12,6 +12,8 @@ class Amenity extends Model
 {
     use HasFactory, SoftDeletes, SerializesDates;
 
+    protected $table = 'amenities.amenities';
+
     protected $fillable = [
         'name',
         'description',
@@ -34,5 +36,5 @@ class Amenity extends Model
     {
         return $this->hasMany(AmenitySchedule::class, 'amenity_id');
     }
-    
+
 }

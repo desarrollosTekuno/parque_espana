@@ -8,7 +8,7 @@ return new class extends Migration {
 
     public function up(): void
     {
-        Schema::table('amenities', function (Blueprint $table) {
+        Schema::table('amenities.amenities', function (Blueprint $table) {
             $table->text('description')->nullable()->change();
             $table->dropColumn('capacity');
         });
@@ -16,7 +16,7 @@ return new class extends Migration {
 
     public function down(): void
     {
-        Schema::table('amenities', function (Blueprint $table) {
+        Schema::table('amenities.amenities', function (Blueprint $table) {
             $table->string('description')->nullable()->change();
             $table->string('reservation_type')->change();
             $table->integer('capacity')->nullable();
