@@ -10,7 +10,7 @@ return new class extends Migration
      * Run the migrations.
      */
     public function up(): void
-    {        
+    {
         Schema::create('reservations.guest_lists', function (Blueprint $table) {
             $table->id();
             $table->string('status');
@@ -19,7 +19,7 @@ return new class extends Migration
             $table->integer('total_children');
             $table->decimal('subtotal', 12, 2)->nullable();
             $table->decimal('discount', 12, 2)->nullable();
-            $table->decimal('total', 12, 2);
+            $table->decimal('total', 12, 2)->nullable();
             $table->date('approved_at')->nullable();
             $table->text('comments')->nullable();
             $table->foreignId('reservation_id')->constrained('reservations.reservations');

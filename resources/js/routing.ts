@@ -38,7 +38,7 @@ const routes: Routing[] = [
         group: null,
         // groupItems: null
     },
-   
+
     //permisos
     {
         name: "permissions.index",
@@ -77,12 +77,25 @@ const routes: Routing[] = [
     },
     // Reservaciones
     {
-        name: "reservations.index",
+        name: ["dashboard"],
         title: "Reservaciones",
         icon: "mdi-calendar-check",
-        value: "reservaciones",
-        group: null,
-        // groupItems: null
+        value: "reservacionesMenu",
+        group: "Reservaciones",
+        groupItems: [
+            {
+                name: "reservations.index",
+                title: "Reservaciones",
+                icon: "mdi-calendar-check",
+                value: "reservaciones",
+            },
+            {
+                name: "guest-lists.index",
+                title: "Listas de invitados",
+                icon: "mdi-account-group-outline",
+                value: "listas-invitados",
+            },
+        ]
     },
     // Variables de sistema
     {
@@ -93,7 +106,7 @@ const routes: Routing[] = [
         group: null,
         // groupItems: null
     },
-    /* 
+    /*
     {
         name: ["dashboard"],
         title: "Pagos",

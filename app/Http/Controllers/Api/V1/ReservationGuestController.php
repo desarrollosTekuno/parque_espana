@@ -21,7 +21,7 @@ class ReservationGuestController extends Controller {
         //return Inertia::render('Ruta/Index', compact('items'));
     }
 
-    public function store(Request $request) 
+    public function store(Request $request)
     {
         DB::beginTransaction();
         try {
@@ -45,21 +45,11 @@ class ReservationGuestController extends Controller {
             $totalChildren = $totalGuests - $totalAdults;
             $subtotal = $adultCost * $totalAdults + $childCost * $totalChildren;
 
-            // return [
-            //     'status' => ReservationGuestList::PENDING,
-            //     'total_guests' => $totalGuests,
-            //     'total_adults' => $totalAdults,
-            //     'total_children' => $totalChildren, 
-            //     'subtotal' => $subtotal,
-            //     'reservation_id' => $validated['reservation_id'],
-            //     'user_id' => $request->user()->id,
-            // ];
-
             $guestList = ReservationGuestList::create([
                 'status' => ReservationGuestList::PENDING,
                 'total_guests' => $totalGuests,
                 'total_adults' => $totalAdults,
-                'total_children' => $totalChildren, 
+                'total_children' => $totalChildren,
                 'subtotal' => $subtotal,
                 'reservation_id' => $validated['reservation_id'],
                 'user_id' => $request->user()->id,
@@ -69,7 +59,7 @@ class ReservationGuestController extends Controller {
                 ReservationGuestListItem::create([
                     'name' => $guest['name'],
                     'age' => $guest['age'],
-                    'guest_list_id' => $guestList->id 
+                    'guest_list_id' => $guestList->id
                 ]);
             }
 
@@ -78,7 +68,7 @@ class ReservationGuestController extends Controller {
                 'success' => true,
                 'message' => 'Lista de invitados creada correctamente'
             ], 200);
-            
+
         } catch ( ValidationException $e){
             return response()->json([
                 'success' => false,

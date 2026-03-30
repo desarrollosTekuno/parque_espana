@@ -4,6 +4,7 @@ use App\Http\Controllers\Web\AdminClub\AmenityController;
 use App\Http\Controllers\Web\AdminClub\AmenityResourceController;
 use App\Http\Controllers\Web\AdminClub\ReservationController;
 use App\Http\Controllers\Web\AdminClub\AmenityScheduleController;
+use App\Http\Controllers\Web\AdminClub\ReservationGuestListController;
 use App\Http\Controllers\Web\AdminClub\SystemVariableController;
 use App\Http\Controllers\Web\Administrator\UserController;
 use App\Models\AdminClub\AmenityResource;
@@ -16,3 +17,5 @@ Route::resource('/amenitySchedule', AmenityScheduleController::class)->names('am
 
 Route::resource('/reservations', ReservationController::class)->only(['index', 'update'])->names('reservations');
 Route::resource('/system-variables', SystemVariableController::class)->only(['index', 'store', 'update', 'destroy'])->names('system-variables');
+
+Route::resource('/guest-lists', ReservationGuestListController::class)->only(['index', 'update'])->names('guest-lists');
