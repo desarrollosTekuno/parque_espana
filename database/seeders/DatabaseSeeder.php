@@ -22,7 +22,10 @@ class DatabaseSeeder extends Seeder
             UserSeeder::class,
             ClubSeeder::class,
             ReservationStatusSeeder::class,
-            SystemVariableSeeder::class
+            SystemVariableSeeder::class,
+            DocumentTypeSeeder::class,
+            RelationshipSeeder::class,
+            RelationshipDocumentTypesSeeder::class,
         ]);
     }
 }

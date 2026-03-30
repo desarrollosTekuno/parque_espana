@@ -17,17 +17,22 @@ class ClubSeeder extends Seeder
             [
                 'name' => 'Parque España 1',
                 'address' => 'Calle 1',
-                'is_active' => true
+                'is_active' => true,
+                'code' => 'PE1'
             ],
             [
                 'name' => 'Parque España 2',
                 'address' => 'Calle 2',
-                'is_active' => true
+                'is_active' => true,
+                'code' => 'PE2'
             ]
         ];
 
         foreach ($clubs as $club) {
-            Club::create($club);
+            Club::updateOrCreate(
+                ['code' => $club['code']],
+                ['name' => $club['name'], 'address' => $club['address'], 'is_active' => $club['is_active']]
+            );
         }
     }
 }
