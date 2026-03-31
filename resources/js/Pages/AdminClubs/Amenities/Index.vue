@@ -34,13 +34,18 @@ const isSaveDisabled = computed(() => {
         iconRef.value.isValid === false;
     return imageInvalid || iconInvalid;
 });
-const isAmenities = computed(() => tab.value === 'amenities')
+/*const isAmenities = computed(() => tab.value === 'amenities')
 const handleCreate = () => {
     if (isAmenities.value) {
         create()
     } else {
         createResource()
     }
+}*/
+const handleCreate = () => {
+    tab.value === 'amenities'
+        ? create()
+        : createResource()
 }
 const activeDaysCount = computed(() => {
     return formSchedule.days.filter(day => day.active).length
@@ -256,21 +261,15 @@ const schedule = () => {
         preserveScroll: true,
 
         onSuccess: (page) => {
-
             const flash = page.props.flash || {}
-
             if (flash.messageError) {
-
                 customToastSwal({
                     title: flash.messageError,
                     icon: "error"
                 })
-
                 return
             }
-
             if (flash.success) {
-
                 customToastSwal({
                     title: flash.success,
                     icon: "success"
@@ -282,12 +281,10 @@ const schedule = () => {
         },
 
         onError: (errors) => {
-
             customToastSwal({
                 title: errors.messageError || "Error al guardar horario",
                 icon: "error"
             })
-
         }
     })
 };
@@ -330,7 +327,6 @@ const closeResourcesModal = () => {
     resourceForm.id = null
     showResourceModal.value = false
 };
-
 watch(() => form.icon, (file) => {
     if (file instanceof File) {
         iconPreview.value = URL.createObjectURL(file);
@@ -627,6 +623,8 @@ const resourceForm = useForm({
 })
 const createResource = () => {
     resourceForm.reset()
+    resourceForm.capacity = null
+    resourceForm.slot_duration_minutes = null
     showResourceModal.value = true
 
 }
@@ -660,14 +658,28 @@ const saveResource = () => {
                 ? route('amenityResource.update', resourceForm.id)
                 : route('amenityResource.store'),
             {
-                onSuccess: () => {
+                onSuccess: (page) => {
+                    const flash = page.props.flash || {}
+                    if(flash.messageError){
+                        customToastSwal({
+                            title: flash.messageError,
+                            icon: "error"
+                        })
+                        return
+                    }
                     customToastSwal({
-                        title: "Recurso guardado",
+                        title: flash.success || "Recurso guardado",
                         icon: "success"
                     })
-                    resourceForm.reset();
+                    resourceForm.reset()
                     showResourceModal.value = false
                     fetchResources()
+                },
+                onError: (errors) => {
+                    customToastSwal({
+                        title: errors.messageError || "Error al guardar recurso",
+                        icon: "error"
+                    })
 
                 }
             })
@@ -675,18 +687,32 @@ const saveResource = () => {
 }
 const deleteResource = (item: any) => {
     customConfirmSwal({
-        title: "¿Eliminar recurso?"
+        title: "¿Eliminar recurso?",
+        text: "Esta acción no se puede deshacer",
     }).then(result => {
         if (result.isConfirmed) {
             router.delete(route('amenityResource.destroy', item.id), {
-                onSuccess: () => {
-                    customToastSwal({
-                        title: "Recurso eliminado",
-                        icon: "success"
-                    })
-
-                    fetchResources()
-                }
+                onSuccess: (page) => {
+                    const flash = page.props.flash || {}
+                        if(flash.messageError){
+                            customToastSwal({
+                                title: flash.messageError,
+                                icon: "error"
+                            })
+                            return
+                        }
+                        customToastSwal({
+                            title: flash.success || "Recurso eliminado",
+                            icon: "success"
+                        })
+                        fetchResources()
+                    },
+                    onError: (errors) => {
+                        customToastSwal({
+                            title: errors.messageError || "Error al eliminar",
+                            icon: "error"
+                        })
+                    }
             })
         }
     })
@@ -708,7 +734,7 @@ watch([options, search], debounce(() => {
     }
     fetchItems();
 }, 400), { deep: true });
-const resourcesLoaded = ref(false);
+//const resourcesLoaded = ref(false);
 watch(() => page.props.auth.currentClub, () => {
     fetchItems();
 });
@@ -729,27 +755,39 @@ watch(
 watch([resourceOptions, resourceSearch], debounce(fetchResources, 400), { deep: true });
 
 watch(tab, (value) => {
-    if(value === 'resources' && !resourcesLoaded.value){
+    if(value === 'resources'){
         fetchResources()
-        resourcesLoaded.value = true
     }
 });
-watch(() => resourceForm.amenity_id, () => {
-    if (!showSlotDuration.value) {
-        resourceForm.slot_duration_minutes = null
-    }
-    if (!showCapacity.value) {
-        resourceForm.capacity = null
-    } 
-    else if (!resourceForm.capacity) {
-        resourceForm.capacity = 1
-    }
-})
-watch(() => form.reservation_type, () => {
+watch(
+    () => reservationType.value,
+    (type) => {
+        if (type === 'daily') {
+            resourceForm.capacity = null
+            resourceForm.slot_duration_minutes = null
+        }
+        if (type === 'hourly') {
+            resourceForm.capacity = null
+            if (!resourceForm.slot_duration_minutes) {
+                resourceForm.slot_duration_minutes = null
+            }
+        }
+        if (type === 'capacity') {
+            if (!resourceForm.capacity) {
+                resourceForm.capacity = 1
+            }
+            if (!resourceForm.slot_duration_minutes) {
+                resourceForm.slot_duration_minutes = null
+            }
+        }
+    },
+    { immediate: true }
+)
+/*watch(() => form.reservation_type, () => {
     if (tab.value === 'resources') {
         fetchResources()
     }
-})
+})*/
 </script>
 
 <template>
@@ -758,12 +796,12 @@ watch(() => form.reservation_type, () => {
     <AppLayout>
         <template #options>
             <BaseButton 
-                v-if="can.includes(isAmenities ? 'amenities.store' : 'amenityResource.store')"
+               v-if="can.includes(tab === 'amenities' ? 'amenities.store' : 'amenityResource.store')"
                 variant="elevated"
                 :icon-only="false" 
                 @click="handleCreate" 
                 action="add" 
-                :text="isAmenities ? 'Agregar Amenidad' : 'Agregar Recurso'" 
+                :text="tab === 'amenities' ? 'Agregar Amenidad' : 'Agregar Recurso'" 
             />
         </template>
         <template #header>Amenidades</template>
@@ -859,6 +897,14 @@ watch(() => form.reservation_type, () => {
                             <v-data-table-server :headers="resourceHeaders" :items="resourceItems"
                                 :items-length="resourceTotal" :loading="resourceLoading" class="elevation-1"
                                 no-data-text="No hay recursos registrados" v-model:options="resourceOptions">
+                                <template #item.capacity="{ item }">
+                                    <span v-if="item.amenity?.reservation_type === 'capacity'">
+                                        {{ item.capacity }}
+                                    </span>
+                                    <span v-else class="text-grey">
+                                        No aplica
+                                    </span>
+                                </template>
                                 <template #item.is_active="{ item }">
                                     <v-chip :color="item.is_active ? 'green' : 'red'">
                                         {{ item.is_active ? 'Activo' : 'Inactivo' }}

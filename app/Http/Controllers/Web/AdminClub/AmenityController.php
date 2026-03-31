@@ -53,7 +53,7 @@ class AmenityController extends Controller
                 'data' => [],
                 'total' => 0
             ],
-            'error' => $e->getMessage()
+            'messageError' => $e->getMessage()
         ]);
     }
 }
@@ -75,7 +75,7 @@ class AmenityController extends Controller
 
         } catch (\Exception $e) {
 
-            return redirect()->back()->with('error', $e->getMessage());
+            return redirect()->back()->with('messageError', $e->getMessage());
 
         }
     }
@@ -152,7 +152,7 @@ class AmenityController extends Controller
 
         } catch (\Exception $e) {
 
-            return redirect()->back()->with('error', $e->getMessage());
+            return redirect()->back()->with('messageError', $e->getMessage());
 
         }
     }

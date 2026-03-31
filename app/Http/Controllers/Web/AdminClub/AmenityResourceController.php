@@ -6,6 +6,7 @@ use App\Models\AdminClub\Amenity;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use App\Models\AdminClub\AmenityResource;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
@@ -22,69 +23,106 @@ class AmenityResourceController extends Controller {
     }
 
     public function index(Request $request)
-{
-    $clubId = $request->club_id ?? session('club_id');
-    $driver = DB::getDriverName();
-    $query = AmenityResource::with('amenity')
-    ->whereHas('amenity', function ($q) use ($clubId) {
-        $q->where('club_id', $clubId);
-    });
-    if ($search = $request->input('search')) {
-        $query->where(function ($q) use ($search, $driver) {
-            $q->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
-              ->orWhereHas('amenity', function ($q2) use ($search, $driver) {
-                  $q2->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
-              });
-        });
+    {
+        try {
+            $clubId = $request->club_id ?? session('club_id');
+            $driver = DB::getDriverName();
+            $query = AmenityResource::with('amenity')
+            ->whereHas('amenity', function ($q) use ($clubId) {
+                $q->where('club_id', $clubId);
+            });
+            if ($search = $request->input('search')) {
+                $query->where(function ($q) use ($search, $driver) {
+                    $q->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
+                    ->orWhereHas('amenity', function ($q2) use ($search, $driver) {
+                        $q2->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
+                    });
+                });
+            }
+            $sort = $request->input('sort', 'id');
+            $order = $request->input('order', 'desc');
+
+            if (in_array($sort, ['id', 'name', 'capacity'])) {
+                $query->orderBy($sort, $order);
+            }
+
+            $resources = $query->paginate(
+                $request->input('per_page', 10)
+            );
+            $resources->getCollection()->transform(function ($item) {
+                $item->amenity_name = $item->amenity?->name;
+
+                return $item;
+            });
+            return response()->json($resources);
+            
+            } catch (\Throwable $e) {
+                    Log::error('AmenityResource index error', [
+                    'messageError'=>$e->getMessage(),
+                    'trace'=>$e->getTraceAsString()
+                ]);
+
+                return response()->json([
+                    'messageError'=>'Error al obtener recursos'
+                ],500);
+            }
     }
-    $sort = $request->input('sort', 'id');
-    $order = $request->input('order', 'desc');
-
-    if (in_array($sort, ['id', 'name', 'capacity'])) {
-        $query->orderBy($sort, $order);
-    }
-
-    $resources = $query->paginate(
-        $request->input('per_page', 10)
-    );
-    $resources->getCollection()->transform(function ($item) {
-        $item->amenity_name = $item->amenity?->name;
-
-        return $item;
-    });
-
-    return response()->json($resources);
-}
 
     public function store(Request $request)
     {
-        AmenityResource::create([
-            'amenity_id'=>$request->amenity_id,
-            'name'=>$request->name,
-            'capacity'=>$request->capacity,
-            'slot_duration_minutes'=>$request->slot_duration_minutes,
-            'is_active'=>$request->is_active
-        ]);
+        DB::beginTransaction();
+        try {    
+            AmenityResource::create([
+                'amenity_id'=>$request->amenity_id,
+                'name'=>$request->name,
+                'capacity'=>$request->capacity,
+                'slot_duration_minutes'=>$request->slot_duration_minutes,
+                'is_active'=>$request->is_active
+            ]);
+            DB::commit();
+            return back()->with('success','Recurso creado');
 
-    return back()->with('success','Recurso creado');
-
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('AmenityResource store error',[
+                'messageError'=>$e->getMessage(),
+                'data'=>$request->all()
+            ]);
+            return back()->with('messageError','No se pudo crear el recurso');
+        }
     }
     public function update(Request $request, AmenityResource $amenityResource)
     {
-       /* $resource = AmenityResource::findOrFail($id);
-        $resource->update([
-        'name'=>$request->name,
-        'capacity'=>$request->capacity,
-        'slot_duration_minutes'=>$request->slot_duration_minutes,
-        'is_active'=>$request->is_active
-        ]);*/
-        $amenityResource->update($request->only('name','capacity','slot_duration_minutes','is_active'));
-        return back()->with('success','Recurso actualizado');
+        DB::beginTransaction();
+        try {
+            $amenityResource->update($request->only('name','capacity','slot_duration_minutes','is_active'));
+            DB::commit();
+            return back()->with('success','Recurso actualizado');
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('AmenityResource update error',[
+                'messageError'=>$e->getMessage(),
+                'resource_id'=>$amenityResource->id
+            ]);
+            return back()->with('messageError','No se pudo actualizar el recurso');
+        }
     }
     public function destroy(AmenityResource $amenityResource)
     {
-        //AmenityResource::destroy($amenityResource->id);
-        $amenityResource->delete();
-        return back()->with('success','Recurso eliminado');
+        DB::beginTransaction();
+        try {
+            $amenityResource->delete();
+            DB::commit();
+            return back()->with('success','Recurso eliminado');
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('AmenityResource delete error',[
+                'messageError'=>$e->getMessage(),
+                'resource_id'=>$amenityResource->id
+            ]);
+            return back()->with('messageError','No se pudo eliminar el recurso');
+
+        }
+
     }
 }
