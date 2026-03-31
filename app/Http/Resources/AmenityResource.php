@@ -24,7 +24,7 @@ class AmenityResource extends JsonResource
 
             'resources' => AmenityResourceItem::collection(
                 $this->whenLoaded('resources')
-                // ->where('is_active', true)
+                ->where('is_active', true)
             ),
 
         ];

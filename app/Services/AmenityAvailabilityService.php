@@ -90,10 +90,10 @@ class AmenityAvailabilityService
 
             }
 
-            while ($start->copy()->addMinutes($amenity->slot_duration_minutes) <= $end) {
+            while ($start->copy()->addMinutes($amenityResource->slot_duration_minutes) <= $end) {
 
                 $slotStart = $start->copy();
-                $slotEnd = $start->copy()->addMinutes($amenity->slot_duration_minutes);
+                $slotEnd = $start->copy()->addMinutes($amenityResource->slot_duration_minutes);
 
                 // 🔴 Verificar bloqueos
                 // $isBlocked = AmenityBlock::where('amenity_id', $amenity->id)
@@ -152,7 +152,7 @@ class AmenityAvailabilityService
                     'status' => $status
                 ];
 
-                $start->addMinutes($amenity->slot_duration_minutes);
+                $start->addMinutes($amenityResource->slot_duration_minutes);
             }
         }
 
