@@ -1,9 +1,11 @@
 <?php
 
+use App\Htpp\Controllers\Web\AdminClub\Announcement;
 use App\Http\Controllers\Web\AdminClub\AmenityController;
 use App\Http\Controllers\Web\AdminClub\AmenityResourceController;
 use App\Http\Controllers\Web\AdminClub\ReservationController;
 use App\Http\Controllers\Web\AdminClub\AmenityScheduleController;
+use App\Http\Controllers\Web\AdminClub\AnnouncementController;
 use App\Http\Controllers\Web\AdminClub\ReservationGuestListController;
 use App\Http\Controllers\Web\AdminClub\SystemVariableController;
 use App\Http\Controllers\Web\Administrator\UserController;
@@ -19,3 +21,6 @@ Route::resource('/reservations', ReservationController::class)->only(['index', '
 Route::resource('/system-variables', SystemVariableController::class)->only(['index', 'store', 'update', 'destroy'])->names('system-variables');
 
 Route::resource('/guest-lists', ReservationGuestListController::class)->only(['index', 'update'])->names('guest-lists');
+
+Route::resource('/announcements', AnnouncementController::class)->names('announcements');
+

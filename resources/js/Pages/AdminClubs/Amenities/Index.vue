@@ -34,26 +34,33 @@ const isSaveDisabled = computed(() => {
         iconRef.value.isValid === false;
     return imageInvalid || iconInvalid;
 });
-const isAmenities = computed(() => tab.value === 'amenities')
+/*const isAmenities = computed(() => tab.value === 'amenities')
 const handleCreate = () => {
     if (isAmenities.value) {
         create()
     } else {
         createResource()
     }
+}*/
+const handleCreate = () => {
+    tab.value === 'amenities'
+        ? create()
+        : createResource()
 }
 const activeDaysCount = computed(() => {
     return formSchedule.days.filter(day => day.active).length
 })
+const reservationType = computed(() => {
+    return selectedAmenity.value?.reservation_type
+})
 const showSlotDuration = computed(() => {
-    return form.reservation_type !== 'daily'
+    return reservationType.value === 'hourly' || reservationType.value === 'capacity'
+})
+const showCapacity = computed(() => {
+    return reservationType.value === 'capacity'
 })
 const selectedAmenity = computed(() => {
     return items.value.find(a => a.id === resourceForm.amenity_id)
-})
-
-const showCapacity = computed(() => {
-    return selectedAmenity.value?.reservation_type !== 'hourly'
 })
 const bulkSchedule = reactive({
     open: null as string | null,
@@ -76,7 +83,6 @@ interface Amenity {
     description: string;
     reservation_type: string;
     is_active: boolean;
-    slot_duration_minutes: number | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -100,7 +106,6 @@ const form = useForm<Amenity>({
     description: "",
     reservation_type: null,
     is_active: true,
-    slot_duration_minutes: null,
 });
 const formSchedule = useForm({
     id: null,
@@ -195,7 +200,6 @@ const edit = (data: any) => {
     form.description = data.description;
     form.reservation_type = data.reservation_type;
     form.is_active = data.is_active;
-    form.slot_duration_minutes = data.slot_duration_minutes;
     form.icon = null;
     form.icon_path = data.icon || null;
     form.remove_icon = false;
@@ -257,21 +261,15 @@ const schedule = () => {
         preserveScroll: true,
 
         onSuccess: (page) => {
-
             const flash = page.props.flash || {}
-
             if (flash.messageError) {
-
                 customToastSwal({
                     title: flash.messageError,
                     icon: "error"
                 })
-
                 return
             }
-
             if (flash.success) {
-
                 customToastSwal({
                     title: flash.success,
                     icon: "success"
@@ -283,12 +281,10 @@ const schedule = () => {
         },
 
         onError: (errors) => {
-
             customToastSwal({
                 title: errors.messageError || "Error al guardar horario",
                 icon: "error"
             })
-
         }
     })
 };
@@ -331,7 +327,6 @@ const closeResourcesModal = () => {
     resourceForm.id = null
     showResourceModal.value = false
 };
-
 watch(() => form.icon, (file) => {
     if (file instanceof File) {
         iconPreview.value = URL.createObjectURL(file);
@@ -623,10 +618,13 @@ const resourceForm = useForm({
     amenity_id: null,
     name: "",
     capacity: 1,
+    slot_duration_minutes: null,
     is_active: true
 })
 const createResource = () => {
     resourceForm.reset()
+    resourceForm.capacity = null
+    resourceForm.slot_duration_minutes = null
     showResourceModal.value = true
 
 }
@@ -635,6 +633,7 @@ const editResource = (resource: any) => {
     resourceForm.amenity_id = resource.amenity_id
     resourceForm.name = resource.name
     resourceForm.capacity = resource.capacity
+    resourceForm.slot_duration_minutes = resource.slot_duration_minutes
     resourceForm.is_active = resource.is_active
     showResourceModal.value = true
 
@@ -643,7 +642,12 @@ const saveResource = () => {
     resourceForm
         .transform((data) => {
             const payload: any = { ...data }
-
+            if (!showSlotDuration.value) {
+                payload.slot_duration_minutes = null
+            }
+            if (!showCapacity.value) {
+                payload.capacity = null
+            }
             if (resourceForm.id) {
                 payload._method = "PUT"
             }
@@ -654,14 +658,28 @@ const saveResource = () => {
                 ? route('amenityResource.update', resourceForm.id)
                 : route('amenityResource.store'),
             {
-                onSuccess: () => {
+                onSuccess: (page) => {
+                    const flash = page.props.flash || {}
+                    if(flash.messageError){
+                        customToastSwal({
+                            title: flash.messageError,
+                            icon: "error"
+                        })
+                        return
+                    }
                     customToastSwal({
-                        title: "Recurso guardado",
+                        title: flash.success || "Recurso guardado",
                         icon: "success"
                     })
-                    resourceForm.reset();
+                    resourceForm.reset()
                     showResourceModal.value = false
                     fetchResources()
+                },
+                onError: (errors) => {
+                    customToastSwal({
+                        title: errors.messageError || "Error al guardar recurso",
+                        icon: "error"
+                    })
 
                 }
             })
@@ -669,18 +687,32 @@ const saveResource = () => {
 }
 const deleteResource = (item: any) => {
     customConfirmSwal({
-        title: "¿Eliminar recurso?"
+        title: "¿Eliminar recurso?",
+        text: "Esta acción no se puede deshacer",
     }).then(result => {
         if (result.isConfirmed) {
             router.delete(route('amenityResource.destroy', item.id), {
-                onSuccess: () => {
-                    customToastSwal({
-                        title: "Recurso eliminado",
-                        icon: "success"
-                    })
-
-                    fetchResources()
-                }
+                onSuccess: (page) => {
+                    const flash = page.props.flash || {}
+                        if(flash.messageError){
+                            customToastSwal({
+                                title: flash.messageError,
+                                icon: "error"
+                            })
+                            return
+                        }
+                        customToastSwal({
+                            title: flash.success || "Recurso eliminado",
+                            icon: "success"
+                        })
+                        fetchResources()
+                    },
+                    onError: (errors) => {
+                        customToastSwal({
+                            title: errors.messageError || "Error al eliminar",
+                            icon: "error"
+                        })
+                    }
             })
         }
     })
@@ -702,7 +734,7 @@ watch([options, search], debounce(() => {
     }
     fetchItems();
 }, 400), { deep: true });
-const resourcesLoaded = ref(false);
+//const resourcesLoaded = ref(false);
 watch(() => page.props.auth.currentClub, () => {
     fetchItems();
 });
@@ -723,12 +755,39 @@ watch(
 watch([resourceOptions, resourceSearch], debounce(fetchResources, 400), { deep: true });
 
 watch(tab, (value) => {
-    if(value === 'resources' && !resourcesLoaded.value){
+    if(value === 'resources'){
         fetchResources()
-        resourcesLoaded.value = true
     }
 });
-
+watch(
+    () => reservationType.value,
+    (type) => {
+        if (type === 'daily') {
+            resourceForm.capacity = null
+            resourceForm.slot_duration_minutes = null
+        }
+        if (type === 'hourly') {
+            resourceForm.capacity = null
+            if (!resourceForm.slot_duration_minutes) {
+                resourceForm.slot_duration_minutes = null
+            }
+        }
+        if (type === 'capacity') {
+            if (!resourceForm.capacity) {
+                resourceForm.capacity = 1
+            }
+            if (!resourceForm.slot_duration_minutes) {
+                resourceForm.slot_duration_minutes = null
+            }
+        }
+    },
+    { immediate: true }
+)
+/*watch(() => form.reservation_type, () => {
+    if (tab.value === 'resources') {
+        fetchResources()
+    }
+})*/
 </script>
 
 <template>
@@ -737,12 +796,12 @@ watch(tab, (value) => {
     <AppLayout>
         <template #options>
             <BaseButton 
-                v-if="can.includes(isAmenities ? 'amenities.store' : 'amenityResource.store')"
+               v-if="can.includes(tab === 'amenities' ? 'amenities.store' : 'amenityResource.store')"
                 variant="elevated"
                 :icon-only="false" 
                 @click="handleCreate" 
                 action="add" 
-                :text="isAmenities ? 'Agregar Amenidad' : 'Agregar Recurso'" 
+                :text="tab === 'amenities' ? 'Agregar Amenidad' : 'Agregar Recurso'" 
             />
         </template>
         <template #header>Amenidades</template>
@@ -838,6 +897,14 @@ watch(tab, (value) => {
                             <v-data-table-server :headers="resourceHeaders" :items="resourceItems"
                                 :items-length="resourceTotal" :loading="resourceLoading" class="elevation-1"
                                 no-data-text="No hay recursos registrados" v-model:options="resourceOptions">
+                                <template #item.capacity="{ item }">
+                                    <span v-if="item.amenity?.reservation_type === 'capacity'">
+                                        {{ item.capacity }}
+                                    </span>
+                                    <span v-else class="text-grey">
+                                        No aplica
+                                    </span>
+                                </template>
                                 <template #item.is_active="{ item }">
                                     <v-chip :color="item.is_active ? 'green' : 'red'">
                                         {{ item.is_active ? 'Activo' : 'Inactivo' }}
@@ -919,10 +986,6 @@ watch(tab, (value) => {
                                         { title: 'Reserva por capacidad', value: 'capacity' }
                                     ]" item-title="title" item-value="value" :rules="[required]" 
                                     />
-                            </v-col>
-                            <v-col cols="12" v-if="showSlotDuration">
-                                <FormNumber v-model="form.slot_duration_minutes" label="Espacio de reserva en minutos"
-                                    :min="0" :rules="[required]" />
                             </v-col>
                             <v-col cols="12" v-if="form.id">
                                 <v-switch v-model="form.is_active" color="green"
@@ -1048,6 +1111,10 @@ watch(tab, (value) => {
                             </v-col>
                             <v-col cols="12">
                                 <v-text-field v-model="resourceForm.name" label="Nombre" :required="true" :min-length="2" />
+                            </v-col>
+                            <v-col cols="12" v-if="showSlotDuration">
+                                <FormNumber v-model="resourceForm.slot_duration_minutes" label="Espacio de reserva en minutos"
+                                    :min="0" :rules="[required]" />
                             </v-col>
                             <v-col cols="12" v-if="showCapacity">
                                 <FormNumber v-model="resourceForm.capacity" label="Capacidad" :required="true"/>

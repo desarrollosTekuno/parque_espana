@@ -22,10 +22,8 @@ class Amenity extends Model
         'reservation_type',
         'capacity',
         'is_active',
-        'slot_duration_minutes',
         'club_id',
     ];
-    protected $guarded = ['id', 'created_at', 'updated_at'];
     protected $dates = ['deleted_at'];
 
     public function club()
@@ -35,6 +33,11 @@ class Amenity extends Model
     public function schedules()
     {
         return $this->hasMany(AmenitySchedule::class, 'amenity_id');
+    }
+
+    public function resources()
+    {
+        return $this->hasMany(AmenityResource::class, 'amenity_id');
     }
 
 }
