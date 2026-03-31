@@ -40,7 +40,7 @@ class AmenityController extends Controller
 
         $amenities = $query->paginate(
             $request->input("{$prefix}_per_page", 10)
-        )->appends( $request->except('club_id'));
+        )->appends( $request->all());
 
         return Inertia::render('AdminClubs/Amenities/Index', [
             'amenities' => $amenities,

@@ -15,8 +15,12 @@ return new class extends Migration {
             $table->string('name'); // Individual, Familiar, Solidaria
             $table->boolean('requires_origin_family')->default(false);
             $table->text('description')->nullable();
+            // show in the front end
+            $table->boolean('show_in_listing')->default(true);
             // spanish descent
             $table->boolean('is_spanish_descent')->default(false);
+            // multiple members allowed (for family memberships)
+            $table->boolean('allows_multiple_members')->default(false);
             $table->foreignId('club_id')
                 ->constrained('clubs.clubs')
                 ->cascadeOnDelete();

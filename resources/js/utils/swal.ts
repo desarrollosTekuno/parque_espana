@@ -23,6 +23,10 @@ const customToastSwal = (options) => {
         customClass: {
             container: "my-swal",
         },
+        didOpen: (popup) => {
+            popup.addEventListener("mouseenter", Swal.stopTimer);
+            popup.addEventListener("mouseleave", Swal.resumeTimer);
+        },
         ...options,
     });
 };

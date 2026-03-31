@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -26,6 +25,7 @@ class DatabaseSeeder extends Seeder
             DocumentTypeSeeder::class,
             RelationshipSeeder::class,
             RelationshipDocumentTypesSeeder::class,
+            MembershipTypeSeeder::class,
         ]);
     }
 }

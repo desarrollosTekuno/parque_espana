@@ -23,11 +23,15 @@ const changeClub = () => {
 
             delete params.club_id;
 
-            router.get(route('amenities.index'), params, {
-                preserveScroll: true,
-                replace: true
-            });
+            // router.get(route('amenities.index'), params, {
+            //     preserveScroll: true,
+            //     replace: true
+            // });
 
+                router.reload({
+                    preserveScroll: true,
+                    replace: true
+                });
         }
     });
 };

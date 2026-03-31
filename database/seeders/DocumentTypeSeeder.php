@@ -93,6 +93,13 @@ class DocumentTypeSeeder extends Seeder
                 'description' => 'Documento que certifica que una persona no tiene deudas pendientes con una entidad.',
                 'allowed_extensions' => 'pdf',
             ],
+            // carta doctor activo
+            [
+                'code' => 'carta_doctor_activo',
+                'name' => 'Carta de Doctor Activo',
+                'description' => 'Documento que certifica que un doctor está activo en la Beneficencia Española.',
+                'allowed_extensions' => 'pdf',
+            ]
         ];
 
         foreach ($documentTypes as $type) {
