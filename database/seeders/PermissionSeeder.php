@@ -44,7 +44,11 @@ class PermissionSeeder extends Seeder
             // Reservaciones
             array('name' => 'reservations.index', 'description' => 'Ver reservaciones', 'contexts' => ['web']),
             array('name' => 'reservations.update', 'description' => 'Cancelar reservaciones', 'contexts' => ['web']),
-
+            // Anuncios
+            array('name' => 'announcements.index', 'description' => 'Ver anuncios', 'contexts' => ['web']),
+            array('name' => 'announcements.store', 'description' => 'Crear anuncios', 'contexts' => ['web']),
+            array('name' => 'announcements.update', 'description' => 'Actualizar anuncios', 'contexts' => ['web']),
+            array('name' => 'announcements.destroy', 'description' => 'Eliminar anuncios'),
             // Variables de sistema
             array('name' => 'system-variables.index', 'description' => 'Ver variables de sistema', 'contexts' => ['web']),
             array('name' => 'system-variables.store', 'description' => 'Crear variables de sistema', 'contexts' => ['web']),

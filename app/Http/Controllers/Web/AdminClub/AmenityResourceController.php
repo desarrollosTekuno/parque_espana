@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web\AdminClub;
 
+use App\Models\AdminClub\Amenity;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
@@ -57,37 +58,33 @@ class AmenityResourceController extends Controller {
 
     public function store(Request $request)
     {
-
-    AmenityResource::create([
-        'amenity_id'=>$request->amenity_id,
-        'name'=>$request->name,
-        'capacity'=>$request->capacity,
-        'is_active'=>$request->is_active
-    ]);
+        AmenityResource::create([
+            'amenity_id'=>$request->amenity_id,
+            'name'=>$request->name,
+            'capacity'=>$request->capacity,
+            'slot_duration_minutes'=>$request->slot_duration_minutes,
+            'is_active'=>$request->is_active
+        ]);
 
     return back()->with('success','Recurso creado');
 
     }
-    public function update(Request $request,$id)
-{
-
-$resource = AmenityResource::findOrFail($id);
-
-$resource->update([
-'name'=>$request->name,
-'capacity'=>$request->capacity,
-'is_active'=>$request->is_active
-]);
-
-return back()->with('success','Recurso actualizado');
-
-}
-public function destroy($id)
-{
-
-AmenityResource::destroy($id);
-
-return back()->with('success','Recurso eliminado');
-
-}
+    public function update(Request $request, AmenityResource $amenityResource)
+    {
+       /* $resource = AmenityResource::findOrFail($id);
+        $resource->update([
+        'name'=>$request->name,
+        'capacity'=>$request->capacity,
+        'slot_duration_minutes'=>$request->slot_duration_minutes,
+        'is_active'=>$request->is_active
+        ]);*/
+        $amenityResource->update($request->only('name','capacity','slot_duration_minutes','is_active'));
+        return back()->with('success','Recurso actualizado');
+    }
+    public function destroy(AmenityResource $amenityResource)
+    {
+        //AmenityResource::destroy($amenityResource->id);
+        $amenityResource->delete();
+        return back()->with('success','Recurso eliminado');
+    }
 }

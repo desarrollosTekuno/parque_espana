@@ -45,15 +45,17 @@ const handleCreate = () => {
 const activeDaysCount = computed(() => {
     return formSchedule.days.filter(day => day.active).length
 })
+const reservationType = computed(() => {
+    return selectedAmenity.value?.reservation_type
+})
 const showSlotDuration = computed(() => {
-    return form.reservation_type !== 'daily'
+    return reservationType.value === 'hourly' || reservationType.value === 'capacity'
+})
+const showCapacity = computed(() => {
+    return reservationType.value === 'capacity'
 })
 const selectedAmenity = computed(() => {
     return items.value.find(a => a.id === resourceForm.amenity_id)
-})
-
-const showCapacity = computed(() => {
-    return selectedAmenity.value?.reservation_type !== 'hourly'
 })
 const bulkSchedule = reactive({
     open: null as string | null,
@@ -76,7 +78,6 @@ interface Amenity {
     description: string;
     reservation_type: string;
     is_active: boolean;
-    slot_duration_minutes: number | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -100,7 +101,6 @@ const form = useForm<Amenity>({
     description: "",
     reservation_type: null,
     is_active: true,
-    slot_duration_minutes: null,
 });
 const formSchedule = useForm({
     id: null,
@@ -195,7 +195,6 @@ const edit = (data: any) => {
     form.description = data.description;
     form.reservation_type = data.reservation_type;
     form.is_active = data.is_active;
-    form.slot_duration_minutes = data.slot_duration_minutes;
     form.icon = null;
     form.icon_path = data.icon || null;
     form.remove_icon = false;
@@ -623,6 +622,7 @@ const resourceForm = useForm({
     amenity_id: null,
     name: "",
     capacity: 1,
+    slot_duration_minutes: null,
     is_active: true
 })
 const createResource = () => {
@@ -635,6 +635,7 @@ const editResource = (resource: any) => {
     resourceForm.amenity_id = resource.amenity_id
     resourceForm.name = resource.name
     resourceForm.capacity = resource.capacity
+    resourceForm.slot_duration_minutes = resource.slot_duration_minutes
     resourceForm.is_active = resource.is_active
     showResourceModal.value = true
 
@@ -643,7 +644,12 @@ const saveResource = () => {
     resourceForm
         .transform((data) => {
             const payload: any = { ...data }
-
+            if (!showSlotDuration.value) {
+                payload.slot_duration_minutes = null
+            }
+            if (!showCapacity.value) {
+                payload.capacity = null
+            }
             if (resourceForm.id) {
                 payload._method = "PUT"
             }
@@ -728,7 +734,22 @@ watch(tab, (value) => {
         resourcesLoaded.value = true
     }
 });
-
+watch(() => resourceForm.amenity_id, () => {
+    if (!showSlotDuration.value) {
+        resourceForm.slot_duration_minutes = null
+    }
+    if (!showCapacity.value) {
+        resourceForm.capacity = null
+    } 
+    else if (!resourceForm.capacity) {
+        resourceForm.capacity = 1
+    }
+})
+watch(() => form.reservation_type, () => {
+    if (tab.value === 'resources') {
+        fetchResources()
+    }
+})
 </script>
 
 <template>
@@ -920,10 +941,6 @@ watch(tab, (value) => {
                                     ]" item-title="title" item-value="value" :rules="[required]" 
                                     />
                             </v-col>
-                            <v-col cols="12" v-if="showSlotDuration">
-                                <FormNumber v-model="form.slot_duration_minutes" label="Espacio de reserva en minutos"
-                                    :min="0" :rules="[required]" />
-                            </v-col>
                             <v-col cols="12" v-if="form.id">
                                 <v-switch v-model="form.is_active" color="green"
                                     :label="form.is_active ? 'Activo' : 'Inactivo'" inset />
@@ -1048,6 +1065,10 @@ watch(tab, (value) => {
                             </v-col>
                             <v-col cols="12">
                                 <v-text-field v-model="resourceForm.name" label="Nombre" :required="true" :min-length="2" />
+                            </v-col>
+                            <v-col cols="12" v-if="showSlotDuration">
+                                <FormNumber v-model="resourceForm.slot_duration_minutes" label="Espacio de reserva en minutos"
+                                    :min="0" :rules="[required]" />
                             </v-col>
                             <v-col cols="12" v-if="showCapacity">
                                 <FormNumber v-model="resourceForm.capacity" label="Capacidad" :required="true"/>

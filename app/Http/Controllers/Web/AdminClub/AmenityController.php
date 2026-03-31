@@ -120,10 +120,7 @@ class AmenityController extends Controller
 
                 $data['background_image'] = null;
             }
-
-
             $amenity->update($data);
-
             return redirect()->back()->with('success', 'Amenidad actualizada correctamente');
 
         } catch (\Throwable $e) {

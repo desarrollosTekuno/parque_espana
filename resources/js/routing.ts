@@ -84,6 +84,15 @@ const routes: Routing[] = [
         group: null,
         // groupItems: null
     },
+    // Anuncios
+    {
+        name: "announcements.index",
+        title: "Anuncios",
+        icon: "mdi-bullhorn-outline",
+        value: "anuncios",
+        group: null,
+        // groupItems: null
+    },
     // Variables de sistema
     {
         name: "system-variables.index",
