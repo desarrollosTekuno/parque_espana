@@ -39,8 +39,11 @@ class ReservationGuestListController extends Controller {
             $query->where(function ($q) use ($driver, $search) {
 
                 $q->where('status', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
-                // ->orWhere('description', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
-                // ->orWhere('value', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
+                $q->orWhereHas('reservation', function ($q2) use ($driver, $search){
+                    $q2->whereHas('amenityResource', function ($q3) use ($driver, $search){
+                        $q3->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
+                    });
+                });
             });
         }
 
@@ -62,7 +65,31 @@ class ReservationGuestListController extends Controller {
 
     public function update(Request $request, ReservationGuestList $guestList) {
         try {
-            return "hola";
+
+            $action = $request->action;
+
+            if ($action == 'approve' )
+            {
+                $discount = ($guestList->subtotal * $request->discount_percentage) / 100;
+                $total = $guestList->subtotal - $discount;
+
+                $guestList->update([
+                    'discount' => $discount,
+                    'total' => $total,
+                    'approved_at' => now(),
+                    'approved_by' => auth()->user()->id,
+                    'status' => ReservationGuestList::APPROVED,
+                ]);
+            }else {
+                $guestList->update([
+                    'status' => ReservationGuestList::REJECTED,
+                    'approved_at' => now(),
+                    'approved_by' => auth()->user()->id,
+
+                ]);
+            }
+
+            return redirect()->back()->with('success', $action == 'approve' ? 'Lista de invitados aprobada correctamente' : 'Lista de invitados rechazada correctamente');
 
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([

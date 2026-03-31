@@ -7,13 +7,14 @@ import { formatDateTimeNoTZ } from '@/constants/formatDates';
 import { formatCurrency } from '@/constants/formatCurrency';
 // import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import BaseButton from "@/Components/BaseButton.vue";
+import { customToastSwal } from '@/utils/swal';
 
 const page = usePage();
 const can = usePage().props.auth.permissions;
 const canRole = usePage().props.auth.roles;
 const showModalDetail = ref(false);
 const showModalApprove = ref(false);
-const action = ref<'approve' | 'reject' | null>(null)
+const action = ref<'approve' | 'reject' | null>('approve')
 const discount = ref(0);
 
 interface Props {
@@ -28,13 +29,17 @@ interface GuestList {
     id: number | null;
     status: string;
     total_guests: number;
+    total_adults: number;
+    total_children: number;
     subtotal: number;
     discount_percentage: number;
     discount: number;
     total: number;
     comments: string;
+    color: string;
     reservation_id: string;
     club_id: string;
+    action:string;
     guest_list_items?: any[];
 }
 
@@ -42,13 +47,17 @@ const form = useForm<GuestList>({
     id: null,
     status: "",
     total_guests: 0,
+    total_adults: 0,
+    total_children: 0,
     subtotal: 0,
     discount_percentage: 0,
     discount: 0,
     total: 0,
     comments: "",
+    color: "",
     reservation_id: "",
     club_id: "",
+    action: "",
     guest_list_items: []
 });
 
@@ -62,6 +71,27 @@ const edit = (data: any) => {
     showModalApprove.value = true;
 }
 
+const detail = (data) => {
+    form.id = data.id;
+    form.status = data.status;
+    form.total_guests = data.total_guests;
+    form.total_adults = data.total_adults;
+    form.total_children = data.total_children;
+    form.subtotal = data.subtotal;
+    form.discount = data.discount;
+    form.total = data.total;
+    form.comments = data.comments;
+    form.color = data.color;
+    form.reservation_id = data.reservation_id;
+    form.guest_list_items = data.guest_list_items;
+    showModalDetail.value = true;
+}
+
+const Cerrar = () => {
+    showModalDetail.value = false;
+    form.reset();
+}
+
 const discountAmount = computed(() => {
     return (form.subtotal * discount.value) / 100;
 });
@@ -70,12 +100,31 @@ const totalAmount = computed(() => {
     return form.subtotal - discountAmount.value;
 });
 
-function approveList(){
+function approveOrRejectList(){
 
-}
+    form.discount_percentage = discount.value;
+    form.action = action.value;
 
-function rejectList(){
-
+    form.put(route("guest-lists.update", form.id), {
+        onSuccess: () => {
+            customToastSwal({
+                title: page.props.flash.success || "",
+                icon: "success",
+            });
+            showModalApprove.value = false;
+            discount.value = 0;
+            form.reset();
+            fetchItems();
+        },
+        onError: (err) => {
+            console.error(err);
+            customToastSwal({
+                title: `Error: ${form.errors.messageError}`,
+                text: `${form.errors.exception}`,
+                icon: "error",
+            });
+        }
+    });
 }
 
 function resetModal() {
@@ -203,15 +252,15 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
 
                         <template #item.actions="{ item }">
                             <BaseButton
+                                @click="detail(item)"
+                                action="view"
+                            />
+                            <BaseButton
                                 action="edit"
                                 @click="edit(item)"
                                 v-if="can.includes('guest-lists.update')"
+                                :disabled="item.status != 'PENDIENTE'"
                             />
-                            <!-- <BaseButton
-                                @click="destroy(item)"
-                                action="delete"
-                                v-if="can.includes('system-variables.destroy')"
-                            /> -->
                         </template>
                     </v-data-table-server>
                 </v-col>
@@ -221,8 +270,6 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
 
         <v-dialog v-model="showModalApprove" max-width="700" persistent>
             <v-card class="rounded-xl">
-
-                <!-- HEADER -->
                 <v-card-title class="d-flex justify-space-between align-center">
                     <div class="d-flex align-center gap-2">
                         <v-icon color="primary">mdi-account-check</v-icon>
@@ -230,126 +277,201 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                             Lista de invitados
                         </span>
                     </div>
-
                     <v-btn-toggle v-model="action" mandatory>
                         <v-btn value="approve" color="success" variant="flat">Aprobar</v-btn>
                         <v-btn value="reject" color="error" variant="flat">Rechazar</v-btn>
                     </v-btn-toggle>
                 </v-card-title>
 
-                <v-divider />
-
-                <v-card-text>
-                    <!-- RESUMEN SUPERIOR -->
+                <v-card-text class="overflow-y-auto h-full">
                     <v-sheet
                         class="pa-3 mb-4 d-flex justify-space-between align-center"
                         color="grey-lighten-4"
-                        rounded
-                    >
+                        rounded>
                         <span class="text-subtitle-2">Total de invitados</span>
                         <v-chip color="primary" variant="flat">
                             {{ form.guest_list_items.length }}
                         </v-chip>
                     </v-sheet>
-                    <!-- LISTA -->
-                    <div style="max-height: 250px; overflow-y: auto;">
+                    <div style="max-height: 300px; overflow-y: auto;">
                         <v-list density="comfortable" class="rounded-lg border">
-                            <v-list-item
-                                v-for="(item, index) in form.guest_list_items"
-                                :key="index"
-                            >
-                                <v-list-item-title>
+                            <v-list-item v-for="(item, index) in form.guest_list_items" :key="index">
+                                <template #prepend>
+                                    <v-avatar color="primary" size="34">
+                                        {{ item.name.charAt(0).toUpperCase() }}
+                                    </v-avatar>
+                                </template>
+                                <v-list-item-title class="font-weight-medium">
                                     {{ item.name }}
                                 </v-list-item-title>
-
                                 <v-list-item-subtitle>
                                     Edad: {{ item.age }}
                                 </v-list-item-subtitle>
-
-                                <!-- <template #append>
-                                  <span>
-                                    ${{ item.age <= 7 ? 150 : 300 }}
-                                  </span>
-                                </template> -->
+                                <template #append>
+                                    <span> {{ formatCurrency(item.age <= 7 ? 150 : 300) }} </span>
+                                </template>
                             </v-list-item>
                         </v-list>
                     </div>
-
-                    <!-- ===================== -->
-                    <!-- APROBAR -->
-                    <!-- ===================== -->
-                    <div v-if="action === 'approve'" class="mt-4">
-
-                      <v-text-field
-                        v-model="discount"
-                        label="Descuento (%)"
-                        type="number"
-                        suffix="%"
-                      />
-
-                      <v-sheet class="pa-3 mt-2 rounded" color="grey-lighten-4">
-
-                        <div class="d-flex justify-space-between">
-                          <span>Subtotal</span>
-                          <span>${{ form.subtotal }}</span>
-                        </div>
-
-                        <div class="d-flex justify-space-between">
-                          <span>Descuento ({{ discount }}%)</span>
-                          <span>-${{ discountAmount.toFixed(2) }}</span>
-                        </div>
-
-                        <v-divider class="my-2" />
-
-                        <div class="d-flex justify-space-between font-weight-bold">
-                          <span>Total</span>
-                          <span>${{ totalAmount.toFixed(2) }}</span>
-                        </div>
-
-                      </v-sheet>
-
+                    <div v-if="action === 'approve'" class="mt-5">
+                        <v-alert type="info" variant="tonal" class="mb-3">
+                            Puedes aplicar un descuento sobre el subtotal.
+                        </v-alert>
+                        <v-text-field
+                            v-model="discount"
+                            label="Descuento (%)"
+                            type="number"
+                            suffix="%"
+                            density="comfortable"
+                        />
+                        <v-sheet class="pa-3 mt-2 rounded" color="grey-lighten-4">
+                            <div class="d-flex justify-space-between">
+                                <span>Subtotal</span>
+                                <span>{{ formatCurrency(form.subtotal) }}</span>
+                            </div>
+                            <div class="d-flex justify-space-between">
+                                <span>Descuento ({{ discount }}%)</span>
+                                <span>-{{ formatCurrency(discountAmount) }}</span>
+                            </div>
+                            <v-divider class="my-2" />
+                            <div class="d-flex justify-space-between font-weight-bold">
+                                <span>Total</span>
+                                <span>{{ formatCurrency(totalAmount) }}</span>
+                            </div>
+                        </v-sheet>
                     </div>
-
-                    <!-- ===================== -->
-                    <!-- RECHAZAR -->
-                    <!-- ===================== -->
                     <div v-if="action === 'reject'" class="mt-4">
-                      <v-textarea
-                        v-model="form.comments"
-                        label="Motivo del rechazo"
-                        rows="3"
-                      />
+                        <v-alert type="warning" variant="tonal" class="mb-3">
+                            Ingresa el motivo del rechazo
+                        </v-alert>
+                        <v-textarea
+                            v-model="form.comments"
+                            label="Motivo del rechazo"
+                            rows="3"
+                        />
                     </div>
-
                 </v-card-text>
 
-                <v-divider />
-
-                <!-- ACTIONS -->
-                <v-card-actions class="justify-end">
-
-                    <v-btn variant="text" @click="resetModal()">
-                      Cancelar
-                    </v-btn>
-
-                    <v-btn
-                      v-if="action === 'approve'"
-                      color="success"
-                      @click="approveList"
+                <v-card-actions>
+                    <v-spacer></v-spacer>
+                    <BaseButton
+                        text="Cancelar"
+                        variant="tonal"
+                        :icon-only="false"
+                        action="cancel"
+                        @click="resetModal()">
+                    </BaseButton>
+                    <BaseButton
+                        v-if="action === 'approve'"
+                        text="Confirmar aprobación"
+                        variant="flat"
+                        :icon-only="false"
+                        icon="mdi-check-bold"
+                        action="save"
+                        @click="approveOrRejectList()">
+                    </BaseButton>
+                    <BaseButton
+                        v-if="action === 'reject'"
+                        :disabled="!form.comments"
+                        text="Confirmar rechazo"
+                        variant="flat"
+                        :icon-only="false"
+                        icon="mdi-close-thick"
+                        action="delete"
+                        @click="approveOrRejectList()"
                     >
-                      Confirmar aprobación
-                    </v-btn>
-
-                    <v-btn
-                      v-if="action === 'reject'"
-                      color="error"
-                      @click="rejectList"
-                    >
-                      Confirmar rechazo
-                    </v-btn>
-
+                    </BaseButton>
                 </v-card-actions>
+            </v-card>
+        </v-dialog>
 
+        <v-dialog v-model="showModalDetail" max-width="700" persistent>
+            <v-card class="rounded-xl">
+                <v-card-title class="d-flex justify-space-between align-center">
+                    <div class="d-flex align-center gap-2">
+                        <v-icon color="primary">mdi-account-check</v-icon>
+                        <span class="text-h6 font-weight-bold">
+                            Detalles de la lista de invitados
+                        </span>
+                    </div>
+                </v-card-title>
+
+                <v-card-text class="overflow-y-auto h-full">
+                    <v-sheet class="pa-3 mb-4" color="grey-lighten-4" rounded>
+                        <div class="d-flex justify-space-between">
+                            <span class="text-subtitle-2">Total de invitados</span>
+                            <v-chip color="primary" variant="flat">
+                                {{ form.total_guests }}
+                            </v-chip>
+                        </div>
+                        <div class="d-flex justify-space-between pr-3">
+                            <span class="text-subtitle-2">Total invitados mayores a 7 años</span>
+                                {{ form.total_adults }}
+                        </div>
+                        <div class="d-flex justify-space-between pr-3">
+                            <span class="text-subtitle-2">Total invitados de 3 a 7 años</span>
+                                {{ form.total_children }}
+                        </div>
+                    </v-sheet>
+                    <div style="max-height: 310px; overflow-y: auto;">
+                        <v-list density="comfortable" class="rounded-lg border">
+                            <v-list-item v-for="(item, index) in form.guest_list_items" :key="index">
+                                <template #prepend>
+                                    <v-avatar color="primary" size="34">
+                                        {{ item.name.charAt(0).toUpperCase() }}
+                                    </v-avatar>
+                                </template>
+                                <v-list-item-title class="font-weight-medium">
+                                    {{ item.name }}
+                                </v-list-item-title>
+                                <v-list-item-subtitle>
+                                    Edad: {{ item.age }}
+                                </v-list-item-subtitle>
+                                <template #append>
+                                  <span>
+                                    {{ formatCurrency(item.age <= 7 ? 150 : 300) }}
+                                  </span>
+                                </template>
+                            </v-list-item>
+                        </v-list>
+                    </div>
+                    <v-alert type="info" variant="tonal" :color="form.color" class="mt-4">
+                        Estatus: {{ form.status }}
+                    </v-alert>
+                    <div class="mt-5">
+                        <v-sheet class="pa-3 mt-2 rounded" color="grey-lighten-4">
+                            <div class="d-flex justify-space-between">
+                                <span>Subtotal</span>
+                                <span>{{ formatCurrency(form.subtotal) }}</span>
+                            </div>
+                            <div class="d-flex justify-space-between">
+                                <span>Descuento</span>
+                                <span>-{{ formatCurrency(form.discount)  }}</span>
+                            </div>
+                            <v-divider class="my-2" />
+                            <div class="d-flex justify-space-between font-weight-bold">
+                                <span>Total</span>
+                                <span>{{ formatCurrency(form.total)  }}</span>
+                            </div>
+                        </v-sheet>
+                    </div>
+                    <div v-if="form.status === 'RECHAZADA'" class="mt-4">
+                        <span>Comentarios</span>
+                        <v-sheet class="pa-3 mt-2 rounded" color="grey-lighten-4">
+                            {{ form.comments }}
+                        </v-sheet>
+                    </div>
+                </v-card-text>
+                <v-card-actions>
+                    <v-spacer></v-spacer>
+                    <BaseButton
+                        text="Cerrar"
+                        variant="tonal"
+                        :icon-only="false"
+                        action="cancel"
+                        @click="Cerrar()">
+                    </BaseButton>
+                </v-card-actions>
             </v-card>
         </v-dialog>
 
