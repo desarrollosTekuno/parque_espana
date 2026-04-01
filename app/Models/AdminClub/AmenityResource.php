@@ -18,6 +18,7 @@ class AmenityResource extends Model
         'name',
         'capacity',
         'is_active',
+        'slot_duration_minutes',
     ];
 
     protected $casts = [
@@ -34,4 +35,5 @@ class AmenityResource extends Model
     {
         return $query->where('is_active', true);
     }
+
 }

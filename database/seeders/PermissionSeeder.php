@@ -41,10 +41,19 @@ class PermissionSeeder extends Seeder
             array('name' => 'amenities.store', 'description' => 'Crear amenidades', 'contexts' => ['web']),
             array('name' => 'amenities.update', 'description' => 'Actualizar amenidades', 'contexts' => ['web']),
             array('name' => 'amenities.destroy', 'description' => 'Eliminar amenidades'),
+            // Recursos
+            array('name' => 'amenityResource.index', 'description' => 'Ver recursos', 'contexts' => ['web']),
+            array('name' => 'amenityResource.store', 'description' => 'Crear recursos', 'contexts' => ['web']),
+            array('name' => 'amenityResource.update', 'description' => 'Actualizar recursos', 'contexts' => ['web']),
+            array('name' => 'amenityResource.destroy', 'description' => 'Eliminar recursos', 'contexts' => ['web']),
             // Reservaciones
             array('name' => 'reservations.index', 'description' => 'Ver reservaciones', 'contexts' => ['web']),
             array('name' => 'reservations.update', 'description' => 'Cancelar reservaciones', 'contexts' => ['web']),
-
+            // Anuncios
+            array('name' => 'announcements.index', 'description' => 'Ver anuncios', 'contexts' => ['web']),
+            array('name' => 'announcements.store', 'description' => 'Crear anuncios', 'contexts' => ['web']),
+            array('name' => 'announcements.update', 'description' => 'Actualizar anuncios', 'contexts' => ['web']),
+            array('name' => 'announcements.destroy', 'description' => 'Eliminar anuncios'),
             // Variables de sistema
             array('name' => 'system-variables.index', 'description' => 'Ver variables de sistema', 'contexts' => ['web']),
             array('name' => 'system-variables.store', 'description' => 'Crear variables de sistema', 'contexts' => ['web']),
