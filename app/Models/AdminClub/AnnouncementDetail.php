@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class AnnouncementDetail extends Model {
     use HasFactory, SoftDeletes;
 
+    protected $table = 'announcements.details';
     protected $dates = ['deleted_at'];
 
     protected $fillable = [
@@ -27,10 +28,6 @@ class AnnouncementDetail extends Model {
     public function announcement()
     {
         return $this->belongsTo(Announcement::class, 'announcement_id');
-    }
-    public function amenity()
-    {
-        return $this->belongsTo(Amenity::class, 'amenity_id');
     }
     public function resource()
     {

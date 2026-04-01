@@ -12,7 +12,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        DB::statement('ALTER TABLE amenity_resources ALTER COLUMN capacity DROP NOT NULL');
+        DB::statement('ALTER TABLE amenities.resources ALTER COLUMN capacity DROP NOT NULL');
     }
 
     /**
@@ -20,7 +20,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        DB::statement('UPDATE amenity_resources SET capacity = 1 WHERE capacity IS NULL');
-        DB::statement('ALTER TABLE amenity_resources ALTER COLUMN capacity SET NOT NULL');
+        DB::statement('UPDATE amenities.resources SET capacity = 1 WHERE capacity IS NULL');
+        DB::statement('ALTER TABLE amenities.resources ALTER COLUMN capacity SET NOT NULL');
     }
 };

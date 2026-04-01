@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Announcement extends Model {
     use HasFactory, SoftDeletes;
 
+    protected $table = 'announcements.announcements';
+
     protected $dates = ['deleted_at'];
 
     protected $fillable = [

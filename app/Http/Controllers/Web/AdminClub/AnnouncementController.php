@@ -25,7 +25,6 @@ class AnnouncementController extends Controller
             $driver = DB::getDriverName();
  
             $query = Announcement::with(['detail.resource.amenity'])->where('club_id', $clubId);
-
             if ($search = $request->input("{$prefix}_search")) {
                 $operator = $driver == 'pgsql'
                     ? 'ilike'
@@ -47,8 +46,11 @@ class AnnouncementController extends Controller
                     )
                 )->appends($request->except('club_id'));
             $amenities = Amenity::where('club_id',$clubId)->select('id','name')->orderBy('name')->get();
-            $resources = AmenityResource::with('amenity')->where('club_id',$clubId)->get();
-           
+            $resources = AmenityResource::with('amenity')->whereHas('amenity', function ($q) use ($clubId) {$q->where('club_id', $clubId);})->get();
+
+            //dd($announcements);
+           // dd($amenities);
+            //dd($resources);
             return Inertia::render(
                 'AdminClubs/Announcements/Index',
                 [
