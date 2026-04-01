@@ -228,7 +228,8 @@
         },
         {
             preserveState: true,
-            replace: true
+            replace: true,
+            only: ["announcements"]
         }
     );
 };
@@ -250,7 +251,7 @@ watch(
 watch(
     () => props.announcements,
     (val) => {
-        console.log("announcements props", val);
+        console.log("HOLIIIIIIIIIIIIIIII: announcements props", val);
 
         items.value = val?.data ?? [];
         total.value = val?.total ?? 0;
@@ -328,6 +329,8 @@ watch(
                     </template>
                     <template #item.resource="{ item }">
                         {{ item.detail?.resource?.amenity?.name }}
+                        -
+                        {{ item.detail?.resource?.name }}
                     </template>
                     <template #item.image="{ item }">
                         <v-img v-if="item.image" :src="`/storage/${item.image}`" max-height="70" max-width="100"
@@ -391,7 +394,7 @@ watch(
                                 <template v-if="showEventFields">
                                     <v-col cols="6">
                                         <v-select v-model="form.resource_id" label="Locación"
-                                            prepend-inner-icon="mdi-map-marker" :items="amenitiesList" item-title="name"
+                                            prepend-inner-icon="mdi-map-marker" :items="resourcesList" item-title="name"
                                             item-value="id" :rules="showEventFields ? [required] : []" />
                                     </v-col>
                                     <v-col cols="6">

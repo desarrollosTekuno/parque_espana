@@ -11,14 +11,14 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('amenities', function (Blueprint $table) {
-            if (Schema::hasColumn('amenities', 'slot_duration_minutes')) {
+        Schema::table('amenities.amenities', function (Blueprint $table) {
+            if (Schema::hasColumn('amenities.amenities', 'slot_duration_minutes')) {
                 $table->dropColumn('slot_duration_minutes');
             }
         });
 
-        Schema::table('amenity_resources', function (Blueprint $table) {
-            if (!Schema::hasColumn('amenity_resources', 'slot_duration_minutes')) {
+        Schema::table('amenities.resources', function (Blueprint $table) {
+            if (!Schema::hasColumn('amenities.resources', 'slot_duration_minutes')) {
                 $table->integer('slot_duration_minutes')
                       ->nullable()
                       ->after('capacity');
@@ -31,16 +31,16 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('amenities', function (Blueprint $table) {
-            if (!Schema::hasColumn('amenities', 'slot_duration_minutes')) {
+        Schema::table('amenities.amenities', function (Blueprint $table) {
+            if (!Schema::hasColumn('amenities.amenities', 'slot_duration_minutes')) {
                 $table->integer('slot_duration_minutes')
                       ->nullable()
                       ->after('reservation_type');
             }
         });
 
-        Schema::table('amenity_resources', function (Blueprint $table) {
-            if (Schema::hasColumn('amenity_resources', 'slot_duration_minutes')) {
+        Schema::table('amenities.resources', function (Blueprint $table) {
+            if (Schema::hasColumn('amenities.resources', 'slot_duration_minutes')) {
                 $table->dropColumn('slot_duration_minutes');
             }
         });
