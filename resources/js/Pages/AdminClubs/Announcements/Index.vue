@@ -59,6 +59,10 @@
     const create = () => {
         form.reset();
         form.is_active = true;
+        form.resource_id = null;
+        form.capacity = null;
+        form.starts_at = null;
+        form.ends_at = null;
         imagePreview.value = null;
         showModal.value = true;
     };
@@ -67,6 +71,7 @@
         return val.replace(" ", "T").slice(0, 16);
     };
     const edit = (item: any) => {
+        form.reset();
         form.id = item.id;
         form.title = item.title;
         form.summary = item.summary;
@@ -80,7 +85,7 @@
         form.starts_at = formatDateForInput(item.detail?.starts_at);
         form.ends_at = formatDateForInput(item.detail?.ends_at);
         form.image = null;
-        form.image_path = item.image ?? null;
+        form.image_path = item.image;
         imagePreview.value = item.image ? `/storage/${item.image}` : null;
         showModal.value = true;
     };
@@ -126,6 +131,16 @@
                             form.reset();
                             imagePreview.value = null;
                             fetchItems();
+                        },
+                        onError: () => {
+                            console.log("ERRORES", form.errors);
+                            const firstError =
+                                Object.values(form.errors)[0];
+                            customToastSwal({
+                                title: "Horario no disponible",
+                                text: firstError,
+                                icon: "error"
+                            });
                         }
                     }
                 );
@@ -143,9 +158,20 @@
                         ),
                         {
                             onSuccess: () => {
-                                customToastSwal({ title: "Eliminado", icon: "success" });
+                                customToastSwal({ 
+                                    title: page.props.flash.success || "",
+                                    icon: "success" 
+                                });
                                 fetchItems();
+                            },
+                            onError: () => {
+                                customToastSwal({
+                                    title: `Error: ${form.errors.messageError}`,
+                                    text: `${form.errors.exception}`,
+                                    icon: "error",
+                                });
                             }
+
                         }
                     );
                 }
@@ -153,16 +179,13 @@
     };
     const formatDateTable = (val: string | null) => {
         if (!val) return "-";
-
-        const date = new Date(val);
-
-        return date.toLocaleString("es-MX", {
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit"
-        });
+        const normalized = val.replace("T", " ");
+        const parts = normalized.split(" ");
+        if (parts.length < 2) return val;
+        const [datePart, timePart] = parts;
+        const [year, month, day] = datePart.split("-");
+        const [hour, minute] = timePart.split(":");
+        return `${day}/${month}/${year} ${hour}:${minute}`;
     };
     const removeImage = () => {
         form.image = null;
@@ -214,6 +237,21 @@
         return new Date(value) >= new Date(form.starts_at)
             || "La fecha de fin no puede ser menor que la de inicio";
     };
+    const notPastDate = (value:any) => {
+        if (!value) return true;
+        return new Date(value) >= new Date()
+            || "No puedes seleccionar una fecha pasada";
+    };
+    const expiresAfterPublish = (value:any) => {
+        if (!value || !form.publish_at) return true;
+        return new Date(value) > new Date(form.publish_at)
+            || "Debe ser mayor que la fecha de publicación";
+    };
+    const startAfterPublish = (value:any) => {
+        if (!value || !form.publish_at) return true;
+        return new Date(value) >= new Date(form.publish_at)
+            || "Debe ser posterior a la publicación";
+    };
     const prefix = "announcements";
     const fetchItems = () => {
     loading.value = true;
@@ -234,25 +272,18 @@
     );
 };
 watch(
-        () => form.image,
-        (file) => {
-            if (file instanceof File) {
-                imagePreview.value
-                    = URL.createObjectURL(file);
-                form.remove_image = false;
-            }
-            else if (file === null) {
-                imagePreview.value = null;
-                form.image_path = null;
-                form.remove_image = true;
-            }
-        }
-    );
+    () => form.image,
+    (file) => {
+        if (file instanceof File) {
+            imagePreview.value =
+                URL.createObjectURL(file);
+            form.remove_image = false;
+        } 
+    }
+);
 watch(
     () => props.announcements,
     (val) => {
-        console.log("HOLIIIIIIIIIIIIIIII: announcements props", val);
-
         items.value = val?.data ?? [];
         total.value = val?.total ?? 0;
         loading.value = false; 
@@ -291,19 +322,15 @@ watch(
 watch(
     () => form.resource_id,
     (val) => {
-
+        if (form.id) return;
         const selected =
             resourcesList.value.find(
                 r => r.id === val
             );
-
         if (selected) {
-
             form.capacity =
                 selected.capacity ?? null;
-
         }
-
     }
 );
     </script>
@@ -403,20 +430,20 @@ watch(
                                     </v-col>
                                     <v-col cols="6">
                                         <v-text-field v-model="form.starts_at" label="Inicio" type="datetime-local"
-                                            prepend-inner-icon="mdi-calendar" :rules="showEventFields ? [required] : []" />
+                                            prepend-inner-icon="mdi-calendar" :rules="showEventFields ? [required, notPastDate, startAfterPublish] : []" :error-messages="form.errors.starts_at"/>
                                     </v-col>
                                     <v-col cols="6">
                                         <v-text-field v-model="form.ends_at" label="Fin" type="datetime-local"
-                                            prepend-inner-icon="mdi-calendar-check" :rules="showEventFields ? [required, endsAfterStart] : []"/>
+                                            prepend-inner-icon="mdi-calendar-check" :rules="showEventFields ? [required, notPastDate, endsAfterStart] : []" :error-messages="form.errors.ends_at"/>
                                     </v-col>
                                 </template>
                                 <v-col cols="6">
                                     <v-text-field v-model="form.publish_at" label="Fecha publicación" type="datetime-local"
-                                        prepend-inner-icon="mdi-calendar" :rules="[required]" />
+                                        prepend-inner-icon="mdi-calendar" :rules="[required, notPastDate]" />
                                 </v-col>
                                 <v-col cols="6">
                                     <v-text-field v-model="form.expires_at" label="Fecha expiración" type="datetime-local"
-                                        prepend-inner-icon="mdi-calendar-remove" :rules="[required]"/>
+                                        prepend-inner-icon="mdi-calendar-remove" :rules="[required, notPastDate, expiresAfterPublish]"/>
                                 </v-col>
                                 <v-col cols="6" v-if="form.id">
                                     <v-switch v-model="form.is_active" color="green"
