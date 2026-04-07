@@ -21,10 +21,10 @@ class AnnouncementController extends Controller
 
     public function __construct()
     {
-        $this->middleware('permission:announcement.index')->only('index');
-        $this->middleware('permission:announcement.store')->only('store');
-        $this->middleware('permission:announcement.update')->only('update');
-        $this->middleware('permission:announcement.destroy')->only('destroy');
+        $this->middleware('permission:announcements.index')->only('index');
+        $this->middleware('permission:announcements.store')->only('store');
+        $this->middleware('permission:announcements.update')->only('update');
+        $this->middleware('permission:announcements.destroy')->only('destroy');
     }
 
     private function validateResourceAvailability($resourceId, $start, $end, $ignoreDetailId = null)
@@ -32,9 +32,33 @@ class AnnouncementController extends Controller
         $start = Carbon::parse($start);
         $end   = Carbon::parse($end);
 
+        /* revisar reservaciones */
+        $reservation = DB::table('reservations.reservations')
+            ->where('amenity_resource_id', $resourceId)
+            ->where('reservation_status_id', '1')
+            ->where(function($q) use ($start,$end){
+                $q->where('start_datetime','<',$end)
+                ->where('end_datetime','>',$start);
+            })->first();
+
+        if ($reservation){
+            throw ValidationException::withMessages([
+                'starts_at' =>
+                    'El recurso ya tiene una reservación de '
+                    . Carbon::parse(
+                        $reservation->start_datetime
+                    )->format('d/m/Y H:i')
+                    .' a '
+                    . Carbon::parse(
+                        $reservation->end_datetime
+                    )->format('d/m/Y H:i')
+            ]);
+        }
+
         /*  revisar eventos   */
         $event = DB::table('announcements.details')
             ->where('resource_id', $resourceId)
+            ->whereNull('deleted_at')
             ->when($ignoreDetailId,
                 fn($q)=>$q->where('id','!=',$ignoreDetailId)
             )->where(function($q) use ($start,$end){
@@ -55,6 +79,7 @@ class AnnouncementController extends Controller
         /*   revisar bloqueos administrativos     */
         $block = DB::table('amenities.blocked_periods')
             ->where('resource_id',$resourceId)
+            ->whereNull('deleted_at')
             ->where(function($q) use ($start,$end){
                 $q->where('start_time','<',$end)
                 ->where('end_time','>',$start);
@@ -122,7 +147,7 @@ class AnnouncementController extends Controller
                         'total' => 0
                     ],
                     'amenities' => [],
-                    'error' => $e->getMessage()
+                    'messageError' => $e->getMessage()
                 ]
             );
         }

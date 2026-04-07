@@ -896,7 +896,7 @@ watch(
                     <v-row>
                         <v-col cols="12">
                             <v-data-table-server :headers="resourceHeaders" :items="resourceItems"
-                                :items-length="resourceTotal" :loading="resourceLoading" class="elevation-1"
+                                :items-length="resourceTotal" :loading="resourceLoading" loading-text="Cargando recursos..." class="elevation-1"
                                 no-data-text="No hay recursos registrados" v-model:options="resourceOptions">
                                 <template #item.capacity="{ item }">
                                     <span v-if="item.amenity?.reservation_type === 'capacity'">

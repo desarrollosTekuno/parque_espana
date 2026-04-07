@@ -46,6 +46,11 @@ class PermissionSeeder extends Seeder
             array('name' => 'amenityResource.store', 'description' => 'Crear recursos', 'contexts' => ['web']),
             array('name' => 'amenityResource.update', 'description' => 'Actualizar recursos', 'contexts' => ['web']),
             array('name' => 'amenityResource.destroy', 'description' => 'Eliminar recursos', 'contexts' => ['web']),
+            // Bloqueos
+            array('name' => 'blockedPeriods.index', 'description' => 'Ver bloqueos', 'contexts' => ['web']),
+            array('name' => 'blockedPeriods.store', 'description' => 'Crear bloqueos', 'contexts' => ['web']),
+            array('name' => 'blockedPeriods.update', 'description' => 'Actualizar bloqueos', 'contexts' => ['web']),
+            array('name' => 'blockedPeriods.destroy', 'description' => 'Eliminar bloqueos', 'contexts' => ['web']),
             // Reservaciones
             array('name' => 'reservations.index', 'description' => 'Ver reservaciones', 'contexts' => ['web']),
             array('name' => 'reservations.update', 'description' => 'Cancelar reservaciones', 'contexts' => ['web']),

@@ -106,6 +106,15 @@ const routes: Routing[] = [
         group: null,
         // groupItems: null
     },
+    // Bloqueo de recursos de amenidades
+    {
+        name: "blockedPeriods.index",
+        title: "Bloqueos",
+        icon: "mdi-calendar-clock-outline",
+        value: "bloqueos",
+        group: null,
+        // groupItems: null
+    },
     // Variables de sistema
     {
         name: "system-variables.index",

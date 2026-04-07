@@ -12,6 +12,16 @@ class BlockedPeriod extends Model {
 
     protected $table = 'amenities.blocked_periods';
 
-    protected $guarded = ['id', 'created_at', 'updated_at'];
+    protected $fillable = [
+        'resource_id',
+        'start_time',
+        'end_time',
+        'reason',
+        'is_active'
+    ];
     protected $dates = ['deleted_at'];
+
+    public function resource() {
+        return $this->belongsTo(AmenityResource::class, 'resource_id');     
+    }       
 }

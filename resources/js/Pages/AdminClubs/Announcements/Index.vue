@@ -139,7 +139,8 @@
                             customToastSwal({
                                 title: "Horario no disponible",
                                 text: firstError,
-                                icon: "error"
+                                icon: "error",
+                                timer: 8000
                             });
                         }
                     }
@@ -177,16 +178,94 @@
                 }
             });
     };
-    const formatDateTable = (val: string | null) => {
-        if (!val) return "-";
-        const normalized = val.replace("T", " ");
-        const parts = normalized.split(" ");
-        if (parts.length < 2) return val;
-        const [datePart, timePart] = parts;
-        const [year, month, day] = datePart.split("-");
-        const [hour, minute] = timePart.split(":");
-        return `${day}/${month}/${year} ${hour}:${minute}`;
-    };
+ 
+    const isSameDay = (start:string|null,end:string|null) => {
+    if(!start || !end) return false;
+        const s = new Date(start);
+        const e = new Date(end);
+        return s.toDateString() === e.toDateString();
+};
+
+const formatEventDate = (start:string|null,end:string|null) => {
+    if(!start) return "-";
+    const s = new Date(start.replace(" ","T"));
+    const datePart = s.toLocaleDateString(
+        "es-MX",
+        {
+            day:"2-digit",
+            month:"short",
+            year:"numeric"
+        }
+    );
+
+    const startTime = s.toLocaleTimeString(
+        "es-MX",
+        {
+            hour:"numeric",
+            minute:"2-digit",
+            hour12:true
+        }
+    );
+
+    if(!end) return `${datePart} · ${startTime}`;
+
+    const e = new Date(end.replace(" ","T"));
+
+    const endTime = e.toLocaleTimeString(
+        "es-MX",
+        {
+            hour:"numeric",
+            minute:"2-digit",
+            hour12:true
+        }
+    );
+
+    if(isSameDay(start,end)){
+        return `${datePart} · ${startTime} - ${endTime}`;
+    }
+
+    const endDatePart = e.toLocaleDateString(
+        "es-MX",
+        {
+            day:"2-digit",
+            month:"short",
+            year:"numeric"
+        }
+    );
+    return `${datePart} ${startTime}
+            → ${endDatePart} ${endTime}`;
+};
+
+const calculateDurationMinutes = (
+    start:string|null,
+    end:string|null
+)=>{
+    if(!start || !end) return 0;
+    return Math.floor(
+        (
+            new Date(end).getTime()
+            - new Date(start).getTime()
+        ) / 60000
+    );
+};
+
+const formatDuration = (minutes:number)=>{
+    const h = Math.floor(minutes/60);
+    const m = minutes % 60;
+    if(h && m) return `${h}h ${m}m`;
+    if(h) return `${h}h`;
+    return `${m}m`;
+};
+
+const durationColor = (minutes:number)=>{
+    if(minutes >= 360)
+        return "deep-purple";
+    if(minutes >= 240)
+        return "indigo";
+    if(minutes >= 120)
+        return "primary";
+    return "teal";
+};
     const removeImage = () => {
         form.image = null;
         form.image_path = null;
@@ -199,15 +278,15 @@
         {title: "Tipo",key: "type"},
         {title: "Locación", key: "resource" },
         {title: "Imagen",key: "image"},
-        {title: "Publicación",key: "publish_at"},
-        {title: "Activo",key: "is_active"},
+        {title: "Fecha",key: "event_date"},
+        {title: "Duración", key: "duration" },
         {title: "Acciones",key: "actions",sortable: false}
     ];
     const typeLabel: any = {
-        comunicado: "Comunicado",
-        torneo: "Torneo",
-        evento: "Evento",
-        info_parque: "Info parque"
+        comunicado: {"label": "Comunicado", "color": "grey"},
+        torneo: {"label": "Torneo", "color": "purple"},
+        evento: {"label": "Evento", "color": "blue"},
+        info_parque: {"label": "Info parque", "color": "green"}
     };
 
     const items = ref([]);
@@ -339,20 +418,36 @@ watch(
         <Head title="Noticias y Avisos" />
         <AppLayout>
             <template #options>
-                <BaseButton v-if="can.includes('announcements.store')" variant="elevated" :text="'Nuevo anuncio'" action="add"
+                <BaseButton v-if="can.includes('announcements.store')" variant="elevated" :text="'Nuevo anuncio'" action="add" 
                      :icon-only="false" @click="create" />
             </template>
             <template #header>
                 Noticias y Avisos
             </template>
             <div class="pa-4 bg-grey-lighten-4 rounded-xl mt-5">
-                <v-data-table-server fixed-header hover height="500px" :headers="headers" :items="items"
-                    :items-length="total" :loading="loading" v-model:options="options" class="elevation-1"
-                    :items-per-page-options="[10, 25, 50, 100]" items-per-page-text="Mostrar"
-                    no-data-text="No hay anuncios">
+                <v-data-table-server class="elevation-1" fixed-header hover height="500px" 
+                    :headers="headers" 
+                    :items="items"
+                    :items-length="total" 
+                    :loading="loading" 
+                    loading-text="Cargando anuncios..."
+                    v-model:options="options" 
+                    :items-per-page-options="[10, 25, 50, 100]" 
+                    items-per-page-text="Mostrar"
+                    no-data-text="No hay anuncios"
+                >
                     <template #top>
                         <v-text-field v-model="search" label="Buscar anuncio..." prepend-inner-icon="mdi-magnify"
                             variant="outlined" density="comfortable" class="mx-4 mt-4" />
+                    </template>
+                    <template #item.type="{ item }">
+                        <v-chip
+                            size="small"
+                            variant="tonal"
+                            :color="typeLabel[item.type]?.color"
+                        >
+                            {{ typeLabel[item.type]?.label }}
+                        </v-chip>
                     </template>
                     <template #item.resource="{ item }">
                         {{ item.detail?.resource?.amenity?.name }}
@@ -363,19 +458,26 @@ watch(
                         <v-img v-if="item.image" :src="`/storage/${item.image}`" max-height="70" max-width="100"
                             class="rounded" />
                     </template>
-                    <template #item.type="{ item }">
-                        <v-chip size="small" variant="tonal">
-                            {{ typeLabel[item.type] }}
+                    <template #item.event_date="{ item }">
+                        {{ formatEventDate(
+                            item.detail?.starts_at,
+                            item.detail?.ends_at
+                        ) }}
+                    </template>
+                    <template #item.duration="{ item }">
+                        <v-chip
+                            size="small"
+                            :color="durationColor(calculateDurationMinutes(item.detail?.starts_at, item.detail?.ends_at))"
+                            variant="tonal"
+                        >
+                        {{ formatDuration(calculateDurationMinutes(item.detail?.starts_at, item.detail?.ends_at)) }}
                         </v-chip>
                     </template>
-                    <template #item.publish_at="{ item }">
-                        {{ formatDateTable(item.publish_at) }}
-                    </template>
-                    <template #item.is_active="{ item }">
+                    <!--<template #item.is_active="{ item }">
                         <v-chip size="small" :color="item.is_active ? 'green' : 'red'">
                             {{ item.is_active ? 'Activo' : 'Inactivo' }}
                         </v-chip>
-                    </template>
+                    </template>-->
                     <template #item.actions="{ item }">
                         <BaseButton action="edit" @click="edit(item)" v-if="can.includes('announcements.update')" />
                         <BaseButton action="delete" @click="destroy(item)" v-if="can.includes('announcements.destroy')" />
@@ -445,10 +547,10 @@ watch(
                                     <v-text-field v-model="form.expires_at" label="Fecha expiración" type="datetime-local"
                                         prepend-inner-icon="mdi-calendar-remove" :rules="[required, notPastDate, expiresAfterPublish]"/>
                                 </v-col>
-                                <v-col cols="6" v-if="form.id">
+                                <!--<v-col cols="6" v-if="form.id">
                                     <v-switch v-model="form.is_active" color="green"
                                         :label="form.is_active ? 'Activo' : 'Inactivo'" inset />
-                                </v-col>
+                                </v-col>-->
                             </v-row>
                         </v-card-text>
                         <v-card-actions>
