@@ -13,6 +13,8 @@ return new class extends Migration {
         Schema::create('memberships.types', function (Blueprint $table) {
             $table->id();
             $table->string('name'); // Individual, Familiar, Solidaria
+            // code
+            $table->string('code', 50)->unique();
             $table->boolean('requires_origin_family')->default(false);
             $table->text('description')->nullable();
             // show in the front end
@@ -27,6 +29,7 @@ return new class extends Migration {
             $table->timestamps();
 
             $table->unique(['club_id', 'name']);
+            $table->unique(['club_id', 'code']);
         });
     }
 

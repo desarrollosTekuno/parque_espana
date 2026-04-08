@@ -18,7 +18,7 @@ class MembershipTypeSeeder extends Seeder
     {
         //carta de no adeudo no va en doctor beneficencia
         //
-        $membershipTypes = [
+        /* $membershipTypes = [
             [
                 'code_club' => 'PE1',
                 'memberships' => [
@@ -1005,6 +1005,242 @@ class MembershipTypeSeeder extends Seeder
                         ]);
                     }
                 }
+            }
+        } */
+
+        $data = [
+            // =========================
+            // PARQUE ESPAÑA 1
+            // =========================
+            [
+                'club_code' => 'PE1',
+                'types' => [
+                    [
+                        'code' => 'PE1_SOL',
+                        'name' => 'Solidaria',
+                        'description' => 'Membresía solidaria',
+                        'is_spanish_descent' => false,
+                        'requires_origin_family' => true,
+                        'show_in_listing' => false,
+                        'allows_multiple_members' => false,
+                    ],
+                    [
+                        'code' => 'PE1_IND',
+                        'name' => 'Individual',
+                        'description' => 'Membresía individual',
+                        'is_spanish_descent' => false,
+                        'requires_origin_family' => false,
+                        'show_in_listing' => true,
+                        'allows_multiple_members' => false,
+                    ],
+                    [
+                        'code' => 'PE1_FAM',
+                        'name' => 'Familiar',
+                        'description' => 'Membresía familiar',
+                        'is_spanish_descent' => false,
+                        'requires_origin_family' => false,
+                        'show_in_listing' => true,
+                        'allows_multiple_members' => true,
+                    ],
+                ],
+            ],
+
+            // =========================
+            // PARQUE ESPAÑA 2
+            // =========================
+            [
+                'club_code' => 'PE2',
+                'types' => [
+
+                    // ASCENDENCIA ESPAÑOLA
+                    [
+                        'code' => 'PE2_SOL_ASC',
+                        'name' => 'Solidaria(Ascendencia Española)',
+                        'description' => 'Solidaria con ascendencia española',
+                        'is_spanish_descent' => true,
+                        'requires_origin_family' => true,
+                        'show_in_listing' => false,
+                        'allows_multiple_members' => false,
+                    ],
+                    [
+                        'code' => 'PE2_IND_ASC',
+                        'name' => 'Individual(Ascendencia Española)',
+                        'description' => 'Individual con ascendencia española',
+                        'is_spanish_descent' => true,
+                        'requires_origin_family' => false,
+                        'show_in_listing' => true,
+                        'allows_multiple_members' => false,
+                    ],
+                    [
+                        'code' => 'PE2_FAM_ASC',
+                        'name' => 'Familiar(Ascendencia Española)',
+                        'description' => 'Familiar con ascendencia española',
+                        'is_spanish_descent' => true,
+                        'requires_origin_family' => false,
+                        'show_in_listing' => true,
+                        'allows_multiple_members' => true,
+                    ],
+
+                    // EXTERNOS
+                    [
+                        'code' => 'PE2_SOL_EXT',
+                        'name' => 'Solidaria(Externos)',
+                        'description' => 'Solidaria externos',
+                        'is_spanish_descent' => false,
+                        'requires_origin_family' => true,
+                        'show_in_listing' => false,
+                        'allows_multiple_members' => false,
+                    ],
+                    [
+                        'code' => 'PE2_IND_EXT',
+                        'name' => 'Individual(Externos)',
+                        'description' => 'Individual externos',
+                        'is_spanish_descent' => false,
+                        'requires_origin_family' => false,
+                        'show_in_listing' => true,
+                        'allows_multiple_members' => false,
+                    ],
+                    [
+                        'code' => 'PE2_FAM_EXT',
+                        'name' => 'Familiar(Externos)',
+                        'description' => 'Familiar externos',
+                        'is_spanish_descent' => false,
+                        'requires_origin_family' => false,
+                        'show_in_listing' => true,
+                        'allows_multiple_members' => true,
+                    ],
+
+                    // BENEFICENCIA
+                    [
+                        'code' => 'PE2_SOL_BEN',
+                        'name' => 'Solidaria(Beneficencia Española)',
+                        'description' => 'Solidaria beneficencia',
+                        'is_spanish_descent' => false,
+                        'requires_origin_family' => true,
+                        'show_in_listing' => false,
+                        'allows_multiple_members' => false,
+                    ],
+                    [
+                        'code' => 'PE2_IND_BEN',
+                        'name' => 'Individual(Beneficencia Española)',
+                        'description' => 'Individual beneficencia',
+                        'is_spanish_descent' => false,
+                        'requires_origin_family' => false,
+                        'show_in_listing' => true,
+                        'allows_multiple_members' => false,
+                    ],
+                    [
+                        'code' => 'PE2_FAM_BEN',
+                        'name' => 'Familiar(Beneficencia Española)',
+                        'description' => 'Familiar beneficencia',
+                        'is_spanish_descent' => false,
+                        'requires_origin_family' => false,
+                        'show_in_listing' => true,
+                        'allows_multiple_members' => true,
+                    ],
+
+                    // DOCTORES
+                    [
+                        'code' => 'PE2_SOL_DOC',
+                        'name' => 'Solidaria(Doctores Beneficencia Española)',
+                        'description' => 'Solidaria doctores',
+                        'is_spanish_descent' => false,
+                        'requires_origin_family' => true,
+                        'show_in_listing' => false,
+                        'allows_multiple_members' => false,
+                    ],
+                    [
+                        'code' => 'PE2_IND_DOC',
+                        'name' => 'Individual(Doctores Beneficencia Española)',
+                        'description' => 'Individual doctores',
+                        'is_spanish_descent' => false,
+                        'requires_origin_family' => false,
+                        'show_in_listing' => true,
+                        'allows_multiple_members' => false,
+                    ],
+                    [
+                        'code' => 'PE2_FAM_DOC',
+                        'name' => 'Familiar(Doctores Beneficencia Española)',
+                        'description' => 'Familiar doctores',
+                        'is_spanish_descent' => false,
+                        'requires_origin_family' => false,
+                        'show_in_listing' => true,
+                        'allows_multiple_members' => true,
+                    ],
+                    [
+                        'code' => 'PE2_PM_IND',
+                        'name' => 'Pase Mensual Individual',
+                        'description' => 'Pase mensual individual con vigencia de 1 año, sin cuota de inscripción y con mantenimiento doble',
+                        'is_spanish_descent' => false,
+                        'requires_origin_family' => false,
+                        'show_in_listing' => true,
+                        'allows_multiple_members' => false,
+                        'validity_months' => 12,
+                    ],
+                    [
+                        'code' => 'PE2_PM_FAM',
+                        'name' => 'Pase Mensual Familiar',
+                        'description' => 'Pase mensual familiar con vigencia de 1 año, sin cuota de inscripción y con mantenimiento doble',
+                        'is_spanish_descent' => false,
+                        'requires_origin_family' => false,
+                        'show_in_listing' => true,
+                        'allows_multiple_members' => true,
+                        'validity_months' => 12,
+                    ],
+                    [
+                        'code' => 'PE2_SOL_PE1',
+                        'name' => 'Solidaria (Paquete Parque España 1)',
+                        'description' => 'Membresía solidaria para socios provenientes del Parque España 1',
+                        'is_spanish_descent' => false,
+                        'requires_origin_family' => true,
+                        'show_in_listing' => false,
+                        'allows_multiple_members' => false,
+                        'validity_months' => null,
+                    ],
+                    [
+                        'code' => 'PE2_IND_PE1',
+                        'name' => 'Individual (Paquete Parque España 1)',
+                        'description' => 'Membresía individual para socios provenientes del Parque España 1',
+                        'is_spanish_descent' => false,
+                        'requires_origin_family' => false,
+                        'show_in_listing' => true,
+                        'allows_multiple_members' => false,
+                        'validity_months' => null,
+                    ],
+                    [
+                        'code' => 'PE2_FAM_PE1',
+                        'name' => 'Familiar (Paquete Parque España 1)',
+                        'description' => 'Membresía familiar para socios provenientes del Parque España 1',
+                        'is_spanish_descent' => false,
+                        'requires_origin_family' => false,
+                        'show_in_listing' => true,
+                        'allows_multiple_members' => true,
+                        'validity_months' => null,
+                    ],
+
+                ],
+            ],
+        ];
+
+        foreach ($data as $clubData) {
+            $club = Club::where('code', $clubData['club_code'])->firstOrFail();
+
+            foreach ($clubData['types'] as $type) {
+                MembershipType::updateOrCreate(
+                    [
+                        'code' => $type['code'],
+                    ],
+                    [
+                        'name' => $type['name'],
+                        'description' => $type['description'],
+                        'is_spanish_descent' => $type['is_spanish_descent'],
+                        'requires_origin_family' => $type['requires_origin_family'],
+                        'show_in_listing' => $type['show_in_listing'],
+                        'allows_multiple_members' => $type['allows_multiple_members'],
+                        'club_id' => $club->id,
+                        'validity_months' => $type['validity_months'] ?? null,
+                    ]
+                );
             }
         }
     }

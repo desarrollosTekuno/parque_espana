@@ -28,6 +28,9 @@ class DatabaseSeeder extends Seeder
             RelationshipDocumentTypesSeeder::class,
             MembershipTypeSeeder::class,
             AmenitySeeder::class,
+            PricingRuleSeeder::class,
+            MembershipTypeRequiredDocumentSeeder::class,
+            InterclubPackageRuleSeeder::class,
         ]);
     }
 }
