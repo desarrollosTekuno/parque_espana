@@ -36,7 +36,7 @@ return new class extends Migration {
             $table->string('marital_status')->nullable();
             // phone
             $table->string('phone')->nullable();
-            $table->string('email')->nullable()->unique();
+            $table->string('email')->nullable();
             // occupation
             $table->string('occupation')->nullable();
 

@@ -3,26 +3,24 @@ import BaseButton from "@/Components/BaseButton.vue";
 import CustomFileUploadField from "@/Components/CustomFileUploadField.vue";
 import {
     required,
-    fileTypeRule,
-    fileMaxCountRule,
-    requiredFileRule,
     selectRequired,
     validatePhone,
     email,
+    fileTypeRule,
+    requiredFileRule,
+    fileExactCountRule,
 } from "@/constants/validationRules";
 import AppLayout from "@/Layouts/AppLayout.vue";
-import { customConfirmSwal, customToastSwal } from "@/utils/swal";
-import { Head, router, useForm, usePage } from "@inertiajs/vue3";
-import { debounce } from "lodash";
-import { computed, ref, watch } from "vue";
-import { fileExactCountRule } from '../../constants/validationRules';
-const can = usePage().props.auth.permissions;
-const canRole = usePage().props.auth.roles;
+import { Head, useForm, usePage } from "@inertiajs/vue3";
+import { computed, ref } from "vue";
+
 const page = usePage<any>();
+
 interface Props {
-    membershipTypes?: any;
-    relationships?: any;
+    membershipTypes?: MembershipType[];
+    relationships?: Relationship[];
 }
+
 interface Relationship {
     id: number;
     name: string;
@@ -44,28 +42,27 @@ interface DocumentType {
 
 interface MembershipType {
     id: number;
+    code?: string;
     name: string;
     description: string;
     allows_multiple_members: boolean;
     document_types: DocumentType[];
 }
-interface MemberForm {
-    local_id: number;
-    first_name: string;
-    last_name: string;
-    second_last_name: string | null;
-    birthdate: string | null;
-    age: number | null;
-    nationality: string | null;
-    marital_status: string | null;
-    phone: string | null;
-    email: string | null;
-    occupation: string | null;
-    relationship_id: number | null;
-    relationship_name: string | null;
-    is_primary_holder: boolean;
-    is_locked: boolean;
-    documents: MemberDocumentForm[];
+
+interface MemberAddressForm {
+    street: string | null;
+    neighborhood: string | null;
+    postal_code: string | null;
+    city: string | null;
+    state: string | null;
+    country: string | null;
+    years_in_city: number | null;
+}
+
+interface MemberEmploymentForm {
+    company_name: string | null;
+    company_address: string | null;
+    company_phone: string | null;
 }
 
 interface MemberDocumentForm {
@@ -78,35 +75,78 @@ interface MemberDocumentForm {
     files: File[];
 }
 
-interface Memberships {
+interface MemberForm {
+    local_id: number;
+    first_name: string;
+    last_name: string;
+    second_last_name: string | null;
+    birthdate: string | null;
+    age: number | null;
+
+    birth_place: string | null;
+    city: string | null;
+    state: string | null;
+
+    nationality: string | null;
+    marital_status: string | null;
+    phone: string | null;
+    email: string | null;
+    occupation: string | null;
+    school_name: string | null;
+
+    relationship_id: number | null;
+    relationship_name: string | null;
+    is_primary_holder: boolean;
+    is_locked: boolean;
+
+    address: MemberAddressForm;
+    employment: MemberEmploymentForm;
+    documents: MemberDocumentForm[];
+}
+
+interface MembershipsForm {
     id: number | null;
     membershipType: MembershipType | null;
     from_membership: number | null;
     members: MemberForm[];
 }
 
-// const props = defineProps<Props>();
 const props = withDefaults(defineProps<Props>(), {
-    membershipTypes: null,
-    relationships: null,
+    membershipTypes: () => [],
+    relationships: () => [],
 });
 
-/* refs */
-let showModal = ref(false);
-const formSendRef = ref();
-const membershipStepRef = ref();
 const familyStepRef = ref();
 const documentsStepRef = ref();
 
-/* forms */
-const form = useForm<Memberships>({
+const TITULAR_RELATIONSHIP_ID = 1;
+
+const step = ref(1);
+const steps = ["Membresía", "Datos y Familia", "Documentos", "Confirmación"];
+
+const form = useForm<MembershipsForm>({
     id: null,
     membershipType: null,
     from_membership: null,
     members: [],
 });
 
-// al seleccionar un tipo de membresía, se crea un miembro vacío con la relación correspondiente (Titular, Cónyuge, Hijo, etc) y se agrega al formulario
+const createEmptyAddress = (): MemberAddressForm => ({
+    street: "",
+    neighborhood: "",
+    postal_code: "",
+    city: "",
+    state: "",
+    country: "México",
+    years_in_city: null,
+});
+
+const createEmptyEmployment = (): MemberEmploymentForm => ({
+    company_name: "",
+    company_address: "",
+    company_phone: "",
+});
+
 const createEmptyMember = (
     relationshipId: number | null,
     relationshipName: string | null,
@@ -118,38 +158,59 @@ const createEmptyMember = (
     last_name: "",
     second_last_name: "",
     birthdate: null,
+    age: null,
+
+    birth_place: "",
+    city: "",
+    state: "",
+
     nationality: "",
     marital_status: "",
     phone: "",
     email: "",
     occupation: "",
+    school_name: "",
+
     relationship_id: relationshipId,
     relationship_name: relationshipName,
     is_primary_holder: isPrimaryHolder,
     is_locked: isLocked,
-    documents: [],
-    age: null,
-});
 
-const TITULAR_RELATIONSHIP_ID = 1;
+    address: createEmptyAddress(),
+    employment: createEmptyEmployment(),
+    documents: [],
+});
 
 const getRelationshipIdForDocuments = (member: MemberForm) => {
     if (member.is_primary_holder) {
         return TITULAR_RELATIONSHIP_ID;
     }
-
     return member.relationship_id;
 };
+
+const shouldIncludeDocumentByAge = (doc: DocumentType, age: number | null) => {
+    if (age === null) return true;
+
+    if (doc.name === "INE") {
+        return age >= 18;
+    }
+
+    return true;
+};
+
 const getDocumentsForMember = (member: MemberForm) => {
     if (!form.membershipType) return [];
 
     const relationshipId = getRelationshipIdForDocuments(member);
 
-    return form.membershipType.document_types.filter((doc) =>
-        doc.relationships.some((rel) => rel.id === relationshipId),
-    );
+    return form.membershipType.document_types
+        .filter((doc) =>
+            doc.relationships.some((rel) => rel.id === relationshipId),
+        )
+        .filter((doc) => shouldIncludeDocumentByAge(doc, member.age));
 };
-const buildMemberDocuments = (member: MemberForm) => {
+
+const buildMemberDocuments = (member: MemberForm): MemberDocumentForm[] => {
     return getDocumentsForMember(member).map((doc) => ({
         document_type_id: doc.id,
         name: doc.name,
@@ -164,24 +225,11 @@ const buildMemberDocuments = (member: MemberForm) => {
         files: [],
     }));
 };
-const shouldIncludeDocumentByAge = (doc: DocumentType, age: number | null) => {
-    if (age === null) return true;
-
-    if (doc.name === "INE") {
-        return age >= 18;
-    }
-
-    // if (doc.name === "Fotografía Infantil") {
-    //     return age < 18;
-    // }
-
-    return true;
-};
 
 const buildDocumentsForRelationship = (
     relationshipId: number,
     age: number | null = null,
-) => {
+): MemberDocumentForm[] => {
     if (!form.membershipType) return [];
 
     return form.membershipType.document_types
@@ -203,84 +251,38 @@ const buildDocumentsForRelationship = (
             files: [],
         }));
 };
+
 const createPrimaryHolder = (): MemberForm => {
-    const member: MemberForm = {
-        local_id: Date.now(),
-        first_name: "",
-        last_name: "",
-        second_last_name: "",
-        birthdate: null,
-        nationality: "",
-        marital_status: "",
-        phone: "",
-        email: "",
-        occupation: "",
-        relationship_id: null,
-        relationship_name: null,
-        is_primary_holder: true,
-        is_locked: true,
-        age: null,
-        documents: [],
-    };
-
+    const member = createEmptyMember(null, null, true, true);
     member.documents = buildMemberDocuments(member);
-
     return member;
 };
 
 const createSpouseMember = (): MemberForm | null => {
-    const spouseRelationship = props.relationships?.find(
-        (rel: Relationship) => rel.name === "Cónyuge",
+    const spouseRelationship = props.relationships.find(
+        (rel) => rel.name === "Cónyuge",
     );
 
     if (!spouseRelationship) return null;
 
-    const member: MemberForm = {
-        local_id: Date.now() + Math.floor(Math.random() * 1000),
-        first_name: "",
-        last_name: "",
-        second_last_name: "",
-        birthdate: null,
-        nationality: "",
-        marital_status: "",
-        phone: "",
-        email: "",
-        occupation: "",
-        relationship_id: spouseRelationship.id,
-        relationship_name: spouseRelationship.name,
-        is_primary_holder: false,
-        is_locked: true,
-        age: null,
-        documents: [],
-    };
+    const member = createEmptyMember(
+        spouseRelationship.id,
+        spouseRelationship.name,
+        false,
+        true,
+    );
 
     member.documents = buildDocumentsForRelationship(spouseRelationship.id);
-
     return member;
 };
+
 const addFamilyMember = () => {
-    form.members.push({
-        local_id: Date.now() + Math.floor(Math.random() * 1000),
-        first_name: "",
-        last_name: "",
-        second_last_name: "",
-        birthdate: null,
-        nationality: "",
-        marital_status: "",
-        phone: "",
-        email: "",
-        occupation: "",
-        relationship_id: null,
-        relationship_name: null,
-        is_primary_holder: false,
-        is_locked: false,
-        age: null,
-        documents: [],
-    });
+    form.members.push(createEmptyMember(null, null, false, false));
 };
 
 const onRelationshipChange = (member: MemberForm) => {
     if (!member.relationship_id) {
+        member.relationship_name = null;
         member.documents = [];
         return;
     }
@@ -290,165 +292,19 @@ const onRelationshipChange = (member: MemberForm) => {
     );
 
     member.relationship_name = relationship?.name ?? null;
-    member.documents = buildDocumentsForRelationship(member.relationship_id);
+    member.documents = buildDocumentsForRelationship(
+        member.relationship_id,
+        member.age,
+    );
 };
 
 const removeMember = (localId: number) => {
     const member = form.members.find((m) => m.local_id === localId);
-
     if (!member || member.is_locked) return;
 
     form.members = form.members.filter((m) => m.local_id !== localId);
 };
-// documents
 
-const create = () => {
-    showModal.value = true;
-};
-const save = () => {
-    formSendRef.value?.validate().then(({ valid: isValid }) => {
-        console.log(isValid);
-        if (!isValid) {
-            return;
-        } else {
-            if (form.id) {
-                // form.put(route("head-quarters.update", form.id), {
-                //     onSuccess: () => {
-                //         customToastSwal({
-                //             title: page.props.flash.success || "",
-                //             icon: "success",
-                //         });
-                //         showModal.value = false;
-                //         form.reset();
-                // fetchItems();
-                //     },
-                //     onError: () => {
-                //         customToastSwal({
-                //             title: `Error: ${form.errors.messageError}`,
-                //             text: `${form.errors.exception}`,
-                //             icon: "error",
-                //         });
-                //         // console.log(form.errors);
-                //     },
-                // });
-            } else {
-                // form.post(route("head-quarters.store"), {
-                //     onSuccess: () => {
-                //         customToastSwal({
-                //             title: page.props.flash.success || "",
-                //             icon: "success",
-                //         });
-                //         showModal.value = false;
-                //         form.reset();
-                // fetchItems();
-                //     },
-                //     onError: () => {
-                //         customToastSwal({
-                //             title: `Error: ${form.errors.messageError}`,
-                //             text: `${form.errors.exception}`,
-                //             icon: "error",
-                //         });
-                //         // console.log(form.errors);
-                //     },
-                // });
-            }
-        }
-    });
-};
-const edit = (data: any) => {
-    console.log(data);
-
-    // headQuarterForm.id = data.id;
-    // headQuarterForm.name = data.name;
-    // headQuarterForm.latitude = data.latitude;
-    // headQuarterForm.longitude = data.longitude;
-    showModal.value = true;
-};
-
-const destroy = (data: any) => {
-    // headQuarterForm.delete(route('head-quarters.destroy', data.id), {
-    //     onSuccess: () => { },
-    // });
-    customConfirmSwal({
-        title: "¿Está segur@ que desea eliminar este registro?",
-    }).then((result) => {
-        if (result.isConfirmed) {
-            form.delete(route("Modules.destroy", data.id), {
-                onSuccess: () => {
-                    customToastSwal({
-                        title: page.props.flash.success || "",
-                        icon: "success",
-                    });
-                    fetchItems();
-                },
-                onError: (err) => {
-                    console.error(err);
-                    customToastSwal({
-                        title: `Error: ${form.errors.messageError}`,
-                        text: `${form.errors.exception}`,
-                        icon: "error",
-                    });
-                },
-            });
-        }
-    });
-};
-const close = () => {
-    form.reset();
-    showModal.value = false;
-};
-//* INICIO DATATABLE SERVER SIDE */
-// Aquí se definen los encabezados de la tabla, donde key es el nombre de la columna en la base de datos
-const headers = [
-    { title: "ID", key: "id" },
-    { title: "Nombre", key: "name" },
-    { title: "Contexto", key: "context" },
-    { title: "Descripción", key: "description" },
-    { title: "Acciones", key: "actions", sortable: false },
-];
-
-// variables reactivas
-const items = ref([]);
-const total = ref(0);
-const loading = ref(false);
-const search = ref("");
-const options = ref({
-    page: 1,
-    itemsPerPage: 10,
-    sortBy: [{ key: "id", order: "desc" }],
-});
-const prefix = "permissions";
-// función para cargar datos desde Laravel
-const fetchItems = async () => {
-    loading.value = true;
-    const params = {
-        [`${prefix}_page`]: options.value.page,
-        [`${prefix}_per_page`]: options.value.itemsPerPage,
-        [`${prefix}_search`]: search.value,
-        [`${prefix}_sort`]: options.value.sortBy?.[0]?.key ?? "id",
-        [`${prefix}_order`]: options.value.sortBy?.[0]?.order ?? "desc",
-    };
-
-    // router.get(route("superadmin.permissions.index"), params, {
-    //     preserveState: true,
-    //     replace: true,
-    //     onSuccess: (page) => {
-    //         const data = page.props[prefix]?.data ?? [];
-    //         const totalCount = page.props[prefix]?.total ?? 0;
-
-    //         items.value = data;
-    //         total.value = totalCount;
-    //         loading.value = false;
-    //     },
-    // });
-};
-
-// 🔁 Observadores con debounce para evitar muchas peticiones
-watch([options, search], debounce(fetchItems, 400), { deep: true });
-/* FIN DATATABLE SERVER SIDE */
-
-const step = ref(1);
-const steps = ["Membresía", "Datos y Familia", "Documentos", "Confirmación"];
 const selectType = (membershipType: MembershipType) => {
     form.membershipType = { ...membershipType };
 
@@ -463,11 +319,77 @@ const selectType = (membershipType: MembershipType) => {
 
     form.members = members;
 };
+
+const calculateAge = (birthdate: string | null): number | null => {
+    if (!birthdate) return null;
+
+    const today = new Date();
+    const birth = new Date(birthdate);
+
+    if (Number.isNaN(birth.getTime())) return null;
+
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+
+    if (
+        monthDiff < 0 ||
+        (monthDiff === 0 && today.getDate() < birth.getDate())
+    ) {
+        age--;
+    }
+
+    return age;
+};
+
+const CHILD_RELATIONSHIP_ID = computed(() => {
+    const child = props.relationships.find((rel) => rel.name === "Hijo(a)");
+    return child?.id ?? null;
+});
+
+const isChildRelationship = (member: MemberForm) => {
+    return member.relationship_id === CHILD_RELATIONSHIP_ID.value;
+};
+
+const isSpouseRelationship = (member: MemberForm) => {
+    return member.relationship_name === "Cónyuge";
+};
+
+const birthdateRule = (member: MemberForm) => {
+    return (value: string | null) => {
+        if (!value) return "La fecha de nacimiento es requerida";
+
+        const age = calculateAge(value);
+        member.age = age;
+
+        if (age === null) return "La fecha de nacimiento no es válida";
+        if (age < 0) return "La fecha de nacimiento no es válida";
+
+        if (isChildRelationship(member) && age > 24) {
+            return "Los hijos no pueden ser mayores de 24 años";
+        }
+
+        return true;
+    };
+};
+
+const onBirthdateChange = (member: MemberForm) => {
+    member.age = calculateAge(member.birthdate);
+
+    if (!member.is_primary_holder && member.relationship_id) {
+        member.documents = buildDocumentsForRelationship(
+            member.relationship_id,
+            member.age,
+        );
+        return;
+    }
+
+    member.documents = buildMemberDocuments(member);
+};
+
 const isNextDisabled = computed(() => {
     if (step.value === 1) {
         return !form.membershipType;
     }
-
     return false;
 });
 
@@ -507,66 +429,42 @@ const handlePrev = (prev: () => void) => {
     prev();
 };
 
-const calculateAge = (birthdate: string | null): number | null => {
-    if (!birthdate) return null;
+const submit = () => {
+    form.transform((data) => ({
+        ...data,
+        members: data.members.map((member) => ({
+            local_id: member.local_id,
+            first_name: member.first_name,
+            last_name: member.last_name,
+            second_last_name: member.second_last_name,
+            birthdate: member.birthdate,
+            age: member.age,
+            birth_place: member.birth_place,
+            city: member.city,
+            state: member.state,
+            nationality: member.nationality,
+            marital_status: member.marital_status,
+            phone: member.phone,
+            email: member.email,
+            occupation: member.occupation,
+            school_name: member.school_name,
+            relationship_id: member.relationship_id,
+            relationship_name: member.relationship_name,
+            is_primary_holder: member.is_primary_holder,
+            address: member.address,
+            employment: member.employment,
+            documents: member.documents,
+        })),
+    }));
 
-    const today = new Date();
-    const birth = new Date(birthdate);
-
-    if (isNaN(birth.getTime())) return null;
-
-    let age = today.getFullYear() - birth.getFullYear();
-    const monthDiff = today.getMonth() - birth.getMonth();
-
-    if (
-        monthDiff < 0 ||
-        (monthDiff === 0 && today.getDate() < birth.getDate())
-    ) {
-        age--;
-    }
-
-    return age;
+    console.log("Payload listo para enviar", form.data());
+    // form.post(route("ruta.que.corresponda"));
 };
-const CHILD_RELATIONSHIP_ID = computed(() => {
-    const child = props.relationships?.find(
-        (rel: Relationship) => rel.name === "Hijo(a)",
-    );
-    return child?.id ?? null;
-});
-const isChildRelationship = (member: MemberForm) => {
-    return member.relationship_id === CHILD_RELATIONSHIP_ID.value;
-};
 
-const birthdateRule = (member: MemberForm) => {
-    return (value: string | null) => {
-        if (!value) return "La fecha de nacimiento es requerida";
-
-        const age = calculateAge(value);
-        member.age = age;
-
-        if (age === null) return "La fecha de nacimiento no es válida";
-
-        if (age < 0) return "La fecha de nacimiento no es válida";
-
-        if (isChildRelationship(member) && age > 24) {
-            return "Los hijos no pueden ser mayores de 24 años";
-        }
-
-        return true;
-    };
-};
-const onBirthdateChange = (member: MemberForm) => {
-    member.age = calculateAge(member.birthdate);
-
-    if (!member.is_primary_holder && member.relationship_id) {
-        member.documents = buildDocumentsForRelationship(
-            member.relationship_id,
-            member.age,
-        );
-        return;
-    }
-
-    member.documents = buildMemberDocuments(member);
+const memberLabel = (member: MemberForm) => {
+    if (member.is_primary_holder) return "Titular";
+    if (member.relationship_name) return member.relationship_name;
+    return "Familiar";
 };
 </script>
 
@@ -574,38 +472,27 @@ const onBirthdateChange = (member: MemberForm) => {
     <Head title="Alta de Socios" />
 
     <AppLayout>
-        <template #header> Alta de Socios </template>
-        <template #options>
-            <BaseButton
-                variant="elevated"
-                :icon-only="false"
-                @click="create"
-                action="add"
-            />
-        </template>
+        <template #header>Alta de Socios</template>
 
         <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
-            <!-- <div class="p-6 border-b border-gray-200"> -->
-
             <v-row>
                 <v-col cols="12">
                     <v-stepper v-model="step" :items="steps" show-actions>
-                        <template v-slot:item.1>
-                            <!-- {{ form.membershipType }} -->
-                            <!-- h3, que tipo de membresía necesita? -->
+                        <!-- STEP 1 -->
+                        <template #item.1>
                             <v-container class="h-[500px] overflow-auto">
                                 <h3 class="text-lg font-medium text-center">
                                     ¿Qué tipo de membresía necesita?
                                 </h3>
-                                <!-- El tipo de membresía determina los documentos e información que se solicitarán -->
+
                                 <p
                                     class="mb-6 text-center text-sm text-gray-600"
                                 >
                                     El tipo de membresía determina los
-                                    documentos e información que se solicitarán
+                                    documentos e información que se solicitarán.
                                 </p>
+
                                 <v-row>
-                                    <!-- Individual -->
                                     <v-col
                                         v-for="membershipType in membershipTypes"
                                         :key="membershipType.id"
@@ -634,7 +521,7 @@ const onBirthdateChange = (member: MemberForm) => {
                                                                     ? 'mdi-account-multiple'
                                                                     : 'mdi-account'
                                                             "
-                                                        ></v-icon>
+                                                        />
                                                     </v-avatar>
                                                 </v-col>
 
@@ -646,16 +533,12 @@ const onBirthdateChange = (member: MemberForm) => {
                                                             membershipType.name
                                                         }}
                                                     </h3>
+
                                                     <p class="text-body-2 mt-2">
                                                         {{
                                                             membershipType.description
                                                         }}
                                                     </p>
-                                                    <!-- <p>
-                                                        {{
-                                                            membershipType.document_types
-                                                        }}
-                                                    </p> -->
 
                                                     <div
                                                         class="mt-4 h-64 overflow-auto"
@@ -671,7 +554,7 @@ const onBirthdateChange = (member: MemberForm) => {
                                                             >
                                                                 {{
                                                                     doc.pivot
-                                                                        .number_files ==
+                                                                        .number_files ===
                                                                     1
                                                                         ? ""
                                                                         : `${doc.pivot.number_files} x `
@@ -688,7 +571,8 @@ const onBirthdateChange = (member: MemberForm) => {
                             </v-container>
                         </template>
 
-                        <template v-slot:item.2>
+                        <!-- STEP 2 -->
+                        <template #item.2>
                             <v-form ref="familyStepRef">
                                 <v-container class="overflow-auto h-[500px]">
                                     <div
@@ -701,12 +585,7 @@ const onBirthdateChange = (member: MemberForm) => {
                                                 class="d-flex justify-space-between align-center mb-4"
                                             >
                                                 <h4>
-                                                    {{
-                                                        member.is_primary_holder
-                                                            ? "Titular"
-                                                            : member.relationship_name ||
-                                                              "Familiar"
-                                                    }}
+                                                    {{ memberLabel(member) }}
                                                 </h4>
 
                                                 <v-btn
@@ -723,7 +602,16 @@ const onBirthdateChange = (member: MemberForm) => {
                                                 </v-btn>
                                             </div>
 
+                                            <!-- DATOS PERSONALES -->
                                             <v-row>
+                                                <v-col cols="12">
+                                                    <h5
+                                                        class="text-subtitle-1 font-weight-bold mb-2"
+                                                    >
+                                                        Datos personales
+                                                    </h5>
+                                                </v-col>
+
                                                 <v-col
                                                     v-if="
                                                         !member.is_primary_holder
@@ -741,17 +629,16 @@ const onBirthdateChange = (member: MemberForm) => {
                                                         item-title="name"
                                                         item-value="id"
                                                         label="Parentesco"
+                                                        :rules="[
+                                                            selectRequired,
+                                                        ]"
+                                                        :disabled="
+                                                            member.is_locked
+                                                        "
                                                         @update:modelValue="
                                                             onRelationshipChange(
                                                                 member,
                                                             )
-                                                        "
-                                                        :rules="[
-                                                            selectRequired,
-                                                        ]"
-                                                        ,
-                                                        :disabled="
-                                                            member.is_locked
                                                         "
                                                     />
                                                 </v-col>
@@ -805,6 +692,7 @@ const onBirthdateChange = (member: MemberForm) => {
                                                         "
                                                     />
                                                 </v-col>
+
                                                 <v-col
                                                     cols="12"
                                                     md="4"
@@ -819,13 +707,42 @@ const onBirthdateChange = (member: MemberForm) => {
                                                     />
                                                 </v-col>
 
-                                                <v-col
-                                                    v-if="
-                                                        member.is_primary_holder
-                                                    "
-                                                    cols="12"
-                                                    md="4"
-                                                >
+                                                <v-col v-if="member.is_primary_holder ||
+                                                        isSpouseRelationship(
+                                                            member,
+                                                        )" cols="12" md="4">
+                                                    <v-text-field
+                                                        v-model="
+                                                            member.birth_place
+                                                        "
+                                                        label="Lugar de nacimiento"
+                                                    />
+                                                </v-col>
+
+                                                <v-col v-if="member.is_primary_holder ||
+                                                        isSpouseRelationship(
+                                                            member,
+                                                        )" cols="12" md="4">
+                                                    <v-text-field
+                                                        v-model="member.city"
+                                                        label="Ciudad"
+                                                    />
+                                                </v-col>
+
+                                                <v-col v-if="member.is_primary_holder ||
+                                                        isSpouseRelationship(
+                                                            member,
+                                                        )" cols="12" md="4">
+                                                    <v-text-field
+                                                        v-model="member.state"
+                                                        label="Estado"
+                                                    />
+                                                </v-col>
+
+                                                <v-col v-if="member.is_primary_holder ||
+                                                        isSpouseRelationship(
+                                                            member,
+                                                        )" cols="12" md="4">
                                                     <v-text-field
                                                         v-model="
                                                             member.nationality
@@ -835,11 +752,14 @@ const onBirthdateChange = (member: MemberForm) => {
                                                 </v-col>
 
                                                 <v-col
-                                                    v-if="
-                                                        member.is_primary_holder
-                                                    "
                                                     cols="12"
                                                     md="4"
+                                                    v-if="
+                                                        member.is_primary_holder ||
+                                                        isSpouseRelationship(
+                                                            member,
+                                                        )
+                                                    "
                                                 >
                                                     <v-text-field
                                                         v-model="
@@ -850,19 +770,26 @@ const onBirthdateChange = (member: MemberForm) => {
                                                 </v-col>
 
                                                 <v-col
-                                                    v-if="
-                                                        member.is_primary_holder
-                                                    "
                                                     cols="12"
                                                     md="4"
+                                                    v-if="
+                                                        member.is_primary_holder ||
+                                                        isSpouseRelationship(
+                                                            member,
+                                                        )
+                                                    "
                                                 >
                                                     <v-text-field
                                                         v-model="member.phone"
                                                         label="Teléfono"
-                                                        :rules="[
-                                                            required,
-                                                            validatePhone,
-                                                        ]"
+                                                        :rules="
+                                                            member.is_primary_holder
+                                                                ? [
+                                                                      required,
+                                                                      validatePhone,
+                                                                  ]
+                                                                : []
+                                                        "
                                                     />
                                                 </v-col>
 
@@ -870,21 +797,23 @@ const onBirthdateChange = (member: MemberForm) => {
                                                     <v-text-field
                                                         v-model="member.email"
                                                         label="Correo"
-                                                        :rules="[
+                                                        :rules="
                                                             member.is_primary_holder
-                                                                ? required
-                                                                : null,
-                                                            email,
-                                                        ]"
+                                                                ? [
+                                                                      required,
+                                                                      email,
+                                                                  ]
+                                                                : [email]
+                                                        "
                                                     />
                                                 </v-col>
 
                                                 <v-col
+                                                    cols="12"
+                                                    md="4"
                                                     v-if="
                                                         member.is_primary_holder
                                                     "
-                                                    cols="12"
-                                                    md="4"
                                                 >
                                                     <v-text-field
                                                         v-model="
@@ -893,9 +822,154 @@ const onBirthdateChange = (member: MemberForm) => {
                                                         label="Ocupación"
                                                     />
                                                 </v-col>
+
+                                                <v-col
+                                                    cols="12"
+                                                    md="4"
+                                                    v-if="
+                                                        isChildRelationship(
+                                                            member,
+                                                        )
+                                                    "
+                                                >
+                                                    <v-text-field
+                                                        v-model="
+                                                            member.school_name
+                                                        "
+                                                        label="Colegio"
+                                                    />
+                                                </v-col>
+                                            </v-row>
+
+                                            <!-- DOMICILIO SOLO TITULAR -->
+                                            <v-row
+                                                v-if="member.is_primary_holder"
+                                                class="mt-2"
+                                            >
+                                                <v-col cols="12">
+                                                    <h5
+                                                        class="text-subtitle-1 font-weight-bold mb-2"
+                                                    >
+                                                        Domicilio
+                                                    </h5>
+                                                </v-col>
+
+                                                <v-col cols="12" md="4">
+                                                    <v-text-field
+                                                        v-model="
+                                                            member.address
+                                                                .street
+                                                        "
+                                                        label="Calle"
+                                                    />
+                                                </v-col>
+
+                                                <v-col cols="12" md="4">
+                                                    <v-text-field
+                                                        v-model="
+                                                            member.address
+                                                                .neighborhood
+                                                        "
+                                                        label="Colonia"
+                                                    />
+                                                </v-col>
+
+                                                <v-col cols="12" md="4">
+                                                    <v-text-field
+                                                        v-model="
+                                                            member.address
+                                                                .postal_code
+                                                        "
+                                                        label="Código postal"
+                                                    />
+                                                </v-col>
+
+                                                <v-col cols="12" md="4">
+                                                    <v-text-field
+                                                        v-model="
+                                                            member.address.city
+                                                        "
+                                                        label="Ciudad domicilio"
+                                                    />
+                                                </v-col>
+
+                                                <v-col cols="12" md="4">
+                                                    <v-text-field
+                                                        v-model="
+                                                            member.address.state
+                                                        "
+                                                        label="Estado domicilio"
+                                                    />
+                                                </v-col>
+
+                                                <v-col cols="12" md="4">
+                                                    <v-text-field
+                                                        v-model="
+                                                            member.address
+                                                                .country
+                                                        "
+                                                        label="País"
+                                                    />
+                                                </v-col>
+
+                                                <v-col cols="12" md="4">
+                                                    <v-text-field
+                                                        v-model="
+                                                            member.address
+                                                                .years_in_city
+                                                        "
+                                                        type="number"
+                                                        label="Años radicando en la ciudad"
+                                                    />
+                                                </v-col>
+                                            </v-row>
+
+                                            <!-- EMPLEO SOLO TITULAR -->
+                                            <v-row
+                                                v-if="member.is_primary_holder"
+                                                class="mt-2"
+                                            >
+                                                <v-col cols="12">
+                                                    <h5
+                                                        class="text-subtitle-1 font-weight-bold mb-2"
+                                                    >
+                                                        Información laboral
+                                                    </h5>
+                                                </v-col>
+
+                                                <v-col cols="12" md="4">
+                                                    <v-text-field
+                                                        v-model="
+                                                            member.employment
+                                                                .company_name
+                                                        "
+                                                        label="Empresa"
+                                                    />
+                                                </v-col>
+
+                                                <v-col cols="12" md="4">
+                                                    <v-text-field
+                                                        v-model="
+                                                            member.employment
+                                                                .company_address
+                                                        "
+                                                        label="Dirección empresa"
+                                                    />
+                                                </v-col>
+
+                                                <v-col cols="12" md="4">
+                                                    <v-text-field
+                                                        v-model="
+                                                            member.employment
+                                                                .company_phone
+                                                        "
+                                                        label="Teléfono empresa"
+                                                    />
+                                                </v-col>
                                             </v-row>
                                         </v-card>
                                     </div>
+
                                     <v-btn
                                         v-if="
                                             form.membershipType
@@ -910,7 +984,8 @@ const onBirthdateChange = (member: MemberForm) => {
                             </v-form>
                         </template>
 
-                        <template v-slot:item.3>
+                        <!-- STEP 3 -->
+                        <template #item.3>
                             <v-form ref="documentsStepRef">
                                 <v-container class="h-[500px] overflow-auto">
                                     <div class="mb-4">
@@ -932,11 +1007,7 @@ const onBirthdateChange = (member: MemberForm) => {
                                             <h4
                                                 class="text-subtitle-1 font-weight-bold mb-4"
                                             >
-                                                {{
-                                                    member.is_primary_holder
-                                                        ? "Titular"
-                                                        : member.relationship_name
-                                                }}
+                                                {{ memberLabel(member) }}
                                             </h4>
 
                                             <v-row>
@@ -958,6 +1029,7 @@ const onBirthdateChange = (member: MemberForm) => {
                                                             >*</span
                                                         >
                                                     </div>
+
                                                     <CustomFileUploadField
                                                         v-model="doc.files"
                                                         :label="doc.name"
@@ -978,7 +1050,9 @@ const onBirthdateChange = (member: MemberForm) => {
                                                             doc.allow_multiple
                                                         "
                                                         :rules="[
-                                                            fileExactCountRule(doc.number_files),
+                                                            fileExactCountRule(
+                                                                doc.number_files,
+                                                            ),
                                                             requiredFileRule,
                                                             fileTypeRule(
                                                                 doc.allowed_extensions,
@@ -993,11 +1067,63 @@ const onBirthdateChange = (member: MemberForm) => {
                                 </v-container>
                             </v-form>
                         </template>
-                        <!-- Confirmación -->
-                        <template v-slot:item.4>
-                            <h3 class="text-title-large my-0">Confirmación</h3>
+
+                        <!-- STEP 4 -->
+                        <template #item.4>
+                            <v-container class="h-[500px] overflow-auto">
+                                <h3 class="text-title-large mb-4">
+                                    Confirmación
+                                </h3>
+
+                                <v-card class="pa-4 mb-4">
+                                    <p>
+                                        <strong>Membresía:</strong>
+                                        {{ form.membershipType?.name }}
+                                    </p>
+                                    <p>
+                                        <strong>Total de integrantes:</strong>
+                                        {{ form.members.length }}
+                                    </p>
+                                </v-card>
+
+                                <v-card
+                                    v-for="member in form.members"
+                                    :key="member.local_id"
+                                    class="pa-4 mb-4"
+                                >
+                                    <h4 class="font-weight-bold mb-2">
+                                        {{ memberLabel(member) }}
+                                    </h4>
+                                    <p>
+                                        {{ member.first_name }}
+                                        {{ member.last_name }}
+                                        {{ member.second_last_name || "" }}
+                                    </p>
+                                    <p v-if="member.birthdate">
+                                        <strong>Fecha de nacimiento:</strong>
+                                        {{ member.birthdate }}
+                                    </p>
+                                    <p v-if="member.phone">
+                                        <strong>Teléfono:</strong>
+                                        {{ member.phone }}
+                                    </p>
+                                    <p v-if="member.email">
+                                        <strong>Correo:</strong>
+                                        {{ member.email }}
+                                    </p>
+                                    <p v-if="member.school_name">
+                                        <strong>Colegio:</strong>
+                                        {{ member.school_name }}
+                                    </p>
+                                </v-card>
+
+                                <v-btn color="success" @click="submit">
+                                    Confirmar y guardar
+                                </v-btn>
+                            </v-container>
                         </template>
-                        <template v-slot:actions="{ next, prev }">
+
+                        <template #actions="{ next, prev }">
                             <div class="d-flex w-100">
                                 <v-btn
                                     variant="text"
@@ -1012,97 +1138,19 @@ const onBirthdateChange = (member: MemberForm) => {
                                 <v-btn
                                     color="primary"
                                     @click="handleNext(next)"
+                                    :disabled="isNextDisabled"
                                 >
                                     Siguiente
                                 </v-btn>
                             </div>
                         </template>
                     </v-stepper>
-                    <!-- <v-data-table-server
-                        fixed-header
-                        hover
-                        height="500px"
-                        :headers="headers"
-                        :items="items"
-                        :items-length="total"
-                        :loading="loading"
-                        v-model:options="options"
-                        class="elevation-1"
-                        :items-per-page-options="[10, 25, 50, 100]"
-                        items-per-page-text=" Mostrar"
-                        no-data-text="No hay registros para mostrar"
-                    >
-                        <template #top>
-                            <v-text-field
-                                v-model="search"
-                                label="Buscar permisos"
-                                class="mx-4 mt-2"
-                                clearable
-                            />
-                        </template>
-
-                        <template #item.actions="{ item }">
-                            <BaseButton
-                                action="edit"
-                                @click="edit(item)"
-                                v-if="
-                                    can.includes(
-                                        'superadmin.permissions.update',
-                                    )
-                                "
-                            />
-                            <BaseButton
-                                @click="destroy(item)"
-                                action="delete"
-                                v-if="
-                                    can.includes(
-                                        'superadmin.permissions.destroy',
-                                    )
-                                "
-                            />
-                        </template>
-                    </v-data-table-server> -->
                 </v-col>
             </v-row>
-
-            <!-- </div> -->
         </div>
-        <v-dialog v-model="showModal" max-width="600" persistent>
-            <v-form @submit.prevent="save" ref="formSendRef">
-                <v-card
-                    prepend-icon="mdi-account"
-                    :title="`Form|${form.id ? 'Edit' : 'Create'}`"
-                >
-                    <v-card-text class="overflow-y-auto h-full">
-                        <v-text-field
-                            v-model="form.name"
-                            label="Nombre"
-                            persistent-hint
-                            :rules="[required]"
-                        />
-                    </v-card-text>
-                    <v-card-actions>
-                        <v-spacer></v-spacer>
-                        <BaseButton
-                            :icon-only="false"
-                            variant="tonal"
-                            action="cancel"
-                            @click="close"
-                        />
-                        <BaseButton
-                            :text="form.id ? 'Actualizar' : 'Guardar'"
-                            variant="flat"
-                            :icon-only="false"
-                            type="submit"
-                            action="save"
-                        />
-                    </v-card-actions>
-                </v-card>
-            </v-form>
-        </v-dialog>
-        <!-- <Loader :overlay="form.processing" /> -->
     </AppLayout>
 </template>
+
 <style>
 .membership-card {
     cursor: pointer;
@@ -1114,6 +1162,7 @@ const onBirthdateChange = (member: MemberForm) => {
     transform: translateY(-4px);
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
 }
+
 .selected-membership-card {
     border: 2px solid #1976d2;
     background-color: #e3f2fd;

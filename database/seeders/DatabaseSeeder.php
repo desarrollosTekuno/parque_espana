@@ -25,6 +25,8 @@ class DatabaseSeeder extends Seeder
             SystemVariableSeeder::class,
             DocumentTypeSeeder::class,
             RelationshipSeeder::class,
+            NationalitySeeder::class,
+            MaritalStatusSeeder::class,
             RelationshipDocumentTypesSeeder::class,
             MembershipTypeSeeder::class,
             AmenitySeeder::class,

@@ -115,6 +115,16 @@ export const fileMaxCountRule =
         );
     };
 
+export const fileExactCountRule =
+    (expected: number): ValidationRule =>
+    (v: File | File[] | null) => {
+        const count = !v ? 0 : Array.isArray(v) ? v.length : 1;
+        return (
+            count === expected ||
+            `Debes subir exactamente ${expected} archivo${expected > 1 ? "s" : ""}`
+        );
+    };
+
 export const requiredFileRule = (v: File[] | null) => {
     if (!v || v.length === 0) return "Este archivo es requerido";
     return true;
