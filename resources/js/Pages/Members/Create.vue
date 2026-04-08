@@ -15,6 +15,7 @@ import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import { Head, router, useForm, usePage } from "@inertiajs/vue3";
 import { debounce } from "lodash";
 import { computed, ref, watch } from "vue";
+import { fileExactCountRule } from '../../constants/validationRules';
 const can = usePage().props.auth.permissions;
 const canRole = usePage().props.auth.roles;
 const page = usePage<any>();
@@ -977,7 +978,7 @@ const onBirthdateChange = (member: MemberForm) => {
                                                             doc.allow_multiple
                                                         "
                                                         :rules="[
-                                                            fileMaxCountRule(1),
+                                                            fileExactCountRule(doc.number_files),
                                                             requiredFileRule,
                                                             fileTypeRule(
                                                                 doc.allowed_extensions,
