@@ -23,8 +23,8 @@ class DocumentTypeSeeder extends Seeder
             // acta de matrimonio
             [
                 'code' => 'acta_matrimonio',
-                'name' => 'Acta de Matrimonio',
-                'description' => 'Documento oficial que acredita el matrimonio entre dos personas.',
+                'name' => 'Acta de Matrimonio o Concubinato',
+                'description' => 'Documento oficial que acredita el matrimonio o concubinato entre dos personas.',
                 'allowed_extensions' => 'pdf',
             ],
             // acta de nacimiento
@@ -99,7 +99,14 @@ class DocumentTypeSeeder extends Seeder
                 'name' => 'Carta de Doctor Activo',
                 'description' => 'Documento que certifica que un doctor está activo en la Beneficencia Española.',
                 'allowed_extensions' => 'pdf',
-            ]
+            ],
+            // recibo pe1 sin adeudo
+            [
+                'code' => 'recibo_pe1_sin_adeudo',
+                'name' => 'Recibo del Parque España I sin Adeudo',
+                'description' => 'Documento que certifica que una persona no tiene adeudos pendientes con el Parque España I.',
+                'allowed_extensions' => 'pdf',
+            ],
         ];
 
         foreach ($documentTypes as $type) {
