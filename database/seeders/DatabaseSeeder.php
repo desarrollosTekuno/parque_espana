@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
             ContextSeeder::class,
             PermissionSeeder::class,
             SuperAdminSeeder::class,
+            AdminClubSeeder::class,
             UserSeeder::class,
             ClubSeeder::class,
             ReservationStatusSeeder::class,
@@ -26,6 +27,7 @@ class DatabaseSeeder extends Seeder
             RelationshipSeeder::class,
             RelationshipDocumentTypesSeeder::class,
             MembershipTypeSeeder::class,
+            AmenitySeeder::class,
         ]);
     }
 }

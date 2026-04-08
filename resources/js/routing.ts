@@ -21,6 +21,7 @@ const routes: Routing[] = [
         group: null,
         // groupItems: null
     },
+    
     {
         name: "dashboard",
         title: "Inicio",
@@ -28,6 +29,28 @@ const routes: Routing[] = [
         value: "dashboard",
         group: null,
         // groupItems: null
+    },
+    {
+        name: ["members.index", "members.create", "members.edit"],
+        title: "Socios",
+        icon: "mdi-account-group-outline",
+        value: "sociosMenu",
+        group: "Socios",
+        groupItems: [
+            {
+                name: "members.index",
+                title: "Lista de socios",
+                icon: "mdi-account-group-outline",
+                value: "lista-socios",
+            },
+            // nuevo socio
+            {
+                name: "members.create",
+                title: "Nuevo socio",
+                icon: "mdi-account-plus-outline",
+                value: "nuevo-socio",
+            }
+        ],
     },
         // Clubs deportivos
     {
@@ -77,7 +100,7 @@ const routes: Routing[] = [
     },
     // Reservaciones
     {
-        name: ["dashboard"],
+        name: ["reservations.index", "guest-lists.index"],
         title: "Reservaciones",
         icon: "mdi-calendar-check",
         value: "reservacionesMenu",
@@ -115,6 +138,7 @@ const routes: Routing[] = [
         group: null,
         // groupItems: null
     },
+    
     /*
     {
         name: ["dashboard"],

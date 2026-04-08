@@ -5,7 +5,10 @@ import {
     required,
     fileTypeRule,
     fileMaxCountRule,
-    requiredFileRule
+    requiredFileRule,
+    selectRequired,
+    validatePhone,
+    email,
 } from "@/constants/validationRules";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
@@ -51,16 +54,16 @@ interface MemberForm {
     last_name: string;
     second_last_name: string | null;
     birthdate: string | null;
+    age: number | null;
     nationality: string | null;
     marital_status: string | null;
     phone: string | null;
     email: string | null;
     occupation: string | null;
-
     relationship_id: number | null;
     relationship_name: string | null;
     is_primary_holder: boolean;
-
+    is_locked: boolean;
     documents: MemberDocumentForm[];
 }
 
@@ -77,6 +80,7 @@ interface MemberDocumentForm {
 interface Memberships {
     id: number | null;
     membershipType: MembershipType | null;
+    from_membership: number | null;
     members: MemberForm[];
 }
 
@@ -89,11 +93,15 @@ const props = withDefaults(defineProps<Props>(), {
 /* refs */
 let showModal = ref(false);
 const formSendRef = ref();
+const membershipStepRef = ref();
+const familyStepRef = ref();
+const documentsStepRef = ref();
 
 /* forms */
 const form = useForm<Memberships>({
     id: null,
     membershipType: null,
+    from_membership: null,
     members: [],
 });
 
@@ -102,6 +110,7 @@ const createEmptyMember = (
     relationshipId: number | null,
     relationshipName: string | null,
     isPrimaryHolder = false,
+    isLocked = false,
 ): MemberForm => ({
     local_id: Date.now() + Math.floor(Math.random() * 1000),
     first_name: "",
@@ -116,7 +125,9 @@ const createEmptyMember = (
     relationship_id: relationshipId,
     relationship_name: relationshipName,
     is_primary_holder: isPrimaryHolder,
+    is_locked: isLocked,
     documents: [],
+    age: null,
 });
 
 const TITULAR_RELATIONSHIP_ID = 1;
@@ -152,14 +163,31 @@ const buildMemberDocuments = (member: MemberForm) => {
         files: [],
     }));
 };
+const shouldIncludeDocumentByAge = (doc: DocumentType, age: number | null) => {
+    if (age === null) return true;
 
-const buildDocumentsForRelationship = (relationshipId: number) => {
+    if (doc.name === "INE") {
+        return age >= 18;
+    }
+
+    // if (doc.name === "Fotografía Infantil") {
+    //     return age < 18;
+    // }
+
+    return true;
+};
+
+const buildDocumentsForRelationship = (
+    relationshipId: number,
+    age: number | null = null,
+) => {
     if (!form.membershipType) return [];
 
     return form.membershipType.document_types
         .filter((doc) =>
             doc.relationships.some((rel) => rel.id === relationshipId),
         )
+        .filter((doc) => shouldIncludeDocumentByAge(doc, age))
         .map((doc) => ({
             document_type_id: doc.id,
             name: doc.name,
@@ -189,10 +217,43 @@ const createPrimaryHolder = (): MemberForm => {
         relationship_id: null,
         relationship_name: null,
         is_primary_holder: true,
+        is_locked: true,
+        age: null,
         documents: [],
     };
 
     member.documents = buildMemberDocuments(member);
+
+    return member;
+};
+
+const createSpouseMember = (): MemberForm | null => {
+    const spouseRelationship = props.relationships?.find(
+        (rel: Relationship) => rel.name === "Cónyuge",
+    );
+
+    if (!spouseRelationship) return null;
+
+    const member: MemberForm = {
+        local_id: Date.now() + Math.floor(Math.random() * 1000),
+        first_name: "",
+        last_name: "",
+        second_last_name: "",
+        birthdate: null,
+        nationality: "",
+        marital_status: "",
+        phone: "",
+        email: "",
+        occupation: "",
+        relationship_id: spouseRelationship.id,
+        relationship_name: spouseRelationship.name,
+        is_primary_holder: false,
+        is_locked: true,
+        age: null,
+        documents: [],
+    };
+
+    member.documents = buildDocumentsForRelationship(spouseRelationship.id);
 
     return member;
 };
@@ -211,6 +272,8 @@ const addFamilyMember = () => {
         relationship_id: null,
         relationship_name: null,
         is_primary_holder: false,
+        is_locked: false,
+        age: null,
         documents: [],
     });
 };
@@ -230,9 +293,12 @@ const onRelationshipChange = (member: MemberForm) => {
 };
 
 const removeMember = (localId: number) => {
-    form.members = form.members.filter((member) => member.local_id !== localId);
-};
+    const member = form.members.find((m) => m.local_id === localId);
 
+    if (!member || member.is_locked) return;
+
+    form.members = form.members.filter((m) => m.local_id !== localId);
+};
 // documents
 
 const create = () => {
@@ -384,7 +450,17 @@ const step = ref(1);
 const steps = ["Membresía", "Datos y Familia", "Documentos", "Confirmación"];
 const selectType = (membershipType: MembershipType) => {
     form.membershipType = { ...membershipType };
-    form.members = [createPrimaryHolder()];
+
+    const members: MemberForm[] = [createPrimaryHolder()];
+
+    if (membershipType.allows_multiple_members) {
+        const spouse = createSpouseMember();
+        if (spouse) {
+            members.push(spouse);
+        }
+    }
+
+    form.members = members;
 };
 const isNextDisabled = computed(() => {
     if (step.value === 1) {
@@ -393,6 +469,104 @@ const isNextDisabled = computed(() => {
 
     return false;
 });
+
+const handleNext = async (next: () => void) => {
+    if (step.value === 1) {
+        if (!form.membershipType) return;
+        next();
+        return;
+    }
+
+    if (step.value === 2) {
+        const { valid } = await familyStepRef.value?.validate();
+        if (!valid) return;
+        next();
+        return;
+    }
+
+    if (step.value === 3) {
+        const { valid } = await documentsStepRef.value?.validate();
+        if (!valid) return;
+        next();
+        return;
+    }
+
+    next();
+};
+
+const handlePrev = (prev: () => void) => {
+    if (step.value === 3) {
+        documentsStepRef.value?.resetValidation();
+    }
+
+    if (step.value === 2) {
+        familyStepRef.value?.resetValidation();
+    }
+
+    prev();
+};
+
+const calculateAge = (birthdate: string | null): number | null => {
+    if (!birthdate) return null;
+
+    const today = new Date();
+    const birth = new Date(birthdate);
+
+    if (isNaN(birth.getTime())) return null;
+
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+
+    if (
+        monthDiff < 0 ||
+        (monthDiff === 0 && today.getDate() < birth.getDate())
+    ) {
+        age--;
+    }
+
+    return age;
+};
+const CHILD_RELATIONSHIP_ID = computed(() => {
+    const child = props.relationships?.find(
+        (rel: Relationship) => rel.name === "Hijo(a)",
+    );
+    return child?.id ?? null;
+});
+const isChildRelationship = (member: MemberForm) => {
+    return member.relationship_id === CHILD_RELATIONSHIP_ID.value;
+};
+
+const birthdateRule = (member: MemberForm) => {
+    return (value: string | null) => {
+        if (!value) return "La fecha de nacimiento es requerida";
+
+        const age = calculateAge(value);
+        member.age = age;
+
+        if (age === null) return "La fecha de nacimiento no es válida";
+
+        if (age < 0) return "La fecha de nacimiento no es válida";
+
+        if (isChildRelationship(member) && age > 24) {
+            return "Los hijos no pueden ser mayores de 24 años";
+        }
+
+        return true;
+    };
+};
+const onBirthdateChange = (member: MemberForm) => {
+    member.age = calculateAge(member.birthdate);
+
+    if (!member.is_primary_holder && member.relationship_id) {
+        member.documents = buildDocumentsForRelationship(
+            member.relationship_id,
+            member.age,
+        );
+        return;
+    }
+
+    member.documents = buildMemberDocuments(member);
+};
 </script>
 
 <template>
@@ -411,245 +585,316 @@ const isNextDisabled = computed(() => {
 
         <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
             <!-- <div class="p-6 border-b border-gray-200"> -->
-            <v-form @submit.prevent="save" ref="formSendRef">
-                <v-row>
-                    <v-col cols="12">
-                        <v-stepper v-model="step" :items="steps" show-actions>
-                            <template v-slot:item.1>
-                                <!-- {{ form.membershipType }} -->
-                                <!-- h3, que tipo de membresía necesita? -->
-                                <v-container class="h-[500px] overflow-auto">
-                                    <h3 class="text-lg font-medium text-center">
-                                        ¿Qué tipo de membresía necesita?
-                                    </h3>
-                                    <!-- El tipo de membresía determina los documentos e información que se solicitarán -->
-                                    <p
-                                        class="mb-6 text-center text-sm text-gray-600"
-                                    >
-                                        El tipo de membresía determina los
-                                        documentos e información que se
-                                        solicitarán
-                                    </p>
-                                    <v-row>
-                                        <!-- Individual -->
-                                        <v-col
-                                            v-for="membershipType in membershipTypes"
-                                            :key="membershipType.id"
-                                            cols="12"
-                                            md="6"
-                                        >
-                                            <v-card
-                                                class="pa-6 membership-card"
-                                                elevation="2"
-                                                :class="{
-                                                    'selected-membership-card':
-                                                        form.membershipType
-                                                            ?.id ===
-                                                        membershipType.id,
-                                                }"
-                                                @click="
-                                                    selectType(membershipType)
-                                                "
-                                            >
-                                                <v-row no-gutters>
-                                                    <v-col cols="auto">
-                                                        <v-avatar
-                                                            size="56"
-                                                            color="grey-lighten-3"
-                                                        >
-                                                            <v-icon
-                                                                :icon="
-                                                                    membershipType.allows_multiple_members
-                                                                        ? 'mdi-account-multiple'
-                                                                        : 'mdi-account'
-                                                                "
-                                                            ></v-icon>
-                                                        </v-avatar>
-                                                    </v-col>
 
-                                                    <v-col class="ml-4">
-                                                        <h3
-                                                            class="text-h6 font-weight-medium"
-                                                        >
-                                                            {{
-                                                                membershipType.name
-                                                            }}
-                                                        </h3>
-                                                        <p
-                                                            class="text-body-2 mt-2"
-                                                        >
-                                                            {{
-                                                                membershipType.description
-                                                            }}
-                                                        </p>
-                                                        <!-- <p>
+            <v-row>
+                <v-col cols="12">
+                    <v-stepper v-model="step" :items="steps" show-actions>
+                        <template v-slot:item.1>
+                            <!-- {{ form.membershipType }} -->
+                            <!-- h3, que tipo de membresía necesita? -->
+                            <v-container class="h-[500px] overflow-auto">
+                                <h3 class="text-lg font-medium text-center">
+                                    ¿Qué tipo de membresía necesita?
+                                </h3>
+                                <!-- El tipo de membresía determina los documentos e información que se solicitarán -->
+                                <p
+                                    class="mb-6 text-center text-sm text-gray-600"
+                                >
+                                    El tipo de membresía determina los
+                                    documentos e información que se solicitarán
+                                </p>
+                                <v-row>
+                                    <!-- Individual -->
+                                    <v-col
+                                        v-for="membershipType in membershipTypes"
+                                        :key="membershipType.id"
+                                        cols="12"
+                                        md="6"
+                                    >
+                                        <v-card
+                                            class="pa-6 membership-card"
+                                            elevation="2"
+                                            :class="{
+                                                'selected-membership-card':
+                                                    form.membershipType?.id ===
+                                                    membershipType.id,
+                                            }"
+                                            @click="selectType(membershipType)"
+                                        >
+                                            <v-row no-gutters>
+                                                <v-col cols="auto">
+                                                    <v-avatar
+                                                        size="56"
+                                                        color="grey-lighten-3"
+                                                    >
+                                                        <v-icon
+                                                            :icon="
+                                                                membershipType.allows_multiple_members
+                                                                    ? 'mdi-account-multiple'
+                                                                    : 'mdi-account'
+                                                            "
+                                                        ></v-icon>
+                                                    </v-avatar>
+                                                </v-col>
+
+                                                <v-col class="ml-4">
+                                                    <h3
+                                                        class="text-h6 font-weight-medium"
+                                                    >
+                                                        {{
+                                                            membershipType.name
+                                                        }}
+                                                    </h3>
+                                                    <p class="text-body-2 mt-2">
+                                                        {{
+                                                            membershipType.description
+                                                        }}
+                                                    </p>
+                                                    <!-- <p>
                                                         {{
                                                             membershipType.document_types
                                                         }}
                                                     </p> -->
 
-                                                        <div
-                                                            class="mt-4 h-64 overflow-auto"
+                                                    <div
+                                                        class="mt-4 h-64 overflow-auto"
+                                                    >
+                                                        <strong
+                                                            >Documentos
+                                                            requeridos:</strong
                                                         >
-                                                            <strong
-                                                                >Documentos
-                                                                requeridos:</strong
+                                                        <ul class="mt-2">
+                                                            <li
+                                                                v-for="doc in membershipType.document_types"
+                                                                :key="doc.id"
                                                             >
-                                                            <ul class="mt-2">
-                                                                <li
-                                                                    v-for="doc in membershipType.document_types"
-                                                                    :key="
-                                                                        doc.id
-                                                                    "
-                                                                >
-                                                                    {{
-                                                                        doc
-                                                                            .pivot
-                                                                            .number_files ==
-                                                                        1
-                                                                            ? ""
-                                                                            : `${doc.pivot.number_files} x `
-                                                                    }}
-                                                                    {{
-                                                                        doc.name
-                                                                    }}
-                                                                </li>
-                                                            </ul>
-                                                        </div>
-                                                    </v-col>
-                                                </v-row>
-                                            </v-card>
-                                        </v-col>
-                                    </v-row>
-                                </v-container>
-                            </template>
+                                                                {{
+                                                                    doc.pivot
+                                                                        .number_files ==
+                                                                    1
+                                                                        ? ""
+                                                                        : `${doc.pivot.number_files} x `
+                                                                }}
+                                                                {{ doc.name }}
+                                                            </li>
+                                                        </ul>
+                                                    </div>
+                                                </v-col>
+                                            </v-row>
+                                        </v-card>
+                                    </v-col>
+                                </v-row>
+                            </v-container>
+                        </template>
 
-                            <template v-slot:item.2>
+                        <template v-slot:item.2>
+                            <v-form ref="familyStepRef">
                                 <v-container class="overflow-auto h-[500px]">
                                     <div
-                                    v-for="member in form.members"
-                                    :key="member.local_id"
-                                    class="mb-6"
-                                >
-                                    <v-card class="pa-4">
-                                        <div
-                                            class="d-flex justify-space-between align-center mb-4"
-                                        >
-                                            <h4>
-                                                {{
-                                                    member.is_primary_holder
-                                                        ? "Titular"
-                                                        : "Familiar"
-                                                }}
-                                            </h4>
-
-                                            <v-btn
-                                                v-if="!member.is_primary_holder"
-                                                color="error"
-                                                variant="text"
-                                                @click="
-                                                    removeMember(
-                                                        member.local_id,
-                                                    )
-                                                "
+                                        v-for="member in form.members"
+                                        :key="member.local_id"
+                                        class="mb-6"
+                                    >
+                                        <v-card class="pa-4">
+                                            <div
+                                                class="d-flex justify-space-between align-center mb-4"
                                             >
-                                                Eliminar
-                                            </v-btn>
-                                        </div>
+                                                <h4>
+                                                    {{
+                                                        member.is_primary_holder
+                                                            ? "Titular"
+                                                            : member.relationship_name ||
+                                                              "Familiar"
+                                                    }}
+                                                </h4>
 
-                                        <v-row>
-                                            <v-col
-                                                v-if="!member.is_primary_holder"
-                                                cols="12"
-                                                md="4"
-                                            >
-                                                <v-select
-                                                    v-model="
-                                                        member.relationship_id
-                                                    "
-                                                    :items="props.relationships"
-                                                    item-title="name"
-                                                    item-value="id"
-                                                    label="Parentesco"
-                                                    @update:modelValue="
-                                                        onRelationshipChange(
-                                                            member,
+                                                <v-btn
+                                                    v-if="!member.is_locked"
+                                                    color="error"
+                                                    variant="text"
+                                                    @click="
+                                                        removeMember(
+                                                            member.local_id,
                                                         )
                                                     "
-                                                />
-                                            </v-col>
+                                                >
+                                                    Eliminar
+                                                </v-btn>
+                                            </div>
 
-                                            <v-col cols="12" md="4">
-                                                <v-text-field
-                                                    v-model="member.first_name"
-                                                    label="Nombre(s)"
-                                                    :rules="[required]"
-                                                />
-                                            </v-col>
-
-                                            <v-col cols="12" md="4">
-                                                <v-text-field
-                                                    v-model="member.last_name"
-                                                    label="Apellido paterno"
-                                                />
-                                            </v-col>
-
-                                            <v-col cols="12" md="4">
-                                                <v-text-field
-                                                    v-model="
-                                                        member.second_last_name
+                                            <v-row>
+                                                <v-col
+                                                    v-if="
+                                                        !member.is_primary_holder
                                                     "
-                                                    label="Apellido materno"
-                                                />
-                                            </v-col>
+                                                    cols="12"
+                                                    md="4"
+                                                >
+                                                    <v-select
+                                                        v-model="
+                                                            member.relationship_id
+                                                        "
+                                                        :items="
+                                                            props.relationships
+                                                        "
+                                                        item-title="name"
+                                                        item-value="id"
+                                                        label="Parentesco"
+                                                        @update:modelValue="
+                                                            onRelationshipChange(
+                                                                member,
+                                                            )
+                                                        "
+                                                        :rules="[
+                                                            selectRequired,
+                                                        ]"
+                                                        ,
+                                                        :disabled="
+                                                            member.is_locked
+                                                        "
+                                                    />
+                                                </v-col>
 
-                                            <v-col cols="12" md="4">
-                                                <v-text-field
-                                                    v-model="member.birthdate"
-                                                    type="date"
-                                                    label="Fecha de nacimiento"
-                                                />
-                                            </v-col>
+                                                <v-col cols="12" md="4">
+                                                    <v-text-field
+                                                        v-model="
+                                                            member.first_name
+                                                        "
+                                                        label="Nombre(s)"
+                                                        :rules="[required]"
+                                                    />
+                                                </v-col>
 
-                                            <v-col cols="12" md="4">
-                                                <v-text-field
-                                                    v-model="member.nationality"
-                                                    label="Nacionalidad"
-                                                />
-                                            </v-col>
+                                                <v-col cols="12" md="4">
+                                                    <v-text-field
+                                                        v-model="
+                                                            member.last_name
+                                                        "
+                                                        label="Apellido paterno"
+                                                        :rules="[required]"
+                                                    />
+                                                </v-col>
 
-                                            <v-col cols="12" md="4">
-                                                <v-text-field
-                                                    v-model="
-                                                        member.marital_status
+                                                <v-col cols="12" md="4">
+                                                    <v-text-field
+                                                        v-model="
+                                                            member.second_last_name
+                                                        "
+                                                        label="Apellido materno"
+                                                    />
+                                                </v-col>
+
+                                                <v-col cols="12" md="4">
+                                                    <v-text-field
+                                                        v-model="
+                                                            member.birthdate
+                                                        "
+                                                        type="date"
+                                                        label="Fecha de nacimiento"
+                                                        :rules="[
+                                                            required,
+                                                            birthdateRule(
+                                                                member,
+                                                            ),
+                                                        ]"
+                                                        @update:modelValue="
+                                                            onBirthdateChange(
+                                                                member,
+                                                            )
+                                                        "
+                                                    />
+                                                </v-col>
+                                                <v-col
+                                                    cols="12"
+                                                    md="4"
+                                                    v-if="member.age !== null"
+                                                >
+                                                    <v-text-field
+                                                        :model-value="
+                                                            member.age
+                                                        "
+                                                        label="Edad"
+                                                        readonly
+                                                    />
+                                                </v-col>
+
+                                                <v-col
+                                                    v-if="
+                                                        member.is_primary_holder
                                                     "
-                                                    label="Estado civil"
-                                                />
-                                            </v-col>
+                                                    cols="12"
+                                                    md="4"
+                                                >
+                                                    <v-text-field
+                                                        v-model="
+                                                            member.nationality
+                                                        "
+                                                        label="Nacionalidad"
+                                                    />
+                                                </v-col>
 
-                                            <v-col cols="12" md="4">
-                                                <v-text-field
-                                                    v-model="member.phone"
-                                                    label="Teléfono"
-                                                />
-                                            </v-col>
+                                                <v-col
+                                                    v-if="
+                                                        member.is_primary_holder
+                                                    "
+                                                    cols="12"
+                                                    md="4"
+                                                >
+                                                    <v-text-field
+                                                        v-model="
+                                                            member.marital_status
+                                                        "
+                                                        label="Estado civil"
+                                                    />
+                                                </v-col>
 
-                                            <v-col cols="12" md="4">
-                                                <v-text-field
-                                                    v-model="member.email"
-                                                    label="Correo"
-                                                />
-                                            </v-col>
+                                                <v-col
+                                                    v-if="
+                                                        member.is_primary_holder
+                                                    "
+                                                    cols="12"
+                                                    md="4"
+                                                >
+                                                    <v-text-field
+                                                        v-model="member.phone"
+                                                        label="Teléfono"
+                                                        :rules="[
+                                                            required,
+                                                            validatePhone,
+                                                        ]"
+                                                    />
+                                                </v-col>
 
-                                            <v-col cols="12" md="4">
-                                                <v-text-field
-                                                    v-model="member.occupation"
-                                                    label="Ocupación"
-                                                />
-                                            </v-col>
-                                        </v-row>
-                                    </v-card>
-                                </div>
+                                                <v-col cols="12" md="4">
+                                                    <v-text-field
+                                                        v-model="member.email"
+                                                        label="Correo"
+                                                        :rules="[
+                                                            member.is_primary_holder
+                                                                ? required
+                                                                : null,
+                                                            email,
+                                                        ]"
+                                                    />
+                                                </v-col>
+
+                                                <v-col
+                                                    v-if="
+                                                        member.is_primary_holder
+                                                    "
+                                                    cols="12"
+                                                    md="4"
+                                                >
+                                                    <v-text-field
+                                                        v-model="
+                                                            member.occupation
+                                                        "
+                                                        label="Ocupación"
+                                                    />
+                                                </v-col>
+                                            </v-row>
+                                        </v-card>
+                                    </div>
                                     <v-btn
                                         v-if="
                                             form.membershipType
@@ -661,9 +906,11 @@ const isNextDisabled = computed(() => {
                                         Agregar familiar
                                     </v-btn>
                                 </v-container>
-                            </template>
+                            </v-form>
+                        </template>
 
-                            <template v-slot:item.3>
+                        <template v-slot:item.3>
+                            <v-form ref="documentsStepRef">
                                 <v-container class="h-[500px] overflow-auto">
                                     <div class="mb-4">
                                         <h3 class="text-h6 mb-1">Documentos</h3>
@@ -743,36 +990,34 @@ const isNextDisabled = computed(() => {
                                         </v-card>
                                     </div>
                                 </v-container>
-                            </template>
-                            <!-- Confirmación -->
-                            <template v-slot:item.4>
-                                <h3 class="text-title-large my-0">
-                                    Confirmación
-                                </h3>
-                            </template>
-                            <template v-slot:actions="{ next, prev }">
-                                <div class="d-flex w-100">
-                                    <v-btn
-                                        variant="text"
-                                        @click="prev"
-                                        :disabled="step === 1"
-                                    >
-                                        Anterior
-                                    </v-btn>
+                            </v-form>
+                        </template>
+                        <!-- Confirmación -->
+                        <template v-slot:item.4>
+                            <h3 class="text-title-large my-0">Confirmación</h3>
+                        </template>
+                        <template v-slot:actions="{ next, prev }">
+                            <div class="d-flex w-100">
+                                <v-btn
+                                    variant="text"
+                                    @click="handlePrev(prev)"
+                                    :disabled="step === 1"
+                                >
+                                    Anterior
+                                </v-btn>
 
-                                    <v-spacer />
+                                <v-spacer />
 
-                                    <v-btn
-                                        color="primary"
-                                        @click="next"
-                                        :disabled="isNextDisabled"
-                                    >
-                                        Siguiente
-                                    </v-btn>
-                                </div>
-                            </template>
-                        </v-stepper>
-                        <!-- <v-data-table-server
+                                <v-btn
+                                    color="primary"
+                                    @click="handleNext(next)"
+                                >
+                                    Siguiente
+                                </v-btn>
+                            </div>
+                        </template>
+                    </v-stepper>
+                    <!-- <v-data-table-server
                         fixed-header
                         hover
                         height="500px"
@@ -816,9 +1061,9 @@ const isNextDisabled = computed(() => {
                             />
                         </template>
                     </v-data-table-server> -->
-                    </v-col>
-                </v-row>
-            </v-form>
+                </v-col>
+            </v-row>
+
             <!-- </div> -->
         </div>
         <v-dialog v-model="showModal" max-width="600" persistent>

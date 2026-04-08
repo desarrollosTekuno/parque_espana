@@ -6,7 +6,7 @@ import type { ValidationRule } from "vuetify";
 export const required: ValidationRule = (v) => !!v || "El campo es requerido";
 
 export const email: ValidationRule = (v) =>
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) || "El correo no es válido";
+    !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) || "El correo no es válido";
 
 export const curp: ValidationRule = (v) =>
     /^[A-Z]{1}[AEIOU]{1}[A-Z]{2}\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])[HM]{1}(AS|BC|BS|CC|CL|CM|CS|CH|DF|DG|GT|GR|HG|JC|MC|MN|MS|NT|NL|OC|PL|QT|QR|SP|SL|SR|TC|TS|TL|VZ|YN|ZS)[B-DF-HJ-NP-TV-Z]{3}[A-Z\d]{1}\d{1}$/.test(
@@ -186,13 +186,31 @@ export const validateFechaNacimiento = (fecha: string): string | true => {
  * VALIDACIONES DE TELÉFONO
  * ───────────────────────────── */
 // ✅ Valida que el teléfono tenga formato correcto y 10 dígitos
-export const validatePhone = (value: string) => {
-    if (!value) return "El teléfono es requerido";
+export const validatePhone: ValidationRule = (value) => {
+    if (!value) return true; // permite vacío
 
-    // Verifica el formato exacto (55) 1234-5678
-    const regex = /^\(\d{2}\)\s\d{4}-\d{4}$/;
-    return regex.test(value) || "Debe contener solo números (10 dígitos)";
+    const cleaned = value.replace(/\D/g, ''); // quita todo lo que no sea número
+    return cleaned.length === 10 || "El teléfono debe tener 10 dígitos";
 };
+
+// const birthdateRule = (member: MemberForm) => {
+//     return (value: string | null) => {
+//         if (!value) return "La fecha de nacimiento es requerida";
+
+//         const age = calculateAge(value);
+//         member.age = age;
+
+//         if (age === null) return "La fecha de nacimiento no es válida";
+
+//         if (age < 0) return "La fecha de nacimiento no es válida";
+
+//         if (isChildRelationship(member) && age > 24) {
+//             return "Los hijos no pueden ser mayores de 24 años";
+//         }
+
+//         return true;
+//     };
+// };
 
 // ✅ Formatea y limpia en tiempo real
 export const formatPhone = (value: string): string => {

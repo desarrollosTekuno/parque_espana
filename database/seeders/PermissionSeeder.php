@@ -65,6 +65,13 @@ class PermissionSeeder extends Seeder
             array('name'=> 'amenityResource.update', 'description'=> 'Actualizar recursos de la amenidad', 'contexts' => ['web']),
             array('name'=> 'amenityResource.destroy', 'description'=> 'Eliminar recursos de la amenidad', 'contexts' => ['web']),
             // store, update and destroy to amenityResource
+            // members permissions
+            array('name' => 'members.index', 'description' => 'Ver socios del club', 'contexts' => ['web']),
+            array('name' => 'members.create', 'description' => 'Crear socios del club', 'contexts' => ['web']),
+            array('name' => 'members.store', 'description' => 'Guardar socios del club', 'contexts' => ['web']),
+            array('name' => 'members.edit', 'description' => 'Editar socios del club', 'contexts' => ['web']),
+            array('name' => 'members.update', 'description' => 'Actualizar socios del club', 'contexts' => ['web']),
+            array('name' => 'members.destroy', 'description' => 'Eliminar socios del club', 'contexts' => ['web']),
 
 
         );

@@ -18,6 +18,10 @@ class UserSeeder extends Seeder
             'email' => 'superadmin@tekuno.mx',
             'password' => bcrypt('Pa$$w0rd'),
         ]);
-
+        User::factory()->administratorClub()->create([
+            'name' => 'Administrador del Club',
+            'email' => 'antoniotoxquisosa@hotmail.com',
+            'password' => bcrypt('Pa$$w0rd'),
+        ]);
     }
 }
