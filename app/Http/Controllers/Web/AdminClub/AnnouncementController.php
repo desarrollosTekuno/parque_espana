@@ -13,10 +13,91 @@ use App\Models\AdminClub\AmenityResource;
 use App\Models\AdminClub\AnnouncementDetail;
 use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Http\UploadedFile;
 
 class AnnouncementController extends Controller
-{
+{   
+
+    public function __construct()
+    {
+        $this->middleware('permission:announcements.index')->only('index');
+        $this->middleware('permission:announcements.store')->only('store');
+        $this->middleware('permission:announcements.update')->only('update');
+        $this->middleware('permission:announcements.destroy')->only('destroy');
+    }
+
+    private function validateResourceAvailability($resourceId, $start, $end, $ignoreDetailId = null)
+    {
+        $start = Carbon::parse($start);
+        $end   = Carbon::parse($end);
+
+        /* revisar reservaciones */
+        $reservation = DB::table('reservations.reservations')
+            ->where('amenity_resource_id', $resourceId)
+            ->where('reservation_status_id', '1')
+            ->where(function($q) use ($start,$end){
+                $q->where('start_datetime','<',$end)
+                ->where('end_datetime','>',$start);
+            })->first();
+
+        if ($reservation){
+            throw ValidationException::withMessages([
+                'starts_at' =>
+                    'El recurso ya tiene una reservación de '
+                    . Carbon::parse(
+                        $reservation->start_datetime
+                    )->format('d/m/Y H:i')
+                    .' a '
+                    . Carbon::parse(
+                        $reservation->end_datetime
+                    )->format('d/m/Y H:i')
+            ]);
+        }
+
+        /*  revisar eventos   */
+        $event = DB::table('announcements.details')
+            ->where('resource_id', $resourceId)
+            ->whereNull('deleted_at')
+            ->when($ignoreDetailId,
+                fn($q)=>$q->where('id','!=',$ignoreDetailId)
+            )->where(function($q) use ($start,$end){
+                $q->where('starts_at','<',$end)
+                ->where('ends_at','>',$start);
+            })->first();
+
+        if ($event){
+            throw ValidationException::withMessages([
+                'starts_at' =>
+                    'El recurso ya tiene un evento programado desde '
+                    . Carbon::parse($event->starts_at)->format('d/m/Y H:i')
+                    .' hasta '
+                    . Carbon::parse($event->ends_at)->format('d/m/Y H:i')
+            ]);
+        }
+
+        /*   revisar bloqueos administrativos     */
+        $block = DB::table('amenities.blocked_periods')
+            ->where('resource_id',$resourceId)
+            ->whereNull('deleted_at')
+            ->where(function($q) use ($start,$end){
+                $q->where('start_time','<',$end)
+                ->where('end_time','>',$start);
+            })->first();
+
+        if ($block){
+            throw ValidationException::withMessages([
+                'starts_at' =>
+                    'El recurso está bloqueado por '
+                    . $block->reason
+                    .' de '
+                    . Carbon::parse($block->start_time)->format('H:i')
+                    .' a '
+                    . Carbon::parse($block->end_time)->format('H:i')
+            ]);
+        }
+    }
+
     public function index(Request $request)
     { 
         try {
@@ -48,9 +129,6 @@ class AnnouncementController extends Controller
             $amenities = Amenity::where('club_id',$clubId)->select('id','name')->orderBy('name')->get();
             $resources = AmenityResource::with('amenity')->whereHas('amenity', function ($q) use ($clubId) {$q->where('club_id', $clubId);})->get();
 
-            //dd($announcements);
-           // dd($amenities);
-            //dd($resources);
             return Inertia::render(
                 'AdminClubs/Announcements/Index',
                 [
@@ -69,7 +147,7 @@ class AnnouncementController extends Controller
                         'total' => 0
                     ],
                     'amenities' => [],
-                    'error' => $e->getMessage()
+                    'messageError' => $e->getMessage()
                 ]
             );
         }
@@ -85,7 +163,33 @@ class AnnouncementController extends Controller
                 $imagePath = $request->file('image')
                     ->store('announcements', 'public');
             }
+            if (in_array($request->type, ['torneo','evento'])) {
 
+                /*$start = Carbon::parse($request->starts_at);
+                $end = Carbon::parse($request->ends_at);
+
+                $conflict = AnnouncementDetail::where('resource_id', $request->resource_id)
+                    ->whereHas('announcement', function ($q) {
+                        $q->whereIn('type', ['torneo','evento']);
+                    })->where(function ($q) use ($start, $end) {
+                        $q->where('starts_at', '<', $end)
+                        ->where('ends_at', '>', $start);
+                    })->first();
+                if ($conflict) {
+                    throw ValidationException::withMessages([
+                        'starts_at' =>
+                            'El recurso está ocupado desde '
+                            . $conflict->starts_at->format('d/m/Y H:i')
+                            .' hasta '
+                            . $conflict->ends_at->format('d/m/Y H:i')
+                    ]);
+                }*/
+                $this->validateResourceAvailability(
+                       $request->resource_id,
+                       $request->starts_at,
+                       $request->ends_at,
+                );
+            }
             $announcement = Announcement::create([
                 'club_id' => $clubId,
                 'title' => $request->title,
@@ -93,7 +197,6 @@ class AnnouncementController extends Controller
                 'content' => $request->content,
                 'type' => $request->type,
                 'image' => $imagePath,
-                'is_featured' => $request->boolean('is_featured'),
                 'is_active' => $request->boolean('is_active', true),
                 'publish_at' => $request->publish_at ? Carbon::parse($request->publish_at) : null,
                 'expires_at' => $request->expires_at ? Carbon::parse($request->expires_at) : null
@@ -120,7 +223,10 @@ class AnnouncementController extends Controller
             DB::rollBack();
             report($e);
             return back()
-                ->with('error', $e->getMessage());
+                ->withErrors([
+                    'messageError' => $e->getMessage()
+                ])
+                ->withInput();
         }
     }
 
@@ -132,6 +238,35 @@ class AnnouncementController extends Controller
         try {
             DB::beginTransaction();
             $clubId = $request->club_id ?? session('club_id');
+            if (in_array($request->type, ['torneo','evento'])) {
+
+                /*$start = Carbon::parse($request->starts_at);
+                $end = Carbon::parse($request->ends_at);
+
+                $conflict = AnnouncementDetail::where('resource_id', $request->resource_id)
+                    ->where('announcement_id', '!=', $announcement->id)
+                    ->whereHas('announcement', function ($q) {
+                        $q->whereIn('type', ['torneo','evento']);
+                    })->where(function ($q) use ($start, $end) {
+                        $q->where('starts_at', '<', $end)
+                        ->where('ends_at', '>', $start);
+                    })->first();
+                if ($conflict) {
+                    throw ValidationException::withMessages([
+                        'starts_at' =>
+                            'El recurso está ocupado desde '
+                            . $conflict->starts_at->format('d/m/Y H:i')
+                            .' hasta '
+                            . $conflict->ends_at->format('d/m/Y H:i')
+                    ]);
+                }*/
+                $this->validateResourceAvailability(
+                    $request->resource_id,
+                    $request->starts_at,
+                    $request->ends_at,
+                    AnnouncementDetail::where('announcement_id', $announcement->id)->value('id')
+                );
+            }
             $imagePath = $announcement->image;
             if ($request->boolean('remove_image')) {
                 if (
@@ -158,7 +293,6 @@ class AnnouncementController extends Controller
                 'content' => $request->content,
                 'type' => $request->type,
                 'image' => $imagePath,
-                'is_featured' => $request->boolean('is_featured'),
                 'is_active' => $request->boolean('is_active', true),
                 'publish_at' => $request->publish_at ? Carbon::parse($request->publish_at) : null,
                 'expires_at' => $request->expires_at ? Carbon::parse($request->expires_at) : null
@@ -184,7 +318,10 @@ class AnnouncementController extends Controller
             DB::rollBack();
             report($e);
             return back()
-                ->with('error', $e->getMessage());
+                ->withErrors([
+                    'messageError' => $e->getMessage()
+                ])
+                ->withInput();
         }
     }
 

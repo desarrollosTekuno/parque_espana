@@ -2,11 +2,12 @@
 
 use App\Htpp\Controllers\Web\AdminClub\Announcement;
 use App\Http\Controllers\Web\AdminClub\AmenityController;
-use App\Http\Controllers\Web\AdminClub\AmenityResourceController;
 use App\Http\Controllers\Web\AdminClub\ReservationController;
+use App\Http\Controllers\Web\AdminClub\AnnouncementController;
+use App\Http\Controllers\Web\AdminClub\BlockedPeriodController;
 use App\Http\Controllers\Web\AdminClub\AmenityScheduleController;
 use App\Http\Controllers\Web\AdminClub\MemberController;
-use App\Http\Controllers\Web\AdminClub\AnnouncementController;
+use App\Http\Controllers\Web\AdminClub\AmenityResourceController;
 use App\Http\Controllers\Web\AdminClub\ReservationGuestListController;
 use App\Http\Controllers\Web\AdminClub\SystemVariableController;
 use Illuminate\Support\Facades\Route;
@@ -22,6 +23,7 @@ Route::resource('/system-variables', SystemVariableController::class)->only(['in
 Route::resource('/guest-lists', ReservationGuestListController::class)->only(['index', 'update'])->names('guest-lists');
 
 Route::resource('/announcements', AnnouncementController::class)->names('announcements');
+Route::resource('/blockedPeriods', BlockedPeriodController::class)->names('blockedPeriods');
 
 // members
 Route::resource('/members', MemberController::class)->only(['index', 'create', 'store', 'edit', 'update'])->names('members');

@@ -18,20 +18,10 @@ const changeClub = () => {
     }, {
         preserveScroll: true,
         onSuccess: () => {
-
-            const params = { ...route().params };
-
-            delete params.club_id;
-
-            // router.get(route('amenities.index'), params, {
-            //     preserveScroll: true,
-            //     replace: true
-            // });
-
-                router.reload({
-                    preserveScroll: true,
-                    replace: true
-                });
+            router.get(route(route().current(), route().params), {}, {
+                preserveScroll: true,
+                replace: true
+            });
         }
     });
 };

@@ -24,6 +24,7 @@ class AmenityResource extends Model
     protected $casts = [
         'is_active' => 'boolean',
         'capacity' => 'integer',
+        'slot_duration_minutes' => 'integer'
     ];
 
     public function amenity()

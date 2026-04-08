@@ -413,6 +413,7 @@ const resourceHeaders = [
     { title: "Amenidad", key: "amenity_name" },
     { title: "Nombre", key: "name" },
     { title: "Capacidad", key: "capacity" },
+    { title: "Reserva en minutos", key: "slot_duration_minutes" },
     { title: "Activo", key: "is_active" },
     { title: "Acciones", key: "actions", sortable: false },
 ];
@@ -895,7 +896,7 @@ watch(
                     <v-row>
                         <v-col cols="12">
                             <v-data-table-server :headers="resourceHeaders" :items="resourceItems"
-                                :items-length="resourceTotal" :loading="resourceLoading" class="elevation-1"
+                                :items-length="resourceTotal" :loading="resourceLoading" loading-text="Cargando recursos..." class="elevation-1"
                                 no-data-text="No hay recursos registrados" v-model:options="resourceOptions">
                                 <template #item.capacity="{ item }">
                                     <span v-if="item.amenity?.reservation_type === 'capacity'">
@@ -904,6 +905,14 @@ watch(
                                     <span v-else class="text-grey">
                                         No aplica
                                     </span>
+                                </template>
+                                <template #item.slot_duration_minutes="{ item }">
+                                    <span v-if="item.amenity?.reservation_type === 'hourly' || item.amenity?.reservation_type === 'capacity'">
+                                        {{ item.slot_duration_minutes ? `${item.slot_duration_minutes} min` : 'No definido' }}
+                                    </span>
+                                    <span v-else class="text-grey">
+                                        No aplica
+                                    </span> 
                                 </template>
                                 <template #item.is_active="{ item }">
                                     <v-chip :color="item.is_active ? 'green' : 'red'">

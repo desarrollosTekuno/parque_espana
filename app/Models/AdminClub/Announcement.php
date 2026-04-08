@@ -21,14 +21,12 @@ class Announcement extends Model {
         'content',
         'type',
         'image',
-        'is_featured',
         'is_active',
         'publish_at',
         'expires_at'
     ];
 
     protected $casts = [
-        'is_featured' => 'boolean',
         'is_active' => 'boolean',
         'publish_at' => 'datetime',
         'expires_at' => 'datetime',
