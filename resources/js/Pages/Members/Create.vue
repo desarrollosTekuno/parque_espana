@@ -11,6 +11,7 @@ import {
     fileExactCountRule,
 } from "@/constants/validationRules";
 import AppLayout from "@/Layouts/AppLayout.vue";
+import { customToastSwal } from "@/utils/swal";
 import { Head, useForm, usePage } from "@inertiajs/vue3";
 import { computed, ref } from "vue";
 
@@ -19,10 +20,25 @@ const page = usePage<any>();
 interface Props {
     membershipTypes?: MembershipType[];
     relationships?: Relationship[];
+    nationalities?: Nationality[];
+    maritalStatuses?: MaritalStatus[];
 }
 
 interface Relationship {
     id: number;
+    name: string;
+}
+
+interface Nationality {
+    id: number;
+    code: string;
+    name: string;
+    demonym: string | null;
+}
+
+interface MaritalStatus {
+    id: number;
+    code: string;
     name: string;
 }
 
@@ -87,8 +103,8 @@ interface MemberForm {
     city: string | null;
     state: string | null;
 
-    nationality: string | null;
-    marital_status: string | null;
+    nationality_id: number | null;
+    marital_status_id: number | null;
     phone: string | null;
     email: string | null;
     occupation: string | null;
@@ -114,7 +130,25 @@ interface MembershipsForm {
 const props = withDefaults(defineProps<Props>(), {
     membershipTypes: () => [],
     relationships: () => [],
+    nationalities: () => [],
+    maritalStatuses: () => [],
 });
+
+const nationalityOptions = computed(() =>
+    props.nationalities.map((nationality) => ({
+        id: nationality.id,
+        title: nationality.demonym
+            ? `${nationality.demonym}`
+            : nationality.name,
+    })),
+);
+
+const maritalStatusOptions = computed(() =>
+    props.maritalStatuses.map((maritalStatus) => ({
+        id: maritalStatus.id,
+        title: maritalStatus.name,
+    })),
+);
 
 const familyStepRef = ref();
 const documentsStepRef = ref();
@@ -164,8 +198,8 @@ const createEmptyMember = (
     city: "",
     state: "",
 
-    nationality: "",
-    marital_status: "",
+    nationality_id: null,
+    marital_status_id: null,
     phone: "",
     email: "",
     occupation: "",
@@ -431,9 +465,9 @@ const handlePrev = (prev: () => void) => {
 
 const submit = () => {
     form.transform((data) => ({
-        ...data,
+        membership_type_id: data.membershipType?.id ?? null,
+        from_membership_type_id: data.from_membership,
         members: data.members.map((member) => ({
-            local_id: member.local_id,
             first_name: member.first_name,
             last_name: member.last_name,
             second_last_name: member.second_last_name,
@@ -442,8 +476,8 @@ const submit = () => {
             birth_place: member.birth_place,
             city: member.city,
             state: member.state,
-            nationality: member.nationality,
-            marital_status: member.marital_status,
+            nationality_id: member.nationality_id,
+            marital_status_id: member.marital_status_id,
             phone: member.phone,
             email: member.email,
             occupation: member.occupation,
@@ -453,12 +487,19 @@ const submit = () => {
             is_primary_holder: member.is_primary_holder,
             address: member.address,
             employment: member.employment,
-            documents: member.documents,
         })),
     }));
 
-    console.log("Payload listo para enviar", form.data());
-    // form.post(route("ruta.que.corresponda"));
+    form.post(route("members.store"), {
+        preserveScroll: true,
+        onSuccess: () => {
+            customToastSwal({
+                title: page.props.flash.success || "",
+                icon: "success",
+            });
+            // form.reset();
+        },
+    });
 };
 
 const memberLabel = (member: MemberForm) => {
@@ -707,10 +748,16 @@ const memberLabel = (member: MemberForm) => {
                                                     />
                                                 </v-col>
 
-                                                <v-col v-if="member.is_primary_holder ||
+                                                <v-col
+                                                    v-if="
+                                                        member.is_primary_holder ||
                                                         isSpouseRelationship(
                                                             member,
-                                                        )" cols="12" md="4">
+                                                        )
+                                                    "
+                                                    cols="12"
+                                                    md="4"
+                                                >
                                                     <v-text-field
                                                         v-model="
                                                             member.birth_place
@@ -719,35 +766,60 @@ const memberLabel = (member: MemberForm) => {
                                                     />
                                                 </v-col>
 
-                                                <v-col v-if="member.is_primary_holder ||
+                                                <v-col
+                                                    v-if="
+                                                        member.is_primary_holder ||
                                                         isSpouseRelationship(
                                                             member,
-                                                        )" cols="12" md="4">
+                                                        )
+                                                    "
+                                                    cols="12"
+                                                    md="4"
+                                                >
                                                     <v-text-field
                                                         v-model="member.city"
                                                         label="Ciudad"
                                                     />
                                                 </v-col>
 
-                                                <v-col v-if="member.is_primary_holder ||
+                                                <v-col
+                                                    v-if="
+                                                        member.is_primary_holder ||
                                                         isSpouseRelationship(
                                                             member,
-                                                        )" cols="12" md="4">
+                                                        )
+                                                    "
+                                                    cols="12"
+                                                    md="4"
+                                                >
                                                     <v-text-field
                                                         v-model="member.state"
                                                         label="Estado"
                                                     />
                                                 </v-col>
 
-                                                <v-col v-if="member.is_primary_holder ||
+                                                <v-col
+                                                    v-if="
+                                                        member.is_primary_holder ||
                                                         isSpouseRelationship(
                                                             member,
-                                                        )" cols="12" md="4">
-                                                    <v-text-field
+                                                        )
+                                                    "
+                                                    cols="12"
+                                                    md="4"
+                                                >
+                                                    <v-autocomplete
                                                         v-model="
-                                                            member.nationality
+                                                            member.nationality_id
                                                         "
+                                                        :items="
+                                                            nationalityOptions
+                                                        "
+                                                        item-title="title"
+                                                        item-value="id"
                                                         label="Nacionalidad"
+                                                        clearable
+                                                        auto-select-first
                                                     />
                                                 </v-col>
 
@@ -761,11 +833,18 @@ const memberLabel = (member: MemberForm) => {
                                                         )
                                                     "
                                                 >
-                                                    <v-text-field
+                                                    <v-autocomplete
                                                         v-model="
-                                                            member.marital_status
+                                                            member.marital_status_id
                                                         "
+                                                        :items="
+                                                            maritalStatusOptions
+                                                        "
+                                                        item-title="title"
+                                                        item-value="id"
                                                         label="Estado civil"
+                                                        clearable
+                                                        auto-select-first
                                                     />
                                                 </v-col>
 

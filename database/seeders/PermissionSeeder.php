@@ -41,11 +41,6 @@ class PermissionSeeder extends Seeder
             array('name' => 'amenities.store', 'description' => 'Crear amenidades', 'contexts' => ['web']),
             array('name' => 'amenities.update', 'description' => 'Actualizar amenidades', 'contexts' => ['web']),
             array('name' => 'amenities.destroy', 'description' => 'Eliminar amenidades'),
-            // Recursos
-            array('name' => 'amenityResource.index', 'description' => 'Ver recursos', 'contexts' => ['web']),
-            array('name' => 'amenityResource.store', 'description' => 'Crear recursos', 'contexts' => ['web']),
-            array('name' => 'amenityResource.update', 'description' => 'Actualizar recursos', 'contexts' => ['web']),
-            array('name' => 'amenityResource.destroy', 'description' => 'Eliminar recursos', 'contexts' => ['web']),
             // Bloqueos
             array('name' => 'blockedPeriods.index', 'description' => 'Ver bloqueos', 'contexts' => ['web']),
             array('name' => 'blockedPeriods.store', 'description' => 'Crear bloqueos', 'contexts' => ['web']),
