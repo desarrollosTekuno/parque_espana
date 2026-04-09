@@ -27,10 +27,109 @@ use Inertia\Inertia;
 
 class MemberController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        //$items = Model::get();
-        //return Inertia::render('Ruta/Vista', compact('items'));
+        try {
+            $clubId = $request->club_id ?? session('club_id');
+            $prefix = 'members';
+            $driver = DB::getDriverName();
+
+            $query = Membership::query()
+                ->with([
+                    'account.primaryHolder.member',
+                    'membershipType',
+                    'club',
+                ])
+                ->where('club_id', $clubId)
+                ->where('status', 'active')
+                ->where('is_primary', true)
+                ->whereHas('account.primaryHolder.member');
+
+            if ($search = $request->input("{$prefix}_search")) {
+                $like = $driver === 'pgsql' ? 'ilike' : 'like';
+
+                $query->where(function (Builder $builder) use ($search, $like) {
+                    $builder->whereHas('account', function (Builder $accountQuery) use ($search, $like) {
+                        $accountQuery->where('membership_number', $like, "%{$search}%");
+                    })->orWhereHas('account.primaryHolder.member', function (Builder $memberQuery) use ($search, $like) {
+                        $memberQuery->where('first_name', $like, "%{$search}%")
+                            ->orWhere('last_name', $like, "%{$search}%")
+                            ->orWhere('second_last_name', $like, "%{$search}%")
+                            ->orWhere('email', $like, "%{$search}%")
+                            ->orWhere('phone', $like, "%{$search}%");
+                    })->orWhereHas('membershipType', function (Builder $membershipTypeQuery) use ($search, $like) {
+                        $membershipTypeQuery->where('name', $like, "%{$search}%");
+                    });
+                });
+            }
+
+            $sortMap = [
+                'id' => 'id',
+                'monthly_fee' => 'monthly_fee',
+                'start_date' => 'start_date',
+                'status' => 'status',
+            ];
+
+            $sort = $request->input("{$prefix}_sort", 'id');
+            $order = $request->input("{$prefix}_order", 'desc');
+            $sortColumn = $sortMap[$sort] ?? 'id';
+
+            $pendingMembersCount = Membership::query()
+                ->where('club_id', $clubId)
+                ->where('status', 'pending')
+                ->where('is_primary', true)
+                ->count();
+
+            $members = $query
+                ->orderBy($sortColumn, $order)
+                ->paginate(
+                    $request->input("{$prefix}_per_page", 10),
+                    ['*'],
+                    "{$prefix}_page",
+                    $request->input("{$prefix}_page", 1)
+                )
+                ->through(function (Membership $membership) {
+                    $holder = $membership->account?->primaryHolder?->member;
+                    $fullName = trim(collect([
+                        $holder?->first_name,
+                        $holder?->last_name,
+                        $holder?->second_last_name,
+                    ])->filter()->implode(' '));
+
+                    return [
+                        'id' => $membership->id,
+                        'membership_number' => $membership->account?->membership_number,
+                        'holder_name' => $fullName,
+                        'membership_type_name' => $membership->membershipType?->name,
+                        'membership_type_code' => $membership->membershipType?->code,
+                        'club_name' => $membership->club?->name,
+                        'club_code' => $membership->club?->code,
+                        'email' => $holder?->email,
+                        'phone' => $holder?->phone,
+                        'monthly_fee' => (float) $membership->monthly_fee,
+                        'start_date' => $membership->start_date,
+                        'end_date' => $membership->end_date,
+                        'status' => $membership->status,
+                    ];
+                })
+                ->appends($request->all());
+
+            return Inertia::render('Members/Index', [
+                'members' => $members,
+                'pendingMembersCount' => $pendingMembersCount,
+            ]);
+        } catch (\Exception $e) {
+            report($e);
+
+            return Inertia::render('Members/Index', [
+                'members' => [
+                    'data' => [],
+                    'total' => 0,
+                ],
+                'pendingMembersCount' => 0,
+                'messageError' => $e->getMessage(),
+            ]);
+        }
     }
 
     public function create()
@@ -139,9 +238,13 @@ class MemberController extends Controller
         $sourceClub = $sourceClubId ? Club::find($sourceClubId) : null;
 
         if ($sourceClub && $fromMembershipType && $fromMembershipType->club_id !== $sourceClub->id) {
-            throw ValidationException::withMessages([
-                'from_membership_type_id' => 'La membresia de origen no pertenece al club de origen seleccionado.',
+            return redirect()->back()->withErrors([
+                'messageError' => 'La membresia de origen no pertenece al club de origen seleccionado.',
+                'exception' => '',
             ]);
+            // throw ValidationException::withMessages([
+            //     'from_membership_type_id' => 'La membresia de origen no pertenece al club de origen seleccionado.',
+            // ]);
         }
 
         $primaryMembers = collect($validated['members'])
@@ -149,21 +252,33 @@ class MemberController extends Controller
             ->values();
 
         if ($primaryMembers->count() !== 1) {
-            throw ValidationException::withMessages([
-                'members' => 'Debe existir exactamente un titular en la solicitud.',
+            // throw ValidationException::withMessages([
+            //     'members' => 'Debe existir exactamente un titular en la solicitud.',
+            // ]);
+            return redirect()->back()->withErrors([
+                'messageError' => 'Debe existir exactamente un titular en la solicitud.',
+                'exception' => '',
             ]);
         }
 
         if (!$membershipType->allows_multiple_members && count($validated['members']) > 1) {
-            throw ValidationException::withMessages([
-                'members' => 'La membresia seleccionada no permite multiples integrantes.',
+            // throw ValidationException::withMessages([
+            //     'members' => 'La membresia seleccionada no permite multiples integrantes.',
+            // ]);
+            return redirect()->back()->withErrors([
+                'messageError' => 'La membresia seleccionada no permite multiples integrantes.',
+                'exception' => '',
             ]);
         }
 
         foreach ($validated['members'] as $index => $memberData) {
             if (empty($memberData['is_primary_holder']) && empty($memberData['relationship_id'])) {
-                throw ValidationException::withMessages([
-                    "members.$index.relationship_id" => 'El parentesco es obligatorio para familiares.',
+                // throw ValidationException::withMessages([
+                //     "members.$index.relationship_id" => 'El parentesco es obligatorio para familiares.',
+                // ]);
+                return redirect()->back()->withErrors([
+                    'messageError' => 'El parentesco es obligatorio para familiares.',
+                    'exception' => '',
                 ]);
             }
         }
@@ -178,14 +293,22 @@ class MemberController extends Controller
             : null;
 
         if ($membershipType->requires_origin_family && !$fromMembershipType) {
-            throw ValidationException::withMessages([
-                'from_membership_type_id' => 'La membresia seleccionada requiere una membresia familiar de origen.',
+            // throw ValidationException::withMessages([
+            //     'from_membership_type_id' => 'La membresia seleccionada requiere una membresia familiar de origen.',
+            // ]);
+            return redirect()->back()->withErrors([
+                'messageError' => 'La membresia seleccionada requiere una membresia familiar de origen.',
+                'exception' => '',
             ]);
         }
 
         if ($membershipType->requires_origin_family && !$fromMembershipType->allows_multiple_members) {
-            throw ValidationException::withMessages([
-                'from_membership_type_id' => 'La membresia seleccionada debe provenir de una membresia familiar.',
+            // throw ValidationException::withMessages([
+            //     'from_membership_type_id' => 'La membresia seleccionada debe provenir de una membresia familiar.',
+            // ]);
+            return redirect()->back()->withErrors([
+                'messageError' => 'La membresia seleccionada debe provenir de una membresia familiar.',
+                'exception' => '',
             ]);
         }
 
@@ -274,7 +397,7 @@ class MemberController extends Controller
             });
 
             return redirect()
-                ->route('members.create')
+                ->back()
                 ->with('success', 'La cuenta de membresia y sus integrantes se registraron correctamente.');
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([

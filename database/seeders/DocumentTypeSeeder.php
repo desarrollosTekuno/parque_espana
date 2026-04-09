@@ -79,13 +79,6 @@ class DocumentTypeSeeder extends Seeder
                 'description' => 'Documento que acredita la residencia de una persona en un lugar específico.',
                 'allowed_extensions' => 'pdf,jpg,png',
             ],
-            // formato de datos clinicos
-            [
-                'code' => 'formato_datos_clinicos',
-                'name' => 'Formato de Datos Clínicos',
-                'description' => 'Documento que contiene información médica relevante sobre un paciente.',
-                'allowed_extensions' => 'pdf',
-            ],
             // carta de no adeudo
             [
                 'code' => 'carta_no_adeudo',

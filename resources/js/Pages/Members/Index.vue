@@ -1,148 +1,58 @@
 <script setup lang="ts">
 import BaseButton from "@/Components/BaseButton.vue";
-import { required } from "@/constants/validationRules";
 import AppLayout from "@/Layouts/AppLayout.vue";
-import { customConfirmSwal, customToastSwal } from "@/utils/swal";
-import { Head, router, useForm, usePage } from "@inertiajs/vue3";
+import { Head, router } from "@inertiajs/vue3";
 import { debounce } from "lodash";
-import { ref, watch } from "vue";
-const can = usePage().props.auth.permissions;
-const canRole = usePage().props.auth.roles;
-const page = usePage<any>();
+import { computed, ref, watch } from "vue";
+
+interface MemberItem {
+    id: number;
+    membership_number: string;
+    holder_name: string;
+    membership_type_name: string;
+    membership_type_code: string;
+    club_name: string;
+    club_code: string;
+    email: string | null;
+    phone: string | null;
+    monthly_fee: number;
+    start_date: string | null;
+    end_date: string | null;
+    status: string;
+}
+
+interface PaginatedMembers {
+    data: MemberItem[];
+    total: number;
+}
+
 interface Props {
-    categories?: any;
+    members?: PaginatedMembers;
+    pendingMembersCount?: number;
 }
 
-interface Category {
-    id: number | null;
-    name: string;
-    description: string;
-}
-
-// const props = defineProps<Props>();
 const props = withDefaults(defineProps<Props>(), {
-    categories: null,
+    members: () => ({
+        data: [],
+        total: 0,
+    }),
+    pendingMembersCount: 0,
 });
 
-/* refs */
-let showModal = ref(false);
-const formSendRef = ref();
-
-/* forms */
-const form = useForm<Category>({
-    id: null,
-    name: "",
-    description: "",
-});
-
-const create = () => {
-    showModal.value = true;
-};
-const save = () => {
-    formSendRef.value?.validate().then(({ valid: isValid }) => {
-        console.log(isValid);
-        if (!isValid) {
-            return;
-        } else {
-            if (form.id) {
-                // form.put(route("head-quarters.update", form.id), {
-                //     onSuccess: () => {
-                //         customToastSwal({
-                //             title: page.props.flash.success || "",
-                //             icon: "success",
-                //         });
-                //         showModal.value = false;
-                //         form.reset();
-                // fetchItems();
-                //     },
-                //     onError: () => {
-                //         customToastSwal({
-                //             title: `Error: ${form.errors.messageError}`,
-                //             text: `${form.errors.exception}`,
-                //             icon: "error",
-                //         });
-                //         // console.log(form.errors);
-                //     },
-                // });
-            } else {
-                // form.post(route("head-quarters.store"), {
-                //     onSuccess: () => {
-                //         customToastSwal({
-                //             title: page.props.flash.success || "",
-                //             icon: "success",
-                //         });
-                //         showModal.value = false;
-                //         form.reset();
-                // fetchItems();
-                //     },
-                //     onError: () => {
-                //         customToastSwal({
-                //             title: `Error: ${form.errors.messageError}`,
-                //             text: `${form.errors.exception}`,
-                //             icon: "error",
-                //         });
-                //         // console.log(form.errors);
-                //     },
-                // });
-            }
-        }
-    });
-};
-const edit = (data: any) => {
-    console.log(data);
-
-    // headQuarterForm.id = data.id;
-    // headQuarterForm.name = data.name;
-    // headQuarterForm.latitude = data.latitude;
-    // headQuarterForm.longitude = data.longitude;
-    showModal.value = true;
-};
-
-const destroy = (data: any) => {
-    // headQuarterForm.delete(route('head-quarters.destroy', data.id), {
-    //     onSuccess: () => { },
-    // });
-    customConfirmSwal({
-        title: "¿Está segur@ que desea eliminar este registro?",
-    }).then((result) => {
-        if (result.isConfirmed) {
-            form.delete(route("Modules.destroy", data.id), {
-                onSuccess: () => {
-                    customToastSwal({
-                        title: page.props.flash.success || "",
-                        icon: "success",
-                    });
-                    fetchItems();
-                },
-                onError: (err) => {
-                    console.error(err);
-                    customToastSwal({
-                        title: `Error: ${form.errors.messageError}`,
-                        text: `${form.errors.exception}`,
-                        icon: "error",
-                    });
-                },
-            });
-        }
-    });
-};
-const close = () => {
-    form.reset();
-    showModal.value = false;
-};
-//* INICIO DATATABLE SERVER SIDE */
-// Aquí se definen los encabezados de la tabla, donde key es el nombre de la columna en la base de datos
 const headers = [
-    { title: "ID", key: "id" },
-    { title: "Nombre", key: "name" },
-    { title: "Contexto", key: "context" },
-    { title: "Descripción", key: "description" },
-    { title: "Acciones", key: "actions", sortable: false },
+    { title: "Folio", key: "membership_number" },
+    { title: "Titular", key: "holder_name" },
+    { title: "Membresia", key: "membership_type_name" },
+    { title: "Correo", key: "email", sortable: false },
+    { title: "Telefono", key: "phone", sortable: false },
+    { title: "Mensualidad", key: "monthly_fee" },
+    { title: "Inicio", key: "start_date" },
+    { title: "Estatus", key: "status" },
 ];
 
-// variables reactivas
-const items = ref([]);
-const total = ref(0);
+const items = ref<MemberItem[]>(props.members.data ?? []);
+const total = ref(props.members.total ?? 0);
+const pendingMembersCount = ref(props.pendingMembersCount ?? 0);
 const loading = ref(false);
 const search = ref("");
 const options = ref({
@@ -150,10 +60,39 @@ const options = ref({
     itemsPerPage: 10,
     sortBy: [{ key: "id", order: "desc" }],
 });
-const prefix = "permissions";
-// función para cargar datos desde Laravel
+const prefix = "members";
+
+const currencyFormatter = new Intl.NumberFormat("es-MX", {
+    style: "currency",
+    currency: "MXN",
+    maximumFractionDigits: 2,
+});
+
+const statusLabel = (status: string) => {
+    const map: Record<string, string> = {
+        active: "Activa",
+        pending: "Pendiente",
+        suspended: "Suspendida",
+        cancelled: "Cancelada",
+    };
+
+    return map[status] ?? status;
+};
+
+const statusColor = (status: string) => {
+    const map: Record<string, string> = {
+        active: "success",
+        pending: "warning",
+        suspended: "orange",
+        cancelled: "error",
+    };
+
+    return map[status] ?? "default";
+};
+
 const fetchItems = async () => {
     loading.value = true;
+
     const params = {
         [`${prefix}_page`]: options.value.page,
         [`${prefix}_per_page`]: options.value.itemsPerPage,
@@ -162,41 +101,49 @@ const fetchItems = async () => {
         [`${prefix}_order`]: options.value.sortBy?.[0]?.order ?? "desc",
     };
 
-    router.get(route("superadmin.permissions.index"), params, {
+    router.get(route("members.index"), params, {
         preserveState: true,
         replace: true,
         onSuccess: (page) => {
-            const data = page.props[prefix]?.data ?? [];
-            const totalCount = page.props[prefix]?.total ?? 0;
+            const data = (page.props as any)[prefix]?.data ?? [];
+            const totalCount = (page.props as any)[prefix]?.total ?? 0;
+            const pendingCount = (page.props as any).pendingMembersCount ?? 0;
 
             items.value = data;
             total.value = totalCount;
+            pendingMembersCount.value = pendingCount;
+            loading.value = false;
+        },
+        onError: () => {
             loading.value = false;
         },
     });
 };
 
-// 🔁 Observadores con debounce para evitar muchas peticiones
 watch([options, search], debounce(fetchItems, 400), { deep: true });
-/* FIN DATATABLE SERVER SIDE */
+
+const emptyMessage = computed(() =>
+    search.value
+        ? "No se encontraron socios titulares activos con ese criterio"
+        : "No hay socios titulares activos para mostrar",
+);
 </script>
 
 <template>
     <Head title="Socios" />
 
     <AppLayout>
-        <template #header> Socios </template>
+        <template #header>Socios Titulares Activos</template>
         <template #options>
             <BaseButton
                 variant="elevated"
                 :icon-only="false"
-                @click="create"
+                @click="router.visit(route('members.create'))"
                 action="add"
             />
         </template>
 
         <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
-            <!-- <div class="p-6 border-b border-gray-200"> -->
             <v-row>
                 <v-col cols="12">
                     <v-data-table-server
@@ -204,82 +151,77 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                         hover
                         height="500px"
                         :headers="headers"
-                        :items="items"
-                        :items-length="total"
-                        :loading="loading"
+        :items="items"
+        :items-length="total"
+        :loading="loading"
                         v-model:options="options"
                         class="elevation-1"
                         :items-per-page-options="[10, 25, 50, 100]"
-                        items-per-page-text=" Mostrar"
-                        no-data-text="No hay registros para mostrar"
+                        items-per-page-text="Mostrar"
+                        :no-data-text="emptyMessage"
                     >
                         <template #top>
-                            <v-text-field
-                                v-model="search"
-                                label="Buscar permisos"
-                                class="mx-4 mt-2"
-                                clearable
-                            />
+                            <div>
+                                <v-alert
+                                    v-if="!loading && total === 0 && pendingMembersCount > 0"
+                                    type="info"
+                                    variant="tonal"
+                                    class="mx-4 mt-4 mb-2"
+                                >
+                                    No hay socios titulares activos para mostrar.
+                                    Actualmente existen
+                                    {{ pendingMembersCount }}
+                                    membresias pendientes.
+                                </v-alert>
+
+                                <v-text-field
+                                    v-model="search"
+                                    label="Buscar socios"
+                                    class="mx-4 mt-2"
+                                    clearable
+                                />
+                            </div>
                         </template>
 
-                        <template #item.actions="{ item }">
-                            <BaseButton
-                                action="edit"
-                                @click="edit(item)"
-                                v-if="
-                                    can.includes(
-                                        'superadmin.permissions.update',
-                                    )
-                                "
-                            />
-                            <BaseButton
-                                @click="destroy(item)"
-                                action="delete"
-                                v-if="
-                                    can.includes(
-                                        'superadmin.permissions.destroy',
-                                    )
-                                "
-                            />
+                        <template #item.membership_type_name="{ item }">
+                            <div class="py-2">
+                                <div class="font-weight-medium">
+                                    {{ item.membership_type_name }}
+                                </div>
+                                <div class="text-caption text-medium-emphasis">
+                                    {{ item.club_code }}
+                                </div>
+                            </div>
+                        </template>
+
+                        <template #item.monthly_fee="{ item }">
+                            {{ currencyFormatter.format(item.monthly_fee) }}
+                        </template>
+
+                        <template #item.start_date="{ item }">
+                            {{ item.start_date || "-" }}
+                        </template>
+
+                        <template #item.email="{ item }">
+                            {{ item.email || "-" }}
+                        </template>
+
+                        <template #item.phone="{ item }">
+                            {{ item.phone || "-" }}
+                        </template>
+
+                        <template #item.status="{ item }">
+                            <v-chip
+                                :color="statusColor(item.status)"
+                                size="small"
+                                variant="tonal"
+                            >
+                                {{ statusLabel(item.status) }}
+                            </v-chip>
                         </template>
                     </v-data-table-server>
                 </v-col>
             </v-row>
-            <!-- </div> -->
         </div>
-        <v-dialog v-model="showModal" max-width="600" persistent>
-            <v-form @submit.prevent="save" ref="formSendRef">
-                <v-card
-                    prepend-icon="mdi-account"
-                    :title="`Form|${form.id ? 'Edit' : 'Create'}`"
-                >
-                    <v-card-text class="overflow-y-auto h-full">
-                        <v-text-field
-                            v-model="form.name"
-                            label="Nombre"
-                            persistent-hint
-                            :rules="[required]"
-                        />
-                    </v-card-text>
-                    <v-card-actions>
-                        <v-spacer></v-spacer>
-                        <BaseButton
-                            :icon-only="false"
-                            variant="tonal"
-                            action="cancel"
-                            @click="close"
-                        />
-                        <BaseButton
-                            :text="form.id ? 'Actualizar' : 'Guardar'"
-                            variant="flat"
-                            :icon-only="false"
-                            type="submit"
-                            action="save"
-                        />
-                    </v-card-actions>
-                </v-card>
-            </v-form>
-        </v-dialog>
-        <!-- <Loader :overlay="form.processing" /> -->
     </AppLayout>
 </template>

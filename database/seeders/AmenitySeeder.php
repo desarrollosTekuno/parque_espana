@@ -28,27 +28,27 @@ class AmenitySeeder extends Seeder
                         'resources' => [
                             [
                                 'name' => 'Cancha 1',
-                                'capacity' => null,
+                                'capacity' => 1,
                                 'slot_duration_minutes' => 90,
                             ],
                             [
                                 'name' => 'Cancha 2',
-                                'capacity' => null,
+                                'capacity' => 1,
                                 'slot_duration_minutes' => 90,
                             ],
                             [
                                 'name' => 'Cancha 3',
-                                'capacity' => null,
+                                'capacity' => 1,
                                 'slot_duration_minutes' => 60,
                             ],
                             [
                                 'name' => 'Cancha 4',
-                                'capacity' => null,
+                                'capacity' => 1,
                                 'slot_duration_minutes' => 60,
                             ],
                             [
                                 'name' => 'Cancha 5',
-                                'capacity' => null,
+                                'capacity' => 1,
                                 'slot_duration_minutes' => 90,
                             ]
                         ],
@@ -154,22 +154,22 @@ class AmenitySeeder extends Seeder
                         'resources' => [
                             [
                                 'name' => 'Cancha 1',
-                                'capacity' => null,
+                                'capacity' => 1,
                                 'slot_duration_minutes' => 60,
                             ],
                             [
                                 'name' => 'Cancha 2',
-                                'capacity' => null,
+                                'capacity' => 1,
                                 'slot_duration_minutes' => 60,
                             ],
                             [
                                 'name' => 'Cancha 3',
-                                'capacity' => null,
+                                'capacity' => 1,
                                 'slot_duration_minutes' => 90,
                             ],
                             [
                                 'name' => 'Cancha 4',
-                                'capacity' => null,
+                                'capacity' => 1,
                                 'slot_duration_minutes' => 90,
                             ],
 
@@ -215,12 +215,12 @@ class AmenitySeeder extends Seeder
                         'resources' => [
                             [
                                 'name' => 'Cancha 1',
-                                'capacity' => null,
+                                'capacity' => 1,
                                 'slot_duration_minutes' => 60,
                             ],
                             [
                                 'name' => 'Cancha 2',
-                                'capacity' => null,
+                                'capacity' => 1,
                                 'slot_duration_minutes' => 60,
                             ],
                         ],

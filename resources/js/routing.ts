@@ -100,7 +100,7 @@ const routes: Routing[] = [
     },*/
     // Amenidades
     {
-        name: ["dashboard"],
+        name: ["amenities.index", "blockedPeriods.index"],
         title: "Amenidades",
         icon: "mdi-beach",
         value: "amenidades",

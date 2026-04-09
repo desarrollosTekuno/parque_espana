@@ -41,6 +41,10 @@ class AdminClubSeeder extends Seeder
             'members.edit',
             'members.update',
             'members.destroy',
+            'blockedPeriods.index',
+            'blockedPeriods.store',
+            'blockedPeriods.update',
+            'blockedPeriods.destroy',
         );
         $adminClubRole = Role::updateOrCreate([
             'name' => 'admin_club',

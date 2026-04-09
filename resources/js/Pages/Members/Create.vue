@@ -506,12 +506,11 @@ const handleNext = async (next: () => void) => {
     }
 
     if (step.value === 3) {
-       /*  const { valid } = await documentsStepRef.value?.validate();
+        const { valid } = await documentsStepRef.value?.validate();
         if (!valid) return;
         next();
-        return; */
-        next();
-        return;
+        return; 
+       
     }
 
     next();
