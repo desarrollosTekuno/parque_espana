@@ -2,23 +2,22 @@
 
 namespace App\Http\Controllers\Web\AdminClub;
 
+use Carbon\Carbon;
+use Inertia\Inertia;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+use App\Models\AdminClub\Amenity;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Routing\Controller;
-use Illuminate\Support\Facades\Validator;
-use Inertia\Inertia;
-use App\Models\AdminClub\Amenity;
 use App\Models\AdminClub\Announcement;
+use Illuminate\Support\Facades\Storage;
 use App\Models\AdminClub\AmenityResource;
 use App\Models\AdminClub\AnnouncementDetail;
-use Illuminate\Support\Facades\Storage;
-use Carbon\Carbon;
+use App\Models\AdminClub\AnnouncementImage;
 use Illuminate\Validation\ValidationException;
-use Illuminate\Http\UploadedFile;
 
 class AnnouncementController extends Controller
 {   
-
     public function __construct()
     {
         $this->middleware('permission:announcements.index')->only('index');
@@ -163,33 +162,13 @@ class AnnouncementController extends Controller
                 $imagePath = $request->file('image')
                     ->store('announcements', 'public');
             }
-            if (in_array($request->type, ['torneo','evento'])) {
-
-                /*$start = Carbon::parse($request->starts_at);
-                $end = Carbon::parse($request->ends_at);
-
-                $conflict = AnnouncementDetail::where('resource_id', $request->resource_id)
-                    ->whereHas('announcement', function ($q) {
-                        $q->whereIn('type', ['torneo','evento']);
-                    })->where(function ($q) use ($start, $end) {
-                        $q->where('starts_at', '<', $end)
-                        ->where('ends_at', '>', $start);
-                    })->first();
-                if ($conflict) {
-                    throw ValidationException::withMessages([
-                        'starts_at' =>
-                            'El recurso está ocupado desde '
-                            . $conflict->starts_at->format('d/m/Y H:i')
-                            .' hasta '
-                            . $conflict->ends_at->format('d/m/Y H:i')
-                    ]);
-                }*/
+            /*if (in_array($request->type, ['torneo','evento'])) {
                 $this->validateResourceAvailability(
                        $request->resource_id,
                        $request->starts_at,
                        $request->ends_at,
                 );
-            }
+            }*/
             $announcement = Announcement::create([
                 'club_id' => $clubId,
                 'title' => $request->title,
@@ -202,10 +181,7 @@ class AnnouncementController extends Controller
                 'expires_at' => $request->expires_at ? Carbon::parse($request->expires_at) : null
             ]);
 
-            if (
-                $request->type === 'torneo'
-                || $request->type === 'evento'
-            ) {
+           /*if ($request->type === 'torneo' || $request->type === 'evento') {
                 AnnouncementDetail::create([
                     'announcement_id' => $announcement->id,
                     'starts_at' => $request->starts_at ? Carbon::parse($request->starts_at) : null,
@@ -213,7 +189,7 @@ class AnnouncementController extends Controller
                     'resource_id' => $request->resource_id,
                     'capacity' => $request->capacity
                 ]);
-            }
+            }*/
 
             DB::commit();
             return redirect()
@@ -240,32 +216,12 @@ class AnnouncementController extends Controller
             $clubId = $request->club_id ?? session('club_id');
             if (in_array($request->type, ['torneo','evento'])) {
 
-                /*$start = Carbon::parse($request->starts_at);
-                $end = Carbon::parse($request->ends_at);
-
-                $conflict = AnnouncementDetail::where('resource_id', $request->resource_id)
-                    ->where('announcement_id', '!=', $announcement->id)
-                    ->whereHas('announcement', function ($q) {
-                        $q->whereIn('type', ['torneo','evento']);
-                    })->where(function ($q) use ($start, $end) {
-                        $q->where('starts_at', '<', $end)
-                        ->where('ends_at', '>', $start);
-                    })->first();
-                if ($conflict) {
-                    throw ValidationException::withMessages([
-                        'starts_at' =>
-                            'El recurso está ocupado desde '
-                            . $conflict->starts_at->format('d/m/Y H:i')
-                            .' hasta '
-                            . $conflict->ends_at->format('d/m/Y H:i')
-                    ]);
-                }*/
-                $this->validateResourceAvailability(
+                /*$this->validateResourceAvailability(
                     $request->resource_id,
                     $request->starts_at,
                     $request->ends_at,
                     AnnouncementDetail::where('announcement_id', $announcement->id)->value('id')
-                );
+                );*/
             }
             $imagePath = $announcement->image;
             if ($request->boolean('remove_image')) {
@@ -297,7 +253,7 @@ class AnnouncementController extends Controller
                 'publish_at' => $request->publish_at ? Carbon::parse($request->publish_at) : null,
                 'expires_at' => $request->expires_at ? Carbon::parse($request->expires_at) : null
             ]);
-            if ($request->type === 'torneo' || $request->type === 'evento') {
+           /* if ($request->type === 'torneo' || $request->type === 'evento') {
                 AnnouncementDetail::updateOrCreate(
                     ['announcement_id' => $announcement->id],
                     [
@@ -309,7 +265,7 @@ class AnnouncementController extends Controller
                 );
             } else {
                 AnnouncementDetail::where('announcement_id', $announcement->id)->delete();
-            }
+            }*/
             DB::commit();
             return redirect()
                 ->route('announcements.index')
@@ -349,6 +305,80 @@ class AnnouncementController extends Controller
             report($e);
             return back()
                 ->with('error', $e->getMessage());
+        }
+    }
+
+    public function storeGallery(Request $request){
+        //dd($request->all(), $request->file('images'));
+        try {
+            DB::beginTransaction();
+            /*$request->validate([
+                'announcement_id' => [
+                'required',
+                Rule::exists((new Announcement)->getTable(), 'id')
+                    ->whereNull('deleted_at')
+                ],
+                'images.*' => 'nullable|image|max:5120'
+            ]);*/
+            $announcementId = $request->announcement_id;
+
+            /*    eliminar imágenes seleccionadas   */
+            if($request->remove_images){
+                $imagesToDelete = AnnouncementImage::whereIn('id', $request->remove_images)->get();
+                foreach($imagesToDelete as $img){
+                    if($img->image){
+                        Storage::disk('public')->delete($img->image);
+                    }
+                    $img->delete();
+                }
+            }
+
+            /*   guardar nuevas imágenes   */
+            if($request->hasFile('images')){
+                foreach($request->file('images') as $index => $file){
+                    $path = $file->store(
+                        'announcements',
+                        'public'
+                    );
+                    AnnouncementImage::create([
+                        'announcement_id' => $announcementId,
+                        'image' => $path
+                    ]);
+                }
+            }
+            DB::commit();
+            return back()->with(
+                'success',
+                'Galería actualizada correctamente'
+            );
+        }
+
+        catch (\Exception $e) {
+            DB::rollBack();
+            report($e);
+            return back()->withErrors([
+                'messageError' => $e->getMessage()
+            ]);
+        }
+    }
+    public function destroyGalleryImage(AnnouncementImage $image){
+        try {
+            if($image->image){
+                Storage::disk('public')->delete(
+                    $image->image
+                );
+            }
+            $image->delete();
+            return back()->with(
+                'success',
+                'Imagen eliminada'
+            );
+        }
+        catch (\Exception $e) {
+            report($e);
+            return back()->withErrors([
+                'messageError' => $e->getMessage()
+            ]);
         }
     }
 }

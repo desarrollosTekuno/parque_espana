@@ -276,10 +276,11 @@ const durationColor = (minutes:number)=>{
     const headers = [
         {title: "Título",key: "title"},
         {title: "Tipo",key: "type"},
-        {title: "Locación", key: "resource" },
+        //{title: "Locación", key: "resource" },
         {title: "Imagen",key: "image"},
-        {title: "Fecha",key: "event_date"},
-        {title: "Duración", key: "duration" },
+        {title: "Fecha de publicación y expiración",key: "event_date"},
+        /*{title: "Fecha",key: "event_date"},
+        {title: "Duración", key: "duration" },*/
         {title: "Acciones",key: "actions",sortable: false}
     ];
     const typeLabel: any = {
@@ -350,6 +351,75 @@ const durationColor = (minutes:number)=>{
         }
     );
 };
+
+/*    Funciones modal galeria    */
+const showGalleryModal = ref(false);
+
+const galleryForm = useForm({
+    announcement_id: null,
+    images: [] as File[],
+    existing_images: [] as any[],
+    remove_images: [] as number[]
+});
+const openGallery = (item:any) => {
+    galleryForm.reset();
+    galleryForm.announcement_id = item.id;
+    galleryForm.existing_images = item.images ?? [];
+    showGalleryModal.value = true;
+};
+const previewURL = (file: File) => {
+    return window.URL.createObjectURL(file);
+};
+const saveGallery = () => {
+
+    galleryForm
+        .post(
+            route("announcements.gallery.store"),
+            {
+
+                forceFormData: true,
+
+                onSuccess: () => {
+
+                    customToastSwal({
+                        title: "Galería actualizada",
+                        icon: "success"
+                    });
+
+                    showGalleryModal.value = false;
+
+                    galleryForm.reset();
+
+                    fetchItems();
+
+                },
+
+                onError: (errors) => {
+
+                    console.log(errors);
+
+                }
+
+            }
+        );
+
+};
+const removeExistingImage = (img:any) => {
+    galleryForm.remove_images.push(img.id);
+    galleryForm.existing_images =
+        galleryForm.existing_images.filter(
+            i => i.id !== img.id
+        );
+};
+watch(
+    () => props.announcements,
+    (val) => {
+        items.value = val?.data ?? [];
+        total.value = val?.total ?? 0;
+        loading.value = false; 
+    },
+    { immediate: true }
+);
 watch(
     () => form.image,
     (file) => {
@@ -360,16 +430,6 @@ watch(
         } 
     }
 );
-watch(
-    () => props.announcements,
-    (val) => {
-        items.value = val?.data ?? [];
-        total.value = val?.total ?? 0;
-        loading.value = false; 
-    },
-    { immediate: true }
-);
-
 watch(
     () => props.amenities,
     (val) => {
@@ -460,6 +520,12 @@ watch(
                     </template>
                     <template #item.event_date="{ item }">
                         {{ formatEventDate(
+                            item.publish_at,
+                            item.expires_at
+                        ) }}
+                    </template>
+                    <!--<template #item.event_date="{ item }">
+                        {{ formatEventDate(
                             item.detail?.starts_at,
                             item.detail?.ends_at
                         ) }}
@@ -473,12 +539,25 @@ watch(
                         {{ formatDuration(calculateDurationMinutes(item.detail?.starts_at, item.detail?.ends_at)) }}
                         </v-chip>
                     </template>
-                    <!--<template #item.is_active="{ item }">
+                    <template #item.is_active="{ item }">
                         <v-chip size="small" :color="item.is_active ? 'green' : 'red'">
                             {{ item.is_active ? 'Activo' : 'Inactivo' }}
                         </v-chip>
                     </template>-->
                     <template #item.actions="{ item }">
+                        <v-tooltip text="Agregar galería">
+                            <template #activator="{ props }">
+                                <v-btn
+                                    v-bind="props"
+                                    icon="mdi-camera"
+                                    size="small"
+                                    variant="tonal"
+                                    color="indigo"
+                                    class="mx-1"
+                                    @click="openGallery(item)"
+                                />
+                            </template>
+                        </v-tooltip>
                         <BaseButton action="edit" @click="edit(item)" v-if="can.includes('announcements.update')" />
                         <BaseButton action="delete" @click="destroy(item)" v-if="can.includes('announcements.destroy')" />
                     </template>
@@ -520,7 +599,7 @@ watch(
                                         Eliminar imagen
                                     </v-btn>
                                 </v-col>
-                                <template v-if="showEventFields">
+                                <!--<template v-if="showEventFields">
                                     <v-col cols="6">
                                         <v-select v-model="form.resource_id" label="Locación"
                                             prepend-inner-icon="mdi-map-marker" :items="resourcesList" item-title="name"
@@ -538,7 +617,7 @@ watch(
                                         <v-text-field v-model="form.ends_at" label="Fin" type="datetime-local"
                                             prepend-inner-icon="mdi-calendar-check" :rules="showEventFields ? [required, notPastDate, endsAfterStart] : []" :error-messages="form.errors.ends_at"/>
                                     </v-col>
-                                </template>
+                                </template>-->
                                 <v-col cols="6">
                                     <v-text-field v-model="form.publish_at" label="Fecha publicación" type="datetime-local"
                                         prepend-inner-icon="mdi-calendar" :rules="[required, notPastDate]" />
@@ -561,6 +640,72 @@ watch(
                         </v-card-actions>
                     </v-card>
                 </v-form>
+            </v-dialog>
+            <v-dialog v-model="showGalleryModal" max-width="700" persistent>
+                <v-card title="Galería de imágenes">
+                <v-card-text>
+                <v-file-input v-model="galleryForm.images"
+                    multiple
+                    accept="image/*"
+                    label="Subir imágenes"
+                    prepend-icon="mdi-image-multiple"
+                ></v-file-input>
+                <!-- preview nuevas -->
+                <div class="d-flex flex-wrap mt-3">
+                    <v-card
+                        v-for="(img,index) in galleryForm.images"
+                        :key="'new'+index"
+                        class="ma-2"
+                        width="110"
+
+                    >
+                        <v-img
+                            :src="previewURL(img)"
+                            height="90"
+                            cover
+                        />
+                    </v-card>
+                </div>
+                <!-- imágenes existentes -->
+                <div class="d-flex flex-wrap mt-4">
+                    <v-card
+                        v-for="img in galleryForm.existing_images"
+                        :key="img.id"
+                        class="ma-2 position-relative"
+                        width="110"
+                    >
+                        <v-img
+                            :src="`/storage/${img.image}`"
+                            height="90"
+                            cover
+                        />
+                        <v-btn
+                            icon="mdi-close"
+                            size="x-small"
+                            color="error"
+                            class="position-absolute top-0 right-0"
+                            @click="removeExistingImage(img)"
+                        />
+                    </v-card>
+                </div>
+                </v-card-text>
+            <v-card-actions>
+            <v-spacer/>
+            <BaseButton
+                text="Cancelar"
+                action="cancel"
+                variant="tonal"
+                @click="showGalleryModal=false"
+                :icon-only="false"
+            />
+            <BaseButton
+                text="Guardar"
+                action="save"
+                @click="saveGallery"
+                :icon-only="false"
+            />
+            </v-card-actions>
+            </v-card>
             </v-dialog>
         </AppLayout>
     </template>

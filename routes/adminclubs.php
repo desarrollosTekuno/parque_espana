@@ -24,5 +24,7 @@ Route::resource('/system-variables', SystemVariableController::class)->only(['in
 Route::resource('/guest-lists', ReservationGuestListController::class)->only(['index', 'update'])->names('guest-lists');
 
 Route::resource('/announcements', AnnouncementController::class)->names('announcements');
+Route::post('announcements/gallery', [AnnouncementController::class,'storeGallery'])->name('announcements.gallery.store');
+Route::delete('announcements/gallery/{image}',[AnnouncementController::class,'destroyGalleryImage'])->name('announcements.gallery.destroy');
 Route::resource('/blockedPeriods', BlockedPeriodController::class)->names('blockedPeriods');
 
