@@ -93,7 +93,7 @@ class PricingRuleSeeder extends Seeder
                         [
                             'from_membership_code' => null,
                             'min_age' => null,
-                            'max_age' => 23,
+                            'max_age' => null,
                             'requires_origin_family' => false,
                             'requires_multiple_clubs' => false,
                             'monthly_fee' => 3000,
@@ -103,7 +103,7 @@ class PricingRuleSeeder extends Seeder
                         [
                             'from_membership_code' => null,
                             'min_age' => null,
-                            'max_age' => 23,
+                            'max_age' => null,
                             'requires_origin_family' => false,
                             'requires_multiple_clubs' => true,
                             'monthly_fee' => 3700,
@@ -113,7 +113,7 @@ class PricingRuleSeeder extends Seeder
                         [
                             'from_membership_code' => 'PE1_IND',
                             'min_age' => null,
-                            'max_age' => 23,
+                            'max_age' => null,
                             'requires_origin_family' => false,
                             'requires_multiple_clubs' => false,
                             'monthly_fee' => 3000,
@@ -180,7 +180,7 @@ class PricingRuleSeeder extends Seeder
                         [
                             'from_membership_code' => null,
                             'min_age' => null,
-                            'max_age' => 23,
+                            'max_age' => null,
                             'requires_origin_family' => false,
                             'requires_multiple_clubs' => false,
                             'monthly_fee' => 3600,
@@ -190,7 +190,7 @@ class PricingRuleSeeder extends Seeder
                         [
                             'from_membership_code' => 'PE2_IND_ASC',
                             'min_age' => null,
-                            'max_age' => 23,
+                            'max_age' => null,
                             'requires_origin_family' => false,
                             'requires_multiple_clubs' => false,
                             'monthly_fee' => 3600,
@@ -257,7 +257,7 @@ class PricingRuleSeeder extends Seeder
                         [
                             'from_membership_code' => null,
                             'min_age' => null,
-                            'max_age' => 23,
+                            'max_age' => null,
                             'requires_origin_family' => false,
                             'requires_multiple_clubs' => false,
                             'monthly_fee' => 3600,
@@ -267,7 +267,7 @@ class PricingRuleSeeder extends Seeder
                         [
                             'from_membership_code' => 'PE2_IND_EXT',
                             'min_age' => null,
-                            'max_age' => 23,
+                            'max_age' => null,
                             'requires_origin_family' => false,
                             'requires_multiple_clubs' => false,
                             'monthly_fee' => 3600,
@@ -334,7 +334,7 @@ class PricingRuleSeeder extends Seeder
                         [
                             'from_membership_code' => null,
                             'min_age' => null,
-                            'max_age' => 23,
+                            'max_age' => null,
                             'requires_origin_family' => false,
                             'requires_multiple_clubs' => false,
                             'monthly_fee' => 3600,
@@ -344,7 +344,7 @@ class PricingRuleSeeder extends Seeder
                         [
                             'from_membership_code' => 'PE2_IND_BEN',
                             'min_age' => null,
-                            'max_age' => 23,
+                            'max_age' => null,
                             'requires_origin_family' => false,
                             'requires_multiple_clubs' => false,
                             'monthly_fee' => 3600,
@@ -411,7 +411,7 @@ class PricingRuleSeeder extends Seeder
                         [
                             'from_membership_code' => null,
                             'min_age' => null,
-                            'max_age' => 23,
+                            'max_age' => null,
                             'requires_origin_family' => false,
                             'requires_multiple_clubs' => false,
                             'monthly_fee' => 3600,
@@ -421,7 +421,7 @@ class PricingRuleSeeder extends Seeder
                         [
                             'from_membership_code' => 'PE2_IND_DOC',
                             'min_age' => null,
-                            'max_age' => 23,
+                            'max_age' => null,
                             'requires_origin_family' => false,
                             'requires_multiple_clubs' => false,
                             'monthly_fee' => 3600,

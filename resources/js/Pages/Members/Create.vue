@@ -19,9 +19,17 @@ const page = usePage<any>();
 
 interface Props {
     membershipTypes?: MembershipType[];
+    originMembershipTypes?: MembershipType[];
+    clubs?: Club[];
     relationships?: Relationship[];
     nationalities?: Nationality[];
     maritalStatuses?: MaritalStatus[];
+}
+
+interface Club {
+    id: number;
+    code: string;
+    name: string;
 }
 
 interface Relationship {
@@ -58,6 +66,7 @@ interface DocumentType {
 
 interface MembershipType {
     id: number;
+    club_id?: number;
     code?: string;
     name: string;
     description: string;
@@ -124,11 +133,17 @@ interface MembershipsForm {
     id: number | null;
     membershipType: MembershipType | null;
     from_membership: number | null;
+    source_club_id: number | null;
+    has_multiple_clubs: boolean;
+    source_membership_is_active: boolean;
+    years_in_source_club: number | null;
     members: MemberForm[];
 }
 
 const props = withDefaults(defineProps<Props>(), {
     membershipTypes: () => [],
+    originMembershipTypes: () => [],
+    clubs: () => [],
     relationships: () => [],
     nationalities: () => [],
     maritalStatuses: () => [],
@@ -150,6 +165,26 @@ const maritalStatusOptions = computed(() =>
     })),
 );
 
+const clubOptions = computed(() =>
+    props.clubs.map((club) => ({
+        id: club.id,
+        title: `${club.code} - ${club.name}`,
+    })),
+);
+
+const originMembershipOptions = computed(() =>
+    props.originMembershipTypes
+        .filter((membershipType) =>
+            form.source_club_id
+                ? membershipType.club_id === form.source_club_id
+                : true,
+        )
+        .map((membershipType) => ({
+            id: membershipType.id,
+            title: membershipType.name,
+        })),
+);
+
 const familyStepRef = ref();
 const documentsStepRef = ref();
 
@@ -162,6 +197,10 @@ const form = useForm<MembershipsForm>({
     id: null,
     membershipType: null,
     from_membership: null,
+    source_club_id: null,
+    has_multiple_clubs: false,
+    source_membership_is_active: false,
+    years_in_source_club: null,
     members: [],
 });
 
@@ -341,6 +380,11 @@ const removeMember = (localId: number) => {
 
 const selectType = (membershipType: MembershipType) => {
     form.membershipType = { ...membershipType };
+    form.from_membership = null;
+    form.source_club_id = null;
+    form.has_multiple_clubs = false;
+    form.source_membership_is_active = false;
+    form.years_in_source_club = null;
 
     const members: MemberForm[] = [createPrimaryHolder()];
 
@@ -353,6 +397,26 @@ const selectType = (membershipType: MembershipType) => {
 
     form.members = members;
 };
+
+const onSourceClubChange = () => {
+    if (!form.from_membership) return;
+
+    const selectedOriginMembership = props.originMembershipTypes.find(
+        (membershipType) => membershipType.id === form.from_membership,
+    );
+
+    if (
+        selectedOriginMembership &&
+        form.source_club_id &&
+        selectedOriginMembership.club_id !== form.source_club_id
+    ) {
+        form.from_membership = null;
+    }
+};
+
+const isPe1PackageSelected = computed(() =>
+    form.membershipType?.code?.endsWith("_PE1") ?? false,
+);
 
 const calculateAge = (birthdate: string | null): number | null => {
     if (!birthdate) return null;
@@ -442,8 +506,10 @@ const handleNext = async (next: () => void) => {
     }
 
     if (step.value === 3) {
-        const { valid } = await documentsStepRef.value?.validate();
+       /*  const { valid } = await documentsStepRef.value?.validate();
         if (!valid) return;
+        next();
+        return; */
         next();
         return;
     }
@@ -467,6 +533,10 @@ const submit = () => {
     form.transform((data) => ({
         membership_type_id: data.membershipType?.id ?? null,
         from_membership_type_id: data.from_membership,
+        source_club_id: data.source_club_id,
+        has_multiple_clubs: data.has_multiple_clubs,
+        source_membership_is_active: data.source_membership_is_active,
+        years_in_source_club: data.years_in_source_club,
         members: data.members.map((member) => ({
             first_name: member.first_name,
             last_name: member.last_name,
@@ -498,6 +568,14 @@ const submit = () => {
                 icon: "success",
             });
             // form.reset();
+        },
+        onError: (err) => {
+            console.error(err);
+            customToastSwal({
+                title: `Error: ${form.errors.messageError}`,
+                text: `${form.errors.exception}`,
+                icon: "error",
+            });
         },
     });
 };
@@ -609,6 +687,87 @@ const memberLabel = (member: MemberForm) => {
                                         </v-card>
                                     </v-col>
                                 </v-row>
+
+                                <v-card
+                                    v-if="form.membershipType"
+                                    class="mt-6 pa-4"
+                                    variant="outlined"
+                                >
+                                    <div class="text-subtitle-1 font-weight-bold mb-1">
+                                        Datos para calcular reglas
+                                    </div>
+
+                                    <p class="text-body-2 text-medium-emphasis mb-4">
+                                        Capture el origen solo si aplica una transicion,
+                                        interclub, paquete PE1 o tarifa por ambos parques.
+                                    </p>
+
+                                    <v-row>
+                                        <v-col cols="12" md="6">
+                                            <v-autocomplete
+                                                v-model="form.source_club_id"
+                                                :items="clubOptions"
+                                                item-title="title"
+                                                item-value="id"
+                                                label="Club de origen"
+                                                clearable
+                                                @update:modelValue="onSourceClubChange"
+                                            />
+                                        </v-col>
+
+                                        <v-col cols="12" md="6">
+                                            <v-autocomplete
+                                                v-model="form.from_membership"
+                                                :items="originMembershipOptions"
+                                                item-title="title"
+                                                item-value="id"
+                                                label="Membresia de origen"
+                                                clearable
+                                            />
+                                        </v-col>
+
+                                        <v-col cols="12" md="6">
+                                            <v-switch
+                                                v-model="form.has_multiple_clubs"
+                                                color="primary"
+                                                label="Pertenece a ambos parques"
+                                                inset
+                                            />
+                                        </v-col>
+
+                                        <v-col cols="12" md="6" v-if="form.source_club_id">
+                                            <v-switch
+                                                v-model="form.source_membership_is_active"
+                                                color="primary"
+                                                label="La membresia origen esta activa"
+                                                inset
+                                            />
+                                        </v-col>
+
+                                        <v-col
+                                            cols="12"
+                                            md="6"
+                                            v-if="form.source_club_id || isPe1PackageSelected"
+                                        >
+                                            <v-text-field
+                                                v-model="form.years_in_source_club"
+                                                type="number"
+                                                min="0"
+                                                label="Antiguedad en club origen (anos)"
+                                            />
+                                        </v-col>
+                                    </v-row>
+
+                                    <v-alert
+                                        v-if="isPe1PackageSelected"
+                                        type="info"
+                                        variant="tonal"
+                                        class="mt-2"
+                                    >
+                                        Este paquete requiere origen en PE1 y al menos 5 anos
+                                        de antiguedad.
+                                    </v-alert>
+                                </v-card>
                             </v-container>
                         </template>
 
