@@ -90,13 +90,35 @@ const routes: Routing[] = [
         // groupItems: null
     },
     // Amenidades
-    {
+    /*{
         name: "amenities.index",
         title: "Amenidades",
         icon: "mdi-beach",
         value: "amenidades",
         group: null,
         // groupItems: null
+    },*/
+    // Amenidades
+    {
+        name: ["dashboard"],
+        title: "Amenidades",
+        icon: "mdi-beach",
+        value: "amenidades",
+        group: "Amenidades",
+        groupItems: [
+            {
+                name: "amenities.index",
+                title: "Amenidades y recursos",
+                icon: "mdi-beach",
+                value: "amenidades",
+            },
+            {
+                name: "blockedPeriods.index",
+                title: "Bloqueo de recursos",
+                icon: "mdi-calendar-clock-outline",
+                value: "bloqueos",
+            },
+        ]
     },
     // Reservaciones
     {
@@ -129,15 +151,7 @@ const routes: Routing[] = [
         group: null,
         // groupItems: null
     },
-    // Bloqueo de recursos de amenidades
-    {
-        name: "blockedPeriods.index",
-        title: "Bloqueos",
-        icon: "mdi-calendar-clock-outline",
-        value: "bloqueos",
-        group: null,
-        // groupItems: null
-    },
+    
     // Variables de sistema
     {
         name: "system-variables.index",

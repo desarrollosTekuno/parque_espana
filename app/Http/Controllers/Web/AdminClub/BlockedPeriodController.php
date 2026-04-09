@@ -51,7 +51,7 @@ class BlockedPeriodController extends Controller
             ]);
         }
 
-        /*  revisar eventos   */
+        /*  revisar eventos  
         $event = DB::table('announcements.details')
             ->where('resource_id', $resourceId)
             ->whereNull('deleted_at')
@@ -68,7 +68,7 @@ class BlockedPeriodController extends Controller
                     .' hasta '
                     . Carbon::parse($event->ends_at)->format('d/m/Y H:i')
             ]);
-        }
+        } */
 
         /*   revisar bloqueos administrativos     */
         $block = DB::table('amenities.blocked_periods')

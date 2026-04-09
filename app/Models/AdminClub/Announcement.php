@@ -3,6 +3,7 @@
 namespace App\Models\AdminClub;
 
 use App\Models\Administrator\Club;
+use App\Models\AdminClub\AnnouncementImage;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -61,5 +62,10 @@ class Announcement extends Model {
             $q->whereNull('expires_at')
               ->orWhere('expires_at', '>=', now());
         });
+    }
+
+    public function images()
+    {
+        return $this->hasMany(AnnouncementImage::class);
     }
 }
