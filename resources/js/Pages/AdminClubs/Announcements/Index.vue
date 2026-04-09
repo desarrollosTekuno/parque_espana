@@ -172,7 +172,6 @@
                                     icon: "error",
                                 });
                             }
-
                         }
                     );
                 }
@@ -361,48 +360,91 @@ const galleryForm = useForm({
     existing_images: [] as any[],
     remove_images: [] as number[]
 });
-const openGallery = (item:any) => {
+const loadingGallery = ref(false);
+
+const openGallery = async (item:any) => {
     galleryForm.reset();
     galleryForm.announcement_id = item.id;
-    galleryForm.existing_images = item.images ?? [];
+    galleryForm.existing_images = [];
     showGalleryModal.value = true;
+    loadingGallery.value = true;
+    try{
+        const res = await axios.get(
+            route(
+                "announcements.gallery.index",
+                item.id
+            )
+        );
+        galleryForm.existing_images =
+            res.data.images ?? [];
+    }
+    catch(e){
+        console.error(e);
+        customToastSwal({
+            title: "Error cargando galería",
+            icon: "error"
+        });
+    }
+    finally{
+        loadingGallery.value = false;
+    }
 };
 const previewURL = (file: File) => {
     return window.URL.createObjectURL(file);
 };
-const saveGallery = () => {
+const handleImagesSelected = (files:any[]) => {
+    if(!files) return;
+    const MAX_MB = 2 * 1024 * 1024;
+    const MAX_FILES = 5;
+    let validFiles:any[] = [];
+    for(const file of files){
+        if(file.size > MAX_MB){
+            customToastSwal({
+                title: `${file.name} excede 2MB`,
+                icon:"warning"
+            });
+            continue;
+        }
+        validFiles.push(file);
+    }
+    const availableSlots =
+        MAX_FILES
+        - galleryForm.existing_images.length;
+    if(validFiles.length > availableSlots){
+        validFiles =
+            validFiles.slice(0,availableSlots);
+        customToastSwal({
+            title: "Máximo 5 imágenes por anuncio",
+            icon:"warning"
+        });
+    }
+    galleryForm.images = validFiles;
 
+};
+const saveGallery = () => {
     galleryForm
         .post(
             route("announcements.gallery.store"),
             {
-
                 forceFormData: true,
-
                 onSuccess: () => {
-
                     customToastSwal({
-                        title: "Galería actualizada",
+                        title: page.props.flash.success || "",
                         icon: "success"
                     });
-
                     showGalleryModal.value = false;
-
                     galleryForm.reset();
-
                     fetchItems();
-
                 },
-
-                onError: (errors) => {
-
-                    console.log(errors);
-
+                onError: () => {
+                    customToastSwal({
+                        title: `Error: ${form.errors.messageError}`,
+                        text: `${form.errors.exception}`,
+                        icon: "error",
+                    });
                 }
-
             }
         );
-
 };
 const removeExistingImage = (img:any) => {
     galleryForm.remove_images.push(img.id);
@@ -411,6 +453,21 @@ const removeExistingImage = (img:any) => {
             i => i.id !== img.id
         );
 };
+const removeNewImage = (index:number) => {
+    galleryForm.images.splice(index,1);
+};
+const totalImages = computed(()=>{
+    return (
+        galleryForm.images.length
+        + galleryForm.existing_images.length
+    );
+});
+const hasGalleryChanges = computed(()=>{
+    return (
+        galleryForm.images.length > 0
+        || galleryForm.remove_images.length > 0
+    );
+});
 watch(
     () => props.announcements,
     (val) => {
@@ -547,15 +604,7 @@ watch(
                     <template #item.actions="{ item }">
                         <v-tooltip text="Agregar galería">
                             <template #activator="{ props }">
-                                <v-btn
-                                    v-bind="props"
-                                    icon="mdi-camera"
-                                    size="small"
-                                    variant="tonal"
-                                    color="indigo"
-                                    class="mx-1"
-                                    @click="openGallery(item)"
-                                />
+                                <BaseButton v-bind="props" icon="mdi-camera" color="green" @click="openGallery(item)"/>
                             </template>
                         </v-tooltip>
                         <BaseButton action="edit" @click="edit(item)" v-if="can.includes('announcements.update')" />
@@ -565,7 +614,7 @@ watch(
             </div>
             <v-dialog v-model="showModal" max-width="650" persistent>
                 <v-form ref="formSendRef" @submit.prevent="save">
-                    <v-card :title="form.id ? 'Editar anuncio' : 'Nuevo anuncio'">
+                    <v-card :title="form.id ? 'Editar aviso' : 'Nuevo aviso'">
                         <v-card-text style="max-height:70vh; overflow:auto">
                             <v-row>
                                 <v-col cols="12">
@@ -578,7 +627,7 @@ watch(
                                     <FormDescripcion v-model="form.content" label="Contenido" rows="4" auto-grow />
                                 </v-col>
                                 <v-col cols="12">
-                                    <v-select v-model="form.type" label="Tipo de anuncio" prepend-inner-icon="mdi-shape"
+                                    <v-select v-model="form.type" label="Tipo de aviso" prepend-inner-icon="mdi-shape"
                                         :items="[
                                             { title: 'Comunicado', value: 'comunicado' },
                                             { title: 'Torneo', value: 'torneo' },
@@ -598,6 +647,9 @@ watch(
                                         @click="removeImage">
                                         Eliminar imagen
                                     </v-btn>
+                                    <div class="text-caption text-medium-emphasis">
+                                        Tamaño recomendado 1200x800px · Máximo 2MB · Formatos JPG, PNG
+                                    </div>
                                 </v-col>
                                 <!--<template v-if="showEventFields">
                                     <v-col cols="6">
@@ -643,42 +695,51 @@ watch(
             </v-dialog>
             <v-dialog v-model="showGalleryModal" max-width="700" persistent>
                 <v-card title="Galería de imágenes">
-                <v-card-text>
-                <v-file-input v-model="galleryForm.images"
-                    multiple
-                    accept="image/*"
-                    label="Subir imágenes"
-                    prepend-icon="mdi-image-multiple"
-                ></v-file-input>
+                    <v-card-text>
+                        <v-file-input :model-value="galleryForm.images"
+                            multiple
+                            accept="image/*"
+                            label="Subir imágenes"
+                            prepend-icon="mdi-image-multiple"
+                            show-size
+                            chips
+                            @update:modelValue="handleImagesSelected"
+                            :disabled="totalImages >= 5"
+                        />
+                        <v-alert
+                            type="info"
+                            variant="tonal"
+                            density="compact"
+                            class="mt-2"
+                            icon="mdi-information-outline">
+                            Máximo 5 imágenes · 2MB por archivo
+                        </v-alert>
                 <!-- preview nuevas -->
                 <div class="d-flex flex-wrap mt-3">
-                    <v-card
-                        v-for="(img,index) in galleryForm.images"
+                    <v-card v-for="(img,index) in galleryForm.images"
                         :key="'new'+index"
-                        class="ma-2"
-                        width="110"
-
-                    >
-                        <v-img
-                            :src="previewURL(img)"
+                        class="ma-2 position-relative"
+                        width="110">
+                        <v-img :src="previewURL(img)"
                             height="90"
-                            cover
-                        />
+                            cover/>
+                        <v-btn
+                            icon="mdi-close"
+                            size="x-small"
+                            color="error"
+                            class="position-absolute top-0 right-0"
+                            @click="removeNewImage(index)"/>
                     </v-card>
                 </div>
                 <!-- imágenes existentes -->
                 <div class="d-flex flex-wrap mt-4">
-                    <v-card
-                        v-for="img in galleryForm.existing_images"
+                    <v-card v-for="img in galleryForm.existing_images"
                         :key="img.id"
                         class="ma-2 position-relative"
-                        width="110"
-                    >
-                        <v-img
-                            :src="`/storage/${img.image}`"
+                        width="110">
+                        <v-img :src="`/storage/${img.image}`"
                             height="90"
-                            cover
-                        />
+                            cover/>
                         <v-btn
                             icon="mdi-close"
                             size="x-small"
@@ -688,24 +749,28 @@ watch(
                         />
                     </v-card>
                 </div>
+                <div class="d-flex flex-wrap mt-3">
+                    <v-chip
+                        size="small"
+                        color="indigo"
+                        class="mb-2"
+                    >
+                    {{ galleryForm.existing_images.length + galleryForm.images.length }}
+                    / 5 imágenes
+                    </v-chip>
+                    <v-progress-linear
+                        v-if="loadingGallery"
+                        indeterminate
+                        color="primary"
+                        class="mb-2"/>
+                </div>
                 </v-card-text>
-            <v-card-actions>
-            <v-spacer/>
-            <BaseButton
-                text="Cancelar"
-                action="cancel"
-                variant="tonal"
-                @click="showGalleryModal=false"
-                :icon-only="false"
-            />
-            <BaseButton
-                text="Guardar"
-                action="save"
-                @click="saveGallery"
-                :icon-only="false"
-            />
-            </v-card-actions>
-            </v-card>
+                    <v-card-actions>
+                        <v-spacer/>
+                        <BaseButton text="Cancelar" action="cancel" variant="flat" @click="showGalleryModal=false" :icon-only="false" />
+                        <BaseButton :text="'Guardar'" action="save" @click="saveGallery" :icon-only="false" :disabled="totalImages > 5 || !hasGalleryChanges" variant="flat"/>
+                    </v-card-actions>
+                </v-card>
             </v-dialog>
         </AppLayout>
     </template>

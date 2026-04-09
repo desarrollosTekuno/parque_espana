@@ -25,6 +25,7 @@ Route::resource('/guest-lists', ReservationGuestListController::class)->only(['i
 Route::resource('/announcements', AnnouncementController::class)->names('announcements');
 Route::post('announcements/gallery', [AnnouncementController::class,'storeGallery'])->name('announcements.gallery.store');
 Route::delete('announcements/gallery/{image}',[AnnouncementController::class,'destroyGalleryImage'])->name('announcements.gallery.destroy');
+Route::get('announcements/{announcement}/gallery', [AnnouncementController::class,'getGallery'])->name('announcements.gallery.index');
 Route::resource('/blockedPeriods', BlockedPeriodController::class)->names('blockedPeriods');
 
 // members

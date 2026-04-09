@@ -145,7 +145,7 @@ const routes: Routing[] = [
     // Anuncios
     {
         name: "announcements.index",
-        title: "Anuncios",
+        title: "Comunicación",
         icon: "mdi-bullhorn-outline",
         value: "anuncios",
         group: null,

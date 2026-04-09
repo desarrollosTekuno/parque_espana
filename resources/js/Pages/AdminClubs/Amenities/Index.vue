@@ -647,7 +647,7 @@ const saveResource = () => {
                 payload.slot_duration_minutes = null
             }
             if (!showCapacity.value) {
-                payload.capacity = null
+                payload.capacity = 1
             }
             if (resourceForm.id) {
                 payload._method = "PUT"
@@ -963,10 +963,12 @@ watch(
                                         Eliminar
                                     </v-btn>
                                 </v-card>
+                                <div class="text-caption text-medium-emphasis">
+                                    Máximo 2MB · Formatos JPG, PNG
+                                </div>
                             </v-col>
                             <v-col cols="6">
                                 <FormImage v-model="form.background_image" label="Imagen de fondo" ref="imageRef" />
-
                                 <v-card height="150" variant="outlined"
                                     class="mt-2 d-flex flex-column align-center justify-center imagePreview">
                                     <v-img v-if="imagePreview" :src="imagePreview" height="90" width="200" cover
@@ -981,6 +983,9 @@ watch(
                                         Eliminar
                                     </v-btn>
                                 </v-card>
+                                <div class="text-caption text-medium-emphasis">
+                                    Máximo 2MB · Formatos JPG, PNG
+                                </div>
                             </v-col>
 
                             <v-col cols="12">

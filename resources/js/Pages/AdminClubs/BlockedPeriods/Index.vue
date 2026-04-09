@@ -31,6 +31,44 @@ const form = useForm({
     end_time: null,
 });
 
+const resourcesGrouped = computed(()=>{
+    if(!resourcesList.value?.length)
+        return [];
+    const sorted = [...resourcesList.value]
+        .sort((a:any,b:any)=>{
+            const amenityA =
+                a.amenity?.name ?? "";
+            const amenityB =
+                b.amenity?.name ?? "";
+            if(amenityA === amenityB){
+                return a.name.localeCompare(b.name);
+            }
+            return amenityA.localeCompare(amenityB);
+        });
+    const result:any[] = [];
+    let currentAmenity = null;
+    for(const r of sorted){
+        const amenityName =
+            r.amenity?.name
+            ?? "Sin amenidad";
+        // agregar header
+        if(currentAmenity !== amenityName){
+            result.push({
+                type: "header",
+                title: amenityName
+            });
+            currentAmenity = amenityName;
+        }
+        // agregar item
+        result.push({
+            type: "item",
+            title: r.name,
+            value: r.id
+        });
+    }
+    return result;
+});
+
 const create = () => {
     form.reset();
     showModal.value = true;
@@ -214,8 +252,26 @@ watch(
                     <v-card-text>
                         <v-row>
                             <v-col cols="12">
-                                <v-select v-model="form.resource_id" label="Recurso" :items="resourcesList"
-                                    item-title="name" item-value="id" :rules="[required]" />
+                                <v-select v-model="form.resource_id"
+                                    label="Recurso"
+                                    :items="resourcesGrouped"
+                                    item-title="title"
+                                    item-value="value"
+                                    :rules="[required]">
+                                    <template #item="{ props, item }">
+                                        <!-- header de amenidad -->
+                                        <v-list-subheader
+                                            v-if="item.raw.type === 'header'"
+                                        >
+                                            {{ item.raw.title }}
+                                        </v-list-subheader>
+                                        <!-- recurso -->
+                                        <v-list-item
+                                            v-else
+                                            v-bind="props"
+                                        />
+                                    </template>
+                                </v-select>
                             </v-col>
                             <v-col cols="12">
                                 <FormDescripcion v-model="form.reason" label="Motivo" :rules="[required]" />
