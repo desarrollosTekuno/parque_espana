@@ -48,6 +48,7 @@ const headers = [
     { title: "Mensualidad", key: "monthly_fee" },
     { title: "Inicio", key: "start_date" },
     { title: "Estatus", key: "status" },
+    { title: "Acciones", key: "actions", sortable: false },
 ];
 
 const items = ref<MemberItem[]>(props.members.data ?? []);
@@ -218,6 +219,23 @@ const emptyMessage = computed(() =>
                             >
                                 {{ statusLabel(item.status) }}
                             </v-chip>
+                        </template>
+
+                        <template #item.actions="{ item }">
+                            <BaseButton
+                                :icon-only="false"
+                                action="add"
+                                text="Agregar membresia"
+                                tooltip="Agregar membresia del otro parque"
+                                @click="
+                                    router.visit(
+                                        route(
+                                            'members.additional-membership.create',
+                                            item.id,
+                                        ),
+                                    )
+                                "
+                            />
                         </template>
                     </v-data-table-server>
                 </v-col>

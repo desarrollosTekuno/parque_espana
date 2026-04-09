@@ -31,7 +31,7 @@ const routes: Routing[] = [
         // groupItems: null
     },
     {
-        name: ["members.index", "members.create", "members.edit"],
+        name: ["members.index", "members.create", "members.edit", "members.additional-membership.create"],
         title: "Socios",
         icon: "mdi-account-group-outline",
         value: "sociosMenu",

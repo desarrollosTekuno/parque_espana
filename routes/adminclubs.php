@@ -28,4 +28,6 @@ Route::delete('announcements/gallery/{image}',[AnnouncementController::class,'de
 Route::resource('/blockedPeriods', BlockedPeriodController::class)->names('blockedPeriods');
 
 // members
+Route::get('/members/{membership}/additional-membership/create', [MemberController::class, 'createAdditionalMembership'])
+    ->name('members.additional-membership.create');
 Route::resource('/members', MemberController::class)->only(['index', 'create', 'store', 'edit', 'update'])->names('members');

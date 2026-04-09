@@ -24,6 +24,10 @@ interface Props {
     relationships?: Relationship[];
     nationalities?: Nationality[];
     maritalStatuses?: MaritalStatus[];
+    isCrossClubRequest?: boolean;
+    targetClub?: Club | null;
+    sourceMembership?: SourceMembership | null;
+    prefillMembers?: PrefillMember[];
 }
 
 interface Club {
@@ -74,6 +78,18 @@ interface MembershipType {
     document_types: DocumentType[];
 }
 
+interface SourceMembership {
+    id: number;
+    membership_number: string | null;
+    holder_name: string;
+    membership_type_name: string | null;
+    membership_type_code: string | null;
+    club_name: string | null;
+    club_code: string | null;
+    status: string;
+    start_date: string | null;
+}
+
 interface MemberAddressForm {
     street: string | null;
     neighborhood: string | null;
@@ -101,6 +117,7 @@ interface MemberDocumentForm {
 }
 
 interface MemberForm {
+    id?: number | null;
     local_id: number;
     first_name: string;
     last_name: string;
@@ -129,6 +146,28 @@ interface MemberForm {
     documents: MemberDocumentForm[];
 }
 
+interface PrefillMember {
+    id?: number | null;
+    first_name: string;
+    last_name: string;
+    second_last_name: string | null;
+    birthdate: string | null;
+    birth_place: string | null;
+    city: string | null;
+    state: string | null;
+    nationality_id: number | null;
+    marital_status_id: number | null;
+    phone: string | null;
+    email: string | null;
+    occupation: string | null;
+    school_name: string | null;
+    relationship_id: number | null;
+    relationship_name: string | null;
+    is_primary_holder: boolean;
+    address?: Partial<MemberAddressForm> | null;
+    employment?: Partial<MemberEmploymentForm> | null;
+}
+
 interface MembershipsForm {
     id: number | null;
     membershipType: MembershipType | null;
@@ -137,6 +176,8 @@ interface MembershipsForm {
     has_multiple_clubs: boolean;
     source_membership_is_active: boolean;
     years_in_source_club: number | null;
+    source_membership_id: number | null;
+    target_club_id: number | null;
     members: MemberForm[];
 }
 
@@ -147,6 +188,10 @@ const props = withDefaults(defineProps<Props>(), {
     relationships: () => [],
     nationalities: () => [],
     maritalStatuses: () => [],
+    isCrossClubRequest: false,
+    targetClub: null,
+    sourceMembership: null,
+    prefillMembers: () => [],
 });
 
 const nationalityOptions = computed(() =>
@@ -201,6 +246,8 @@ const form = useForm<MembershipsForm>({
     has_multiple_clubs: false,
     source_membership_is_active: false,
     years_in_source_club: null,
+    source_membership_id: props.sourceMembership?.id ?? null,
+    target_club_id: props.targetClub?.id ?? null,
     members: [],
 });
 
@@ -226,6 +273,7 @@ const createEmptyMember = (
     isPrimaryHolder = false,
     isLocked = false,
 ): MemberForm => ({
+    id: null,
     local_id: Date.now() + Math.floor(Math.random() * 1000),
     first_name: "",
     last_name: "",
@@ -253,6 +301,46 @@ const createEmptyMember = (
     employment: createEmptyEmployment(),
     documents: [],
 });
+
+const buildMemberFromPrefill = (prefillMember: PrefillMember): MemberForm => {
+    const member = createEmptyMember(
+        prefillMember.relationship_id,
+        prefillMember.relationship_name,
+        prefillMember.is_primary_holder,
+        prefillMember.is_primary_holder,
+    );
+
+    member.id = prefillMember.id ?? null;
+    member.first_name = prefillMember.first_name ?? "";
+    member.last_name = prefillMember.last_name ?? "";
+    member.second_last_name = prefillMember.second_last_name ?? "";
+    member.birthdate = prefillMember.birthdate ?? null;
+    member.age = calculateAge(prefillMember.birthdate ?? null);
+    member.birth_place = prefillMember.birth_place ?? "";
+    member.city = prefillMember.city ?? "";
+    member.state = prefillMember.state ?? "";
+    member.nationality_id = prefillMember.nationality_id ?? null;
+    member.marital_status_id = prefillMember.marital_status_id ?? null;
+    member.phone = prefillMember.phone ?? "";
+    member.email = prefillMember.email ?? "";
+    member.occupation = prefillMember.occupation ?? "";
+    member.school_name = prefillMember.school_name ?? "";
+    member.address = {
+        ...createEmptyAddress(),
+        ...(prefillMember.address ?? {}),
+    };
+    member.employment = {
+        ...createEmptyEmployment(),
+        ...(prefillMember.employment ?? {}),
+    };
+    member.documents = member.is_primary_holder
+        ? buildMemberDocuments(member)
+        : member.relationship_id
+          ? buildDocumentsForRelationship(member.relationship_id, member.age)
+          : [];
+
+    return member;
+};
 
 const getRelationshipIdForDocuments = (member: MemberForm) => {
     if (member.is_primary_holder) {
@@ -380,11 +468,26 @@ const removeMember = (localId: number) => {
 
 const selectType = (membershipType: MembershipType) => {
     form.membershipType = { ...membershipType };
-    form.from_membership = null;
-    form.source_club_id = null;
-    form.has_multiple_clubs = false;
-    form.source_membership_is_active = false;
-    form.years_in_source_club = null;
+    if (!props.isCrossClubRequest) {
+        form.from_membership = null;
+        form.source_club_id = null;
+        form.has_multiple_clubs = false;
+        form.source_membership_is_active = false;
+        form.years_in_source_club = null;
+    }
+
+    if (props.isCrossClubRequest && props.prefillMembers.length > 0) {
+        const members = props.prefillMembers
+            .filter(
+                (member) =>
+                    membershipType.allows_multiple_members ||
+                    member.is_primary_holder,
+            )
+            .map((member) => buildMemberFromPrefill(member));
+
+        form.members = members;
+        return;
+    }
 
     const members: MemberForm[] = [createPrimaryHolder()];
 
@@ -417,6 +520,12 @@ const onSourceClubChange = () => {
 const isPe1PackageSelected = computed(() =>
     form.membershipType?.code?.endsWith("_PE1") ?? false,
 );
+
+const crossClubSourceSummary = computed(() => {
+    if (!props.sourceMembership) return null;
+
+    return `${props.sourceMembership.club_code} · ${props.sourceMembership.membership_type_name}`;
+});
 
 const calculateAge = (birthdate: string | null): number | null => {
     if (!birthdate) return null;
@@ -530,6 +639,8 @@ const handlePrev = (prev: () => void) => {
 
 const submit = () => {
     form.transform((data) => ({
+        source_membership_id: data.source_membership_id,
+        target_club_id: data.target_club_id,
         membership_type_id: data.membershipType?.id ?? null,
         from_membership_type_id: data.from_membership,
         source_club_id: data.source_club_id,
@@ -537,6 +648,7 @@ const submit = () => {
         source_membership_is_active: data.source_membership_is_active,
         years_in_source_club: data.years_in_source_club,
         members: data.members.map((member) => ({
+            id: member.id ?? null,
             first_name: member.first_name,
             last_name: member.last_name,
             second_last_name: member.second_last_name,
@@ -587,10 +699,22 @@ const memberLabel = (member: MemberForm) => {
 </script>
 
 <template>
-    <Head title="Alta de Socios" />
+    <Head
+        :title="
+            props.isCrossClubRequest
+                ? 'Solicitud Otro Parque'
+                : 'Alta de Socios'
+        "
+    />
 
     <AppLayout>
-        <template #header>Alta de Socios</template>
+        <template #header>
+            {{
+                props.isCrossClubRequest
+                    ? "Solicitud para el Otro Parque"
+                    : "Alta de Socios"
+            }}
+        </template>
 
         <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
             <v-row>
@@ -609,6 +733,19 @@ const memberLabel = (member: MemberForm) => {
                                     El tipo de membresía determina los
                                     documentos e información que se solicitarán.
                                 </p>
+
+                                <v-alert
+                                    v-if="props.isCrossClubRequest && props.sourceMembership"
+                                    type="info"
+                                    variant="tonal"
+                                    class="mb-6"
+                                >
+                                    <strong>Origen:</strong>
+                                    {{ props.sourceMembership.holder_name }}
+                                    · {{ crossClubSourceSummary }}
+                                    · Folio
+                                    {{ props.sourceMembership.membership_number || "-" }}
+                                </v-alert>
 
                                 <v-row>
                                     <v-col
@@ -688,7 +825,7 @@ const memberLabel = (member: MemberForm) => {
                                 </v-row>
 
                                 <v-card
-                                    v-if="form.membershipType"
+                                    v-if="form.membershipType && !props.isCrossClubRequest"
                                     class="mt-6 pa-4"
                                     variant="outlined"
                                 >

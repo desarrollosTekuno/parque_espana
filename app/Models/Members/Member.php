@@ -19,4 +19,19 @@ class Member extends Model
     {
         return $this->hasMany(MembershipAccountMember::class, 'member_id');
     }
+
+    public function addresses()
+    {
+        return $this->hasMany(Address::class, 'member_id');
+    }
+
+    public function primaryAddress()
+    {
+        return $this->hasOne(Address::class, 'member_id')->where('is_primary', true);
+    }
+
+    public function employmentInfo()
+    {
+        return $this->hasOne(EmploymentInfo::class, 'member_id');
+    }
 }
