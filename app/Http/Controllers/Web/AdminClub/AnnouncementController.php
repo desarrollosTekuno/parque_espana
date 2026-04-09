@@ -361,6 +361,13 @@ class AnnouncementController extends Controller
             ]);
         }
     }
+    public function getGallery($id){
+        $announcement = Announcement::with('images')
+            ->findOrFail($id);
+        return response()->json([
+            'images' => $announcement->images
+        ]);
+    }
     public function destroyGalleryImage(AnnouncementImage $image){
         try {
             if($image->image){
