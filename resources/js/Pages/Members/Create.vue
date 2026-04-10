@@ -217,6 +217,16 @@ const clubOptions = computed(() =>
     })),
 );
 
+const pageTitle = computed(() =>
+    props.isCrossClubRequest ? "Solicitud Otro Parque" : "Alta de Socios",
+);
+
+const pageHeader = computed(() =>
+    props.isCrossClubRequest
+        ? "Solicitud para el Otro Parque"
+        : "Alta de Socios",
+);
+
 const originMembershipOptions = computed(() =>
     props.originMembershipTypes
         .filter((membershipType) =>
@@ -527,6 +537,36 @@ const crossClubSourceSummary = computed(() => {
     return `${props.sourceMembership.club_code} · ${props.sourceMembership.membership_type_name}`;
 });
 
+const crossClubTargetSummary = computed(() => {
+    if (!props.targetClub) return null;
+
+    return `${props.targetClub.code} - ${props.targetClub.name}`;
+});
+
+const submitButtonLabel = computed(() =>
+    props.isCrossClubRequest
+        ? "Confirmar y generar solicitud"
+        : "Confirmar y guardar",
+);
+
+const nextButtonLabel = computed(() =>
+    step.value === steps.length ? submitButtonLabel.value : "Siguiente",
+);
+
+const formatDate = (value: string | null): string => {
+    if (!value) return "-";
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) return value;
+
+    return new Intl.DateTimeFormat("es-MX", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+    }).format(date);
+};
+
 const calculateAge = (birthdate: string | null): number | null => {
     if (!birthdate) return null;
 
@@ -699,22 +739,10 @@ const memberLabel = (member: MemberForm) => {
 </script>
 
 <template>
-    <Head
-        :title="
-            props.isCrossClubRequest
-                ? 'Solicitud Otro Parque'
-                : 'Alta de Socios'
-        "
-    />
+    <Head :title="pageTitle" />
 
     <AppLayout>
-        <template #header>
-            {{
-                props.isCrossClubRequest
-                    ? "Solicitud para el Otro Parque"
-                    : "Alta de Socios"
-            }}
-        </template>
+        <template #header>{{ pageHeader }}</template>
 
         <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
             <v-row>
@@ -746,6 +774,114 @@ const memberLabel = (member: MemberForm) => {
                                     · Folio
                                     {{ props.sourceMembership.membership_number || "-" }}
                                 </v-alert>
+
+                                <template
+                                    v-if="
+                                        props.isCrossClubRequest &&
+                                        props.sourceMembership
+                                    "
+                                >
+                                    <v-row class="mb-2">
+                                        <v-col cols="12" md="4">
+                                            <v-card
+                                                variant="tonal"
+                                                class="pa-4 h-100"
+                                            >
+                                                <div
+                                                    class="text-caption text-medium-emphasis"
+                                                >
+                                                    Solicitud
+                                                </div>
+                                                <div
+                                                    class="text-subtitle-1 font-weight-bold"
+                                                >
+                                                    Nuevo tramite para el otro
+                                                    parque
+                                                </div>
+                                                <div class="text-body-2 mt-2">
+                                                    Se creara una nueva cuenta
+                                                    en el club destino.
+                                                </div>
+                                            </v-card>
+                                        </v-col>
+
+                                        <v-col cols="12" md="4">
+                                            <v-card
+                                                variant="tonal"
+                                                class="pa-4 h-100"
+                                            >
+                                                <div
+                                                    class="text-caption text-medium-emphasis"
+                                                >
+                                                    Membresia origen
+                                                </div>
+                                                <div
+                                                    class="text-subtitle-1 font-weight-bold"
+                                                >
+                                                    {{ crossClubSourceSummary }}
+                                                </div>
+                                                <div class="text-body-2 mt-2">
+                                                    Titular:
+                                                    {{
+                                                        props.sourceMembership
+                                                            .holder_name
+                                                    }}
+                                                </div>
+                                                <div class="text-body-2">
+                                                    Folio:
+                                                    {{
+                                                        props.sourceMembership
+                                                            .membership_number ||
+                                                        "-"
+                                                    }}
+                                                </div>
+                                                <div class="text-body-2">
+                                                    Inicio:
+                                                    {{
+                                                        formatDate(
+                                                            props
+                                                                .sourceMembership
+                                                                .start_date,
+                                                        )
+                                                    }}
+                                                </div>
+                                            </v-card>
+                                        </v-col>
+
+                                        <v-col cols="12" md="4">
+                                            <v-card
+                                                variant="tonal"
+                                                class="pa-4 h-100"
+                                            >
+                                                <div
+                                                    class="text-caption text-medium-emphasis"
+                                                >
+                                                    Club destino
+                                                </div>
+                                                <div
+                                                    class="text-subtitle-1 font-weight-bold"
+                                                >
+                                                    {{ crossClubTargetSummary }}
+                                                </div>
+                                                <div class="text-body-2 mt-2">
+                                                    El costo se calculara segun
+                                                    la membresia origen y el
+                                                    tipo destino.
+                                                </div>
+                                            </v-card>
+                                        </v-col>
+                                    </v-row>
+
+                                    <v-alert
+                                        type="info"
+                                        variant="tonal"
+                                        class="mb-6"
+                                    >
+                                        La captura manual de origen se omite en
+                                        este flujo porque la solicitud ya parte
+                                        de una membresia activa real.
+                                    </v-alert>
+                                </template>
 
                                 <v-row>
                                     <v-col
@@ -911,6 +1047,18 @@ const memberLabel = (member: MemberForm) => {
                         <template #item.2>
                             <v-form ref="familyStepRef">
                                 <v-container class="overflow-auto h-[500px]">
+                                    <v-alert
+                                        v-if="props.isCrossClubRequest"
+                                        type="info"
+                                        variant="tonal"
+                                        class="mb-4"
+                                    >
+                                        Los integrantes se precargaron desde la
+                                        membresia origen para agilizar la
+                                        solicitud. Puedes ajustar la captura
+                                        antes de enviarla.
+                                    </v-alert>
+
                                     <div
                                         v-for="member in form.members"
                                         :key="member.local_id"
@@ -1372,6 +1520,17 @@ const memberLabel = (member: MemberForm) => {
                                         </p>
                                     </div>
 
+                                    <v-alert
+                                        v-if="props.isCrossClubRequest"
+                                        type="info"
+                                        variant="tonal"
+                                        class="mb-4"
+                                    >
+                                        Estos documentos corresponden a la
+                                        membresia destino, aunque el titular ya
+                                        exista en el otro parque.
+                                    </v-alert>
+
                                     <div
                                         v-for="member in form.members"
                                         :key="member.local_id"
@@ -1450,6 +1609,35 @@ const memberLabel = (member: MemberForm) => {
                                 </h3>
 
                                 <v-card class="pa-4 mb-4">
+                                    <p v-if="props.isCrossClubRequest">
+                                        <strong>Tipo de tramite:</strong>
+                                        Solicitud para el otro parque
+                                    </p>
+                                    <p
+                                        v-if="
+                                            props.isCrossClubRequest &&
+                                            props.sourceMembership
+                                        "
+                                    >
+                                        <strong>Origen:</strong>
+                                        {{ crossClubSourceSummary }}
+                                    </p>
+                                    <p
+                                        v-if="
+                                            props.isCrossClubRequest &&
+                                            props.sourceMembership
+                                        "
+                                    >
+                                        <strong>Folio origen:</strong>
+                                        {{
+                                            props.sourceMembership
+                                                .membership_number || "-"
+                                        }}
+                                    </p>
+                                    <p v-if="props.isCrossClubRequest">
+                                        <strong>Club destino:</strong>
+                                        {{ crossClubTargetSummary }}
+                                    </p>
                                     <p>
                                         <strong>Membresía:</strong>
                                         {{ form.membershipType?.name }}
@@ -1491,9 +1679,15 @@ const memberLabel = (member: MemberForm) => {
                                     </p>
                                 </v-card>
 
-                                <v-btn color="success" @click="submit">
-                                    Confirmar y guardar
-                                </v-btn>
+                                <v-alert
+                                    v-if="props.isCrossClubRequest"
+                                    type="info"
+                                    variant="tonal"
+                                >
+                                    Al confirmar se generara una nueva cuenta en
+                                    el parque destino y la solicitud usara la
+                                    membresia origen para resolver el precio.
+                                </v-alert>
                             </v-container>
                         </template>
 
@@ -1510,11 +1704,20 @@ const memberLabel = (member: MemberForm) => {
                                 <v-spacer />
 
                                 <v-btn
+                                    v-if="step < steps.length"
                                     color="primary"
                                     @click="handleNext(next)"
                                     :disabled="isNextDisabled"
                                 >
-                                    Siguiente
+                                    {{ nextButtonLabel }}
+                                </v-btn>
+
+                                <v-btn
+                                    v-else
+                                    color="success"
+                                    @click="submit"
+                                >
+                                    {{ submitButtonLabel }}
                                 </v-btn>
                             </div>
                         </template>
