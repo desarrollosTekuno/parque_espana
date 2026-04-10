@@ -15,6 +15,11 @@ class Membership extends Model
 
     protected $table = 'memberships.memberships';
 
+    protected $casts = [
+        'is_primary' => 'boolean',
+        'is_billable' => 'boolean',
+    ];
+
     public function account()
     {
         return $this->belongsTo(MembershipAccount::class, 'membership_account_id');

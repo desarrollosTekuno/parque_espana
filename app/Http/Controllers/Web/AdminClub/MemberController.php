@@ -513,7 +513,7 @@ class MemberController extends Controller
         $club = Club::findOrFail($clubId);
 
         try {
-            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType) {
+            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership) {
                 $membershipAccount = MembershipAccount::create([
                     'membership_number' => $this->generateMembershipNumber($club),
                     'account_type' => $membershipType->allows_multiple_members ? 'family' : 'individual',
@@ -580,13 +580,20 @@ class MemberController extends Controller
                     'membership_type_id' => $membershipType->id,
                     'origin_membership_type_id' => $fromMembershipType?->id,
                     'is_primary' => true,
+                    'is_billable' => true,
                     'monthly_fee' => $pricing['monthly_fee'],
                     'start_date' => now()->toDateString(),
                     'end_date' => $membershipType->validity_months
                         ? now()->addMonthsNoOverflow($membershipType->validity_months)->toDateString()
                         : null,
-                    'status' => 'pending',
+                    'status' => 'active',
                 ]);
+
+                if ($sourceMembership && ($pricing['source_membership_becomes_non_billable'] ?? false)) {
+                    $sourceMembership->update([
+                        'is_billable' => false,
+                    ]);
+                }
             });
 
             return redirect()
@@ -657,6 +664,7 @@ class MemberController extends Controller
                 'monthly_fee' => (float) $interclubRule->monthly_fee,
                 'inscription_fee' => (float) $interclubRule->inscription_fee,
                 'rule_type' => 'interclub',
+                'source_membership_becomes_non_billable' => true,
             ];
         }
 
@@ -683,6 +691,7 @@ class MemberController extends Controller
             'monthly_fee' => (float) $pricingRule->monthly_fee,
             'inscription_fee' => (float) ($pricingRule->inscription_fee ?? 0),
             'rule_type' => 'pricing_rule',
+            'source_membership_becomes_non_billable' => (bool) $pricingRule->requires_multiple_clubs,
         ];
     }
 
