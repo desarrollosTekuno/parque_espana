@@ -230,6 +230,7 @@ class MemberController extends Controller
                 ? (int) $validated['age']
                 : null;
             $sameClubTransition = false;
+            $currentMonthlyFee = null;
 
             if (!empty($validated['source_membership_id'])) {
                 $sourceMembership = Membership::query()
@@ -244,6 +245,7 @@ class MemberController extends Controller
                     ? Carbon::parse($sourceMembership->start_date)->diffInYears(now())
                     : null;
                 $sameClubTransition = (int) $clubId === (int) $sourceMembership->club_id;
+                $currentMonthlyFee = (float) $sourceMembership->monthly_fee;
 
                 if (!$sameClubTransition) {
                     $hasMultipleClubs = true;
@@ -315,6 +317,19 @@ class MemberController extends Controller
                 'total_due' => (float) $pricing['monthly_fee'] + (float) ($pricing['inscription_fee'] ?? 0),
                 'rule_type' => $pricing['rule_type'] ?? null,
                 'source_membership_becomes_non_billable' => (bool) ($pricing['source_membership_becomes_non_billable'] ?? false),
+                'current_monthly_fee' => $currentMonthlyFee,
+                'additional_monthly_charge' => $this->resolveAdditionalMonthlyCharge(
+                    currentMonthlyFee: $currentMonthlyFee,
+                    newMonthlyFee: (float) $pricing['monthly_fee'],
+                    sourceMembershipBecomesNonBillable: (bool) ($pricing['source_membership_becomes_non_billable'] ?? false)
+                ),
+                'charge_explanation' => $this->buildPricingPreviewExplanation(
+                    currentMonthlyFee: $currentMonthlyFee,
+                    newMonthlyFee: (float) $pricing['monthly_fee'],
+                    inscriptionFee: (float) ($pricing['inscription_fee'] ?? 0),
+                    sourceMembershipBecomesNonBillable: (bool) ($pricing['source_membership_becomes_non_billable'] ?? false),
+                    sameClubTransition: $sameClubTransition
+                ),
             ]);
         } catch (ValidationException $e) {
             $errors = $e->errors();
@@ -1895,6 +1910,67 @@ class MemberController extends Controller
     {
         return $membership->account->accountMembers
             ->contains(fn (MembershipAccountMember $accountMember) => $this->isSpouseRelationship($accountMember->relationship?->name));
+    }
+
+    protected function resolveAdditionalMonthlyCharge(
+        ?float $currentMonthlyFee,
+        float $newMonthlyFee,
+        bool $sourceMembershipBecomesNonBillable
+    ): ?float {
+        if ($currentMonthlyFee === null) {
+            return null;
+        }
+
+        if (!$sourceMembershipBecomesNonBillable) {
+            return null;
+        }
+
+        return round($newMonthlyFee - $currentMonthlyFee, 2);
+    }
+
+    protected function buildPricingPreviewExplanation(
+        ?float $currentMonthlyFee,
+        float $newMonthlyFee,
+        float $inscriptionFee,
+        bool $sourceMembershipBecomesNonBillable,
+        bool $sameClubTransition
+    ): string {
+        $formattedNewMonthlyFee = number_format($newMonthlyFee, 2);
+        $formattedInscriptionFee = number_format($inscriptionFee, 2);
+
+        if ($sameClubTransition) {
+            if ($inscriptionFee > 0) {
+                return "Se actualizara la cuota mensual a $$formattedNewMonthlyFee y se cobrara un cargo extra de inscripcion por $$formattedInscriptionFee.";
+            }
+
+            return "Se actualizara la cuota mensual a $$formattedNewMonthlyFee.";
+        }
+
+        if ($sourceMembershipBecomesNonBillable && $currentMonthlyFee !== null) {
+            $additionalCharge = round($newMonthlyFee - $currentMonthlyFee, 2);
+            $formattedCurrentMonthlyFee = number_format($currentMonthlyFee, 2);
+            $formattedAdditionalCharge = number_format(abs($additionalCharge), 2);
+
+            if ($additionalCharge > 0) {
+                $message = "La nueva mensualidad total sera de $$formattedNewMonthlyFee. Como actualmente se pagan $$formattedCurrentMonthlyFee, el ajuste adicional mensual sera de $$formattedAdditionalCharge.";
+            } elseif ($additionalCharge === 0.0) {
+                $message = "La nueva mensualidad total se mantiene en $$formattedNewMonthlyFee, por lo que no habra ajuste adicional mensual.";
+            } else {
+                $message = "La nueva mensualidad total sera de $$formattedNewMonthlyFee, lo que representa una disminucion de $$formattedAdditionalCharge respecto a la cuota actual de $$formattedCurrentMonthlyFee.";
+            }
+
+            if ($inscriptionFee > 0) {
+                $message .= " Ademas, se cobrara una inscripcion de $$formattedInscriptionFee.";
+            }
+
+            return $message;
+        }
+
+        if ($inscriptionFee > 0) {
+            return "Se cobrara una mensualidad de $$formattedNewMonthlyFee y una inscripcion de $$formattedInscriptionFee.";
+        }
+
+        return "Se cobrara una mensualidad de $$formattedNewMonthlyFee.";
     }
 
     protected function isTitularRelationship(?string $relationshipName): bool

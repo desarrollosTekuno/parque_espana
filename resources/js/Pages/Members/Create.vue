@@ -191,6 +191,9 @@ interface PricingPreview {
     total_due: number;
     rule_type: string | null;
     source_membership_becomes_non_billable: boolean;
+    current_monthly_fee: number | null;
+    additional_monthly_charge: number | null;
+    charge_explanation: string | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -227,7 +230,7 @@ const pageTitle = computed(() =>
     props.isCrossClubRequest
         ? "Solicitud Otro Parque"
         : props.isMembershipTransition
-          ? "Cambio de Membresia"
+          ? "Cambio de Membresía"
           : "Alta de Socios",
 );
 
@@ -235,7 +238,7 @@ const pageHeader = computed(() =>
     props.isCrossClubRequest
         ? "Solicitud para el Otro Parque"
         : props.isMembershipTransition
-          ? "Cambio de Membresia"
+          ? "Cambio de Membresía"
           : "Alta de Socios",
 );
 
@@ -248,17 +251,45 @@ const documentsStepRef = ref();
 const pricingPreview = ref<PricingPreview | null>(null);
 const pricingPreviewLoading = ref(false);
 const pricingPreviewError = ref<string | null>(null);
+const membershipTypeSearch = ref("");
 let pricingPreviewRequestId = 0;
 
 const TITULAR_RELATIONSHIP_ID = 1;
 
 const step = ref(1);
-const steps = ["Membresía", "Datos y Familia", "Documentos", "Confirmación"];
+const steps = computed(() => [
+    "Membresía",
+    form.membershipType?.allows_multiple_members
+        ? "Datos y familia"
+        : "Datos del titular",
+    "Documentos",
+    "Confirmación",
+]);
 
 const currencyFormatter = new Intl.NumberFormat("es-MX", {
     style: "currency",
     currency: "MXN",
     maximumFractionDigits: 2,
+});
+
+const filteredMembershipTypes = computed(() => {
+    const search = membershipTypeSearch.value.trim().toLowerCase();
+
+    if (!search) {
+        return props.membershipTypes;
+    }
+
+    return props.membershipTypes.filter((membershipType) => {
+        const code = membershipType.code?.toLowerCase() ?? "";
+        const name = membershipType.name.toLowerCase();
+        const description = membershipType.description?.toLowerCase() ?? "";
+
+        return (
+            code.includes(search) ||
+            name.includes(search) ||
+            description.includes(search)
+        );
+    });
 });
 
 const form = useForm<MembershipsForm>({
@@ -753,8 +784,8 @@ const handleNext = async (next: () => void) => {
     }
 
     if (step.value === 3) {
-        const { valid } = await documentsStepRef.value?.validate();
-        if (!valid) return;
+        // const { valid } = await documentsStepRef.value?.validate();
+        // if (!valid) return;
         next();
         return; 
        
@@ -893,7 +924,7 @@ const memberLabel = (member: MemberForm) => {
                                                 <div
                                                     class="text-subtitle-1 font-weight-bold"
                                                 >
-                                                    Nuevo tramite para el otro
+                                                    Nuevo trámite para el otro
                                                     parque
                                                 </div>
                                                 <div class="text-body-2 mt-2">
@@ -911,7 +942,7 @@ const memberLabel = (member: MemberForm) => {
                                                 <div
                                                     class="text-caption text-medium-emphasis"
                                                 >
-                                                    Membresia origen
+                                                    Membresía de origen
                                                 </div>
                                                 <div
                                                     class="text-subtitle-1 font-weight-bold"
@@ -962,8 +993,8 @@ const memberLabel = (member: MemberForm) => {
                                                     {{ crossClubTargetSummary }}
                                                 </div>
                                                 <div class="text-body-2 mt-2">
-                                                    El costo se calculara segun
-                                                    la membresia origen y el
+                                                    El costo se calculará según
+                                                    la membresía de origen y el
                                                     tipo destino.
                                                 </div>
                                             </v-card>
@@ -977,7 +1008,7 @@ const memberLabel = (member: MemberForm) => {
                                     >
                                         La captura manual de origen se omite en
                                         este flujo porque la solicitud ya parte
-                                        de una membresia activa real.
+                                        de una membresía activa real.
                                     </v-alert>
                                 </template>
 
@@ -1010,7 +1041,7 @@ const memberLabel = (member: MemberForm) => {
                                                             .membership_number ||
                                                         "-"
                                                     }}
-                                                    y se actualizara la cuota de
+                                                    y se actualizará la cuota de
                                                     esta cuenta.
                                                 </div>
                                             </v-card>
@@ -1024,7 +1055,7 @@ const memberLabel = (member: MemberForm) => {
                                                 <div
                                                     class="text-caption text-medium-emphasis"
                                                 >
-                                                    Membresia actual
+                                                    Membresía actual
                                                 </div>
                                                 <div
                                                     class="text-subtitle-1 font-weight-bold"
@@ -1057,7 +1088,7 @@ const memberLabel = (member: MemberForm) => {
                                         variant="tonal"
                                         class="mb-6"
                                     >
-                                        Este flujo actualiza la membresia actual
+                                        Este flujo actualiza la membresía actual
                                         dentro de la misma cuenta, por eso no se
                                         captura un origen manual.
                                     </v-alert>
@@ -1194,6 +1225,15 @@ const memberLabel = (member: MemberForm) => {
                                     </v-alert>
 
                                     <v-alert
+                                        v-else-if="pricingPreview?.charge_explanation"
+                                        type="info"
+                                        variant="tonal"
+                                        class="mt-4"
+                                    >
+                                        {{ pricingPreview.charge_explanation }}
+                                    </v-alert>
+
+                                    <v-alert
                                         v-else-if="
                                             pricingPreview?.source_membership_becomes_non_billable
                                         "
@@ -1207,9 +1247,28 @@ const memberLabel = (member: MemberForm) => {
                                     </v-alert>
                                 </v-card>
 
+                                <v-text-field
+                                    v-model="membershipTypeSearch"
+                                    label="Buscar membresía"
+                                    placeholder="Escribe el código, nombre o descripción"
+                                    prepend-inner-icon="mdi-magnify"
+                                    variant="outlined"
+                                    clearable
+                                    class="mb-4"
+                                />
+
+                                <v-alert
+                                    v-if="filteredMembershipTypes.length === 0"
+                                    type="info"
+                                    variant="tonal"
+                                    class="mb-4"
+                                >
+                                    No se encontraron membresías con ese criterio.
+                                </v-alert>
+
                                 <v-row>
                                     <v-col
-                                        v-for="membershipType in membershipTypes"
+                                        v-for="membershipType in filteredMembershipTypes"
                                         :key="membershipType.id"
                                         cols="12"
                                         md="6"
@@ -1299,7 +1358,7 @@ const memberLabel = (member: MemberForm) => {
                                     >
                                         {{
                                             props.isCrossClubRequest
-                                                ? "Los integrantes se precargaron desde la membresia origen para agilizar la solicitud. Puedes ajustar la captura antes de enviarla."
+                                                ? "Los integrantes se precargaron desde la membresía de origen para agilizar la solicitud. Puedes ajustar la captura antes de enviarla."
                                                 : "Los integrantes se precargaron desde la cuenta actual para agilizar el cambio. Puedes ajustar la captura antes de confirmarla."
                                         }}
                                     </v-alert>
@@ -1656,7 +1715,7 @@ const memberLabel = (member: MemberForm) => {
                                                         v-model="
                                                             member.address.city
                                                         "
-                                                        label="Ciudad domicilio"
+                                                        label="Ciudad del domicilio"
                                                     />
                                                 </v-col>
 
@@ -1665,7 +1724,7 @@ const memberLabel = (member: MemberForm) => {
                                                         v-model="
                                                             member.address.state
                                                         "
-                                                        label="Estado domicilio"
+                                                        label="Estado del domicilio"
                                                     />
                                                 </v-col>
 
@@ -1720,7 +1779,7 @@ const memberLabel = (member: MemberForm) => {
                                                             member.employment
                                                                 .company_address
                                                         "
-                                                        label="Dirección empresa"
+                                                        label="Dirección de la empresa"
                                                     />
                                                 </v-col>
 
@@ -1730,7 +1789,7 @@ const memberLabel = (member: MemberForm) => {
                                                             member.employment
                                                                 .company_phone
                                                         "
-                                                        label="Teléfono empresa"
+                                                        label="Teléfono de la empresa"
                                                     />
                                                 </v-col>
                                             </v-row>
@@ -1760,7 +1819,7 @@ const memberLabel = (member: MemberForm) => {
                                         <p
                                             class="text-body-2 text-medium-emphasis mb-0"
                                         >
-                                            Cargue los documentos requeridos por
+                                            Carga los documentos requeridos para
                                             cada integrante.
                                         </p>
                                     </div>
@@ -1773,8 +1832,8 @@ const memberLabel = (member: MemberForm) => {
                                     >
                                         {{
                                             props.isCrossClubRequest
-                                                ? "Estos documentos corresponden a la membresia destino, aunque el titular ya exista en el otro parque."
-                                                : "Estos documentos corresponden al nuevo tipo de membresia que quedara vigente en esta misma cuenta."
+                                                ? "Estos documentos corresponden a la membresía de destino, aunque el titular ya exista en el otro parque."
+                                                : "Estos documentos corresponden al nuevo tipo de membresía que quedará vigente en esta misma cuenta."
                                         }}
                                     </v-alert>
 
@@ -1857,12 +1916,12 @@ const memberLabel = (member: MemberForm) => {
 
                                 <v-card class="pa-4 mb-4">
                                     <p v-if="props.isCrossClubRequest">
-                                        <strong>Tipo de tramite:</strong>
+                                        <strong>Tipo de trámite:</strong>
                                         Solicitud para el otro parque
                                     </p>
                                     <p v-if="props.isMembershipTransition">
-                                        <strong>Tipo de tramite:</strong>
-                                        Cambio de membresia
+                                        <strong>Tipo de trámite:</strong>
+                                        Cambio de membresía
                                     </p>
                                     <p
                                         v-if="
@@ -1944,18 +2003,18 @@ const memberLabel = (member: MemberForm) => {
                                     type="info"
                                     variant="tonal"
                                 >
-                                    Al confirmar se generara una nueva cuenta en
-                                    el parque destino y la solicitud usara la
-                                    membresia origen para resolver el precio.
+                                    Al confirmar, se generará una nueva cuenta
+                                    en el parque destino y la solicitud usará la
+                                    membresía de origen para resolver el precio.
                                 </v-alert>
                                 <v-alert
                                     v-if="props.isMembershipTransition"
                                     type="info"
                                     variant="tonal"
                                 >
-                                    Al confirmar se actualizara la misma cuenta
+                                    Al confirmar, se actualizará la misma cuenta
                                     y el mismo folio con el nuevo tipo de
-                                    membresia y su cuota correspondiente.
+                                    membresía y su cuota correspondiente.
                                 </v-alert>
                             </v-container>
                         </template>
