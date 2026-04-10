@@ -272,21 +272,39 @@ const emptyMessage = computed(() =>
                         </template>
 
                         <template #item.actions="{ item }">
-                            <BaseButton
-                                :icon-only="false"
-                                action="add"
-                                text="Agregar membresia"
-                                tooltip="Agregar membresia del otro parque"
-                                @click="
-                                    router.visit(
-                                        route(
-                                            'members.additional-membership.create',
-                                            item.membership_id,
-                                        ),
-                                    )
-                                "
-                                :disabled="!item.membership_id"
-                            />
+                            <div class="d-flex flex-wrap justify-end">
+                                <BaseButton
+                                    :icon-only="false"
+                                    action="edit"
+                                    text="Cambiar membresia"
+                                    tooltip="Cambiar el tipo de membresia en este parque"
+                                    @click="
+                                        router.visit(
+                                            route(
+                                                'members.transition.create',
+                                                item.membership_id,
+                                            ),
+                                        )
+                                    "
+                                    :disabled="!item.membership_id"
+                                />
+
+                                <BaseButton
+                                    :icon-only="false"
+                                    action="add"
+                                    text="Agregar membresia"
+                                    tooltip="Agregar membresia del otro parque"
+                                    @click="
+                                        router.visit(
+                                            route(
+                                                'members.additional-membership.create',
+                                                item.membership_id,
+                                            ),
+                                        )
+                                    "
+                                    :disabled="!item.membership_id"
+                                />
+                            </div>
                         </template>
                     </v-data-table-server>
                 </v-col>

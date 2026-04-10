@@ -31,4 +31,6 @@ Route::resource('/blockedPeriods', BlockedPeriodController::class)->names('block
 // members
 Route::get('/members/{membership}/additional-membership/create', [MemberController::class, 'createAdditionalMembership'])
     ->name('members.additional-membership.create');
+Route::get('/members/{membership}/transition/create', [MemberController::class, 'createMembershipTransition'])
+    ->name('members.transition.create');
 Route::resource('/members', MemberController::class)->only(['index', 'create', 'store', 'edit', 'update'])->names('members');

@@ -192,17 +192,7 @@ class MemberController extends Controller
             abort(404);
         }
 
-        $membership->load([
-            'account.primaryHolder.member.primaryAddress',
-            'account.primaryHolder.member.employmentInfo',
-            'account.accountMembers.relationship',
-            'account.accountMembers.member.primaryAddress',
-            'account.accountMembers.member.employmentInfo',
-            'membershipType',
-            'club',
-            'account.memberships.membershipType',
-            'account.memberships.club',
-        ]);
+        $membership = $this->loadMembershipContext($membership);
 
         if ($membership->status !== 'active') {
             return redirect()->route('members.index')->withErrors([
@@ -233,84 +223,62 @@ class MemberController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        $sourceMember = $membership->account?->primaryHolder?->member;
-
-        $relationships = Relationship::select('id', 'name')->get();
-        $nationalities = Nationality::select('id', 'code', 'name', 'demonym')
-            ->orderBy('name')
-            ->get();
-        $maritalStatuses = MaritalStatus::select('id', 'code', 'name')
-            ->orderBy('name')
-            ->get();
-
-        $prefillMembers = $membership->account->accountMembers
-            ->sortByDesc('is_primary_holder')
-            ->map(function (MembershipAccountMember $accountMember) {
-                $member = $accountMember->member;
-                $address = $member?->primaryAddress;
-                $employment = $member?->employmentInfo;
-
-                return [
-                    'id' => $member?->id,
-                    'first_name' => $member?->first_name,
-                    'last_name' => $member?->last_name,
-                    'second_last_name' => $member?->second_last_name,
-                    'birthdate' => $member?->birthdate,
-                    'birth_place' => $member?->birth_place,
-                    'city' => $member?->city,
-                    'state' => $member?->state,
-                    'nationality_id' => $member?->nationality_id,
-                    'marital_status_id' => $member?->marital_status_id,
-                    'phone' => $member?->phone,
-                    'email' => $member?->email,
-                    'occupation' => $member?->occupation,
-                    'school_name' => $member?->school_name,
-                    'relationship_id' => $accountMember->relationship_id,
-                    'relationship_name' => $accountMember->relationship?->name,
-                    'is_primary_holder' => (bool) $accountMember->is_primary_holder,
-                    'address' => [
-                        'street' => $address?->street,
-                        'neighborhood' => $address?->neighborhood,
-                        'postal_code' => $address?->postal_code,
-                        'city' => $address?->city,
-                        'state' => $address?->state,
-                        'country' => $address?->country,
-                        'years_in_city' => $address?->years_in_city,
-                    ],
-                    'employment' => [
-                        'company_name' => $employment?->company_name,
-                        'company_address' => $employment?->company_address,
-                        'company_phone' => $employment?->company_phone,
-                    ],
-                ];
-            })
-            ->values();
-
         return Inertia::render('Members/Create', [
             'membershipTypes' => $targetMembershipTypes,
             'originMembershipTypes' => collect(),
             'clubs' => collect([$targetClub]),
-            'relationships' => $relationships,
-            'nationalities' => $nationalities,
-            'maritalStatuses' => $maritalStatuses,
+            ...$this->getCreateFormCatalogs(),
             'isCrossClubRequest' => true,
             'targetClub' => $targetClub,
-            'sourceMembership' => [
-                'id' => $membership->id,
-                'membership_number' => $membership->account?->membership_number,
-                'holder_name' => trim(collect([
-                    $sourceMember?->first_name,
-                    $sourceMember?->last_name,
-                    $sourceMember?->second_last_name,
-                ])->filter()->implode(' ')),
-                'membership_type_name' => $membership->membershipType?->name,
-                'membership_type_code' => $membership->membershipType?->code,
-                'club_name' => $membership->club?->name,
-                'club_code' => $membership->club?->code,
-                'status' => $membership->status,
-                'start_date' => $membership->start_date,
-            ],
-            'prefillMembers' => $prefillMembers,
+            'sourceMembership' => $this->buildSourceMembershipPayload($membership),
+            'prefillMembers' => $this->buildPrefillMembers($membership),
+        ]);
+    }
+
+    public function createMembershipTransition(Request $request, Membership $membership)
+    {
+        $clubId = session('club_id');
+
+        if ((int) $membership->club_id !== (int) $clubId) {
+            abort(404);
+        }
+
+        $membership = $this->loadMembershipContext($membership);
+
+        if ($membership->status !== 'active' || !$membership->is_primary) {
+            return redirect()->route('members.index')->withErrors([
+                'messageError' => 'Solo puedes cambiar una membresia activa y principal dentro de la misma cuenta.',
+                'exception' => '',
+            ]);
+        }
+
+        $targetMembershipTypes = MembershipType::query()
+            ->where('show_in_listing', true)
+            ->where('club_id', $membership->club_id)
+            ->where('id', '!=', $membership->membership_type_id)
+            ->with([
+                'documentTypes:id,name,allowed_extensions',
+                'documentTypes.relationships:id,name',
+            ])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        if ($targetMembershipTypes->isEmpty()) {
+            return redirect()->route('members.index')->withErrors([
+                'messageError' => 'No hay tipos de membresia disponibles para cambiar dentro de este parque.',
+                'exception' => '',
+            ]);
+        }
+
+        return Inertia::render('Members/Create', [
+            'membershipTypes' => $targetMembershipTypes,
+            'originMembershipTypes' => collect(),
+            'clubs' => collect([$membership->club]),
+            ...$this->getCreateFormCatalogs(),
+            'isMembershipTransition' => true,
+            'targetClub' => $membership->club,
+            'sourceMembership' => $this->buildSourceMembershipPayload($membership),
+            'prefillMembers' => $this->buildPrefillMembers($membership),
         ]);
     }
 
@@ -378,83 +346,91 @@ class MemberController extends Controller
                 && $validated['years_in_source_club'] !== null
                 ? (int) $validated['years_in_source_club']
                 : null;
+            $sameClubTransition = false;
 
-        if (!empty($validated['source_membership_id'])) {
-            $sourceMembership = Membership::query()
-                ->with(['membershipType', 'club', 'account.primaryHolder.member'])
-                ->findOrFail($validated['source_membership_id']);
+            if (!empty($validated['source_membership_id'])) {
+                $sourceMembership = Membership::query()
+                    ->with(['membershipType', 'club', 'account.primaryHolder.member'])
+                    ->findOrFail($validated['source_membership_id']);
 
-            $fromMembershipType = $sourceMembership->membershipType;
-            $sourceClub = $sourceMembership->club;
-            $clubId = $validated['target_club_id'] ?? $clubId;
-            $hasMultipleClubs = true;
-            $sourceMembershipIsActive = $sourceMembership->status === 'active';
-            $yearsInSourceClub = $sourceMembership->start_date
-                ? Carbon::parse($sourceMembership->start_date)->diffInYears(now())
-                : null;
+                $fromMembershipType = $sourceMembership->membershipType;
+                $sourceClub = $sourceMembership->club;
+                $clubId = $validated['target_club_id'] ?? (int) $sourceMembership->club_id;
+                $sourceMembershipIsActive = $sourceMembership->status === 'active';
+                $yearsInSourceClub = $sourceMembership->start_date
+                    ? Carbon::parse($sourceMembership->start_date)->diffInYears(now())
+                    : null;
+                $sameClubTransition = (int) $clubId === (int) $sourceMembership->club_id;
 
-            if ((int) $clubId === (int) $sourceMembership->club_id) {
-                return redirect()->back()->withErrors([
-                    'messageError' => 'La solicitud para el otro parque debe apuntar a un club destino distinto al de origen.',
-                    'exception' => '',
-                ]);
-            }
-        } elseif (!empty($validated['from_membership_type_id'])) {
-            $fromMembershipType = MembershipType::find($validated['from_membership_type_id']);
-            $sourceClubId = $validated['source_club_id'] ?? $fromMembershipType?->club_id;
-            $sourceClub = $sourceClubId ? Club::find($sourceClubId) : null;
-        }
-
-        $membershipType = MembershipType::where('id', $validated['membership_type_id'])
-            ->where('club_id', $clubId)
-            ->first();
-
-        if (!$membershipType) {
-            throw ValidationException::withMessages([
-                'membership_type_id' => 'La membresia seleccionada no pertenece al club actual.',
-            ]);
-        }
-
-        if ($sourceClub && $fromMembershipType && $fromMembershipType->club_id !== $sourceClub->id) {
-            return redirect()->back()->withErrors([
-                'messageError' => 'La membresia de origen no pertenece al club de origen seleccionado.',
-                'exception' => '',
-            ]);
-        }
-
-        if ($sourceMembership && !$sourceMembershipIsActive) {
-            return redirect()->back()->withErrors([
-                'messageError' => 'La membresia de origen debe estar activa para generar una solicitud en el otro parque.',
-                'exception' => '',
-            ]);
-        }
-
-        if ($sourceMembership) {
-            $sourcePrimaryHolderId = $sourceMembership->account?->primaryHolder?->member_id;
-            $requestedPrimaryHolderId = collect($validated['members'])
-                ->firstWhere('is_primary_holder', true)['id'] ?? null;
-
-            if ($sourcePrimaryHolderId && (int) $requestedPrimaryHolderId !== (int) $sourcePrimaryHolderId) {
-                return redirect()->back()->withErrors([
-                    'messageError' => 'El titular de la nueva solicitud debe coincidir con el titular de la membresia origen.',
-                    'exception' => '',
-                ]);
+                if (!$sameClubTransition) {
+                    $hasMultipleClubs = true;
+                }
+            } elseif (!empty($validated['from_membership_type_id'])) {
+                $fromMembershipType = MembershipType::find($validated['from_membership_type_id']);
+                $sourceClubId = $validated['source_club_id'] ?? $fromMembershipType?->club_id;
+                $sourceClub = $sourceClubId ? Club::find($sourceClubId) : null;
             }
 
-            $existingTargetClubMembership = Membership::query()
+            $membershipType = MembershipType::where('id', $validated['membership_type_id'])
                 ->where('club_id', $clubId)
-                ->whereHas('account.primaryHolder', function (Builder $builder) use ($sourcePrimaryHolderId) {
-                    $builder->where('member_id', $sourcePrimaryHolderId);
-                })
-                ->exists();
+                ->first();
 
-            if ($existingTargetClubMembership) {
+            if (!$membershipType) {
+                throw ValidationException::withMessages([
+                    'membership_type_id' => 'La membresia seleccionada no pertenece al club actual.',
+                ]);
+            }
+
+            if ($sameClubTransition && (int) $membershipType->id === (int) $sourceMembership?->membership_type_id) {
+                throw ValidationException::withMessages([
+                    'membership_type_id' => 'Debes seleccionar un tipo de membresia distinto al actual para realizar el cambio.',
+                ]);
+            }
+
+            if ($sourceClub && $fromMembershipType && $fromMembershipType->club_id !== $sourceClub->id) {
                 return redirect()->back()->withErrors([
-                    'messageError' => 'El titular ya tiene una cuenta registrada en el club destino.',
+                    'messageError' => 'La membresia de origen no pertenece al club de origen seleccionado.',
                     'exception' => '',
                 ]);
             }
-        }
+
+            if ($sourceMembership && !$sourceMembershipIsActive) {
+                return redirect()->back()->withErrors([
+                    'messageError' => $sameClubTransition
+                        ? 'La membresia de origen debe estar activa para realizar el cambio.'
+                        : 'La membresia de origen debe estar activa para generar una solicitud en el otro parque.',
+                    'exception' => '',
+                ]);
+            }
+
+            if ($sourceMembership) {
+                $sourcePrimaryHolderId = $sourceMembership->account?->primaryHolder?->member_id;
+                $requestedPrimaryHolderId = collect($validated['members'])
+                    ->firstWhere('is_primary_holder', true)['id'] ?? null;
+
+                if ($sourcePrimaryHolderId && (int) $requestedPrimaryHolderId !== (int) $sourcePrimaryHolderId) {
+                    return redirect()->back()->withErrors([
+                        'messageError' => 'El titular de la nueva solicitud debe coincidir con el titular de la membresia origen.',
+                        'exception' => '',
+                    ]);
+                }
+
+                if (!$sameClubTransition) {
+                    $existingTargetClubMembership = Membership::query()
+                        ->where('club_id', $clubId)
+                        ->whereHas('account.primaryHolder', function (Builder $builder) use ($sourcePrimaryHolderId) {
+                            $builder->where('member_id', $sourcePrimaryHolderId);
+                        })
+                        ->exists();
+
+                    if ($existingTargetClubMembership) {
+                        return redirect()->back()->withErrors([
+                            'messageError' => 'El titular ya tiene una cuenta registrada en el club destino.',
+                            'exception' => '',
+                        ]);
+                    }
+                }
+            }
 
         $primaryMembers = collect($validated['members'])
             ->where('is_primary_holder', true)
@@ -515,25 +491,35 @@ class MemberController extends Controller
             ]);
         }
 
-        $pricing = $this->resolveApplicablePricing(
-            targetClubId: $clubId,
-            membershipType: $membershipType,
-            fromMembershipType: $fromMembershipType,
-            sourceClub: $sourceClub,
+            $pricing = $this->resolveApplicablePricing(
+                targetClubId: $clubId,
+                membershipType: $membershipType,
+                fromMembershipType: $fromMembershipType,
+                sourceClub: $sourceClub,
             age: $primaryAge,
             hasMultipleClubs: $hasMultipleClubs,
             sourceMembershipIsActive: $sourceMembershipIsActive,
             yearsInSourceClub: $yearsInSourceClub
-        );
+            );
 
             $club = Club::findOrFail($clubId);
+            $successMessage = $sameClubTransition
+                ? 'La membresia se actualizo correctamente dentro de la misma cuenta.'
+                : 'La cuenta de membresia y sus integrantes se registraron correctamente.';
 
-            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership) {
-                $membershipAccount = MembershipAccount::create([
-                    'membership_number' => $this->generateMembershipNumber($club),
-                    'account_type' => $membershipType->allows_multiple_members ? 'family' : 'individual',
-                    'status' => 'pending',
-                ]);
+            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership, $sameClubTransition) {
+                $membershipAccount = $sameClubTransition
+                    ? tap($sourceMembership->account)->update([
+                        'account_type' => $membershipType->allows_multiple_members ? 'family' : 'individual',
+                        'status' => 'active',
+                    ])
+                    : MembershipAccount::create([
+                        'membership_number' => $this->generateMembershipNumber($club),
+                        'account_type' => $membershipType->allows_multiple_members ? 'family' : 'individual',
+                        'status' => 'pending',
+                    ]);
+
+                $submittedMemberIds = [];
 
                 foreach ($validated['members'] as $memberData) {
                     $memberAttributes = [
@@ -555,6 +541,8 @@ class MemberController extends Controller
                     $member = !empty($memberData['id'])
                         ? tap(Member::findOrFail($memberData['id']))->update($memberAttributes)
                         : Member::create($memberAttributes);
+
+                    $submittedMemberIds[] = $member->id;
 
                     if ($this->hasFilledValues($memberData['address'] ?? [])) {
                         Address::updateOrCreate([
@@ -581,12 +569,67 @@ class MemberController extends Controller
                         ]);
                     }
 
-                    MembershipAccountMember::create([
-                        'membership_account_id' => $membershipAccount->id,
-                        'member_id' => $member->id,
+                    $accountMemberAttributes = [
                         'relationship_id' => $memberData['relationship_id'] ?? null,
                         'is_primary_holder' => $memberData['is_primary_holder'],
+                    ];
+
+                    if ($sameClubTransition) {
+                        MembershipAccountMember::updateOrCreate([
+                            'membership_account_id' => $membershipAccount->id,
+                            'member_id' => $member->id,
+                        ], $accountMemberAttributes);
+                    } else {
+                        MembershipAccountMember::create([
+                            'membership_account_id' => $membershipAccount->id,
+                            'member_id' => $member->id,
+                            ...$accountMemberAttributes,
+                        ]);
+                    }
+                }
+
+                if ($sameClubTransition) {
+                    MembershipAccountMember::query()
+                        ->where('membership_account_id', $membershipAccount->id)
+                        ->whereNotIn('member_id', $submittedMemberIds)
+                        ->delete();
+
+                    $previousMembershipTypeId = $sourceMembership->membership_type_id;
+                    $previousMonthlyFee = (float) $sourceMembership->monthly_fee;
+                    $previousBillableState = (bool) $sourceMembership->is_billable;
+
+                    $sourceMembership->update([
+                        'membership_type_id' => $membershipType->id,
+                        'origin_membership_type_id' => $fromMembershipType?->id,
+                        'is_primary' => true,
+                        'is_billable' => $previousBillableState,
+                        'monthly_fee' => $pricing['monthly_fee'],
+                        'start_date' => now()->toDateString(),
+                        'end_date' => $membershipType->validity_months
+                            ? now()->addMonthsNoOverflow($membershipType->validity_months)->toDateString()
+                            : null,
+                        'status' => 'active',
                     ]);
+
+                    DB::table('memberships.membership_history')->insert([
+                        'membership_id' => $sourceMembership->id,
+                        'old_membership_type_id' => $previousMembershipTypeId,
+                        'new_membership_type_id' => $membershipType->id,
+                        'changed_by' => auth()->id(),
+                        'effective_date' => now()->toDateString(),
+                        'reason' => 'Cambio de tipo de membresia',
+                        'previous_monthly_fee' => $previousMonthlyFee,
+                        'new_monthly_fee' => $pricing['monthly_fee'],
+                        'metadata' => json_encode([
+                            'transition_kind' => 'same_account',
+                            'previous_membership_type_id' => $previousMembershipTypeId,
+                            'new_membership_type_id' => $membershipType->id,
+                        ]),
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+
+                    return;
                 }
 
                 Membership::create([
@@ -613,7 +656,7 @@ class MemberController extends Controller
 
             return redirect()
                 ->back()
-                ->with('success', 'La cuenta de membresía y sus integrantes se registraron correctamente.');
+                ->with('success', $successMessage);
         } catch (ValidationException $e) {
             return $this->validationExceptionResponse($e);
         } catch (\Exception $e) {
@@ -642,6 +685,103 @@ class MemberController extends Controller
     public function destroy(string $id)
     {
         return redirect()->back()->with('success', 'Message');
+    }
+
+    protected function loadMembershipContext(Membership $membership): Membership
+    {
+        $membership->load([
+            'account.primaryHolder.member.primaryAddress',
+            'account.primaryHolder.member.employmentInfo',
+            'account.accountMembers.relationship',
+            'account.accountMembers.member.primaryAddress',
+            'account.accountMembers.member.employmentInfo',
+            'membershipType',
+            'club',
+            'account.memberships.membershipType',
+            'account.memberships.club',
+        ]);
+
+        return $membership;
+    }
+
+    protected function getCreateFormCatalogs(): array
+    {
+        return [
+            'relationships' => Relationship::select('id', 'name')->get(),
+            'nationalities' => Nationality::select('id', 'code', 'name', 'demonym')
+                ->orderBy('name')
+                ->get(),
+            'maritalStatuses' => MaritalStatus::select('id', 'code', 'name')
+                ->orderBy('name')
+                ->get(),
+        ];
+    }
+
+    protected function buildPrefillMembers(Membership $membership)
+    {
+        return $membership->account->accountMembers
+            ->sortByDesc('is_primary_holder')
+            ->map(function (MembershipAccountMember $accountMember) {
+                $member = $accountMember->member;
+                $address = $member?->primaryAddress;
+                $employment = $member?->employmentInfo;
+
+                return [
+                    'id' => $member?->id,
+                    'first_name' => $member?->first_name,
+                    'last_name' => $member?->last_name,
+                    'second_last_name' => $member?->second_last_name,
+                    'birthdate' => $member?->birthdate,
+                    'birth_place' => $member?->birth_place,
+                    'city' => $member?->city,
+                    'state' => $member?->state,
+                    'nationality_id' => $member?->nationality_id,
+                    'marital_status_id' => $member?->marital_status_id,
+                    'phone' => $member?->phone,
+                    'email' => $member?->email,
+                    'occupation' => $member?->occupation,
+                    'school_name' => $member?->school_name,
+                    'relationship_id' => $accountMember->relationship_id,
+                    'relationship_name' => $accountMember->relationship?->name,
+                    'is_primary_holder' => (bool) $accountMember->is_primary_holder,
+                    'address' => [
+                        'street' => $address?->street,
+                        'neighborhood' => $address?->neighborhood,
+                        'postal_code' => $address?->postal_code,
+                        'city' => $address?->city,
+                        'state' => $address?->state,
+                        'country' => $address?->country,
+                        'years_in_city' => $address?->years_in_city,
+                    ],
+                    'employment' => [
+                        'company_name' => $employment?->company_name,
+                        'company_address' => $employment?->company_address,
+                        'company_phone' => $employment?->company_phone,
+                    ],
+                ];
+            })
+            ->values();
+    }
+
+    protected function buildSourceMembershipPayload(Membership $membership): array
+    {
+        $sourceMember = $membership->account?->primaryHolder?->member;
+
+        return [
+            'id' => $membership->id,
+            'membership_number' => $membership->account?->membership_number,
+            'holder_name' => trim(collect([
+                $sourceMember?->first_name,
+                $sourceMember?->last_name,
+                $sourceMember?->second_last_name,
+            ])->filter()->implode(' ')),
+            'membership_type_name' => $membership->membershipType?->name,
+            'membership_type_code' => $membership->membershipType?->code,
+            'club_name' => $membership->club?->name,
+            'club_code' => $membership->club?->code,
+            'status' => $membership->status,
+            'start_date' => $membership->start_date,
+        ];
     }
 
     protected function resolveAge(array $memberData): ?int
