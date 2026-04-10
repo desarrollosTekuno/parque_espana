@@ -96,6 +96,8 @@ class MemberController extends Controller
                         ->where('club_id', (int) $clubId)
                         ->values();
                     $billableMembership = $activeMemberships->firstWhere('is_billable', true);
+                    $currentMembership = $billableMembership ?? $activeMemberships->first();
+                    $currentMembershipCode = (string) ($currentMembership?->membershipType?->code ?? '');
                     $fullName = trim(collect([
                         $holder?->first_name,
                         $holder?->last_name,
@@ -104,13 +106,15 @@ class MemberController extends Controller
 
                     return [
                         'id' => $account->id,
-                        'membership_id' => $billableMembership?->id ?? $activeMemberships->first()?->id,
+                        'membership_id' => $currentMembership?->id,
                         'membership_number' => $account->membership_number,
                         'holder_name' => $fullName,
                         'email' => $holder?->email,
                         'phone' => $holder?->phone,
                         'monthly_fee' => (float) ($billableMembership?->monthly_fee ?? 0),
-                        'status' => $billableMembership?->status ?? $activeMemberships->first()?->status,
+                        'status' => $currentMembership?->status,
+                        'can_change_membership' => $currentMembership !== null
+                            && Str::contains($currentMembershipCode, '_IND'),
                         'active_memberships' => $activeMemberships->map(function (Membership $membership) {
                             return [
                                 'id' => $membership->id,

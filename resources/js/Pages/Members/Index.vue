@@ -14,6 +14,7 @@ interface MemberItem {
     phone: string | null;
     monthly_fee: number;
     status: string;
+    can_change_membership: boolean;
     active_memberships: ActiveMembershipItem[];
 }
 
@@ -274,6 +275,7 @@ const emptyMessage = computed(() =>
                         <template #item.actions="{ item }">
                             <div class="d-flex flex-wrap justify-end">
                                 <BaseButton
+                                    v-if="item.can_change_membership"
                                     :icon-only="false"
                                     action="edit"
                                     text="Cambiar membresia"

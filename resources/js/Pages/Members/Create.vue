@@ -212,13 +212,6 @@ const maritalStatusOptions = computed(() =>
     })),
 );
 
-const clubOptions = computed(() =>
-    props.clubs.map((club) => ({
-        id: club.id,
-        title: `${club.code} - ${club.name}`,
-    })),
-);
-
 const pageTitle = computed(() =>
     props.isCrossClubRequest
         ? "Solicitud Otro Parque"
@@ -237,33 +230,6 @@ const pageHeader = computed(() =>
 
 const usesSourceMembership = computed(
     () => props.isCrossClubRequest || props.isMembershipTransition,
-);
-
-const pe1ClubId = computed(
-    () => props.clubs.find((club) => club.code === "PE1")?.id ?? null,
-);
-
-const defaultOriginClubId = computed(() => {
-    if (isPe1PackageSelected.value) {
-        return pe1ClubId.value;
-    }
-
-    return form.source_club_id ?? form.membershipType?.club_id ?? null;
-});
-
-const originMembershipOptions = computed(() =>
-    props.originMembershipTypes
-        .filter((membershipType) =>
-            defaultOriginClubId.value
-                ? membershipType.club_id === defaultOriginClubId.value
-                : true,
-        )
-        .map((membershipType) => ({
-            id: membershipType.id,
-            title: membershipType.code
-                ? `${membershipType.code} - ${membershipType.name}`
-                : membershipType.name,
-        })),
 );
 
 const familyStepRef = ref();
@@ -506,9 +472,7 @@ const selectType = (membershipType: MembershipType) => {
     form.membershipType = { ...membershipType };
     if (!usesSourceMembership.value) {
         form.from_membership = null;
-        form.source_club_id = membershipType.code?.endsWith("_PE1")
-            ? pe1ClubId.value
-            : membershipType.club_id ?? null;
+        form.source_club_id = null;
         form.has_multiple_clubs = false;
         form.source_membership_is_active = false;
         form.years_in_source_club = null;
@@ -539,26 +503,6 @@ const selectType = (membershipType: MembershipType) => {
     form.members = members;
 };
 
-const onSourceClubChange = () => {
-    if (!form.from_membership) return;
-
-    const selectedOriginMembership = props.originMembershipTypes.find(
-        (membershipType) => membershipType.id === form.from_membership,
-    );
-
-    if (
-        selectedOriginMembership &&
-        form.source_club_id &&
-        selectedOriginMembership.club_id !== form.source_club_id
-    ) {
-        form.from_membership = null;
-    }
-};
-
-const isPe1PackageSelected = computed(() =>
-    form.membershipType?.code?.endsWith("_PE1") ?? false,
-);
-
 const sourceMembershipSummary = computed(() => {
     if (!props.sourceMembership) return null;
 
@@ -583,12 +527,41 @@ const nextButtonLabel = computed(() =>
     step.value === steps.length ? submitButtonLabel.value : "Siguiente",
 );
 
+const parseDateInput = (value: string | null): Date | null => {
+    if (!value) return null;
+
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+
+    if (match) {
+        const [, year, month, day] = match;
+        const parsedDate = new Date(
+            Number(year),
+            Number(month) - 1,
+            Number(day),
+        );
+
+        if (
+            parsedDate.getFullYear() === Number(year) &&
+            parsedDate.getMonth() === Number(month) - 1 &&
+            parsedDate.getDate() === Number(day)
+        ) {
+            return parsedDate;
+        }
+
+        return null;
+    }
+
+    const parsedDate = new Date(value);
+
+    return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+};
+
 const formatDate = (value: string | null): string => {
     if (!value) return "-";
 
-    const date = new Date(value);
+    const date = parseDateInput(value);
 
-    if (Number.isNaN(date.getTime())) return value;
+    if (!date) return value;
 
     return new Intl.DateTimeFormat("es-MX", {
         day: "2-digit",
@@ -601,9 +574,9 @@ const calculateAge = (birthdate: string | null): number | null => {
     if (!birthdate) return null;
 
     const today = new Date();
-    const birth = new Date(birthdate);
+    const birth = parseDateInput(birthdate);
 
-    if (Number.isNaN(birth.getTime())) return null;
+    if (!birth) return null;
 
     let age = today.getFullYear() - birth.getFullYear();
     const monthDiff = today.getMonth() - birth.getMonth();
@@ -641,7 +614,7 @@ const birthdateRule = (member: MemberForm) => {
         if (age === null) return "La fecha de nacimiento no es válida";
         if (age < 0) return "La fecha de nacimiento no es válida";
 
-        if (isChildRelationship(member) && age > 24) {
+        if (isChildRelationship(member) && age >= 24) {
             return "Los hijos no pueden ser mayores de 24 años";
         }
 
@@ -1071,67 +1044,6 @@ const memberLabel = (member: MemberForm) => {
                                         </v-card>
                                     </v-col>
                                 </v-row>
-
-                                <v-card
-                                    v-if="form.membershipType && !usesSourceMembership"
-                                    class="mt-6 pa-4"
-                                    variant="outlined"
-                                >
-                                    <div class="text-subtitle-1 font-weight-bold mb-1">
-                                        Condiciones de precio
-                                    </div>
-
-                                    <p class="text-body-2 text-medium-emphasis mb-4">
-                                        Indica solo lo necesario si esta alta
-                                        proviene de una membresia previa o si
-                                        aplica tarifa por ambos parques.
-                                    </p>
-
-                                    <v-row>
-                                        <v-col cols="12" md="6">
-                                            <v-autocomplete
-                                                v-model="form.from_membership"
-                                                :items="originMembershipOptions"
-                                                item-title="title"
-                                                item-value="id"
-                                                label="Membresia de origen (opcional)"
-                                                clearable
-                                            />
-                                        </v-col>
-
-                                        <v-col cols="12" md="6">
-                                            <v-switch
-                                                v-model="form.has_multiple_clubs"
-                                                color="primary"
-                                                label="Pertenece a ambos parques"
-                                                inset
-                                            />
-                                        </v-col>
-
-                                        <v-col
-                                            v-if="isPe1PackageSelected"
-                                            cols="12"
-                                            md="6"
-                                        >
-                                            <v-text-field
-                                                v-model="form.years_in_source_club"
-                                                type="number"
-                                                min="0"
-                                                label="Antiguedad en PE1 (anos)"
-                                            />
-                                        </v-col>
-                                    </v-row>
-
-                                    <v-alert
-                                        v-if="isPe1PackageSelected"
-                                        type="info"
-                                        variant="tonal"
-                                        class="mt-2"
-                                    >
-                                        Este paquete toma PE1 como origen y requiere
-                                        al menos 5 anos de antiguedad.
-                                    </v-alert>
-                                </v-card>
 
                             </v-container>
                         </template>
