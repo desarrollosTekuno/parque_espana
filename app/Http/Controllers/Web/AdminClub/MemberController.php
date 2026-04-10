@@ -193,6 +193,144 @@ class MemberController extends Controller
         ));
     }
 
+    public function pricingPreview(Request $request)
+    {
+        try {
+            $sessionClubId = session('club_id');
+
+            if (!$sessionClubId) {
+                return response()->json([
+                    'message' => 'No hay un club seleccionado en la sesion.',
+                ], 422);
+            }
+
+            $validated = $request->validate([
+                'source_membership_id' => ['nullable', new ExistsInSchema('memberships', 'memberships', 'id')],
+                'target_club_id' => ['nullable', new ExistsInSchema('clubs', 'clubs', 'id')],
+                'membership_type_id' => ['required', new ExistsInSchema('memberships', 'types', 'id')],
+                'from_membership_type_id' => ['nullable', new ExistsInSchema('memberships', 'types', 'id')],
+                'source_club_id' => ['nullable', new ExistsInSchema('clubs', 'clubs', 'id')],
+                'has_multiple_clubs' => ['nullable', 'boolean'],
+                'source_membership_is_active' => ['nullable', 'boolean'],
+                'years_in_source_club' => ['nullable', 'integer', 'min:0', 'max:99'],
+                'age' => ['nullable', 'integer', 'min:0', 'max:120'],
+            ]);
+
+            $clubId = $validated['target_club_id'] ?? $sessionClubId;
+            $sourceMembership = null;
+            $fromMembershipType = null;
+            $sourceClub = null;
+            $hasMultipleClubs = (bool) ($validated['has_multiple_clubs'] ?? false);
+            $sourceMembershipIsActive = (bool) ($validated['source_membership_is_active'] ?? false);
+            $yearsInSourceClub = array_key_exists('years_in_source_club', $validated)
+                && $validated['years_in_source_club'] !== null
+                ? (int) $validated['years_in_source_club']
+                : null;
+            $age = array_key_exists('age', $validated) && $validated['age'] !== null
+                ? (int) $validated['age']
+                : null;
+            $sameClubTransition = false;
+
+            if (!empty($validated['source_membership_id'])) {
+                $sourceMembership = Membership::query()
+                    ->with(['membershipType', 'club', 'account.primaryHolder.member'])
+                    ->findOrFail($validated['source_membership_id']);
+
+                $fromMembershipType = $sourceMembership->membershipType;
+                $sourceClub = $sourceMembership->club;
+                $clubId = $validated['target_club_id'] ?? (int) $sourceMembership->club_id;
+                $sourceMembershipIsActive = $sourceMembership->status === 'active';
+                $yearsInSourceClub = $sourceMembership->start_date
+                    ? Carbon::parse($sourceMembership->start_date)->diffInYears(now())
+                    : null;
+                $sameClubTransition = (int) $clubId === (int) $sourceMembership->club_id;
+
+                if (!$sameClubTransition) {
+                    $hasMultipleClubs = true;
+                }
+
+                if ($age === null && $sourceMembership->account?->primaryHolder?->member?->birthdate) {
+                    $age = Carbon::parse($sourceMembership->account->primaryHolder->member->birthdate)->age;
+                }
+            } elseif (!empty($validated['from_membership_type_id'])) {
+                $fromMembershipType = MembershipType::find($validated['from_membership_type_id']);
+                $sourceClubId = $validated['source_club_id'] ?? $fromMembershipType?->club_id;
+                $sourceClub = $sourceClubId ? Club::find($sourceClubId) : null;
+            }
+
+            $membershipType = MembershipType::query()
+                ->where('id', $validated['membership_type_id'])
+                ->where('club_id', $clubId)
+                ->first();
+
+            if (!$membershipType) {
+                throw ValidationException::withMessages([
+                    'membership_type_id' => 'La membresia seleccionada no pertenece al club actual.',
+                ]);
+            }
+
+            if ($sameClubTransition && (int) $membershipType->id === (int) $sourceMembership?->membership_type_id) {
+                throw ValidationException::withMessages([
+                    'membership_type_id' => 'Debes seleccionar un tipo de membresia distinto al actual para realizar el cambio.',
+                ]);
+            }
+
+            if ($sourceClub && $fromMembershipType && $fromMembershipType->club_id !== $sourceClub->id) {
+                throw ValidationException::withMessages([
+                    'source_club_id' => 'La membresia de origen no pertenece al club de origen seleccionado.',
+                ]);
+            }
+
+            if ($sourceMembership && !$sourceMembershipIsActive) {
+                throw ValidationException::withMessages([
+                    'source_membership_id' => $sameClubTransition
+                        ? 'La membresia de origen debe estar activa para realizar el cambio.'
+                        : 'La membresia de origen debe estar activa para generar una solicitud en el otro parque.',
+                ]);
+            }
+
+            if ($this->shouldApplyAgeFilter($membershipType) && $age === null) {
+                throw ValidationException::withMessages([
+                    'age' => 'Captura la fecha de nacimiento del titular para calcular el precio de esta membresia.',
+                ]);
+            }
+
+            $pricing = $this->resolveApplicablePricing(
+                targetClubId: (int) $clubId,
+                membershipType: $membershipType,
+                fromMembershipType: $fromMembershipType,
+                sourceClub: $sourceClub,
+                age: $age,
+                hasMultipleClubs: $hasMultipleClubs,
+                sourceMembershipIsActive: $sourceMembershipIsActive,
+                yearsInSourceClub: $yearsInSourceClub
+            );
+
+            return response()->json([
+                'membership_type_id' => $membershipType->id,
+                'membership_type_name' => $membershipType->name,
+                'membership_type_code' => $membershipType->code,
+                'monthly_fee' => (float) $pricing['monthly_fee'],
+                'inscription_fee' => (float) ($pricing['inscription_fee'] ?? 0),
+                'total_due' => (float) $pricing['monthly_fee'] + (float) ($pricing['inscription_fee'] ?? 0),
+                'rule_type' => $pricing['rule_type'] ?? null,
+                'source_membership_becomes_non_billable' => (bool) ($pricing['source_membership_becomes_non_billable'] ?? false),
+            ]);
+        } catch (ValidationException $e) {
+            $errors = $e->errors();
+
+            return response()->json([
+                'message' => collect($errors)->flatten()->first() ?? 'Ocurrio un error de validacion.',
+                'errors' => $errors,
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Ocurrio un error al calcular el precio.',
+                'exception' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     public function createAdditionalMembership(Request $request, Membership $membership)
     {
         $clubId = session('club_id');

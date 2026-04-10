@@ -182,6 +182,17 @@ interface MembershipsForm {
     members: MemberForm[];
 }
 
+interface PricingPreview {
+    membership_type_id: number;
+    membership_type_name: string;
+    membership_type_code: string | null;
+    monthly_fee: number;
+    inscription_fee: number;
+    total_due: number;
+    rule_type: string | null;
+    source_membership_becomes_non_billable: boolean;
+}
+
 const props = withDefaults(defineProps<Props>(), {
     membershipTypes: () => [],
     originMembershipTypes: () => [],
@@ -234,11 +245,21 @@ const usesSourceMembership = computed(
 
 const familyStepRef = ref();
 const documentsStepRef = ref();
+const pricingPreview = ref<PricingPreview | null>(null);
+const pricingPreviewLoading = ref(false);
+const pricingPreviewError = ref<string | null>(null);
+let pricingPreviewRequestId = 0;
 
 const TITULAR_RELATIONSHIP_ID = 1;
 
 const step = ref(1);
 const steps = ["Membresía", "Datos y Familia", "Documentos", "Confirmación"];
+
+const currencyFormatter = new Intl.NumberFormat("es-MX", {
+    style: "currency",
+    currency: "MXN",
+    maximumFractionDigits: 2,
+});
 
 const form = useForm<MembershipsForm>({
     id: null,
@@ -468,6 +489,74 @@ const removeMember = (localId: number) => {
     form.members = form.members.filter((m) => m.local_id !== localId);
 };
 
+const getPrimaryMember = () =>
+    form.members.find((member) => member.is_primary_holder) ?? null;
+
+const fetchPricingPreview = async () => {
+    if (!form.membershipType) {
+        pricingPreview.value = null;
+        pricingPreviewError.value = null;
+        pricingPreviewLoading.value = false;
+        return;
+    }
+
+    const requestId = ++pricingPreviewRequestId;
+    pricingPreviewLoading.value = true;
+    pricingPreview.value = null;
+    pricingPreviewError.value = null;
+
+    const primaryMember = getPrimaryMember();
+    const age = primaryMember?.age ?? calculateAge(primaryMember?.birthdate ?? null);
+    const params = Object.fromEntries(
+        Object.entries({
+            membership_type_id: form.membershipType.id,
+            source_membership_id: form.source_membership_id,
+            target_club_id: form.target_club_id ?? props.targetClub?.id ?? null,
+            from_membership_type_id: form.from_membership,
+            source_club_id: form.source_club_id,
+            has_multiple_clubs: form.has_multiple_clubs ? 1 : 0,
+            source_membership_is_active: form.source_membership_is_active
+                ? 1
+                : 0,
+            years_in_source_club: form.years_in_source_club,
+            age,
+        }).filter(([, value]) => value !== null && value !== undefined && value !== ""),
+    );
+
+    try {
+        const response = await fetch(route("members.pricing-preview", params), {
+            method: "GET",
+            headers: {
+                Accept: "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+            },
+        });
+        const payload = await response.json();
+
+        if (requestId !== pricingPreviewRequestId) return;
+
+        if (!response.ok) {
+            pricingPreview.value = null;
+            pricingPreviewError.value =
+                payload?.message || "No se pudo calcular el precio.";
+            return;
+        }
+
+        pricingPreview.value = payload as PricingPreview;
+        pricingPreviewError.value = null;
+    } catch (error) {
+        if (requestId !== pricingPreviewRequestId) return;
+
+        console.error(error);
+        pricingPreview.value = null;
+        pricingPreviewError.value = "No se pudo calcular el precio.";
+    } finally {
+        if (requestId === pricingPreviewRequestId) {
+            pricingPreviewLoading.value = false;
+        }
+    }
+};
+
 const selectType = (membershipType: MembershipType) => {
     form.membershipType = { ...membershipType };
     if (!usesSourceMembership.value) {
@@ -488,6 +577,7 @@ const selectType = (membershipType: MembershipType) => {
             .map((member) => buildMemberFromPrefill(member));
 
         form.members = members;
+        void fetchPricingPreview();
         return;
     }
 
@@ -501,6 +591,7 @@ const selectType = (membershipType: MembershipType) => {
     }
 
     form.members = members;
+    void fetchPricingPreview();
 };
 
 const sourceMembershipSummary = computed(() => {
@@ -634,6 +725,10 @@ const onBirthdateChange = (member: MemberForm) => {
     }
 
     member.documents = buildMemberDocuments(member);
+
+    if (member.is_primary_holder) {
+        void fetchPricingPreview();
+    }
 };
 
 const isNextDisabled = computed(() => {
@@ -967,6 +1062,150 @@ const memberLabel = (member: MemberForm) => {
                                         captura un origen manual.
                                     </v-alert>
                                 </template>
+
+                                <v-card
+                                    v-if="
+                                        form.membershipType &&
+                                        (pricingPreviewLoading ||
+                                            pricingPreview ||
+                                            pricingPreviewError)
+                                    "
+                                    class="pa-4 mb-6"
+                                    variant="tonal"
+                                >
+                                    <div
+                                        class="d-flex flex-wrap align-center justify-space-between ga-2"
+                                    >
+                                        <div>
+                                            <div
+                                                class="text-caption text-medium-emphasis"
+                                            >
+                                                Vista previa de cobro
+                                            </div>
+                                            <div
+                                                class="text-subtitle-1 font-weight-bold"
+                                            >
+                                                {{
+                                                    form.membershipType?.name ||
+                                                    "Membresía seleccionada"
+                                                }}
+                                            </div>
+                                        </div>
+
+                                        <v-chip
+                                            v-if="pricingPreview?.rule_type"
+                                            size="small"
+                                            color="primary"
+                                            variant="tonal"
+                                        >
+                                            {{
+                                                pricingPreview.rule_type ===
+                                                "interclub"
+                                                    ? "Paquete interclub"
+                                                    : "Regla de precio"
+                                            }}
+                                        </v-chip>
+                                    </div>
+
+                                    <v-row class="mt-2">
+                                        <v-col cols="12" md="4">
+                                            <v-skeleton-loader
+                                                v-if="pricingPreviewLoading"
+                                                type="paragraph"
+                                            />
+                                            <template v-else>
+                                                <div
+                                                    class="text-caption text-medium-emphasis"
+                                                >
+                                                    Mensualidad
+                                                </div>
+                                                <div
+                                                    class="text-h6 font-weight-bold"
+                                                >
+                                                    {{
+                                                        pricingPreview
+                                                            ? currencyFormatter.format(
+                                                                  pricingPreview.monthly_fee,
+                                                              )
+                                                            : "-"
+                                                    }}
+                                                </div>
+                                            </template>
+                                        </v-col>
+
+                                        <v-col cols="12" md="4">
+                                            <v-skeleton-loader
+                                                v-if="pricingPreviewLoading"
+                                                type="paragraph"
+                                            />
+                                            <template v-else>
+                                                <div
+                                                    class="text-caption text-medium-emphasis"
+                                                >
+                                                    Inscripción
+                                                </div>
+                                                <div
+                                                    class="text-h6 font-weight-bold"
+                                                >
+                                                    {{
+                                                        pricingPreview
+                                                            ? currencyFormatter.format(
+                                                                  pricingPreview.inscription_fee,
+                                                              )
+                                                            : "-"
+                                                    }}
+                                                </div>
+                                            </template>
+                                        </v-col>
+
+                                        <v-col cols="12" md="4">
+                                            <v-skeleton-loader
+                                                v-if="pricingPreviewLoading"
+                                                type="paragraph"
+                                            />
+                                            <template v-else>
+                                                <div
+                                                    class="text-caption text-medium-emphasis"
+                                                >
+                                                    Total estimado inicial
+                                                </div>
+                                                <div
+                                                    class="text-h6 font-weight-bold"
+                                                >
+                                                    {{
+                                                        pricingPreview
+                                                            ? currencyFormatter.format(
+                                                                  pricingPreview.total_due,
+                                                              )
+                                                            : "-"
+                                                    }}
+                                                </div>
+                                            </template>
+                                        </v-col>
+                                    </v-row>
+
+                                    <v-alert
+                                        v-if="pricingPreviewError && !pricingPreviewLoading"
+                                        type="warning"
+                                        variant="tonal"
+                                        class="mt-4"
+                                    >
+                                        {{ pricingPreviewError }}
+                                    </v-alert>
+
+                                    <v-alert
+                                        v-else-if="
+                                            pricingPreview?.source_membership_becomes_non_billable
+                                        "
+                                        type="info"
+                                        variant="tonal"
+                                        class="mt-4"
+                                    >
+                                        Al aplicar esta regla, la membresía
+                                        origen dejará de ser cobrable y solo se
+                                        considerará este nuevo monto.
+                                    </v-alert>
+                                </v-card>
 
                                 <v-row>
                                     <v-col

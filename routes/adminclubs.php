@@ -31,6 +31,8 @@ Route::resource('/blockedPeriods', BlockedPeriodController::class)->names('block
 // members
 Route::get('/members/{membership}/additional-membership/create', [MemberController::class, 'createAdditionalMembership'])
     ->name('members.additional-membership.create');
+Route::get('/members/pricing-preview', [MemberController::class, 'pricingPreview'])
+    ->name('members.pricing-preview');
 Route::get('/members/{membership}/manage', [MemberController::class, 'show'])
     ->name('members.manage.show');
 Route::get('/members/{membership}/transition/create', [MemberController::class, 'createMembershipTransition'])
