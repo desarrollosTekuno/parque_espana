@@ -15,6 +15,8 @@ interface MemberItem {
     monthly_fee: number;
     status: string;
     can_change_membership: boolean;
+    can_change_primary_holder: boolean;
+    can_separate_member: boolean;
     active_memberships: ActiveMembershipItem[];
 }
 
@@ -274,6 +276,40 @@ const emptyMessage = computed(() =>
 
                         <template #item.actions="{ item }">
                             <div class="d-flex flex-wrap justify-end">
+                                <BaseButton
+                                    v-if="item.can_separate_member"
+                                    :icon-only="false"
+                                    action="add"
+                                    text="Separar integrante"
+                                    tooltip="Crear una nueva cuenta para un integrante de la familia"
+                                    @click="
+                                        router.visit(
+                                            route(
+                                                'members.separation.create',
+                                                item.membership_id,
+                                            ),
+                                        )
+                                    "
+                                    :disabled="!item.membership_id"
+                                />
+
+                                <BaseButton
+                                    v-if="item.can_change_primary_holder"
+                                    :icon-only="false"
+                                    action="edit"
+                                    text="Cambiar titular"
+                                    tooltip="Cambiar el titular de la cuenta familiar"
+                                    @click="
+                                        router.visit(
+                                            route(
+                                                'members.change-holder.create',
+                                                item.membership_id,
+                                            ),
+                                        )
+                                    "
+                                    :disabled="!item.membership_id"
+                                />
+
                                 <BaseButton
                                     v-if="item.can_change_membership"
                                     :icon-only="false"
