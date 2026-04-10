@@ -316,67 +316,68 @@ class MemberController extends Controller
 
     public function store(Request $request)
     {
-        $sessionClubId = session('club_id');
+        try {
+            $sessionClubId = session('club_id');
 
-        if (!$sessionClubId) {
-            return redirect()->back()->withErrors([
-                'messageError' => 'No hay un club seleccionado en la sesion.',
-                'exception' => '',
+            if (!$sessionClubId) {
+                return redirect()->back()->withErrors([
+                    'messageError' => 'No hay un club seleccionado en la sesion.',
+                    'exception' => '',
+                ]);
+            }
+
+            $validated = $request->validate([
+                'source_membership_id' => ['nullable', new ExistsInSchema('memberships', 'memberships', 'id')],
+                'target_club_id' => ['nullable', new ExistsInSchema('clubs', 'clubs', 'id')],
+                'membership_type_id' => ['required', new ExistsInSchema('memberships', 'types', 'id')],
+                'from_membership_type_id' => ['nullable', new ExistsInSchema('memberships', 'types', 'id')],
+                'source_club_id' => ['nullable', new ExistsInSchema('clubs', 'clubs', 'id')],
+                'has_multiple_clubs' => ['nullable', 'boolean'],
+                'source_membership_is_active' => ['nullable', 'boolean'],
+                'years_in_source_club' => ['nullable', 'integer', 'min:0', 'max:99'],
+                'members' => ['required', 'array', 'min:1'],
+                'members.*.id' => ['nullable', new ExistsInSchema('members', 'members', 'id')],
+                'members.*.first_name' => ['required', 'string', 'max:255'],
+                'members.*.last_name' => ['required', 'string', 'max:255'],
+                'members.*.second_last_name' => ['nullable', 'string', 'max:255'],
+                'members.*.birthdate' => ['nullable', 'date'],
+                'members.*.age' => ['nullable', 'integer', 'min:0', 'max:120'],
+                'members.*.birth_place' => ['nullable', 'string', 'max:255'],
+                'members.*.city' => ['nullable', 'string', 'max:255'],
+                'members.*.state' => ['nullable', 'string', 'max:255'],
+                'members.*.nationality_id' => ['nullable', new ExistsInSchema('catalogs', 'nationalities', 'id')],
+                'members.*.marital_status_id' => ['nullable', new ExistsInSchema('catalogs', 'marital_statuses', 'id')],
+                'members.*.phone' => ['nullable', 'string', 'max:50'],
+                'members.*.email' => ['nullable', 'email', 'max:255'],
+                'members.*.occupation' => ['nullable', 'string', 'max:255'],
+                'members.*.school_name' => ['nullable', 'string', 'max:255'],
+                'members.*.relationship_id' => ['nullable', new ExistsInSchema('catalogs', 'relationships', 'id')],
+                'members.*.relationship_name' => ['nullable', 'string', 'max:255'],
+                'members.*.is_primary_holder' => ['required', 'boolean'],
+                'members.*.address' => ['nullable', 'array'],
+                'members.*.address.street' => ['nullable', 'string', 'max:255'],
+                'members.*.address.neighborhood' => ['nullable', 'string', 'max:255'],
+                'members.*.address.postal_code' => ['nullable', 'string', 'max:10'],
+                'members.*.address.city' => ['nullable', 'string', 'max:255'],
+                'members.*.address.state' => ['nullable', 'string', 'max:255'],
+                'members.*.address.country' => ['nullable', 'string', 'max:255'],
+                'members.*.address.years_in_city' => ['nullable', 'integer', 'min:0', 'max:999'],
+                'members.*.employment' => ['nullable', 'array'],
+                'members.*.employment.company_name' => ['nullable', 'string', 'max:255'],
+                'members.*.employment.company_address' => ['nullable', 'string', 'max:255'],
+                'members.*.employment.company_phone' => ['nullable', 'string', 'max:50'],
             ]);
-        }
 
-        $validated = $request->validate([
-            'source_membership_id' => ['nullable', new ExistsInSchema('memberships', 'memberships', 'id')],
-            'target_club_id' => ['nullable', new ExistsInSchema('clubs', 'clubs', 'id')],
-            'membership_type_id' => ['required', new ExistsInSchema('memberships', 'types', 'id')],
-            'from_membership_type_id' => ['nullable', new ExistsInSchema('memberships', 'types', 'id')],
-            'source_club_id' => ['nullable', new ExistsInSchema('clubs', 'clubs', 'id')],
-            'has_multiple_clubs' => ['nullable', 'boolean'],
-            'source_membership_is_active' => ['nullable', 'boolean'],
-            'years_in_source_club' => ['nullable', 'integer', 'min:0', 'max:99'],
-            'members' => ['required', 'array', 'min:1'],
-            'members.*.id' => ['nullable', new ExistsInSchema('members', 'members', 'id')],
-            'members.*.first_name' => ['required', 'string', 'max:255'],
-            'members.*.last_name' => ['required', 'string', 'max:255'],
-            'members.*.second_last_name' => ['nullable', 'string', 'max:255'],
-            'members.*.birthdate' => ['nullable', 'date'],
-            'members.*.age' => ['nullable', 'integer', 'min:0', 'max:120'],
-            'members.*.birth_place' => ['nullable', 'string', 'max:255'],
-            'members.*.city' => ['nullable', 'string', 'max:255'],
-            'members.*.state' => ['nullable', 'string', 'max:255'],
-            'members.*.nationality_id' => ['nullable', new ExistsInSchema('catalogs', 'nationalities', 'id')],
-            'members.*.marital_status_id' => ['nullable', new ExistsInSchema('catalogs', 'marital_statuses', 'id')],
-            'members.*.phone' => ['nullable', 'string', 'max:50'],
-            'members.*.email' => ['nullable', 'email', 'max:255'],
-            'members.*.occupation' => ['nullable', 'string', 'max:255'],
-            'members.*.school_name' => ['nullable', 'string', 'max:255'],
-            'members.*.relationship_id' => ['nullable', new ExistsInSchema('catalogs', 'relationships', 'id')],
-            'members.*.relationship_name' => ['nullable', 'string', 'max:255'],
-            'members.*.is_primary_holder' => ['required', 'boolean'],
-            'members.*.address' => ['nullable', 'array'],
-            'members.*.address.street' => ['nullable', 'string', 'max:255'],
-            'members.*.address.neighborhood' => ['nullable', 'string', 'max:255'],
-            'members.*.address.postal_code' => ['nullable', 'string', 'max:10'],
-            'members.*.address.city' => ['nullable', 'string', 'max:255'],
-            'members.*.address.state' => ['nullable', 'string', 'max:255'],
-            'members.*.address.country' => ['nullable', 'string', 'max:255'],
-            'members.*.address.years_in_city' => ['nullable', 'integer', 'min:0', 'max:999'],
-            'members.*.employment' => ['nullable', 'array'],
-            'members.*.employment.company_name' => ['nullable', 'string', 'max:255'],
-            'members.*.employment.company_address' => ['nullable', 'string', 'max:255'],
-            'members.*.employment.company_phone' => ['nullable', 'string', 'max:50'],
-        ]);
-
-        $clubId = $validated['target_club_id'] ?? $sessionClubId;
-        $sourceMembership = null;
-        $fromMembershipType = null;
-        $sourceClub = null;
-        $hasMultipleClubs = (bool) ($validated['has_multiple_clubs'] ?? false);
-        $sourceMembershipIsActive = (bool) ($validated['source_membership_is_active'] ?? false);
-        $yearsInSourceClub = array_key_exists('years_in_source_club', $validated)
-            && $validated['years_in_source_club'] !== null
-            ? (int) $validated['years_in_source_club']
-            : null;
+            $clubId = $validated['target_club_id'] ?? $sessionClubId;
+            $sourceMembership = null;
+            $fromMembershipType = null;
+            $sourceClub = null;
+            $hasMultipleClubs = (bool) ($validated['has_multiple_clubs'] ?? false);
+            $sourceMembershipIsActive = (bool) ($validated['source_membership_is_active'] ?? false);
+            $yearsInSourceClub = array_key_exists('years_in_source_club', $validated)
+                && $validated['years_in_source_club'] !== null
+                ? (int) $validated['years_in_source_club']
+                : null;
 
         if (!empty($validated['source_membership_id'])) {
             $sourceMembership = Membership::query()
@@ -525,9 +526,8 @@ class MemberController extends Controller
             yearsInSourceClub: $yearsInSourceClub
         );
 
-        $club = Club::findOrFail($clubId);
+            $club = Club::findOrFail($clubId);
 
-        try {
             DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership) {
                 $membershipAccount = MembershipAccount::create([
                     'membership_number' => $this->generateMembershipNumber($club),
@@ -613,10 +613,12 @@ class MemberController extends Controller
 
             return redirect()
                 ->back()
-                ->with('success', 'La cuenta de membresia y sus integrantes se registraron correctamente.');
+                ->with('success', 'La cuenta de membresía y sus integrantes se registraron correctamente.');
+        } catch (ValidationException $e) {
+            return $this->validationExceptionResponse($e);
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([
-                'messageError' => 'Ocurrio un error al guardar la membresia y sus integrantes.',
+                'messageError' => 'Ocurrió un error al guardar la membresía y sus integrantes.',
                 'exception' => $e->getMessage(),
             ]);
         }
@@ -698,7 +700,7 @@ class MemberController extends Controller
 
         if (!$pricingRule) {
             throw ValidationException::withMessages([
-                'membership_type_id' => 'No se encontro una regla de costo aplicable para la membresia seleccionada.',
+                'membership_type_id' => 'No se encontró una regla de costo aplicable para la membresía seleccionada.',
             ]);
         }
 
@@ -706,7 +708,8 @@ class MemberController extends Controller
             'monthly_fee' => (float) $pricingRule->monthly_fee,
             'inscription_fee' => (float) ($pricingRule->inscription_fee ?? 0),
             'rule_type' => 'pricing_rule',
-            'source_membership_becomes_non_billable' => (bool) $pricingRule->requires_multiple_clubs,
+            'source_membership_becomes_non_billable' => (bool) $pricingRule->requires_multiple_clubs
+                || $this->isPe1PackageMembershipType($membershipType),
         ];
     }
 
@@ -767,13 +770,13 @@ class MemberController extends Controller
 
         if (!$sourceClub || $sourceClub->code !== 'PE1') {
             throw ValidationException::withMessages([
-                'source_club_id' => 'El paquete Parque Espana 1 solo aplica para socios provenientes de PE1.',
+                'source_club_id' => 'El paquete Parque España 1 solo aplica para socios provenientes de PE1.',
             ]);
         }
 
         if ($yearsInSourceClub === null || $yearsInSourceClub < 5) {
             throw ValidationException::withMessages([
-                'years_in_source_club' => 'El paquete Parque Espana 1 requiere al menos 5 anos de antiguedad en PE1.',
+                'years_in_source_club' => 'El paquete Parque España 1 requiere al menos 5 años de antigüedad en PE1.',
             ]);
         }
     }
@@ -873,5 +876,16 @@ class MemberController extends Controller
         }
 
         return false;
+    }
+
+    protected function validationExceptionResponse(ValidationException $e)
+    {
+        $errors = $e->errors();
+        $firstMessage = collect($errors)->flatten()->first() ?? 'Ocurrio un error de validacion.';
+
+        return redirect()->back()->withErrors(array_merge($errors, [
+            'messageError' => $firstMessage,
+            'exception' => '',
+        ]));
     }
 }
