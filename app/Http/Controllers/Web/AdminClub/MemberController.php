@@ -34,30 +34,33 @@ class MemberController extends Controller
             $prefix = 'members';
             $driver = DB::getDriverName();
 
-            $query = Membership::query()
+            $query = MembershipAccount::query()
                 ->with([
-                    'account.primaryHolder.member',
-                    'membershipType',
-                    'club',
+                    'primaryHolder.member',
+                    'memberships' => fn ($membershipQuery) => $membershipQuery
+                        ->with(['membershipType', 'club'])
+                        ->where('status', 'active')
+                        ->where('is_primary', true),
                 ])
-                ->where('club_id', $clubId)
-                ->where('status', 'active')
-                ->where('is_primary', true)
-                ->whereHas('account.primaryHolder.member');
+                ->whereHas('memberships', function (Builder $membershipQuery) use ($clubId) {
+                    $membershipQuery->where('club_id', $clubId)
+                        ->where('status', 'active')
+                        ->where('is_primary', true);
+                })
+                ->whereHas('primaryHolder.member');
 
             if ($search = $request->input("{$prefix}_search")) {
                 $like = $driver === 'pgsql' ? 'ilike' : 'like';
 
                 $query->where(function (Builder $builder) use ($search, $like) {
-                    $builder->whereHas('account', function (Builder $accountQuery) use ($search, $like) {
-                        $accountQuery->where('membership_number', $like, "%{$search}%");
-                    })->orWhereHas('account.primaryHolder.member', function (Builder $memberQuery) use ($search, $like) {
+                    $builder->where('membership_number', $like, "%{$search}%")
+                    ->orWhereHas('primaryHolder.member', function (Builder $memberQuery) use ($search, $like) {
                         $memberQuery->where('first_name', $like, "%{$search}%")
                             ->orWhere('last_name', $like, "%{$search}%")
                             ->orWhere('second_last_name', $like, "%{$search}%")
                             ->orWhere('email', $like, "%{$search}%")
                             ->orWhere('phone', $like, "%{$search}%");
-                    })->orWhereHas('membershipType', function (Builder $membershipTypeQuery) use ($search, $like) {
+                    })->orWhereHas('memberships.membershipType', function (Builder $membershipTypeQuery) use ($search, $like) {
                         $membershipTypeQuery->where('name', $like, "%{$search}%");
                     });
                 });
@@ -65,9 +68,8 @@ class MemberController extends Controller
 
             $sortMap = [
                 'id' => 'id',
-                'monthly_fee' => 'monthly_fee',
-                'start_date' => 'start_date',
-                'status' => 'status',
+                'membership_number' => 'membership_number',
+                'created_at' => 'created_at',
             ];
 
             $sort = $request->input("{$prefix}_sort", 'id');
@@ -88,8 +90,12 @@ class MemberController extends Controller
                     "{$prefix}_page",
                     $request->input("{$prefix}_page", 1)
                 )
-                ->through(function (Membership $membership) {
-                    $holder = $membership->account?->primaryHolder?->member;
+                ->through(function (MembershipAccount $account) use ($clubId) {
+                    $holder = $account->primaryHolder?->member;
+                    $activeMemberships = $account->memberships
+                        ->where('club_id', (int) $clubId)
+                        ->values();
+                    $billableMembership = $activeMemberships->firstWhere('is_billable', true);
                     $fullName = trim(collect([
                         $holder?->first_name,
                         $holder?->last_name,
@@ -97,19 +103,28 @@ class MemberController extends Controller
                     ])->filter()->implode(' '));
 
                     return [
-                        'id' => $membership->id,
-                        'membership_number' => $membership->account?->membership_number,
+                        'id' => $account->id,
+                        'membership_id' => $billableMembership?->id ?? $activeMemberships->first()?->id,
+                        'membership_number' => $account->membership_number,
                         'holder_name' => $fullName,
-                        'membership_type_name' => $membership->membershipType?->name,
-                        'membership_type_code' => $membership->membershipType?->code,
-                        'club_name' => $membership->club?->name,
-                        'club_code' => $membership->club?->code,
                         'email' => $holder?->email,
                         'phone' => $holder?->phone,
-                        'monthly_fee' => (float) $membership->monthly_fee,
-                        'start_date' => $membership->start_date,
-                        'end_date' => $membership->end_date,
-                        'status' => $membership->status,
+                        'monthly_fee' => (float) ($billableMembership?->monthly_fee ?? 0),
+                        'status' => $billableMembership?->status ?? $activeMemberships->first()?->status,
+                        'active_memberships' => $activeMemberships->map(function (Membership $membership) {
+                            return [
+                                'id' => $membership->id,
+                                'membership_type_name' => $membership->membershipType?->name,
+                                'membership_type_code' => $membership->membershipType?->code,
+                                'club_name' => $membership->club?->name,
+                                'club_code' => $membership->club?->code,
+                                'monthly_fee' => (float) $membership->monthly_fee,
+                                'is_billable' => (bool) $membership->is_billable,
+                                'start_date' => $membership->start_date,
+                                'end_date' => $membership->end_date,
+                                'status' => $membership->status,
+                            ];
+                        })->values(),
                     ];
                 })
                 ->appends($request->all());
