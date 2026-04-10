@@ -31,12 +31,18 @@ Route::resource('/blockedPeriods', BlockedPeriodController::class)->names('block
 // members
 Route::get('/members/{membership}/additional-membership/create', [MemberController::class, 'createAdditionalMembership'])
     ->name('members.additional-membership.create');
+Route::get('/members/{membership}/manage', [MemberController::class, 'show'])
+    ->name('members.manage.show');
 Route::get('/members/{membership}/transition/create', [MemberController::class, 'createMembershipTransition'])
     ->name('members.transition.create');
 Route::get('/members/{membership}/change-holder', [MemberController::class, 'createChangePrimaryHolder'])
     ->name('members.change-holder.create');
 Route::patch('/members/{membership}/change-holder', [MemberController::class, 'updatePrimaryHolder'])
     ->name('members.change-holder.update');
+Route::get('/members/{membership}/family-members/create', [MemberController::class, 'createFamilyMember'])
+    ->name('members.family-members.create');
+Route::post('/members/{membership}/family-members', [MemberController::class, 'storeFamilyMember'])
+    ->name('members.family-members.store');
 Route::get('/members/{membership}/separation/create', [MemberController::class, 'createMemberSeparation'])
     ->name('members.separation.create');
 Route::post('/members/{membership}/separation', [MemberController::class, 'storeMemberSeparation'])

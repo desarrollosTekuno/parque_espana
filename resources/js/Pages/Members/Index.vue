@@ -277,6 +277,22 @@ const emptyMessage = computed(() =>
                         <template #item.actions="{ item }">
                             <div class="d-flex flex-wrap justify-end">
                                 <BaseButton
+                                    :icon-only="false"
+                                    action="edit"
+                                    text="Gestionar cuenta"
+                                    tooltip="Ver detalle de la cuenta y sus integrantes"
+                                    @click="
+                                        router.visit(
+                                            route(
+                                                'members.manage.show',
+                                                item.membership_id,
+                                            ),
+                                        )
+                                    "
+                                    :disabled="!item.membership_id"
+                                />
+
+                                <BaseButton
                                     v-if="item.can_separate_member"
                                     :icon-only="false"
                                     action="add"

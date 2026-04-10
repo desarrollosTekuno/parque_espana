@@ -291,6 +291,34 @@ class MemberController extends Controller
         ]);
     }
 
+    public function show(Request $request, Membership $membership)
+    {
+        $clubId = session('club_id');
+
+        if ((int) $membership->club_id !== (int) $clubId) {
+            abort(404);
+        }
+
+        $membership = $this->loadMembershipContext($membership);
+
+        if ($membership->status !== 'active' || !$membership->is_primary) {
+            return redirect()->route('members.index')->withErrors([
+                'messageError' => 'Solo puedes gestionar una membresia activa y principal.',
+                'exception' => '',
+            ]);
+        }
+
+        return Inertia::render('Members/Show', [
+            'membership' => $this->buildSourceMembershipPayload($membership),
+            'account' => $this->buildMembershipAccountPayload($membership),
+            'canAddFamilyMembers' => (bool) $membership->membershipType?->allows_multiple_members,
+            'canChangePrimaryHolder' => (bool) $membership->membershipType?->allows_multiple_members
+                && $membership->account->accountMembers->count() > 1,
+            'canSeparateMembers' => (bool) $membership->membershipType?->allows_multiple_members
+                && $membership->account->accountMembers->where('is_primary_holder', false)->isNotEmpty(),
+        ]);
+    }
+
     public function createChangePrimaryHolder(Request $request, Membership $membership)
     {
         $clubId = session('club_id');
@@ -437,6 +465,178 @@ class MemberController extends Controller
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([
                 'messageError' => 'Ocurrio un error al cambiar el titular de la cuenta.',
+                'exception' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public function createFamilyMember(Request $request, Membership $membership)
+    {
+        $clubId = session('club_id');
+
+        if ((int) $membership->club_id !== (int) $clubId) {
+            abort(404);
+        }
+
+        $membership = $this->loadMembershipContext($membership);
+
+        if ($membership->status !== 'active' || !$membership->is_primary) {
+            return redirect()->route('members.manage.show', $membership)->withErrors([
+                'messageError' => 'Solo puedes agregar familiares a una membresia activa y principal.',
+                'exception' => '',
+            ]);
+        }
+
+        if (!$membership->membershipType?->allows_multiple_members) {
+            return redirect()->route('members.manage.show', $membership)->withErrors([
+                'messageError' => 'Solo las membresias familiares permiten agregar familiares.',
+                'exception' => '',
+            ]);
+        }
+
+        return Inertia::render('Members/AddFamilyMember', [
+            'membership' => $this->buildSourceMembershipPayload($membership),
+            'account' => $this->buildMembershipAccountPayload($membership),
+            ...$this->getCreateFormCatalogs(),
+            'relationships' => Relationship::query()
+                ->select('id', 'name')
+                ->get()
+                ->reject(fn (Relationship $relationship) => $this->isTitularRelationship($relationship->name))
+                ->values(),
+        ]);
+    }
+
+    public function storeFamilyMember(Request $request, Membership $membership)
+    {
+        try {
+            $clubId = session('club_id');
+
+            if ((int) $membership->club_id !== (int) $clubId) {
+                abort(404);
+            }
+
+            $membership = $this->loadMembershipContext($membership);
+
+            if ($membership->status !== 'active' || !$membership->is_primary) {
+                return redirect()->back()->withErrors([
+                    'messageError' => 'Solo puedes agregar familiares a una membresia activa y principal.',
+                    'exception' => '',
+                ]);
+            }
+
+            if (!$membership->membershipType?->allows_multiple_members) {
+                return redirect()->back()->withErrors([
+                    'messageError' => 'Solo las membresias familiares permiten agregar familiares.',
+                    'exception' => '',
+                ]);
+            }
+
+            $validated = $request->validate([
+                'first_name' => ['required', 'string', 'max:255'],
+                'last_name' => ['required', 'string', 'max:255'],
+                'second_last_name' => ['nullable', 'string', 'max:255'],
+                'birthdate' => ['required', 'date', 'before_or_equal:today'],
+                'birth_place' => ['nullable', 'string', 'max:255'],
+                'city' => ['nullable', 'string', 'max:255'],
+                'state' => ['nullable', 'string', 'max:255'],
+                'nationality_id' => ['nullable', new ExistsInSchema('catalogs', 'nationalities', 'id')],
+                'marital_status_id' => ['nullable', new ExistsInSchema('catalogs', 'marital_statuses', 'id')],
+                'phone' => ['nullable', 'string', 'max:50'],
+                'email' => ['nullable', 'email', 'max:255'],
+                'occupation' => ['nullable', 'string', 'max:255'],
+                'school_name' => ['nullable', 'string', 'max:255'],
+                'relationship_id' => ['required', new ExistsInSchema('catalogs', 'relationships', 'id')],
+                'address' => ['nullable', 'array'],
+                'address.street' => ['nullable', 'string', 'max:255'],
+                'address.neighborhood' => ['nullable', 'string', 'max:255'],
+                'address.postal_code' => ['nullable', 'string', 'max:10'],
+                'address.city' => ['nullable', 'string', 'max:255'],
+                'address.state' => ['nullable', 'string', 'max:255'],
+                'address.country' => ['nullable', 'string', 'max:255'],
+                'address.years_in_city' => ['nullable', 'integer', 'min:0', 'max:999'],
+                'employment' => ['nullable', 'array'],
+                'employment.company_name' => ['nullable', 'string', 'max:255'],
+                'employment.company_address' => ['nullable', 'string', 'max:255'],
+                'employment.company_phone' => ['nullable', 'string', 'max:50'],
+            ]);
+
+            $relationship = Relationship::query()->findOrFail($validated['relationship_id']);
+            $age = Carbon::parse($validated['birthdate'])->age;
+
+            if ($this->isTitularRelationship($relationship->name)) {
+                throw ValidationException::withMessages([
+                    'relationship_id' => 'No puedes agregar otro integrante con parentesco de titular.',
+                ]);
+            }
+
+            if ($this->isChildRelationship($relationship->name) && $age >= 24) {
+                throw ValidationException::withMessages([
+                    'birthdate' => 'Los hijos no pueden ser mayores de 24 anos.',
+                ]);
+            }
+
+            if ($this->isSpouseRelationship($relationship->name) && $this->membershipAccountHasSpouse($membership)) {
+                throw ValidationException::withMessages([
+                    'relationship_id' => 'La cuenta familiar ya cuenta con un conyuge registrado.',
+                ]);
+            }
+
+            DB::transaction(function () use ($validated, $membership, $relationship) {
+                $member = Member::create([
+                    'first_name' => $validated['first_name'],
+                    'last_name' => $validated['last_name'],
+                    'second_last_name' => $validated['second_last_name'] ?? null,
+                    'birthdate' => $validated['birthdate'],
+                    'birth_place' => $validated['birth_place'] ?? null,
+                    'state' => $validated['state'] ?? null,
+                    'city' => $validated['city'] ?? null,
+                    'nationality_id' => $validated['nationality_id'] ?? null,
+                    'marital_status_id' => $validated['marital_status_id'] ?? null,
+                    'phone' => $validated['phone'] ?? null,
+                    'email' => $validated['email'] ?? null,
+                    'occupation' => $validated['occupation'] ?? null,
+                    'school_name' => $validated['school_name'] ?? null,
+                ]);
+
+                if ($this->hasFilledValues($validated['address'] ?? [])) {
+                    Address::create([
+                        'member_id' => $member->id,
+                        'is_primary' => true,
+                        'street' => $validated['address']['street'] ?? null,
+                        'neighborhood' => $validated['address']['neighborhood'] ?? null,
+                        'postal_code' => $validated['address']['postal_code'] ?? null,
+                        'city' => $validated['address']['city'] ?? null,
+                        'state' => $validated['address']['state'] ?? null,
+                        'country' => $validated['address']['country'] ?? null,
+                        'years_in_city' => $validated['address']['years_in_city'] ?? null,
+                    ]);
+                }
+
+                if ($this->hasFilledValues($validated['employment'] ?? [])) {
+                    EmploymentInfo::create([
+                        'member_id' => $member->id,
+                        'company_name' => $validated['employment']['company_name'] ?? null,
+                        'company_address' => $validated['employment']['company_address'] ?? null,
+                        'company_phone' => $validated['employment']['company_phone'] ?? null,
+                    ]);
+                }
+
+                MembershipAccountMember::create([
+                    'membership_account_id' => $membership->membership_account_id,
+                    'member_id' => $member->id,
+                    'relationship_id' => $relationship->id,
+                    'is_primary_holder' => false,
+                ]);
+            });
+
+            return redirect()
+                ->route('members.manage.show', $membership)
+                ->with('success', 'El familiar se agrego correctamente a la cuenta.');
+        } catch (ValidationException $e) {
+            return $this->validationExceptionResponse($e);
+        } catch (\Exception $e) {
+            return redirect()->back()->withErrors([
+                'messageError' => 'Ocurrio un error al agregar al familiar.',
                 'exception' => $e->getMessage(),
             ]);
         }
@@ -1028,9 +1228,13 @@ class MemberController extends Controller
         $membership->load([
             'account.primaryHolder.member.primaryAddress',
             'account.primaryHolder.member.employmentInfo',
+            'account.primaryHolder.member.nationality',
+            'account.primaryHolder.member.maritalStatus',
             'account.accountMembers.relationship',
             'account.accountMembers.member.primaryAddress',
             'account.accountMembers.member.employmentInfo',
+            'account.accountMembers.member.nationality',
+            'account.accountMembers.member.maritalStatus',
             'membershipType',
             'club',
             'account.memberships.membershipType',
@@ -1139,6 +1343,83 @@ class MemberController extends Controller
             'email' => $member?->email,
             'phone' => $member?->phone,
             'is_primary_holder' => (bool) $accountMember->is_primary_holder,
+        ];
+    }
+
+    protected function buildMembershipAccountPayload(Membership $membership): array
+    {
+        $activeMemberships = $membership->account->memberships
+            ->where('status', 'active')
+            ->where('is_primary', true)
+            ->values();
+        $billableMembership = $activeMemberships->firstWhere('is_billable', true);
+
+        return [
+            'id' => $membership->account?->id,
+            'membership_number' => $membership->account?->membership_number,
+            'account_type' => $membership->account?->account_type,
+            'status' => $membership->account?->status,
+            'current_monthly_fee' => (float) ($billableMembership?->monthly_fee ?? 0),
+            'primary_holder' => $this->buildDetailedAccountMemberPayload($membership->account?->primaryHolder),
+            'members' => $membership->account->accountMembers
+                ->sortByDesc('is_primary_holder')
+                ->map(fn (MembershipAccountMember $accountMember) => $this->buildDetailedAccountMemberPayload($accountMember))
+                ->values(),
+            'active_memberships' => $activeMemberships
+                ->map(function (Membership $activeMembership) {
+                    return [
+                        'id' => $activeMembership->id,
+                        'membership_type_name' => $activeMembership->membershipType?->name,
+                        'membership_type_code' => $activeMembership->membershipType?->code,
+                        'club_name' => $activeMembership->club?->name,
+                        'club_code' => $activeMembership->club?->code,
+                        'monthly_fee' => (float) $activeMembership->monthly_fee,
+                        'is_billable' => (bool) $activeMembership->is_billable,
+                        'status' => $activeMembership->status,
+                        'start_date' => $activeMembership->start_date,
+                        'end_date' => $activeMembership->end_date,
+                    ];
+                })
+                ->values(),
+        ];
+    }
+
+    protected function buildDetailedAccountMemberPayload(?MembershipAccountMember $accountMember): ?array
+    {
+        if (!$accountMember) {
+            return null;
+        }
+
+        $member = $accountMember->member;
+        $address = $member?->primaryAddress;
+        $employment = $member?->employmentInfo;
+
+        return [
+            ...$this->buildAccountMemberPayload($accountMember),
+            'relationship_id' => $accountMember->relationship_id,
+            'birthdate' => $member?->birthdate,
+            'age' => $member?->birthdate ? Carbon::parse($member->birthdate)->age : null,
+            'birth_place' => $member?->birth_place,
+            'city' => $member?->city,
+            'state' => $member?->state,
+            'nationality' => $member?->nationality?->demonym ?: $member?->nationality?->name,
+            'marital_status' => $member?->maritalStatus?->name,
+            'occupation' => $member?->occupation,
+            'school_name' => $member?->school_name,
+            'address' => [
+                'street' => $address?->street,
+                'neighborhood' => $address?->neighborhood,
+                'postal_code' => $address?->postal_code,
+                'city' => $address?->city,
+                'state' => $address?->state,
+                'country' => $address?->country,
+                'years_in_city' => $address?->years_in_city,
+            ],
+            'employment' => [
+                'company_name' => $employment?->company_name,
+                'company_address' => $employment?->company_address,
+                'company_phone' => $employment?->company_phone,
+            ],
         ];
     }
 
@@ -1470,6 +1751,32 @@ class MemberController extends Controller
         }
 
         return false;
+    }
+
+    protected function membershipAccountHasSpouse(Membership $membership): bool
+    {
+        return $membership->account->accountMembers
+            ->contains(fn (MembershipAccountMember $accountMember) => $this->isSpouseRelationship($accountMember->relationship?->name));
+    }
+
+    protected function isTitularRelationship(?string $relationshipName): bool
+    {
+        return $this->normalizeRelationshipName($relationshipName) === 'titular';
+    }
+
+    protected function isChildRelationship(?string $relationshipName): bool
+    {
+        return in_array($this->normalizeRelationshipName($relationshipName), ['hijo(a)', 'hijo', 'hija'], true);
+    }
+
+    protected function isSpouseRelationship(?string $relationshipName): bool
+    {
+        return in_array($this->normalizeRelationshipName($relationshipName), ['conyuge', 'esposo', 'esposa'], true);
+    }
+
+    protected function normalizeRelationshipName(?string $relationshipName): string
+    {
+        return Str::lower(trim(Str::ascii($relationshipName ?? '')));
     }
 
     protected function validationExceptionResponse(ValidationException $e)
