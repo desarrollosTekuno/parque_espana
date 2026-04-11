@@ -2,13 +2,42 @@
 
 namespace App\Models\AdminClub;
 
+use App\Traits\SerializesDates;
+use App\Models\Administrator\Club;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class Amenity extends Model {
-    use HasFactory, SoftDeletes;
+class Amenity extends Model
+{
+    use HasFactory, SoftDeletes, SerializesDates;
 
-    protected $guarded = ['id', 'created_at', 'updated_at'];
+    protected $table = 'amenities.amenities';
+
+    protected $fillable = [
+        'name',
+        'description',
+        'icon',
+        'background_image',
+        'reservation_type',
+        'capacity',
+        'is_active',
+        'club_id',
+    ];
     protected $dates = ['deleted_at'];
+
+    public function club()
+    {
+        return $this->belongsTo(Club::class, 'club_id');
+    }
+    public function schedules()
+    {
+        return $this->hasMany(AmenitySchedule::class, 'amenity_id');
+    }
+
+    public function resources()
+    {
+        return $this->hasMany(AmenityResource::class, 'amenity_id');
+    }
+
 }

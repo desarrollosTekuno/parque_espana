@@ -100,7 +100,7 @@ class UserController extends Controller
             // send verification email
             $user->sendEmailVerificationNotification();
             DB::commit();
-            return redirect()->back();
+            return redirect()->back()->with('success', 'Usuario creado con éxito! Se ha enviado un correo de verificación al nuevo usuario.');
         } catch (\Exception $e) {
             DB::rollBack();
             return redirect()->back()->withErrors([
@@ -117,7 +117,6 @@ class UserController extends Controller
         //    'column' => $request->input
         //]);
 
-        return redirect()->back()->with('success', 'Message');
     }
 
     /**
@@ -143,8 +142,17 @@ class UserController extends Controller
             ]);
             $user->roles()->sync($request->roles);
             $user->clubs()->sync($request->clubs);
+            // Si el email fue cambiado, enviar un nuevo correo de verificación y revocar la verificación anterior
+            if ($user->wasChanged('email')) {
+                $user->email_verified_at = null;
+                $user->save();
+                $user->sendEmailVerificationNotification(); 
+            }
             DB::commit();
-            return redirect()->back();
+            if ($user->wasChanged('email')) {
+                return redirect()->back()->with('success', 'Usuario actualizado con éxito! Se ha enviado un nuevo correo de verificación debido al cambio de email.');
+            }
+             return redirect()->back()->with('success', 'Usuario actualizado con éxito!');
         } catch (\Exception $e) {
             DB::rollBack();
             return redirect()->back()->withErrors([

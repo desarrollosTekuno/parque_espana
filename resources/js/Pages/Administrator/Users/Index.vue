@@ -9,6 +9,7 @@ import BaseButton from "@/Components/BaseButton.vue";
 import { email } from "../../../constants/validationRules";
 const can = usePage().props.auth.permissions;
 const canRole = usePage().props.auth.roles;
+const page = usePage<any>();
 interface Props {
     users?: any;
     roles?: any;
@@ -58,7 +59,7 @@ const save = () => {
                 form.put(route("users.update", form.id), {
                     onSuccess: () => {
                         customToastSwal({
-                            title: "Usuario actualizado con éxito!",
+                            title: page.props.flash.success || "",
                             icon: "success",
                         });
                         showModal.value = false;
@@ -78,7 +79,7 @@ const save = () => {
                 form.post(route("users.store"), {
                     onSuccess: () => {
                         customToastSwal({
-                            title: "Usuario creado con éxito!",
+                            title: page.props.flash.success || "",
                             icon: "success",
                         });
                         showModal.value = false;
@@ -124,17 +125,18 @@ const destroy = (data: any) => {
             form.delete(route("users.destroy", data.id), {
                 onSuccess: () => {
                     customToastSwal({
-                        title: "Registro eliminado correctamente",
+                        title: page.props.flash.success || "",
                         icon: "success",
                     });
                     fetchItems();
                 },
                 onError: (err) => {
                     console.error(err);
-                    customToastSwal({
-                        title: "Error al eliminar el registro",
-                        icon: "error",
-                    });
+                   customToastSwal({
+                            title: `Error: ${form.errors.messageError}`,
+                            text: `${form.errors.exception}`,
+                            icon: "error",
+                        });
                 },
             });
         }

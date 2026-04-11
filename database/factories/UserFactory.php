@@ -41,6 +41,13 @@ class UserFactory extends Factory
         });
     }
 
+    public function administratorClub(): static {
+        return $this->afterCreating(function (User $user) {
+            $adminClub = Role::firstOrCreate(['name' => 'admin_club']);
+            $user->syncRoles([$adminClub]);
+        });
+    }
+
     /**
      * Indicate that the model's email address should be unverified.
      */

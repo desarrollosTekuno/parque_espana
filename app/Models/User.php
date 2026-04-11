@@ -3,9 +3,6 @@
 namespace App\Models;
 
 use App\Models\Administrator\Club;
-use App\Models\Web\Resident;
-use App\Models\Web\ResidentialDevelopment;
-use App\Models\Web\UserType;
 use App\Traits\SerializesDates;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -77,10 +74,10 @@ class User extends Authenticatable implements MustVerifyEmail
         ];
     }
 
-    public function clubs() {
-        return $this->belongsToMany(Club::class, 'user_clubs');
-    }
-    
+    public function clubs()
+        {
+            return $this->belongsToMany(Club::class, 'user_clubs', 'user_id', 'club_id');
+        }
 
     
 }

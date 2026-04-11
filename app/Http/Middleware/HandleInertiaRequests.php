@@ -2,8 +2,11 @@
 
 namespace App\Http\Middleware;
 
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
+
+use function Symfony\Component\Clock\now;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -49,15 +52,42 @@ class HandleInertiaRequests extends Middleware
                 'roles' => $request->user()
                     ? $request->user()->roles->pluck('name')
                     : [],
+                // 'roles' => cache()->remember(
+                //     "user_roles_{$request->user()->id}",
+                //     Carbon::now()->addMinutes(10),
+                //     fn () => $request->user()
+                //         ? $request->user()->roles->pluck('name')
+                //         : []
+                // ),
 
                 'permissions' => $request->user()
-                    ? $request->user()->getAllPermissions()->pluck('name')
+                    ? $request->user()
+                        ->getAllPermissions()
+                        ->filter(function ($permission) {
+                            return $permission->contexts->contains('value', 'web');
+                        })
+                        ->pluck('name')
+                        ->values()
                     : [],
+                // 'permissions' => cache()->remember(
+                //     "user_permissions_{$request->user()->id}",
+                //     Carbon::now()->addMinutes(10),
+                //     fn () => $request->user()
+                //         ? $request->user()
+                //             ->getAllPermissions()
+                //             ->filter(function ($permission) {
+                //                 return $permission->contexts->contains('value', 'web');
+                //             })
+                //             ->pluck('name')
+                //             ->values()
+                //         : []
+                // )
             ],
 
             'flash' => function () use ($request) {
                 return [
                     'success' => $request->session()->get('success'),
+                    'messageError' => fn () => $request->session()->get('messageError'),
                 ];
             },
 

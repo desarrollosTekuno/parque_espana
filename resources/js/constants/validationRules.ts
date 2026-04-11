@@ -6,11 +6,11 @@ import type { ValidationRule } from "vuetify";
 export const required: ValidationRule = (v) => !!v || "El campo es requerido";
 
 export const email: ValidationRule = (v) =>
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) || "El correo no es válido";
+    !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) || "El correo no es válido";
 
 export const curp: ValidationRule = (v) =>
     /^[A-Z]{1}[AEIOU]{1}[A-Z]{2}\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])[HM]{1}(AS|BC|BS|CC|CL|CM|CS|CH|DF|DG|GT|GR|HG|JC|MC|MN|MS|NT|NL|OC|PL|QT|QR|SP|SL|SR|TC|TS|TL|VZ|YN|ZS)[B-DF-HJ-NP-TV-Z]{3}[A-Z\d]{1}\d{1}$/.test(
-        v
+        v,
     ) || "La CURP no es válida";
 
 export const selectRequired: ValidationRule = (v) => {
@@ -24,24 +24,27 @@ export const selectRequired: ValidationRule = (v) => {
 };
 
 export const onlyLetters = (v: string) => {
-  if (!v) return true
-  return /^[A-Za-zÀ-ÿ\s]+$/.test(v) || "Solo se permiten letras y espacios"
-}
+    if (!v) return true;
+    return /^[A-Za-zÀ-ÿ\s]+$/.test(v) || "Solo se permiten letras y espacios";
+};
 
 export const sanitizeLetters = (value: string) => {
-  // Reemplaza cualquier cosa que no sea letra ni espacio
-  return value.replace(/[^A-Za-zÀ-ÿ\s]/g, '')
-}
+    // Reemplaza cualquier cosa que no sea letra ni espacio
+    return value.replace(/[^A-Za-zÀ-ÿ\s]/g, "");
+};
 
 export const validAddress = (v: string) => {
-  if (!v) return true
-  const pattern = /^[A-Za-zÀ-ÿ0-9\s,.\-#°/]+$/
-  return pattern.test(v) || "Solo se permiten letras, números y signos comunes (,.-#°/)"
-}
+    if (!v) return true;
+    const pattern = /^[A-Za-zÀ-ÿ0-9\s,.\-#°/]+$/;
+    return (
+        pattern.test(v) ||
+        "Solo se permiten letras, números y signos comunes (,.-#°/)"
+    );
+};
 
 export const sanitizeAddress = (value: string) => {
-  return value.replace(/[^A-Za-zÀ-ÿ0-9\s,.\-#°/]/g, '')
-}
+    return value.replace(/[^A-Za-zÀ-ÿ0-9\s,.\-#°/]/g, "");
+};
 
 /* ─────────────────────────────
  * VALIDACIONES DE LONGITUD
@@ -87,7 +90,7 @@ export const fileTypeRule =
         return (
             !invalid ||
             `Solo se permiten archivos con extensión: ${allowedExtensions.join(
-                ", "
+                ", ",
             )}`
         );
     };
@@ -112,6 +115,21 @@ export const fileMaxCountRule =
         );
     };
 
+export const fileExactCountRule =
+    (expected: number): ValidationRule =>
+    (v: File | File[] | null) => {
+        const count = !v ? 0 : Array.isArray(v) ? v.length : 1;
+        return (
+            count === expected ||
+            `Debes subir exactamente ${expected} archivo${expected > 1 ? "s" : ""}`
+        );
+    };
+
+export const requiredFileRule = (v: File[] | null) => {
+    if (!v || v.length === 0) return "Este archivo es requerido";
+    return true;
+};
+
 export const fileTypeAndSizeRule =
     (allowedExtensions: string[], maxMB: number): ValidationRule =>
     (v: File | File[] | null) => {
@@ -124,7 +142,7 @@ export const fileTypeAndSizeRule =
         });
         if (invalidType) {
             return `Solo se permiten archivos con extensión: ${allowedExtensions.join(
-                ", "
+                ", ",
             )}`;
         }
 
@@ -174,41 +192,55 @@ export const validateFechaNacimiento = (fecha: string): string | true => {
     return true;
 };
 
-
-    /* ─────────────────────────────
+/* ─────────────────────────────
  * VALIDACIONES DE TELÉFONO
  * ───────────────────────────── */
 // ✅ Valida que el teléfono tenga formato correcto y 10 dígitos
-export const validatePhone = (value: string) => {
-  if (!value) return "El teléfono es requerido";
+export const validatePhone: ValidationRule = (value) => {
+    if (!value) return true; // permite vacío
 
-  // Verifica el formato exacto (55) 1234-5678
-  const regex = /^\(\d{2}\)\s\d{4}-\d{4}$/;
-  return regex.test(value) || "Debe contener solo números (10 dígitos)";
+    const cleaned = value.replace(/\D/g, ''); // quita todo lo que no sea número
+    return cleaned.length === 10 || "El teléfono debe tener 10 dígitos";
 };
+
+// const birthdateRule = (member: MemberForm) => {
+//     return (value: string | null) => {
+//         if (!value) return "La fecha de nacimiento es requerida";
+
+//         const age = calculateAge(value);
+//         member.age = age;
+
+//         if (age === null) return "La fecha de nacimiento no es válida";
+
+//         if (age < 0) return "La fecha de nacimiento no es válida";
+
+//         if (isChildRelationship(member) && age > 24) {
+//             return "Los hijos no pueden ser mayores de 24 años";
+//         }
+
+//         return true;
+//     };
+// };
 
 // ✅ Formatea y limpia en tiempo real
 export const formatPhone = (value: string): string => {
-  if (!value) return "";
+    if (!value) return "";
 
-  // 🔹 Elimina todo lo que no sea número
-  let cleaned = value.replace(/\D/g, "");
+    // 🔹 Elimina todo lo que no sea número
+    let cleaned = value.replace(/\D/g, "");
 
-  // 🔹 Limita a 10 dígitos máximo
-  cleaned = cleaned.slice(0, 10);
+    // 🔹 Limita a 10 dígitos máximo
+    cleaned = cleaned.slice(0, 10);
 
-  // 🔹 Aplica formato dinámico
-  if (cleaned.length > 2 && cleaned.length <= 6) {
-    cleaned = `(${cleaned.slice(0, 2)}) ${cleaned.slice(2)}`;
-  } else if (cleaned.length > 6) {
-    cleaned = `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 6)}-${cleaned.slice(6, 10)}`;
-  }
+    // 🔹 Aplica formato dinámico
+    if (cleaned.length > 2 && cleaned.length <= 6) {
+        cleaned = `(${cleaned.slice(0, 2)}) ${cleaned.slice(2)}`;
+    } else if (cleaned.length > 6) {
+        cleaned = `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 6)}-${cleaned.slice(6, 10)}`;
+    }
 
-  return cleaned;
+    return cleaned;
 };
-
-
-
 
 /* ─────────────────────────────
  * VALIDACIÓN DE CONTRASEÑA

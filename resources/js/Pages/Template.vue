@@ -8,6 +8,7 @@ import { debounce } from "lodash";
 import { ref, watch } from "vue";
 const can = usePage().props.auth.permissions;
 const canRole = usePage().props.auth.roles;
+const page = usePage<any>();
 interface Props {
     categories?: any;
 }
@@ -47,7 +48,7 @@ const save = () => {
                 // form.put(route("head-quarters.update", form.id), {
                 //     onSuccess: () => {
                 //         customToastSwal({
-                //             title: "Rol actualizado con éxito!",
+                //             title: page.props.flash.success || "",
                 //             icon: "success",
                 //         });
                 //         showModal.value = false;
@@ -67,7 +68,7 @@ const save = () => {
                 // form.post(route("head-quarters.store"), {
                 //     onSuccess: () => {
                 //         customToastSwal({
-                //             title: "Rol creado con éxito!",
+                //             title: page.props.flash.success || "",
                 //             icon: "success",
                 //         });
                 //         showModal.value = false;
@@ -108,7 +109,7 @@ const destroy = (data: any) => {
             form.delete(route("Modules.destroy", data.id), {
                 onSuccess: () => {
                     customToastSwal({
-                        title: "Registro eliminado correctamente",
+                        title: page.props.flash.success || "",
                         icon: "success",
                     });
                     fetchItems();
@@ -116,7 +117,8 @@ const destroy = (data: any) => {
                 onError: (err) => {
                     console.error(err);
                     customToastSwal({
-                        title: "Error al eliminar el registro",
+                        title: `Error: ${form.errors.messageError}`,
+                        text: `${form.errors.exception}`,
                         icon: "error",
                     });
                 },
@@ -226,7 +228,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 @click="edit(item)"
                                 v-if="
                                     can.includes(
-                                        'superadmin.permissions.update'
+                                        'superadmin.permissions.update',
                                     )
                                 "
                             />
@@ -235,7 +237,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 action="delete"
                                 v-if="
                                     can.includes(
-                                        'superadmin.permissions.destroy'
+                                        'superadmin.permissions.destroy',
                                     )
                                 "
                             />

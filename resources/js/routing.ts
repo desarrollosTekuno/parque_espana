@@ -21,6 +21,7 @@ const routes: Routing[] = [
         group: null,
         // groupItems: null
     },
+    
     {
         name: "dashboard",
         title: "Inicio",
@@ -28,6 +29,43 @@ const routes: Routing[] = [
         value: "dashboard",
         group: null,
         // groupItems: null
+    },
+    {
+        name: ["members.index", "members.create", "members.edit", "members.additional-membership.create", "members.manage.show", "members.family-members.create"],
+        title: "Socios",
+        icon: "mdi-account-group-outline",
+        value: "sociosMenu",
+        group: "Socios",
+        groupItems: [
+            {
+                name: "members.index",
+                title: "Lista de socios",
+                icon: "mdi-account-group-outline",
+                value: "lista-socios",
+            },
+            // nuevo socio
+            {
+                name: "members.create",
+                title: "Nuevo socio",
+                icon: "mdi-account-plus-outline",
+                value: "nuevo-socio",
+            }
+        ],
+    },
+    {
+        name: ["billing.index"],
+        title: "Cobranza",
+        icon: "mdi-cash-multiple",
+        value: "cobranzaMenu",
+        group: "Cobranza",
+        groupItems: [
+            {
+                name: "billing.index",
+                title: "Cargos pendientes",
+                icon: "mdi-receipt-text-outline",
+                value: "cargos-pendientes",
+            },
+        ],
     },
         // Clubs deportivos
     {
@@ -38,7 +76,7 @@ const routes: Routing[] = [
         group: null,
         // groupItems: null
     },
-   
+
     //permisos
     {
         name: "permissions.index",
@@ -67,24 +105,79 @@ const routes: Routing[] = [
         // groupItems: null
     },
     // Amenidades
-    {
+    /*{
         name: "amenities.index",
         title: "Amenidades",
         icon: "mdi-beach",
         value: "amenidades",
         group: null,
         // groupItems: null
+    },*/
+    // Amenidades
+    {
+        name: ["amenities.index", "blockedPeriods.index"],
+        title: "Amenidades",
+        icon: "mdi-beach",
+        value: "amenidades",
+        group: "Amenidades",
+        groupItems: [
+            {
+                name: "amenities.index",
+                title: "Amenidades y recursos",
+                icon: "mdi-beach",
+                value: "amenidades",
+            },
+            {
+                name: "blockedPeriods.index",
+                title: "Bloqueo de recursos",
+                icon: "mdi-calendar-clock-outline",
+                value: "bloqueos",
+            },
+        ]
     },
     // Reservaciones
     {
-        name: "reservations.index",
+        name: ["reservations.index", "guest-lists.index"],
         title: "Reservaciones",
         icon: "mdi-calendar-check",
-        value: "reservaciones",
+        value: "reservacionesMenu",
+        group: "Reservaciones",
+        groupItems: [
+            {
+                name: "reservations.index",
+                title: "Reservaciones",
+                icon: "mdi-calendar-check",
+                value: "reservaciones",
+            },
+            {
+                name: "guest-lists.index",
+                title: "Listas de invitados",
+                icon: "mdi-account-group-outline",
+                value: "listas-invitados",
+            },
+        ]
+    },
+    // Anuncios
+    {
+        name: "announcements.index",
+        title: "Comunicación",
+        icon: "mdi-bullhorn-outline",
+        value: "anuncios",
         group: null,
         // groupItems: null
     },
-    /* 
+    
+    // Variables de sistema
+    {
+        name: "system-variables.index",
+        title: "Variables del Sistema",
+        icon: "mdi-cog",
+        value: "variables-sistema",
+        group: null,
+        // groupItems: null
+    },
+    
+    /*
     {
         name: ["dashboard"],
         title: "Pagos",

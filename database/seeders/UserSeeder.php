@@ -18,6 +18,13 @@ class UserSeeder extends Seeder
             'email' => 'superadmin@tekuno.mx',
             'password' => bcrypt('Pa$$w0rd'),
         ]);
-
+        $adminClubs = User::factory()->administratorClub()->create([
+            'name' => 'Administrador del Club',
+            'email' => 'antoniotoxquisosa@hotmail.com',
+            'password' => bcrypt('Pa$$w0rd'),
+        ]);
+        // Assign clubs to the admin club user
+        $adminClubs->clubs()->attach([1, 2]); // Assuming club IDs 1 and 2 exist
+        
     }
 }
