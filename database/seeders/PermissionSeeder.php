@@ -72,6 +72,8 @@ class PermissionSeeder extends Seeder
             array('name' => 'members.edit', 'description' => 'Editar socios del club', 'contexts' => ['web']),
             array('name' => 'members.update', 'description' => 'Actualizar socios del club', 'contexts' => ['web']),
             array('name' => 'members.destroy', 'description' => 'Eliminar socios del club', 'contexts' => ['web']),
+            array('name' => 'billing.index', 'description' => 'Ver modulo de cobranza', 'contexts' => ['web']),
+            array('name' => 'billing.store', 'description' => 'Registrar cobros', 'contexts' => ['web']),
 
 
         );

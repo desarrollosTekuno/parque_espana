@@ -9,6 +9,7 @@ use App\Models\Memberships\MembershipAccount;
 use App\Models\Memberships\MembershipAccountMember;
 use App\Models\Memberships\MembershipType;
 use App\Models\Memberships\PricingRule;
+use App\Services\Billing\MembershipChargeService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Builder;
@@ -28,6 +29,12 @@ class ProcessMembershipAgeTransitions extends Command
     protected int $processedSolidariaToIndividual = 0;
 
     protected int $skipped = 0;
+
+    public function __construct(
+        protected MembershipChargeService $membershipChargeService
+    ) {
+        parent::__construct();
+    }
 
     public function handle(): int
     {
@@ -190,6 +197,19 @@ class ProcessMembershipAgeTransitions extends Command
                         'status' => 'active',
                     ]);
 
+                    $newMembership->load(['membershipType', 'account.primaryHolder']);
+
+                    $this->membershipChargeService->createInitialCharges(
+                        membership: $newMembership,
+                        monthlyFee: (float) $pricingRule->monthly_fee,
+                        inscriptionFee: (float) ($pricingRule->inscription_fee ?? 0),
+                        metadata: [
+                            'charge_origin' => 'automatic_family_to_solidaria',
+                            'source_membership_id' => $familyMembership->id,
+                        ],
+                        chargeDate: $asOfDate->copy()
+                    );
+
                     $accountMember->delete();
 
                     DB::table('memberships.membership_history')->insert([
@@ -331,6 +351,21 @@ class ProcessMembershipAgeTransitions extends Command
                         : null,
                     'status' => 'active',
                 ]);
+
+                $solidariaMembership->load(['membershipType', 'account.primaryHolder']);
+
+                $this->membershipChargeService->createInitialCharges(
+                    membership: $solidariaMembership,
+                    monthlyFee: (float) $pricingRule->monthly_fee,
+                    inscriptionFee: (float) ($pricingRule->inscription_fee ?? 0),
+                    metadata: [
+                        'charge_origin' => 'automatic_solidaria_to_individual',
+                        'previous_membership_type_id' => $previousMembershipTypeId,
+                        'new_membership_type_id' => $targetMembershipType->id,
+                    ],
+                    chargeDate: $asOfDate->copy(),
+                    reconcileExistingMonthlyCharge: true
+                );
 
                 DB::table('memberships.membership_history')->insert([
                     'membership_id' => $solidariaMembership->id,

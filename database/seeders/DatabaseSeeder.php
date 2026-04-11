@@ -27,12 +27,18 @@ class DatabaseSeeder extends Seeder
             RelationshipSeeder::class,
             NationalitySeeder::class,
             MaritalStatusSeeder::class,
+            BillingConceptSeeder::class,
+            PaymentMethodSeeder::class,
+            ClubPaymentMethodSeeder::class,
             RelationshipDocumentTypesSeeder::class,
             MembershipTypeSeeder::class,
             AmenitySeeder::class,
             PricingRuleSeeder::class,
             MembershipTypeRequiredDocumentSeeder::class,
             InterclubPackageRuleSeeder::class,
+            BillingConceptSeeder::class,
+            PaymentMethodSeeder::class,
+            ClubPaymentMethodSeeder::class,
         ]);
     }
 }

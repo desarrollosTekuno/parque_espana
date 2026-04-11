@@ -2,6 +2,7 @@
 
 namespace App\Models\Members;
 
+use App\Models\Billing\Charge;
 use App\Models\Catalogs\MaritalStatus;
 use App\Models\Catalogs\Nationality;
 use App\Models\Memberships\MembershipAccountMember;
@@ -45,5 +46,10 @@ class Member extends Model
     public function maritalStatus()
     {
         return $this->belongsTo(MaritalStatus::class, 'marital_status_id');
+    }
+
+    public function charges()
+    {
+        return $this->hasMany(Charge::class, 'member_id');
     }
 }

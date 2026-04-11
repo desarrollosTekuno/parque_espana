@@ -16,6 +16,7 @@ use App\Models\Memberships\MembershipAccount;
 use App\Models\Memberships\MembershipAccountMember;
 use App\Models\Memberships\MembershipType;
 use App\Models\Memberships\PricingRule;
+use App\Services\Billing\MembershipChargeService;
 use App\Rules\ExistsInSchema;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -27,6 +28,11 @@ use Inertia\Inertia;
 
 class MemberController extends Controller
 {
+    public function __construct(
+        protected MembershipChargeService $membershipChargeService
+    ) {
+    }
+
     public function index(Request $request)
     {
         try {
@@ -938,6 +944,19 @@ class MemberController extends Controller
                     'status' => 'active',
                 ]);
 
+                $newMembership->load(['membershipType', 'account.primaryHolder']);
+
+                $this->membershipChargeService->createInitialCharges(
+                    membership: $newMembership,
+                    monthlyFee: (float) $selectedTargetOption['monthly_fee'],
+                    inscriptionFee: (float) ($selectedTargetOption['inscription_fee'] ?? 0),
+                    metadata: [
+                        'charge_origin' => 'member_separation',
+                        'source_membership_id' => $membership->id,
+                    ],
+                    chargeDate: now()
+                );
+
                 $accountMember->delete();
 
                 DB::table('memberships.membership_history')->insert([
@@ -1318,10 +1337,25 @@ class MemberController extends Controller
                         'updated_at' => now(),
                     ]);
 
+                    $sourceMembership->load(['membershipType', 'account.primaryHolder']);
+
+                    $this->membershipChargeService->createInitialCharges(
+                        membership: $sourceMembership,
+                        monthlyFee: (float) $pricing['monthly_fee'],
+                        inscriptionFee: (float) ($pricing['inscription_fee'] ?? 0),
+                        metadata: [
+                            'charge_origin' => 'same_account_transition',
+                            'previous_membership_type_id' => $previousMembershipTypeId,
+                            'new_membership_type_id' => $membershipType->id,
+                        ],
+                        chargeDate: now(),
+                        reconcileExistingMonthlyCharge: true
+                    );
+
                     return;
                 }
 
-                Membership::create([
+                $newMembership = Membership::create([
                     'membership_account_id' => $membershipAccount->id,
                     'club_id' => $clubId,
                     'membership_type_id' => $membershipType->id,
@@ -1335,6 +1369,20 @@ class MemberController extends Controller
                         : null,
                     'status' => 'active',
                 ]);
+
+                $newMembership->load(['membershipType', 'account.primaryHolder']);
+
+                $this->membershipChargeService->createInitialCharges(
+                    membership: $newMembership,
+                    monthlyFee: (float) $pricing['monthly_fee'],
+                    inscriptionFee: (float) ($pricing['inscription_fee'] ?? 0),
+                    metadata: [
+                        'charge_origin' => $sourceMembership ? 'additional_membership' : 'membership_registration',
+                        'source_membership_id' => $sourceMembership?->id,
+                    ],
+                    chargeDate: now(),
+                    reconcileExistingMonthlyCharge: (bool) ($sourceMembership && ($pricing['source_membership_becomes_non_billable'] ?? false))
+                );
 
                 if ($sourceMembership && ($pricing['source_membership_becomes_non_billable'] ?? false)) {
                     $sourceMembership->update([

@@ -52,6 +52,21 @@ const routes: Routing[] = [
             }
         ],
     },
+    {
+        name: ["billing.index"],
+        title: "Cobranza",
+        icon: "mdi-cash-multiple",
+        value: "cobranzaMenu",
+        group: "Cobranza",
+        groupItems: [
+            {
+                name: "billing.index",
+                title: "Cargos pendientes",
+                icon: "mdi-receipt-text-outline",
+                value: "cargos-pendientes",
+            },
+        ],
+    },
         // Clubs deportivos
     {
         name: "clubs.index",

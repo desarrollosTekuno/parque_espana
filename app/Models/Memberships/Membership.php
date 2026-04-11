@@ -3,6 +3,7 @@
 namespace App\Models\Memberships;
 
 use App\Models\Administrator\Club;
+use App\Models\Billing\Charge;
 use App\Traits\SerializesDates;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -38,5 +39,10 @@ class Membership extends Model
     public function club()
     {
         return $this->belongsTo(Club::class, 'club_id');
+    }
+
+    public function charges()
+    {
+        return $this->hasMany(Charge::class, 'membership_id');
     }
 }

@@ -6,6 +6,7 @@ use App\Http\Controllers\Web\AdminClub\ReservationController;
 use App\Http\Controllers\Web\AdminClub\AnnouncementController;
 use App\Http\Controllers\Web\AdminClub\BlockedPeriodController;
 use App\Http\Controllers\Web\AdminClub\AmenityScheduleController;
+use App\Http\Controllers\Web\AdminClub\BillingController;
 use App\Http\Controllers\Web\AdminClub\MemberController;
 use App\Http\Controllers\Web\AdminClub\AmenityResourceController;
 use App\Http\Controllers\Web\AdminClub\ReservationGuestListController;
@@ -21,6 +22,8 @@ Route::resource('/reservations', ReservationController::class)->only(['index', '
 Route::resource('/system-variables', SystemVariableController::class)->only(['index', 'store', 'update', 'destroy'])->names('system-variables');
 
 Route::resource('/guest-lists', ReservationGuestListController::class)->only(['index', 'update'])->names('guest-lists');
+Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
+Route::post('/billing/payments', [BillingController::class, 'storePayment'])->name('billing.payments.store');
 
 Route::resource('/announcements', AnnouncementController::class)->names('announcements');
 Route::post('announcements/gallery', [AnnouncementController::class,'storeGallery'])->name('announcements.gallery.store');
