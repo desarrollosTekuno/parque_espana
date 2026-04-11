@@ -459,8 +459,8 @@ const buildPaymentDrafts = (clubId: number | null) => {
 
     paymentDrafts.value = selectedPaymentCharges.value.map((charge) => ({
         charge_id: charge.id,
-        selected: true,
-        amount: charge.balance.toFixed(2),
+        selected: false,
+        amount: "0.00",
     }));
 };
 

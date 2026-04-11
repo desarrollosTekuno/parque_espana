@@ -16,6 +16,11 @@ class MembershipAccount extends Model
 
     protected $table = 'memberships.accounts';
 
+    public function accountGroup()
+    {
+        return $this->belongsTo(MembershipAccountGroup::class, 'account_group_id');
+    }
+
     public function memberships()
     {
         return $this->hasMany(Membership::class, 'membership_account_id');

@@ -537,7 +537,8 @@ const fetchPricingPreview = async () => {
     pricingPreviewError.value = null;
 
     const primaryMember = getPrimaryMember();
-    const age = primaryMember?.age ?? calculateAge(primaryMember?.birthdate ?? null);
+    const age =
+        primaryMember?.age ?? calculateAge(primaryMember?.birthdate ?? null);
     const params = Object.fromEntries(
         Object.entries({
             membership_type_id: form.membershipType.id,
@@ -551,7 +552,10 @@ const fetchPricingPreview = async () => {
                 : 0,
             years_in_source_club: form.years_in_source_club,
             age,
-        }).filter(([, value]) => value !== null && value !== undefined && value !== ""),
+        }).filter(
+            ([, value]) =>
+                value !== null && value !== undefined && value !== "",
+        ),
     );
 
     try {
@@ -778,17 +782,31 @@ const handleNext = async (next: () => void) => {
 
     if (step.value === 2) {
         const { valid } = await familyStepRef.value?.validate();
-        if (!valid) return;
+        if (!valid) {
+            // Show an error toast if validation fails
+            customToastSwal({
+                text: "Revisa los datos del formulario. Hay campos requeridos o con formato incorrecto.",
+                icon: "warning",
+            });
+            return;
+            
+        }
         next();
         return;
     }
 
     if (step.value === 3) {
-        // const { valid } = await documentsStepRef.value?.validate();
-        // if (!valid) return;
+        const { valid } = await documentsStepRef.value?.validate();
+        /* if (!valid) {
+            // Show an error toast if validation fails
+            customToastSwal({
+                text: "Revisa los documentos requeridos. Hay campos con errores o documentos faltantes.",
+                icon: "warning",
+            });
+            return;
+        } */
         next();
-        return; 
-       
+        return;
     }
 
     next();
@@ -892,7 +910,10 @@ const memberLabel = (member: MemberForm) => {
                                 </p>
 
                                 <v-alert
-                                    v-if="usesSourceMembership && props.sourceMembership"
+                                    v-if="
+                                        usesSourceMembership &&
+                                        props.sourceMembership
+                                    "
                                     type="info"
                                     variant="tonal"
                                     class="mb-6"
@@ -901,7 +922,10 @@ const memberLabel = (member: MemberForm) => {
                                     {{ props.sourceMembership.holder_name }}
                                     · {{ sourceMembershipSummary }}
                                     · Folio
-                                    {{ props.sourceMembership.membership_number || "-" }}
+                                    {{
+                                        props.sourceMembership
+                                            .membership_number || "-"
+                                    }}
                                 </v-alert>
 
                                 <template
@@ -947,7 +971,9 @@ const memberLabel = (member: MemberForm) => {
                                                 <div
                                                     class="text-subtitle-1 font-weight-bold"
                                                 >
-                                                    {{ sourceMembershipSummary }}
+                                                    {{
+                                                        sourceMembershipSummary
+                                                    }}
                                                 </div>
                                                 <div class="text-body-2 mt-2">
                                                     Titular:
@@ -1060,7 +1086,9 @@ const memberLabel = (member: MemberForm) => {
                                                 <div
                                                     class="text-subtitle-1 font-weight-bold"
                                                 >
-                                                    {{ sourceMembershipSummary }}
+                                                    {{
+                                                        sourceMembershipSummary
+                                                    }}
                                                 </div>
                                                 <div class="text-body-2 mt-2">
                                                     Inicio:
@@ -1216,7 +1244,10 @@ const memberLabel = (member: MemberForm) => {
                                     </v-row>
 
                                     <v-alert
-                                        v-if="pricingPreviewError && !pricingPreviewLoading"
+                                        v-if="
+                                            pricingPreviewError &&
+                                            !pricingPreviewLoading
+                                        "
                                         type="warning"
                                         variant="tonal"
                                         class="mt-4"
@@ -1225,7 +1256,9 @@ const memberLabel = (member: MemberForm) => {
                                     </v-alert>
 
                                     <v-alert
-                                        v-else-if="pricingPreview?.charge_explanation"
+                                        v-else-if="
+                                            pricingPreview?.charge_explanation
+                                        "
                                         type="info"
                                         variant="tonal"
                                         class="mt-4"
@@ -1263,7 +1296,8 @@ const memberLabel = (member: MemberForm) => {
                                     variant="tonal"
                                     class="mb-4"
                                 >
-                                    No se encontraron membresías con ese criterio.
+                                    No se encontraron membresías con ese
+                                    criterio.
                                 </v-alert>
 
                                 <v-row>
@@ -1342,7 +1376,6 @@ const memberLabel = (member: MemberForm) => {
                                         </v-card>
                                     </v-col>
                                 </v-row>
-
                             </v-container>
                         </template>
 
@@ -2040,11 +2073,7 @@ const memberLabel = (member: MemberForm) => {
                                     {{ nextButtonLabel }}
                                 </v-btn>
 
-                                <v-btn
-                                    v-else
-                                    color="success"
-                                    @click="submit"
-                                >
+                                <v-btn v-else color="success" @click="submit">
                                     {{ submitButtonLabel }}
                                 </v-btn>
                             </div>

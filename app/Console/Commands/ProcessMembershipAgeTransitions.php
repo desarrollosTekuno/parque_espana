@@ -6,6 +6,7 @@ use App\Models\Catalogs\Relationship;
 use App\Models\Members\Member;
 use App\Models\Memberships\Membership;
 use App\Models\Memberships\MembershipAccount;
+use App\Models\Memberships\MembershipAccountGroup;
 use App\Models\Memberships\MembershipAccountMember;
 use App\Models\Memberships\MembershipType;
 use App\Models\Memberships\PricingRule;
@@ -169,7 +170,12 @@ class ProcessMembershipAgeTransitions extends Command
                     $titularRelationshipId,
                     $asOfDate
                 ) {
+                    $group = MembershipAccountGroup::create([
+                        'status' => 'active',
+                    ]);
+
                     $newAccount = MembershipAccount::create([
+                        'account_group_id' => $group->id,
                         'membership_number' => $this->generateMembershipNumber($familyMembership->club),
                         'account_type' => 'individual',
                         'status' => 'active',

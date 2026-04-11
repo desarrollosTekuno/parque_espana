@@ -13,6 +13,7 @@ use App\Models\Members\Member;
 use App\Models\Memberships\InterclubPackageRule;
 use App\Models\Memberships\Membership;
 use App\Models\Memberships\MembershipAccount;
+use App\Models\Memberships\MembershipAccountGroup;
 use App\Models\Memberships\MembershipAccountMember;
 use App\Models\Memberships\MembershipType;
 use App\Models\Memberships\PricingRule;
@@ -916,11 +917,11 @@ class MemberController extends Controller
                 $titularRelationshipId,
                 $reason
             ) {
-                $newAccount = MembershipAccount::create([
-                    'membership_number' => $this->generateMembershipNumber($membership->club),
-                    'account_type' => $targetMembershipType->allows_multiple_members ? 'family' : 'individual',
-                    'status' => 'active',
-                ]);
+                $newAccount = $this->createMembershipAccount(
+                    club: $membership->club,
+                    accountType: $targetMembershipType->allows_multiple_members ? 'family' : 'individual',
+                    status: 'active'
+                );
 
                 MembershipAccountMember::create([
                     'membership_account_id' => $newAccount->id,
@@ -1213,19 +1214,24 @@ class MemberController extends Controller
             $club = Club::findOrFail($clubId);
             $successMessage = $sameClubTransition
                 ? 'La membresia se actualizo correctamente dentro de la misma cuenta.'
-                : 'La cuenta de membresia y sus integrantes se registraron correctamente.';
+                : ($sourceMembership
+                    ? 'La membresia del otro parque se agrego correctamente a la misma cuenta.'
+                    : 'La cuenta de membresia y sus integrantes se registraron correctamente.');
 
             DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership, $sameClubTransition) {
+                $sourceAccount = $sourceMembership?->account;
+
                 $membershipAccount = $sameClubTransition
-                    ? tap($sourceMembership->account)->update([
+                    ? tap($sourceAccount)->update([
                         'account_type' => $membershipType->allows_multiple_members ? 'family' : 'individual',
                         'status' => 'active',
                     ])
-                    : MembershipAccount::create([
-                        'membership_number' => $this->generateMembershipNumber($club),
-                        'account_type' => $membershipType->allows_multiple_members ? 'family' : 'individual',
-                        'status' => 'pending',
-                    ]);
+                    : $this->createMembershipAccount(
+                        club: $club,
+                        accountType: $membershipType->allows_multiple_members ? 'family' : 'individual',
+                        status: 'pending',
+                        accountGroup: $sourceAccount?->accountGroup
+                    );
 
                 $submittedMemberIds = [];
 
@@ -1784,8 +1790,11 @@ class MemberController extends Controller
             'monthly_fee' => (float) $pricingRule->monthly_fee,
             'inscription_fee' => (float) ($pricingRule->inscription_fee ?? 0),
             'rule_type' => 'pricing_rule',
-            'source_membership_becomes_non_billable' => (bool) $pricingRule->requires_multiple_clubs
-                || $this->isPe1PackageMembershipType($membershipType),
+            'source_membership_becomes_non_billable' => $this->shouldSourceMembershipBecomeNonBillable(
+                membershipType: $membershipType,
+                fromMembershipType: $fromMembershipType,
+                pricingRule: $pricingRule
+            ),
         ];
     }
 
@@ -1860,6 +1869,32 @@ class MemberController extends Controller
     protected function isPe1PackageMembershipType(MembershipType $membershipType): bool
     {
         return Str::endsWith((string) $membershipType->code, '_PE1');
+    }
+
+    protected function isMonthlyPassMembershipType(?MembershipType $membershipType): bool
+    {
+        return $membershipType !== null
+            && Str::startsWith((string) $membershipType->code, 'PE2_PM_');
+    }
+
+    protected function shouldSourceMembershipBecomeNonBillable(
+        MembershipType $membershipType,
+        ?MembershipType $fromMembershipType,
+        PricingRule $pricingRule
+    ): bool {
+        if ($this->isPe1PackageMembershipType($membershipType)) {
+            return true;
+        }
+
+        if (!$pricingRule->requires_multiple_clubs) {
+            return false;
+        }
+
+        if ($this->isMonthlyPassMembershipType($fromMembershipType)) {
+            return false;
+        }
+
+        return true;
     }
 
     protected function shouldApplyAgeFilter(MembershipType $membershipType): bool
@@ -2039,6 +2074,29 @@ class MemberController extends Controller
     protected function normalizeRelationshipName(?string $relationshipName): string
     {
         return Str::lower(trim(Str::ascii($relationshipName ?? '')));
+    }
+
+    protected function createAccountGroup(): MembershipAccountGroup
+    {
+        return MembershipAccountGroup::create([
+            'status' => 'active',
+        ]);
+    }
+
+    protected function createMembershipAccount(
+        Club $club,
+        string $accountType,
+        string $status = 'pending',
+        ?MembershipAccountGroup $accountGroup = null
+    ): MembershipAccount {
+        $group = $accountGroup ?? $this->createAccountGroup();
+
+        return MembershipAccount::create([
+            'account_group_id' => $group->id,
+            'membership_number' => $this->generateMembershipNumber($club),
+            'account_type' => $accountType,
+            'status' => $status,
+        ]);
     }
 
     protected function validationExceptionResponse(ValidationException $e)

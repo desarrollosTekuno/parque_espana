@@ -5,6 +5,7 @@ namespace App\Services\Billing;
 use App\Models\Billing\Charge;
 use App\Models\Billing\ChargeConcept;
 use App\Models\Memberships\Membership;
+use App\Models\Memberships\MembershipAccount;
 use Carbon\Carbon;
 
 class MembershipChargeService
@@ -134,8 +135,16 @@ class MembershipChargeService
         int $conceptId,
         Carbon $chargeDate
     ): float {
+        $accountIds = MembershipAccount::query()
+            ->when(
+                $membership->account?->account_group_id,
+                fn ($query) => $query->where('account_group_id', $membership->account->account_group_id),
+                fn ($query) => $query->where('id', $membership->membership_account_id)
+            )
+            ->pluck('id');
+
         return (float) Charge::query()
-            ->where('membership_account_id', $membership->membership_account_id)
+            ->whereIn('membership_account_id', $accountIds)
             ->where('concept_id', $conceptId)
             ->where('period_year', (int) $chargeDate->format('Y'))
             ->where('period_month', (int) $chargeDate->format('m'))
