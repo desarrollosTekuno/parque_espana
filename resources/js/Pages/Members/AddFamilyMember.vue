@@ -273,7 +273,7 @@ const submit = async () => {
                                 Cuenta familiar
                             </div>
                             <p>
-                                <strong>Folio:</strong>
+                                <strong>No. cuenta:</strong>
                                 {{ props.account.membership_number || "-" }}
                             </p>
                             <p>

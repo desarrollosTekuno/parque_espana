@@ -190,7 +190,7 @@ const addressSummary = (member: AccountMemberItem) => {
                             <v-col cols="12" md="4">
                                 <v-card class="pa-4 h-100" variant="tonal">
                                     <div class="text-caption text-medium-emphasis">
-                                        Folio
+                                        Cuenta
                                     </div>
                                     <div class="text-h6 font-weight-bold">
                                         {{ props.account.membership_number || "-" }}

@@ -101,7 +101,7 @@ const submit = () => {
                                 Cuenta actual
                             </div>
                             <p>
-                                <strong>Folio:</strong>
+                                <strong>No. cuenta:</strong>
                                 {{ props.membership.membership_number || "-" }}
                             </p>
                             <p>
@@ -164,7 +164,7 @@ const submit = () => {
                                 >
                                     Se promoverá a
                                     <strong>{{ selectedCandidate.full_name }}</strong>
-                                    como nuevo titular. El folio y la membresía
+                                    como nuevo titular. El no. cuenta y la membresía
                                     actual se conservarán.
                                 </v-alert>
 

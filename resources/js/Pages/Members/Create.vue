@@ -921,7 +921,7 @@ const memberLabel = (member: MemberForm) => {
                                     <strong>Titular:</strong>
                                     {{ props.sourceMembership.holder_name }}
                                     · {{ sourceMembershipSummary }}
-                                    · Folio
+                                    · No. cuenta:
                                     {{
                                         props.sourceMembership
                                             .membership_number || "-"
@@ -983,7 +983,7 @@ const memberLabel = (member: MemberForm) => {
                                                     }}
                                                 </div>
                                                 <div class="text-body-2">
-                                                    Folio:
+                                                    No. cuenta:
                                                     {{
                                                         props.sourceMembership
                                                             .membership_number ||
@@ -1058,10 +1058,10 @@ const memberLabel = (member: MemberForm) => {
                                                 <div
                                                     class="text-subtitle-1 font-weight-bold"
                                                 >
-                                                    Misma cuenta, mismo folio
+                                                    Misma cuenta, mismo no. cuenta
                                                 </div>
                                                 <div class="text-body-2 mt-2">
-                                                    Se conservara el folio
+                                                    Se conservara el no. cuenta
                                                     {{
                                                         props.sourceMembership
                                                             .membership_number ||
@@ -1971,7 +1971,7 @@ const memberLabel = (member: MemberForm) => {
                                             props.sourceMembership
                                         "
                                     >
-                                        <strong>Folio:</strong>
+                                        <strong>No. cuenta:</strong>
                                         {{
                                             props.sourceMembership
                                                 .membership_number || "-"
@@ -2046,7 +2046,7 @@ const memberLabel = (member: MemberForm) => {
                                     variant="tonal"
                                 >
                                     Al confirmar, se actualizará la misma cuenta
-                                    y el mismo folio con el nuevo tipo de
+                                    y el mismo no. cuenta con el nuevo tipo de
                                     membresía y su cuota correspondiente.
                                 </v-alert>
                             </v-container>

@@ -3,8 +3,8 @@
 namespace App\Models\Members;
 
 use App\Models\Billing\Charge;
+use App\Models\Catalogs\Country;
 use App\Models\Catalogs\MaritalStatus;
-use App\Models\Catalogs\Nationality;
 use App\Models\Memberships\MembershipAccountMember;
 use App\Traits\SerializesDates;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -40,7 +40,7 @@ class Member extends Model
 
     public function nationality()
     {
-        return $this->belongsTo(Nationality::class, 'nationality_id');
+        return $this->belongsTo(Country::class, 'nationality_id');
     }
 
     public function maritalStatus()

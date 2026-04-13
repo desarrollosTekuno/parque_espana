@@ -52,7 +52,7 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const headers = [
-    { title: "Folio", key: "membership_number" },
+    { title: "No. cuenta", key: "membership_number" },
     { title: "Titular", key: "holder_name" },
     { title: "Membresias activas", key: "active_memberships", sortable: false },
     { title: "Correo", key: "email", sortable: false },

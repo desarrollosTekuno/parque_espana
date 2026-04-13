@@ -147,7 +147,7 @@ $sheets = [
     '10_vinculos_entre_parques' => [
         'headers' => ['primary_legacy_person_id','legacy_account_id_pe1','legacy_account_id_pe2','same_billing_group','comments'],
         'example' => ['P-10234','PE1-ACC-9001','PE2-ACC-2001','1','Mismo titular en ambos parques'],
-        'note' => 'Hoja clave para vincular cuentas del mismo titular entre PE1 y PE2 sin perder folios separados.',
+        'note' => 'Hoja clave para vincular cuentas del mismo titular entre PE1 y PE2 sin perder cuentas separadas.',
     ],
 ];
 

@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Web\AdminClub;
 
 use App\Http\Controllers\Controller;
 use App\Models\Administrator\Club;
+use App\Models\Catalogs\Country;
 use App\Models\Catalogs\MaritalStatus;
-use App\Models\Catalogs\Nationality;
 use App\Models\Catalogs\Relationship;
 use App\Models\Members\Address;
 use App\Models\Members\EmploymentInfo;
@@ -44,7 +44,7 @@ class MemberController extends Controller
             $query = MembershipAccount::query()
                 ->with([
                     'primaryHolder.member',
-                    'memberships' => fn ($membershipQuery) => $membershipQuery
+                    'memberships' => fn($membershipQuery) => $membershipQuery
                         ->with(['membershipType', 'club'])
                         ->where('status', 'active')
                         ->where('is_primary', true),
@@ -62,15 +62,15 @@ class MemberController extends Controller
 
                 $query->where(function (Builder $builder) use ($search, $like) {
                     $builder->where('membership_number', $like, "%{$search}%")
-                    ->orWhereHas('primaryHolder.member', function (Builder $memberQuery) use ($search, $like) {
-                        $memberQuery->where('first_name', $like, "%{$search}%")
-                            ->orWhere('last_name', $like, "%{$search}%")
-                            ->orWhere('second_last_name', $like, "%{$search}%")
-                            ->orWhere('email', $like, "%{$search}%")
-                            ->orWhere('phone', $like, "%{$search}%");
-                    })->orWhereHas('memberships.membershipType', function (Builder $membershipTypeQuery) use ($search, $like) {
-                        $membershipTypeQuery->where('name', $like, "%{$search}%");
-                    });
+                        ->orWhereHas('primaryHolder.member', function (Builder $memberQuery) use ($search, $like) {
+                            $memberQuery->where('first_name', $like, "%{$search}%")
+                                ->orWhere('last_name', $like, "%{$search}%")
+                                ->orWhere('second_last_name', $like, "%{$search}%")
+                                ->orWhere('email', $like, "%{$search}%")
+                                ->orWhere('phone', $like, "%{$search}%");
+                        })->orWhereHas('memberships.membershipType', function (Builder $membershipTypeQuery) use ($search, $like) {
+                            $membershipTypeQuery->where('name', $like, "%{$search}%");
+                        });
                 });
             }
 
@@ -168,7 +168,7 @@ class MemberController extends Controller
         $clubId = session('club_id');
 
         $relationships = Relationship::select('id', 'name')->get();
-        $nationalities = Nationality::select('id', 'code', 'name', 'demonym')
+        $nationalities = Country::select('id', 'iso2 as code', 'name', 'demonym')
             ->orderBy('name')
             ->get();
         $maritalStatuses = MaritalStatus::select('id', 'code', 'name')
@@ -274,33 +274,33 @@ class MemberController extends Controller
 
             if (!$membershipType) {
                 throw ValidationException::withMessages([
-                    'membership_type_id' => 'La membresia seleccionada no pertenece al club actual.',
+                    'membership_type_id' => 'La membresía seleccionada no pertenece al club actual.',
                 ]);
             }
 
             if ($sameClubTransition && (int) $membershipType->id === (int) $sourceMembership?->membership_type_id) {
                 throw ValidationException::withMessages([
-                    'membership_type_id' => 'Debes seleccionar un tipo de membresia distinto al actual para realizar el cambio.',
+                    'membership_type_id' => 'Debes seleccionar un tipo de membresía distinto al actual para realizar el cambio.',
                 ]);
             }
 
             if ($sourceClub && $fromMembershipType && $fromMembershipType->club_id !== $sourceClub->id) {
                 throw ValidationException::withMessages([
-                    'source_club_id' => 'La membresia de origen no pertenece al club de origen seleccionado.',
+                    'source_club_id' => 'La membresía de origen no pertenece al club de origen seleccionado.',
                 ]);
             }
 
             if ($sourceMembership && !$sourceMembershipIsActive) {
                 throw ValidationException::withMessages([
                     'source_membership_id' => $sameClubTransition
-                        ? 'La membresia de origen debe estar activa para realizar el cambio.'
-                        : 'La membresia de origen debe estar activa para generar una solicitud en el otro parque.',
+                        ? 'La membresía de origen debe estar activa para realizar el cambio.'
+                        : 'La membresía de origen debe estar activa para generar una solicitud en el otro parque.',
                 ]);
             }
 
             if ($this->shouldApplyAgeFilter($membershipType) && $age === null) {
                 throw ValidationException::withMessages([
-                    'age' => 'Captura la fecha de nacimiento del titular para calcular el precio de esta membresia.',
+                    'age' => 'Captura la fecha de nacimiento del titular para calcular el precio de esta membresía.',
                 ]);
             }
 
@@ -342,12 +342,12 @@ class MemberController extends Controller
             $errors = $e->errors();
 
             return response()->json([
-                'message' => collect($errors)->flatten()->first() ?? 'Ocurrio un error de validacion.',
+                'message' => collect($errors)->flatten()->first() ?? 'Ocurrió un error de validación.',
                 'errors' => $errors,
             ], 422);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Ocurrio un error al calcular el precio.',
+                'message' => 'Ocurrió un error al calcular el precio.',
                 'exception' => $e->getMessage(),
             ], 500);
         }
@@ -365,7 +365,7 @@ class MemberController extends Controller
 
         if ($membership->status !== 'active') {
             return redirect()->route('members.index')->withErrors([
-                'messageError' => 'Solo puedes generar una solicitud para el otro parque a partir de una membresia activa.',
+                'messageError' => 'Solo puedes generar una solicitud para el otro parque a partir de una membresía activa.',
                 'exception' => '',
             ]);
         }
@@ -377,7 +377,7 @@ class MemberController extends Controller
 
         if (!$targetClub) {
             return redirect()->route('members.index')->withErrors([
-                'messageError' => 'No se encontro un parque destino disponible para esta solicitud.',
+                'messageError' => 'No se encontró un parque destino disponible para esta solicitud.',
                 'exception' => '',
             ]);
         }
@@ -416,7 +416,7 @@ class MemberController extends Controller
 
         if ($membership->status !== 'active' || !$membership->is_primary) {
             return redirect()->route('members.index')->withErrors([
-                'messageError' => 'Solo puedes cambiar una membresia activa y principal dentro de la misma cuenta.',
+                'messageError' => 'Solo puedes cambiar una membresía activa y principal dentro de la misma cuenta.',
                 'exception' => '',
             ]);
         }
@@ -434,7 +434,7 @@ class MemberController extends Controller
 
         if ($targetMembershipTypes->isEmpty()) {
             return redirect()->route('members.index')->withErrors([
-                'messageError' => 'No hay tipos de membresia disponibles para cambiar dentro de este parque.',
+                'messageError' => 'No hay tipos de membresía disponibles para cambiar dentro de este parque.',
                 'exception' => '',
             ]);
         }
@@ -463,7 +463,7 @@ class MemberController extends Controller
 
         if ($membership->status !== 'active' || !$membership->is_primary) {
             return redirect()->route('members.index')->withErrors([
-                'messageError' => 'Solo puedes gestionar una membresia activa y principal.',
+                'messageError' => 'Solo puedes gestionar una membresía activa y principal.',
                 'exception' => '',
             ]);
         }
@@ -491,14 +491,14 @@ class MemberController extends Controller
 
         if ($membership->status !== 'active' || !$membership->is_primary) {
             return redirect()->route('members.index')->withErrors([
-                'messageError' => 'Solo puedes cambiar el titular de una membresia activa y principal.',
+                'messageError' => 'Solo puedes cambiar el titular de una membresía activa y principal.',
                 'exception' => '',
             ]);
         }
 
         if (!$membership->membershipType?->allows_multiple_members) {
             return redirect()->route('members.index')->withErrors([
-                'messageError' => 'Solo las membresias familiares permiten cambiar de titular.',
+                'messageError' => 'Solo las membresías familiares permiten cambiar de titular.',
                 'exception' => '',
             ]);
         }
@@ -519,7 +519,7 @@ class MemberController extends Controller
             'membership' => $this->buildSourceMembershipPayload($membership),
             'currentPrimaryHolder' => $this->buildAccountMemberPayload($currentPrimaryHolder),
             'candidateMembers' => $candidates
-                ->map(fn (MembershipAccountMember $accountMember) => $this->buildAccountMemberPayload($accountMember))
+                ->map(fn(MembershipAccountMember $accountMember) => $this->buildAccountMemberPayload($accountMember))
                 ->values(),
         ]);
     }
@@ -537,14 +537,14 @@ class MemberController extends Controller
 
             if ($membership->status !== 'active' || !$membership->is_primary) {
                 return redirect()->back()->withErrors([
-                    'messageError' => 'Solo puedes cambiar el titular de una membresia activa y principal.',
+                    'messageError' => 'Solo puedes cambiar el titular de una membresía activa y principal.',
                     'exception' => '',
                 ]);
             }
 
             if (!$membership->membershipType?->allows_multiple_members) {
                 return redirect()->back()->withErrors([
-                    'messageError' => 'Solo las membresias familiares permiten cambiar de titular.',
+                    'messageError' => 'Solo las membresías familiares permiten cambiar de titular.',
                     'exception' => '',
                 ]);
             }
@@ -582,13 +582,7 @@ class MemberController extends Controller
                 ->where('name', 'Titular')
                 ->value('id');
 
-            DB::transaction(function () use (
-                $membership,
-                $currentPrimaryHolder,
-                $newPrimaryHolder,
-                $reason,
-                $titularRelationshipId
-            ) {
+            DB::transaction(function () use ($membership, $currentPrimaryHolder, $newPrimaryHolder, $reason, $titularRelationshipId) {
                 $currentPrimaryHolder->update([
                     'is_primary_holder' => false,
                 ]);
@@ -619,12 +613,12 @@ class MemberController extends Controller
                 }
             });
 
-            return redirect()->route('members.index')->with('success', 'El titular de la cuenta se actualizo correctamente.');
+            return redirect()->route('members.index')->with('success', 'El titular de la cuenta se actualizó correctamente.');
         } catch (ValidationException $e) {
             return $this->validationExceptionResponse($e);
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([
-                'messageError' => 'Ocurrio un error al cambiar el titular de la cuenta.',
+                'messageError' => 'Ocurrió un error al cambiar el titular de la cuenta.',
                 'exception' => $e->getMessage(),
             ]);
         }
@@ -642,14 +636,14 @@ class MemberController extends Controller
 
         if ($membership->status !== 'active' || !$membership->is_primary) {
             return redirect()->route('members.manage.show', $membership)->withErrors([
-                'messageError' => 'Solo puedes agregar familiares a una membresia activa y principal.',
+                'messageError' => 'Solo puedes agregar familiares a una membresía activa y principal.',
                 'exception' => '',
             ]);
         }
 
         if (!$membership->membershipType?->allows_multiple_members) {
             return redirect()->route('members.manage.show', $membership)->withErrors([
-                'messageError' => 'Solo las membresias familiares permiten agregar familiares.',
+                'messageError' => 'Solo las membresías familiares permiten agregar familiares.',
                 'exception' => '',
             ]);
         }
@@ -661,7 +655,7 @@ class MemberController extends Controller
             'relationships' => Relationship::query()
                 ->select('id', 'name')
                 ->get()
-                ->reject(fn (Relationship $relationship) => $this->isTitularRelationship($relationship->name))
+                ->reject(fn(Relationship $relationship) => $this->isTitularRelationship($relationship->name))
                 ->values(),
         ]);
     }
@@ -679,14 +673,14 @@ class MemberController extends Controller
 
             if ($membership->status !== 'active' || !$membership->is_primary) {
                 return redirect()->back()->withErrors([
-                    'messageError' => 'Solo puedes agregar familiares a una membresia activa y principal.',
+                    'messageError' => 'Solo puedes agregar familiares a una membresía activa y principal.',
                     'exception' => '',
                 ]);
             }
 
             if (!$membership->membershipType?->allows_multiple_members) {
                 return redirect()->back()->withErrors([
-                    'messageError' => 'Solo las membresias familiares permiten agregar familiares.',
+                    'messageError' => 'Solo las membresías familiares permiten agregar familiares.',
                     'exception' => '',
                 ]);
             }
@@ -699,7 +693,7 @@ class MemberController extends Controller
                 'birth_place' => ['nullable', 'string', 'max:255'],
                 'city' => ['nullable', 'string', 'max:255'],
                 'state' => ['nullable', 'string', 'max:255'],
-                'nationality_id' => ['nullable', new ExistsInSchema('catalogs', 'nationalities', 'id')],
+                'nationality_id' => ['nullable', new ExistsInSchema('catalogs', 'countries', 'id')],
                 'marital_status_id' => ['nullable', new ExistsInSchema('catalogs', 'marital_statuses', 'id')],
                 'phone' => ['nullable', 'string', 'max:50'],
                 'email' => ['nullable', 'email', 'max:255'],
@@ -731,13 +725,13 @@ class MemberController extends Controller
 
             if ($this->isChildRelationship($relationship->name) && $age >= 24) {
                 throw ValidationException::withMessages([
-                    'birthdate' => 'Los hijos no pueden ser mayores de 24 anos.',
+                    'birthdate' => 'Los hijos no pueden ser mayores de 24 años.',
                 ]);
             }
 
             if ($this->isSpouseRelationship($relationship->name) && $this->membershipAccountHasSpouse($membership)) {
                 throw ValidationException::withMessages([
-                    'relationship_id' => 'La cuenta familiar ya cuenta con un conyuge registrado.',
+                    'relationship_id' => 'La cuenta familiar ya cuenta con un cónyuge registrado.',
                 ]);
             }
 
@@ -796,7 +790,7 @@ class MemberController extends Controller
             return $this->validationExceptionResponse($e);
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([
-                'messageError' => 'Ocurrio un error al agregar al familiar.',
+                'messageError' => 'Ocurrió un error al agregar al familiar.',
                 'exception' => $e->getMessage(),
             ]);
         }
@@ -814,14 +808,14 @@ class MemberController extends Controller
 
         if ($membership->status !== 'active' || !$membership->is_primary) {
             return redirect()->route('members.index')->withErrors([
-                'messageError' => 'Solo puedes separar integrantes desde una membresia activa y principal.',
+                'messageError' => 'Solo puedes separar integrantes desde una membresía activa y principal.',
                 'exception' => '',
             ]);
         }
 
         if (!$membership->membershipType?->allows_multiple_members) {
             return redirect()->route('members.index')->withErrors([
-                'messageError' => 'Solo las membresias familiares permiten separar integrantes.',
+                'messageError' => 'Solo las membresías familiares permiten separar integrantes.',
                 'exception' => '',
             ]);
         }
@@ -854,14 +848,14 @@ class MemberController extends Controller
 
             if ($membership->status !== 'active' || !$membership->is_primary) {
                 return redirect()->back()->withErrors([
-                    'messageError' => 'Solo puedes separar integrantes desde una membresia activa y principal.',
+                    'messageError' => 'Solo puedes separar integrantes desde una membresía activa y principal.',
                     'exception' => '',
                 ]);
             }
 
             if (!$membership->membershipType?->allows_multiple_members) {
                 return redirect()->back()->withErrors([
-                    'messageError' => 'Solo las membresias familiares permiten separar integrantes.',
+                    'messageError' => 'Solo las membresías familiares permiten separar integrantes.',
                     'exception' => '',
                 ]);
             }
@@ -893,13 +887,13 @@ class MemberController extends Controller
 
             if (!$selectedTargetOption) {
                 throw ValidationException::withMessages([
-                    'target_membership_type_id' => 'La membresia destino seleccionada no aplica para este integrante.',
+                    'target_membership_type_id' => 'La membresía destino seleccionada no aplica para este integrante.',
                 ]);
             }
 
             if ($this->memberHasActivePrimaryMembershipInClub($accountMember->member_id, $membership->club_id)) {
                 throw ValidationException::withMessages([
-                    'member_id' => 'El integrante ya cuenta con una membresia activa propia en este club.',
+                    'member_id' => 'El integrante ya cuenta con una membresía activa propia en este club.',
                 ]);
             }
 
@@ -907,16 +901,9 @@ class MemberController extends Controller
             $titularRelationshipId = Relationship::query()
                 ->where('name', 'Titular')
                 ->value('id');
-            $reason = $validated['reason'] ?? 'Separacion de integrante a cuenta nueva';
+            $reason = $validated['reason'] ?? 'Separación de integrante a cuenta nueva';
 
-            DB::transaction(function () use (
-                $membership,
-                $accountMember,
-                $targetMembershipType,
-                $selectedTargetOption,
-                $titularRelationshipId,
-                $reason
-            ) {
+            DB::transaction(function () use ($membership, $accountMember, $targetMembershipType, $selectedTargetOption, $titularRelationshipId, $reason) {
                 $newAccount = $this->createMembershipAccount(
                     club: $membership->club,
                     accountType: $targetMembershipType->allows_multiple_members ? 'family' : 'individual',
@@ -1022,7 +1009,7 @@ class MemberController extends Controller
                 'members.*.birth_place' => ['nullable', 'string', 'max:255'],
                 'members.*.city' => ['nullable', 'string', 'max:255'],
                 'members.*.state' => ['nullable', 'string', 'max:255'],
-                'members.*.nationality_id' => ['nullable', new ExistsInSchema('catalogs', 'nationalities', 'id')],
+                'members.*.nationality_id' => ['nullable', new ExistsInSchema('catalogs', 'countries', 'id')],
                 'members.*.marital_status_id' => ['nullable', new ExistsInSchema('catalogs', 'marital_statuses', 'id')],
                 'members.*.phone' => ['nullable', 'string', 'max:50'],
                 'members.*.email' => ['nullable', 'email', 'max:255'],
@@ -1086,19 +1073,19 @@ class MemberController extends Controller
 
             if (!$membershipType) {
                 throw ValidationException::withMessages([
-                    'membership_type_id' => 'La membresia seleccionada no pertenece al club actual.',
+                    'membership_type_id' => 'La membresía seleccionada no pertenece al club actual.',
                 ]);
             }
 
             if ($sameClubTransition && (int) $membershipType->id === (int) $sourceMembership?->membership_type_id) {
                 throw ValidationException::withMessages([
-                    'membership_type_id' => 'Debes seleccionar un tipo de membresia distinto al actual para realizar el cambio.',
+                    'membership_type_id' => 'Debes seleccionar un tipo de membresía distinto al actual para realizar el cambio.',
                 ]);
             }
 
             if ($sourceClub && $fromMembershipType && $fromMembershipType->club_id !== $sourceClub->id) {
                 return redirect()->back()->withErrors([
-                    'messageError' => 'La membresia de origen no pertenece al club de origen seleccionado.',
+                    'messageError' => 'La membresía de origen no pertenece al club de origen seleccionado.',
                     'exception' => '',
                 ]);
             }
@@ -1106,8 +1093,8 @@ class MemberController extends Controller
             if ($sourceMembership && !$sourceMembershipIsActive) {
                 return redirect()->back()->withErrors([
                     'messageError' => $sameClubTransition
-                        ? 'La membresia de origen debe estar activa para realizar el cambio.'
-                        : 'La membresia de origen debe estar activa para generar una solicitud en el otro parque.',
+                        ? 'La membresía de origen debe estar activa para realizar el cambio.'
+                        : 'La membresía de origen debe estar activa para generar una solicitud en el otro parque.',
                     'exception' => '',
                 ]);
             }
@@ -1119,7 +1106,7 @@ class MemberController extends Controller
 
                 if ($sourcePrimaryHolderId && (int) $requestedPrimaryHolderId !== (int) $sourcePrimaryHolderId) {
                     return redirect()->back()->withErrors([
-                        'messageError' => 'El titular de la nueva solicitud debe coincidir con el titular de la membresia origen.',
+                        'messageError' => 'El titular de la nueva solicitud debe coincidir con el titular de la membresía origen.',
                         'exception' => '',
                     ]);
                 }
@@ -1141,82 +1128,82 @@ class MemberController extends Controller
                 }
             }
 
-        $primaryMembers = collect($validated['members'])
-            ->where('is_primary_holder', true)
-            ->values();
+            $primaryMembers = collect($validated['members'])
+                ->where('is_primary_holder', true)
+                ->values();
 
-        if ($primaryMembers->count() !== 1) {
-            // throw ValidationException::withMessages([
-            //     'members' => 'Debe existir exactamente un titular en la solicitud.',
-            // ]);
-            return redirect()->back()->withErrors([
-                'messageError' => 'Debe existir exactamente un titular en la solicitud.',
-                'exception' => '',
-            ]);
-        }
-
-        if (!$membershipType->allows_multiple_members && count($validated['members']) > 1) {
-            // throw ValidationException::withMessages([
-            //     'members' => 'La membresia seleccionada no permite multiples integrantes.',
-            // ]);
-            return redirect()->back()->withErrors([
-                'messageError' => 'La membresia seleccionada no permite multiples integrantes.',
-                'exception' => '',
-            ]);
-        }
-
-        foreach ($validated['members'] as $index => $memberData) {
-            if (empty($memberData['is_primary_holder']) && empty($memberData['relationship_id'])) {
+            if ($primaryMembers->count() !== 1) {
                 // throw ValidationException::withMessages([
-                //     "members.$index.relationship_id" => 'El parentesco es obligatorio para familiares.',
+                //     'members' => 'Debe existir exactamente un titular en la solicitud.',
                 // ]);
                 return redirect()->back()->withErrors([
-                    'messageError' => 'El parentesco es obligatorio para familiares.',
+                    'messageError' => 'Debe existir exactamente un titular en la solicitud.',
                     'exception' => '',
                 ]);
             }
-        }
 
-        $primaryMember = $primaryMembers->first();
-        $primaryAge = $this->resolveAge($primaryMember);
+            if (!$membershipType->allows_multiple_members && count($validated['members']) > 1) {
+                // throw ValidationException::withMessages([
+                //     'members' => 'La membresia seleccionada no permite multiples integrantes.',
+                // ]);
+                return redirect()->back()->withErrors([
+                    'messageError' => 'La membresía seleccionada no permite multiples integrantes.',
+                    'exception' => '',
+                ]);
+            }
 
-        if ($membershipType->requires_origin_family && !$fromMembershipType) {
-            // throw ValidationException::withMessages([
-            //     'from_membership_type_id' => 'La membresia seleccionada requiere una membresia familiar de origen.',
-            // ]);
-            return redirect()->back()->withErrors([
-                'messageError' => 'La membresia seleccionada requiere una membresia familiar de origen.',
-                'exception' => '',
-            ]);
-        }
+            foreach ($validated['members'] as $index => $memberData) {
+                if (empty($memberData['is_primary_holder']) && empty($memberData['relationship_id'])) {
+                    // throw ValidationException::withMessages([
+                    //     "members.$index.relationship_id" => 'El parentesco es obligatorio para familiares.',
+                    // ]);
+                    return redirect()->back()->withErrors([
+                        'messageError' => 'El parentesco es obligatorio para familiares.',
+                        'exception' => '',
+                    ]);
+                }
+            }
 
-        if ($membershipType->requires_origin_family && !$fromMembershipType->allows_multiple_members) {
-            // throw ValidationException::withMessages([
-            //     'from_membership_type_id' => 'La membresia seleccionada debe provenir de una membresia familiar.',
-            // ]);
-            return redirect()->back()->withErrors([
-                'messageError' => 'La membresia seleccionada debe provenir de una membresia familiar.',
-                'exception' => '',
-            ]);
-        }
+            $primaryMember = $primaryMembers->first();
+            $primaryAge = $this->resolveAge($primaryMember);
+
+            if ($membershipType->requires_origin_family && !$fromMembershipType) {
+                // throw ValidationException::withMessages([
+                //     'from_membership_type_id' => 'La membresia seleccionada requiere una membresia familiar de origen.',
+                // ]);
+                return redirect()->back()->withErrors([
+                    'messageError' => 'La membresía seleccionada requiere una membresía familiar de origen.',
+                    'exception' => '',
+                ]);
+            }
+
+            if ($membershipType->requires_origin_family && !$fromMembershipType->allows_multiple_members) {
+                // throw ValidationException::withMessages([
+                //     'from_membership_type_id' => 'La membresia seleccionada debe provenir de una membresia familiar.',
+                // ]);
+                return redirect()->back()->withErrors([
+                    'messageError' => 'La membresía seleccionada debe provenir de una membresía familiar.',
+                    'exception' => '',
+                ]);
+            }
 
             $pricing = $this->resolveApplicablePricing(
                 targetClubId: $clubId,
                 membershipType: $membershipType,
                 fromMembershipType: $fromMembershipType,
                 sourceClub: $sourceClub,
-            age: $primaryAge,
-            hasMultipleClubs: $hasMultipleClubs,
-            sourceMembershipIsActive: $sourceMembershipIsActive,
-            yearsInSourceClub: $yearsInSourceClub
+                age: $primaryAge,
+                hasMultipleClubs: $hasMultipleClubs,
+                sourceMembershipIsActive: $sourceMembershipIsActive,
+                yearsInSourceClub: $yearsInSourceClub
             );
 
             $club = Club::findOrFail($clubId);
             $successMessage = $sameClubTransition
-                ? 'La membresia se actualizo correctamente dentro de la misma cuenta.'
+                ? 'La membresía se actualizó correctamente dentro de la misma cuenta.'
                 : ($sourceMembership
-                    ? 'La membresia del otro parque se agrego correctamente a la misma cuenta.'
-                    : 'La cuenta de membresia y sus integrantes se registraron correctamente.');
+                    ? 'La membresía del otro parque se agregó correctamente a la misma cuenta.'
+                    : 'La cuenta de membresía y sus integrantes se registraron correctamente.');
 
             DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership, $sameClubTransition) {
                 $sourceAccount = $sourceMembership?->account;
@@ -1455,7 +1442,7 @@ class MemberController extends Controller
     {
         return [
             'relationships' => Relationship::select('id', 'name')->get(),
-            'nationalities' => Nationality::select('id', 'code', 'name', 'demonym')
+            'nationalities' => Country::select('id', 'iso2 as code', 'name', 'demonym')
                 ->orderBy('name')
                 ->get(),
             'maritalStatuses' => MaritalStatus::select('id', 'code', 'name')
@@ -1570,7 +1557,7 @@ class MemberController extends Controller
             'primary_holder' => $this->buildDetailedAccountMemberPayload($membership->account?->primaryHolder),
             'members' => $membership->account->accountMembers
                 ->sortByDesc('is_primary_holder')
-                ->map(fn (MembershipAccountMember $accountMember) => $this->buildDetailedAccountMemberPayload($accountMember))
+                ->map(fn(MembershipAccountMember $accountMember) => $this->buildDetailedAccountMemberPayload($accountMember))
                 ->values(),
             'active_memberships' => $activeMemberships
                 ->map(function (Membership $activeMembership) {
@@ -1647,7 +1634,7 @@ class MemberController extends Controller
                         ->values(),
                 ];
             })
-            ->filter(fn (array $candidate) => !empty($candidate['target_membership_options']))
+            ->filter(fn(array $candidate) => !empty($candidate['target_membership_options']))
             ->values();
     }
 
@@ -1684,8 +1671,8 @@ class MemberController extends Controller
                         hasMultipleClubs: $hasMultipleClubs,
                         sourceMembershipIsActive: true,
                         yearsInSourceClub: $membership->start_date
-                            ? Carbon::parse($membership->start_date)->diffInYears(now())
-                            : null
+                        ? Carbon::parse($membership->start_date)->diffInYears(now())
+                        : null
                     );
 
                     return [
@@ -1829,15 +1816,15 @@ class MemberController extends Controller
             })
             ->when(
                 !$sourceMembershipIsActive,
-                fn (Builder $query) => $query->where('requires_active_source_membership', false)
+                fn(Builder $query) => $query->where('requires_active_source_membership', false)
             )
             ->when(
                 $yearsInSourceClub !== null,
-                fn (Builder $query) => $query->where(function (Builder $yearsQuery) use ($yearsInSourceClub) {
+                fn(Builder $query) => $query->where(function (Builder $yearsQuery) use ($yearsInSourceClub) {
                     $yearsQuery->whereNull('min_years_in_source_club')
                         ->orWhere('min_years_in_source_club', '<=', $yearsInSourceClub);
                 }),
-                fn (Builder $query) => $query->whereNull('min_years_in_source_club')
+                fn(Builder $query) => $query->whereNull('min_years_in_source_club')
             )
             ->orderByRaw('CASE WHEN source_membership_type_id IS NULL THEN 1 ELSE 0 END')
             ->orderBy('priority')
@@ -1952,8 +1939,8 @@ class MemberController extends Controller
             ->where('membership_type_id', $membershipTypeId)
             ->when(
                 $fromMembershipTypeId !== null,
-                fn (Builder $query) => $query->where('from_membership_type_id', $fromMembershipTypeId),
-                fn (Builder $query) => $query->whereNull('from_membership_type_id')
+                fn(Builder $query) => $query->where('from_membership_type_id', $fromMembershipTypeId),
+                fn(Builder $query) => $query->whereNull('from_membership_type_id')
             )
             ->when(
                 $age !== null,
@@ -1964,7 +1951,7 @@ class MemberController extends Controller
                         $ageQuery->whereNull('max_age')->orWhere('max_age', '>=', $age);
                     });
                 },
-                fn (Builder $query) => $query->whereNull('min_age')->whereNull('max_age')
+                fn(Builder $query) => $query->whereNull('min_age')->whereNull('max_age')
             )
             ->where('requires_multiple_clubs', $requiresMultipleClubs);
     }
@@ -1992,7 +1979,7 @@ class MemberController extends Controller
     protected function membershipAccountHasSpouse(Membership $membership): bool
     {
         return $membership->account->accountMembers
-            ->contains(fn (MembershipAccountMember $accountMember) => $this->isSpouseRelationship($accountMember->relationship?->name));
+            ->contains(fn(MembershipAccountMember $accountMember) => $this->isSpouseRelationship($accountMember->relationship?->name));
     }
 
     protected function resolveAdditionalMonthlyCharge(
@@ -2023,10 +2010,10 @@ class MemberController extends Controller
 
         if ($sameClubTransition) {
             if ($inscriptionFee > 0) {
-                return "Se actualizara la cuota mensual a $$formattedNewMonthlyFee y se cobrara un cargo extra de inscripcion por $$formattedInscriptionFee.";
+                return "Se actualizará la cuota mensual a $$formattedNewMonthlyFee y se cobrará un cargo extra de inscripción por $$formattedInscriptionFee.";
             }
 
-            return "Se actualizara la cuota mensual a $$formattedNewMonthlyFee.";
+            return "Se actualizará la cuota mensual a $$formattedNewMonthlyFee.";
         }
 
         if ($sourceMembershipBecomesNonBillable && $currentMonthlyFee !== null) {
@@ -2035,25 +2022,25 @@ class MemberController extends Controller
             $formattedAdditionalCharge = number_format(abs($additionalCharge), 2);
 
             if ($additionalCharge > 0) {
-                $message = "La nueva mensualidad total sera de $$formattedNewMonthlyFee. Como actualmente se pagan $$formattedCurrentMonthlyFee, el ajuste adicional mensual sera de $$formattedAdditionalCharge.";
+                $message = "La nueva mensualidad total será de $$formattedNewMonthlyFee. Como actualmente se pagan $$formattedCurrentMonthlyFee, el ajuste adicional mensual será de $$formattedAdditionalCharge.";
             } elseif ($additionalCharge === 0.0) {
-                $message = "La nueva mensualidad total se mantiene en $$formattedNewMonthlyFee, por lo que no habra ajuste adicional mensual.";
+                $message = "La nueva mensualidad total se mantiene en $$formattedNewMonthlyFee, por lo que no habrá ajuste adicional mensual.";
             } else {
-                $message = "La nueva mensualidad total sera de $$formattedNewMonthlyFee, lo que representa una disminucion de $$formattedAdditionalCharge respecto a la cuota actual de $$formattedCurrentMonthlyFee.";
+                $message = "La nueva mensualidad total será de $$formattedNewMonthlyFee, lo que representa una disminución de $$formattedAdditionalCharge respecto a la cuota actual de $$formattedCurrentMonthlyFee.";
             }
 
             if ($inscriptionFee > 0) {
-                $message .= " Ademas, se cobrara una inscripcion de $$formattedInscriptionFee.";
+                $message .= " Además, se cobrará una inscripción de $$formattedInscriptionFee.";
             }
 
             return $message;
         }
 
         if ($inscriptionFee > 0) {
-            return "Se cobrara una mensualidad de $$formattedNewMonthlyFee y una inscripcion de $$formattedInscriptionFee.";
+            return "Se cobrará una mensualidad de $$formattedNewMonthlyFee y una inscripción de $$formattedInscriptionFee.";
         }
 
-        return "Se cobrara una mensualidad de $$formattedNewMonthlyFee.";
+        return "Se cobrará una mensualidad de $$formattedNewMonthlyFee.";
     }
 
     protected function isTitularRelationship(?string $relationshipName): bool
@@ -2102,7 +2089,7 @@ class MemberController extends Controller
     protected function validationExceptionResponse(ValidationException $e)
     {
         $errors = $e->errors();
-        $firstMessage = collect($errors)->flatten()->first() ?? 'Ocurrio un error de validacion.';
+        $firstMessage = collect($errors)->flatten()->first() ?? 'Ocurrió un error de validación.';
 
         return redirect()->back()->withErrors(array_merge($errors, [
             'messageError' => $firstMessage,
