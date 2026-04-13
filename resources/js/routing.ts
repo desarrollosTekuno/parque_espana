@@ -31,7 +31,7 @@ const routes: Routing[] = [
         // groupItems: null
     },
     {
-        name: ["members.index", "members.create", "members.edit", "members.additional-membership.create"],
+        name: ["members.index", "members.create", "members.edit", "members.additional-membership.create", "members.manage.show", "members.family-members.create"],
         title: "Socios",
         icon: "mdi-account-group-outline",
         value: "sociosMenu",
@@ -50,6 +50,21 @@ const routes: Routing[] = [
                 icon: "mdi-account-plus-outline",
                 value: "nuevo-socio",
             }
+        ],
+    },
+    {
+        name: ["billing.index"],
+        title: "Cobranza",
+        icon: "mdi-cash-multiple",
+        value: "cobranzaMenu",
+        group: "Cobranza",
+        groupItems: [
+            {
+                name: "billing.index",
+                title: "Cargos pendientes",
+                icon: "mdi-receipt-text-outline",
+                value: "cargos-pendientes",
+            },
         ],
     },
         // Clubs deportivos

@@ -2,10 +2,10 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
 use App\Models\Memberships\MembershipType;
 use App\Models\Memberships\PricingRule;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 class PricingRuleSeeder extends Seeder
 {
@@ -14,520 +14,10 @@ class PricingRuleSeeder extends Seeder
         DB::transaction(function () {
             $types = MembershipType::all()->keyBy('code');
 
-            $data = [
+            // Keep the pricing matrix fully synchronized with the business rules.
+            PricingRule::query()->delete();
 
-                /*
-                |--------------------------------------------------------------------------
-                | PE1
-                |--------------------------------------------------------------------------
-                */
-
-                // PE1 - SOLIDARIA
-                [
-                    'membership_code' => 'PE1_SOL',
-                    'rules' => [
-                        [
-                            'from_membership_code' => 'PE1_FAM',
-                            'min_age' => 24,
-                            'max_age' => 26,
-                            'requires_origin_family' => true,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 750,
-                            'inscription_fee' => 0,
-                            'priority' => 2,
-                        ],
-                        [
-                            'from_membership_code' => 'PE1_FAM',
-                            'min_age' => 24,
-                            'max_age' => 26,
-                            'requires_origin_family' => true,
-                            'requires_multiple_clubs' => true,
-                            'monthly_fee' => 925,
-                            'inscription_fee' => 0,
-                            'priority' => 1,
-                        ],
-                    ],
-                ],
-
-                // PE1 - INDIVIDUAL
-                [
-                    'membership_code' => 'PE1_IND',
-                    'rules' => [
-                        [
-                            'from_membership_code' => null,
-                            'min_age' => null,
-                            'max_age' => null,
-                            'requires_origin_family' => false,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 1500,
-                            'inscription_fee' => 45000,
-                            'priority' => 3,
-                        ],
-                        [
-                            'from_membership_code' => 'PE1_SOL',
-                            'min_age' => null,
-                            'max_age' => null,
-                            'requires_origin_family' => true,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 1500,
-                            'inscription_fee' => 0,
-                            'priority' => 1,
-                        ],
-                        [
-                            'from_membership_code' => 'PE1_FAM',
-                            'min_age' => null,
-                            'max_age' => null,
-                            'requires_origin_family' => false,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 1500,
-                            'inscription_fee' => 0,
-                            'priority' => 2,
-                        ],
-                    ],
-                ],
-
-                // PE1 - FAMILIAR
-                [
-                    'membership_code' => 'PE1_FAM',
-                    'rules' => [
-                        [
-                            'from_membership_code' => null,
-                            'min_age' => null,
-                            'max_age' => null,
-                            'requires_origin_family' => false,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 3000,
-                            'inscription_fee' => 85000,
-                            'priority' => 3,
-                        ],
-                        [
-                            'from_membership_code' => null,
-                            'min_age' => null,
-                            'max_age' => null,
-                            'requires_origin_family' => false,
-                            'requires_multiple_clubs' => true,
-                            'monthly_fee' => 3700,
-                            'inscription_fee' => 0,
-                            'priority' => 2,
-                        ],
-                        [
-                            'from_membership_code' => 'PE1_IND',
-                            'min_age' => null,
-                            'max_age' => null,
-                            'requires_origin_family' => false,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 3000,
-                            'inscription_fee' => 4800,
-                            'priority' => 1,
-                        ],
-                    ],
-                ],
-
-                /*
-                |--------------------------------------------------------------------------
-                | PE2 - ASCENDENCIA ESPAÑOLA
-                |--------------------------------------------------------------------------
-                */
-
-                // PE2 - SOLIDARIA ASC
-                [
-                    'membership_code' => 'PE2_SOL_ASC',
-                    'rules' => [
-                        [
-                            'from_membership_code' => 'PE2_FAM_ASC',
-                            'min_age' => 24,
-                            'max_age' => 26,
-                            'requires_origin_family' => true,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 900,
-                            'inscription_fee' => 0,
-                            'priority' => 1,
-                        ],
-                    ],
-                ],
-
-                // PE2 - INDIVIDUAL ASC
-                [
-                    'membership_code' => 'PE2_IND_ASC',
-                    'rules' => [
-                        [
-                            'from_membership_code' => null,
-                            'min_age' => null,
-                            'max_age' => null,
-                            'requires_origin_family' => false,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 1800,
-                            'inscription_fee' => 40000,
-                            'priority' => 2,
-                        ],
-                        [
-                            'from_membership_code' => 'PE2_SOL_ASC',
-                            'min_age' => null,
-                            'max_age' => null,
-                            'requires_origin_family' => true,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 1800,
-                            'inscription_fee' => 0,
-                            'priority' => 1,
-                        ],
-                    ],
-                ],
-
-                // PE2 - FAMILIAR ASC
-                [
-                    'membership_code' => 'PE2_FAM_ASC',
-                    'rules' => [
-                        [
-                            'from_membership_code' => null,
-                            'min_age' => null,
-                            'max_age' => null,
-                            'requires_origin_family' => false,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 3600,
-                            'inscription_fee' => 80000,
-                            'priority' => 2,
-                        ],
-                        [
-                            'from_membership_code' => 'PE2_IND_ASC',
-                            'min_age' => null,
-                            'max_age' => null,
-                            'requires_origin_family' => false,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 3600,
-                            'inscription_fee' => 4800,
-                            'priority' => 1,
-                        ],
-                    ],
-                ],
-
-                /*
-                |--------------------------------------------------------------------------
-                | PE2 - EXTERNOS
-                |--------------------------------------------------------------------------
-                */
-
-                // PE2 - SOLIDARIA EXT
-                [
-                    'membership_code' => 'PE2_SOL_EXT',
-                    'rules' => [
-                        [
-                            'from_membership_code' => 'PE2_FAM_EXT',
-                            'min_age' => 24,
-                            'max_age' => 26,
-                            'requires_origin_family' => true,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 900,
-                            'inscription_fee' => 0,
-                            'priority' => 1,
-                        ],
-                    ],
-                ],
-
-                // PE2 - INDIVIDUAL EXT
-                [
-                    'membership_code' => 'PE2_IND_EXT',
-                    'rules' => [
-                        [
-                            'from_membership_code' => null,
-                            'min_age' => null,
-                            'max_age' => null,
-                            'requires_origin_family' => false,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 1800,
-                            'inscription_fee' => 80000,
-                            'priority' => 2,
-                        ],
-                        [
-                            'from_membership_code' => 'PE2_SOL_EXT',
-                            'min_age' => null,
-                            'max_age' => null,
-                            'requires_origin_family' => true,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 1800,
-                            'inscription_fee' => 0,
-                            'priority' => 1,
-                        ],
-                    ],
-                ],
-
-                // PE2 - FAMILIAR EXT
-                [
-                    'membership_code' => 'PE2_FAM_EXT',
-                    'rules' => [
-                        [
-                            'from_membership_code' => null,
-                            'min_age' => null,
-                            'max_age' => null,
-                            'requires_origin_family' => false,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 3600,
-                            'inscription_fee' => 160000,
-                            'priority' => 2,
-                        ],
-                        [
-                            'from_membership_code' => 'PE2_IND_EXT',
-                            'min_age' => null,
-                            'max_age' => null,
-                            'requires_origin_family' => false,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 3600,
-                            'inscription_fee' => 4800,
-                            'priority' => 1,
-                        ],
-                    ],
-                ],
-
-                /*
-                |--------------------------------------------------------------------------
-                | PE2 - BENEFICENCIA ESPAÑOLA
-                |--------------------------------------------------------------------------
-                */
-
-                // PE2 - SOLIDARIA BEN
-                [
-                    'membership_code' => 'PE2_SOL_BEN',
-                    'rules' => [
-                        [
-                            'from_membership_code' => 'PE2_FAM_BEN',
-                            'min_age' => 24,
-                            'max_age' => 26,
-                            'requires_origin_family' => true,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 900,
-                            'inscription_fee' => 0,
-                            'priority' => 1,
-                        ],
-                    ],
-                ],
-
-                // PE2 - INDIVIDUAL BEN
-                [
-                    'membership_code' => 'PE2_IND_BEN',
-                    'rules' => [
-                        [
-                            'from_membership_code' => null,
-                            'min_age' => null,
-                            'max_age' => null,
-                            'requires_origin_family' => false,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 1800,
-                            'inscription_fee' => 25000,
-                            'priority' => 2,
-                        ],
-                        [
-                            'from_membership_code' => 'PE2_SOL_BEN',
-                            'min_age' => null,
-                            'max_age' => null,
-                            'requires_origin_family' => true,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 1800,
-                            'inscription_fee' => 0,
-                            'priority' => 1,
-                        ],
-                    ],
-                ],
-
-                // PE2 - FAMILIAR BEN
-                [
-                    'membership_code' => 'PE2_FAM_BEN',
-                    'rules' => [
-                        [
-                            'from_membership_code' => null,
-                            'min_age' => null,
-                            'max_age' => null,
-                            'requires_origin_family' => false,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 3600,
-                            'inscription_fee' => 50000,
-                            'priority' => 2,
-                        ],
-                        [
-                            'from_membership_code' => 'PE2_IND_BEN',
-                            'min_age' => null,
-                            'max_age' => null,
-                            'requires_origin_family' => false,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 3600,
-                            'inscription_fee' => 4800,
-                            'priority' => 1,
-                        ],
-                    ],
-                ],
-
-                /*
-                |--------------------------------------------------------------------------
-                | PE2 - DOCTORES BENEFICENCIA ESPAÑOLA
-                |--------------------------------------------------------------------------
-                */
-
-                // PE2 - SOLIDARIA DOC
-                [
-                    'membership_code' => 'PE2_SOL_DOC',
-                    'rules' => [
-                        [
-                            'from_membership_code' => 'PE2_FAM_DOC',
-                            'min_age' => 24,
-                            'max_age' => 26,
-                            'requires_origin_family' => true,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 900,
-                            'inscription_fee' => 0,
-                            'priority' => 1,
-                        ],
-                    ],
-                ],
-
-                // PE2 - INDIVIDUAL DOC
-                [
-                    'membership_code' => 'PE2_IND_DOC',
-                    'rules' => [
-                        [
-                            'from_membership_code' => null,
-                            'min_age' => null,
-                            'max_age' => null,
-                            'requires_origin_family' => false,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 1800,
-                            'inscription_fee' => 0,
-                            'priority' => 2,
-                        ],
-                        [
-                            'from_membership_code' => 'PE2_SOL_DOC',
-                            'min_age' => null,
-                            'max_age' => null,
-                            'requires_origin_family' => true,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 1800,
-                            'inscription_fee' => 0,
-                            'priority' => 1,
-                        ],
-                    ],
-                ],
-
-                // PE2 - FAMILIAR DOC
-                [
-                    'membership_code' => 'PE2_FAM_DOC',
-                    'rules' => [
-                        [
-                            'from_membership_code' => null,
-                            'min_age' => null,
-                            'max_age' => null,
-                            'requires_origin_family' => false,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 3600,
-                            'inscription_fee' => 0,
-                            'priority' => 2,
-                        ],
-                        [
-                            'from_membership_code' => 'PE2_IND_DOC',
-                            'min_age' => null,
-                            'max_age' => null,
-                            'requires_origin_family' => false,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 3600,
-                            'inscription_fee' => 0,
-                            'priority' => 1,
-                        ],
-                    ],
-                ],
-                [
-                    'membership_code' => 'PE2_PM_IND',
-                    'rules' => [
-                        [
-                            'from_membership_code' => null,
-                            'min_age' => null,
-                            'max_age' => null,
-                            'requires_origin_family' => false,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 3600,
-                            'inscription_fee' => 0,
-                            'priority' => 1,
-                        ],
-                    ],
-                ],
-                [
-                    'membership_code' => 'PE2_PM_FAM',
-                    'rules' => [
-                        [
-                            'from_membership_code' => null,
-                            'min_age' => null,
-                            'max_age' => null,
-                            'requires_origin_family' => false,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 7200,
-                            'inscription_fee' => 0,
-                            'priority' => 1,
-                        ],
-                    ],
-                ],
-                [
-                    'membership_code' => 'PE2_SOL_PE1',
-                    'rules' => [
-                        [
-                            'from_membership_code' => 'PE2_FAM_PE1',
-                            'min_age' => null,
-                            'max_age' => null,
-                            'requires_origin_family' => false,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 1850,
-                            'inscription_fee' => 0,
-                            'priority' => 1,
-                        ],
-                    ],
-                ],
-                [
-                    'membership_code' => 'PE2_IND_PE1',
-                    'rules' => [
-                        [
-                            'from_membership_code' => null,
-                            'min_age' => null,
-                            'max_age' => null,
-                            'requires_origin_family' => false,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 1850,
-                            'inscription_fee' => 25000,
-                            'priority' => 2,
-                        ],
-                        [
-                            'from_membership_code' => 'PE2_SOL_PE1',
-                            'min_age' => null,
-                            'max_age' => null,
-                            'requires_origin_family' => false,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 1850,
-                            'inscription_fee' => 0,
-                            'priority' => 1,
-                        ]
-                    ],
-                ],
-                [
-                    'membership_code' => 'PE2_FAM_PE1',
-                    'rules' => [
-                        [
-                            'from_membership_code' => null,
-                            'min_age' => null,
-                            'max_age' => null,
-                            'requires_origin_family' => false,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 3700,
-                            'inscription_fee' => 50000,
-                            'priority' => 2,
-                        ],
-                        [
-                            'from_membership_code' => 'PE2_IND_PE1',
-                            'min_age' => null,
-                            'max_age' => null,
-                            'requires_origin_family' => false,
-                            'requires_multiple_clubs' => false,
-                            'monthly_fee' => 3700,
-                            'inscription_fee' => 4800,
-                            'priority' => 1,
-                        ]
-                    ],
-                ],
-            ];
-
-            foreach ($data as $item) {
+            foreach ($this->pricingMatrix() as $item) {
                 $membership = $types[$item['membership_code']] ?? null;
 
                 if (!$membership) {
@@ -541,23 +31,198 @@ class PricingRuleSeeder extends Seeder
                         $fromMembershipId = $types[$rule['from_membership_code']]->id ?? null;
                     }
 
-                    PricingRule::updateOrCreate(
-                        [
-                            'membership_type_id' => $membership->id,
-                            'from_membership_type_id' => $fromMembershipId,
-                            'min_age' => $rule['min_age'],
-                            'max_age' => $rule['max_age'],
-                            'requires_origin_family' => $rule['requires_origin_family'],
-                            'requires_multiple_clubs' => $rule['requires_multiple_clubs'],
-                        ],
-                        [
-                            'monthly_fee' => $rule['monthly_fee'],
-                            'inscription_fee' => $rule['inscription_fee'],
-                            'priority' => $rule['priority'],
-                        ]
-                    );
+                    PricingRule::create([
+                        'membership_type_id' => $membership->id,
+                        'from_membership_type_id' => $fromMembershipId,
+                        'min_age' => $rule['min_age'],
+                        'max_age' => $rule['max_age'],
+                        'requires_origin_family' => $rule['requires_origin_family'],
+                        'requires_multiple_clubs' => $rule['requires_multiple_clubs'],
+                        'monthly_fee' => $rule['monthly_fee'],
+                        'inscription_fee' => $rule['inscription_fee'],
+                        'priority' => $rule['priority'],
+                    ]);
                 }
             }
         });
+    }
+
+    protected function pricingMatrix(): array
+    {
+        return array_merge(
+            $this->pe1Rules(),
+            $this->pe2CategoryRules(),
+            $this->pe2MonthlyPassRules(),
+            $this->pe2PackageRules()
+        );
+    }
+
+    protected function pe1Rules(): array
+    {
+        return [
+            [
+                'membership_code' => 'PE1_IND',
+                'rules' => [
+                    $this->rule(null, 1500, 45000, 6),
+                    $this->rule(null, 1850, 45000, 5, null, null, false, true),
+                    $this->rule('PE1_SOL', 1500, 0, 4),
+                    $this->rule('PE1_SOL', 1850, 0, 3, null, null, false, true),
+                    $this->rule('PE1_FAM', 1500, 0, 2),
+                    $this->rule('PE1_FAM', 1850, 0, 1, null, null, false, true),
+                ],
+            ],
+            [
+                'membership_code' => 'PE1_FAM',
+                'rules' => [
+                    $this->rule(null, 3000, 85000, 4),
+                    $this->rule('PE1_IND', 3000, 4800, 3),
+                    $this->rule(null, 3700, 85000, 2, null, null, false, true),
+                    $this->rule('PE1_IND', 3700, 4800, 1, null, null, false, true),
+                ],
+            ],
+            [
+                'membership_code' => 'PE1_SOL',
+                'rules' => [
+                    $this->rule('PE1_FAM', 750, 0, 2, 24, 26, true),
+                    $this->rule('PE1_FAM', 925, 0, 1, 24, 26, true, true),
+                ],
+            ],
+        ];
+    }
+
+    protected function pe2CategoryRules(): array
+    {
+        $categories = [
+            [
+                'suffix' => 'ASC',
+                'family_code' => 'PE2_FAM_ASC',
+                'individual_code' => 'PE2_IND_ASC',
+                'solidaria_code' => 'PE2_SOL_ASC',
+                'family_inscription_fee' => 80000,
+                'individual_inscription_fee' => 40000,
+                'family_upgrade_fee' => 4800,
+            ],
+            [
+                'suffix' => 'EXT',
+                'family_code' => 'PE2_FAM_EXT',
+                'individual_code' => 'PE2_IND_EXT',
+                'solidaria_code' => 'PE2_SOL_EXT',
+                'family_inscription_fee' => 160000,
+                'individual_inscription_fee' => 80000,
+                'family_upgrade_fee' => 4800,
+            ],
+            [
+                'suffix' => 'BEN',
+                'family_code' => 'PE2_FAM_BEN',
+                'individual_code' => 'PE2_IND_BEN',
+                'solidaria_code' => 'PE2_SOL_BEN',
+                'family_inscription_fee' => 50000,
+                'individual_inscription_fee' => 25000,
+                'family_upgrade_fee' => 4800,
+            ],
+            [
+                'suffix' => 'DOC',
+                'family_code' => 'PE2_FAM_DOC',
+                'individual_code' => 'PE2_IND_DOC',
+                'solidaria_code' => 'PE2_SOL_DOC',
+                'family_inscription_fee' => 0,
+                'individual_inscription_fee' => 0,
+                'family_upgrade_fee' => 0,
+            ],
+        ];
+
+        $rules = [];
+
+        foreach ($categories as $category) {
+            $rules[] = [
+                'membership_code' => $category['individual_code'],
+                'rules' => [
+                    $this->rule(null, 1800, $category['individual_inscription_fee'], 6),
+                    $this->rule(null, 1850, $category['individual_inscription_fee'], 5, null, null, false, true),
+                    $this->rule($category['solidaria_code'], 1800, 0, 4),
+                    $this->rule($category['solidaria_code'], 1850, 0, 3, null, null, false, true),
+                    $this->rule($category['family_code'], 1800, 0, 2),
+                    $this->rule($category['family_code'], 1850, 0, 1, null, null, false, true),
+                ],
+            ];
+
+            $rules[] = [
+                'membership_code' => $category['family_code'],
+                'rules' => [
+                    $this->rule(null, 3600, $category['family_inscription_fee'], 4),
+                    $this->rule($category['individual_code'], 3600, $category['family_upgrade_fee'], 3),
+                    $this->rule(null, 3700, $category['family_inscription_fee'], 2, null, null, false, true),
+                    $this->rule($category['individual_code'], 3700, $category['family_upgrade_fee'], 1, null, null, false, true),
+                ],
+            ];
+
+            $rules[] = [
+                'membership_code' => $category['solidaria_code'],
+                'rules' => [
+                    $this->rule($category['family_code'], 900, 0, 2, 24, 26, true),
+                    $this->rule($category['family_code'], 925, 0, 1, 24, 26, true, true),
+                ],
+            ];
+        }
+
+        return $rules;
+    }
+
+    protected function pe2MonthlyPassRules(): array
+    {
+        return [
+            [
+                'membership_code' => 'PE2_PM_IND',
+                'rules' => [
+                    $this->rule(null, 3600, 0, 1),
+                ],
+            ],
+            [
+                'membership_code' => 'PE2_PM_FAM',
+                'rules' => [
+                    $this->rule(null, 7200, 0, 1),
+                ],
+            ],
+        ];
+    }
+
+    protected function pe2PackageRules(): array
+    {
+        return [
+            [
+                'membership_code' => 'PE2_IND_PE1',
+                'rules' => [
+                    $this->rule(null, 1850, 25000, 1),
+                ],
+            ],
+            [
+                'membership_code' => 'PE2_FAM_PE1',
+                'rules' => [
+                    $this->rule(null, 3700, 50000, 1),
+                ],
+            ],
+        ];
+    }
+
+    protected function rule(
+        ?string $fromMembershipCode,
+        float|int $monthlyFee,
+        float|int $inscriptionFee,
+        int $priority,
+        ?int $minAge = null,
+        ?int $maxAge = null,
+        bool $requiresOriginFamily = false,
+        bool $requiresMultipleClubs = false
+    ): array {
+        return [
+            'from_membership_code' => $fromMembershipCode,
+            'min_age' => $minAge,
+            'max_age' => $maxAge,
+            'requires_origin_family' => $requiresOriginFamily,
+            'requires_multiple_clubs' => $requiresMultipleClubs,
+            'monthly_fee' => $monthlyFee,
+            'inscription_fee' => $inscriptionFee,
+            'priority' => $priority,
+        ];
     }
 }

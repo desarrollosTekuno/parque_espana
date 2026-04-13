@@ -14,6 +14,11 @@ class MembershipType extends Model
     protected $guarded = ['id', 'created_at', 'updated_at'];
     protected $table = 'memberships.types';
 
+    public function pricingRules()
+    {
+        return $this->hasMany(PricingRule::class, 'membership_type_id');
+    }
+
     public function documentTypes()
     {
         return $this->belongsToMany(

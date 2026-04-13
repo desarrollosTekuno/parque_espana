@@ -3,6 +3,7 @@
 namespace App\Models\Memberships;
 
 use App\Models\Administrator\Club;
+use App\Models\Billing\Charge;
 use App\Traits\SerializesDates;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -14,6 +15,11 @@ class Membership extends Model
     protected $guarded = ['id', 'created_at', 'updated_at'];
 
     protected $table = 'memberships.memberships';
+
+    protected $casts = [
+        'is_primary' => 'boolean',
+        'is_billable' => 'boolean',
+    ];
 
     public function account()
     {
@@ -33,5 +39,10 @@ class Membership extends Model
     public function club()
     {
         return $this->belongsTo(Club::class, 'club_id');
+    }
+
+    public function charges()
+    {
+        return $this->hasMany(Charge::class, 'membership_id');
     }
 }

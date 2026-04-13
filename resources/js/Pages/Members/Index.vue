@@ -7,15 +7,27 @@ import { computed, ref, watch } from "vue";
 
 interface MemberItem {
     id: number;
+    membership_id: number | null;
     membership_number: string;
     holder_name: string;
-    membership_type_name: string;
-    membership_type_code: string;
-    club_name: string;
-    club_code: string;
     email: string | null;
     phone: string | null;
     monthly_fee: number;
+    status: string;
+    can_change_membership: boolean;
+    can_change_primary_holder: boolean;
+    can_separate_member: boolean;
+    active_memberships: ActiveMembershipItem[];
+}
+
+interface ActiveMembershipItem {
+    id: number;
+    membership_type_name: string | null;
+    membership_type_code: string | null;
+    club_name: string | null;
+    club_code: string | null;
+    monthly_fee: number;
+    is_billable: boolean;
     start_date: string | null;
     end_date: string | null;
     status: string;
@@ -42,11 +54,10 @@ const props = withDefaults(defineProps<Props>(), {
 const headers = [
     { title: "Folio", key: "membership_number" },
     { title: "Titular", key: "holder_name" },
-    { title: "Membresia", key: "membership_type_name" },
+    { title: "Membresias activas", key: "active_memberships", sortable: false },
     { title: "Correo", key: "email", sortable: false },
     { title: "Telefono", key: "phone", sortable: false },
-    { title: "Mensualidad", key: "monthly_fee" },
-    { title: "Inicio", key: "start_date" },
+    { title: "Cuota actual", key: "monthly_fee" },
     { title: "Estatus", key: "status" },
     { title: "Acciones", key: "actions", sortable: false },
 ];
@@ -184,23 +195,65 @@ const emptyMessage = computed(() =>
                             </div>
                         </template>
 
-                        <template #item.membership_type_name="{ item }">
-                            <div class="py-2">
-                                <div class="font-weight-medium">
-                                    {{ item.membership_type_name }}
-                                </div>
-                                <div class="text-caption text-medium-emphasis">
-                                    {{ item.club_code }}
+                        <template #item.active_memberships="{ item }">
+                            <div class="py-2 d-flex flex-column ga-2">
+                                <div
+                                    v-for="membership in item.active_memberships"
+                                    :key="membership.id"
+                                    class="border rounded-lg px-3 py-2"
+                                >
+                                    <div
+                                        class="d-flex flex-wrap align-center justify-space-between ga-2"
+                                    >
+                                        <div>
+                                            <div class="font-weight-medium">
+                                                {{ membership.membership_type_name }}
+                                            </div>
+                                            <div class="text-caption text-medium-emphasis">
+                                                {{ membership.club_code }} · {{ membership.club_name }}
+                                            </div>
+                                        </div>
+
+                                        <div class="d-flex flex-wrap ga-2">
+                                            <v-chip
+                                                size="small"
+                                                :color="membership.is_billable ? 'success' : 'default'"
+                                                :variant="membership.is_billable ? 'flat' : 'tonal'"
+                                            >
+                                                {{
+                                                    membership.is_billable
+                                                        ? "Se cobra"
+                                                        : "Incluida"
+                                                }}
+                                            </v-chip>
+                                            <v-chip
+                                                size="small"
+                                                :color="statusColor(membership.status)"
+                                                variant="tonal"
+                                            >
+                                                {{ statusLabel(membership.status) }}
+                                            </v-chip>
+                                        </div>
+                                    </div>
+
+                                    <div class="text-caption text-medium-emphasis mt-2">
+                                        {{
+                                            membership.is_billable
+                                                ? `Cuota a cobrar: ${currencyFormatter.format(membership.monthly_fee)}`
+                                                : `Monto referencial: ${currencyFormatter.format(membership.monthly_fee)}`
+                                        }}
+                                    </div>
                                 </div>
                             </div>
                         </template>
 
                         <template #item.monthly_fee="{ item }">
-                            {{ currencyFormatter.format(item.monthly_fee) }}
-                        </template>
-
-                        <template #item.start_date="{ item }">
-                            {{ item.start_date || "-" }}
+                            <div class="font-weight-bold">
+                                {{ currencyFormatter.format(item.monthly_fee) }}
+                            </div>
+                            <div class="text-caption text-medium-emphasis">
+                                Total actual a cobrar
+                            </div>
                         </template>
 
                         <template #item.email="{ item }">
@@ -222,20 +275,90 @@ const emptyMessage = computed(() =>
                         </template>
 
                         <template #item.actions="{ item }">
-                            <BaseButton
-                                :icon-only="false"
-                                action="add"
-                                text="Agregar membresia"
-                                tooltip="Agregar membresia del otro parque"
-                                @click="
-                                    router.visit(
-                                        route(
-                                            'members.additional-membership.create',
-                                            item.id,
-                                        ),
-                                    )
-                                "
-                            />
+                            <div class="d-flex flex-wrap justify-end">
+                                <BaseButton
+                                    :icon-only="false"
+                                    action="edit"
+                                    text="Gestionar cuenta"
+                                    tooltip="Ver detalle de la cuenta y sus integrantes"
+                                    @click="
+                                        router.visit(
+                                            route(
+                                                'members.manage.show',
+                                                item.membership_id,
+                                            ),
+                                        )
+                                    "
+                                    :disabled="!item.membership_id"
+                                />
+
+                                <BaseButton
+                                    v-if="item.can_separate_member"
+                                    :icon-only="false"
+                                    action="add"
+                                    text="Separar integrante"
+                                    tooltip="Crear una nueva cuenta para un integrante de la familia"
+                                    @click="
+                                        router.visit(
+                                            route(
+                                                'members.separation.create',
+                                                item.membership_id,
+                                            ),
+                                        )
+                                    "
+                                    :disabled="!item.membership_id"
+                                />
+
+                                <BaseButton
+                                    v-if="item.can_change_primary_holder"
+                                    :icon-only="false"
+                                    action="edit"
+                                    text="Cambiar titular"
+                                    tooltip="Cambiar el titular de la cuenta familiar"
+                                    @click="
+                                        router.visit(
+                                            route(
+                                                'members.change-holder.create',
+                                                item.membership_id,
+                                            ),
+                                        )
+                                    "
+                                    :disabled="!item.membership_id"
+                                />
+
+                                <BaseButton
+                                    v-if="item.can_change_membership"
+                                    :icon-only="false"
+                                    action="edit"
+                                    text="Cambiar membresia"
+                                    tooltip="Cambiar el tipo de membresia en este parque"
+                                    @click="
+                                        router.visit(
+                                            route(
+                                                'members.transition.create',
+                                                item.membership_id,
+                                            ),
+                                        )
+                                    "
+                                    :disabled="!item.membership_id"
+                                />
+
+                                <BaseButton
+                                    :icon-only="false"
+                                    action="add"
+                                    text="Agregar membresia"
+                                    tooltip="Agregar membresia del otro parque"
+                                    @click="
+                                        router.visit(
+                                            route(
+                                                'members.additional-membership.create',
+                                                item.membership_id,
+                                            ),
+                                        )
+                                    "
+                                    :disabled="!item.membership_id"
+                                />
+                            </div>
                         </template>
                     </v-data-table-server>
                 </v-col>

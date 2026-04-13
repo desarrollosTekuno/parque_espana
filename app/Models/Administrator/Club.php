@@ -3,6 +3,8 @@
 namespace App\Models\Administrator;
 
 use App\Models\AdminClub\Amenity;
+use App\Models\Billing\ClubPaymentMethod;
+use App\Models\Billing\Payment;
 use App\Models\Administrator\UserClub;
 use App\Models\AdminClub\ClubRule;
 use App\Traits\SerializesDates;
@@ -31,5 +33,15 @@ class Club extends Model {
     public function userClub()
     {
         return $this->hasMany(UserClub::class, 'club_id');
+    }
+
+    public function clubPaymentMethods()
+    {
+        return $this->hasMany(ClubPaymentMethod::class, 'club_id');
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(Payment::class, 'club_id');
     }
 }

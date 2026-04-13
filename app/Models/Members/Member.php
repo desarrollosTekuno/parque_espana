@@ -2,6 +2,9 @@
 
 namespace App\Models\Members;
 
+use App\Models\Billing\Charge;
+use App\Models\Catalogs\MaritalStatus;
+use App\Models\Catalogs\Nationality;
 use App\Models\Memberships\MembershipAccountMember;
 use App\Traits\SerializesDates;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -33,5 +36,20 @@ class Member extends Model
     public function employmentInfo()
     {
         return $this->hasOne(EmploymentInfo::class, 'member_id');
+    }
+
+    public function nationality()
+    {
+        return $this->belongsTo(Nationality::class, 'nationality_id');
+    }
+
+    public function maritalStatus()
+    {
+        return $this->belongsTo(MaritalStatus::class, 'marital_status_id');
+    }
+
+    public function charges()
+    {
+        return $this->hasMany(Charge::class, 'member_id');
     }
 }
