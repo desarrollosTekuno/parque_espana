@@ -1,11 +1,13 @@
     <script setup lang="ts">
 
     import '@/../css/amenities.css';
+    import "@vueup/vue-quill/dist/vue-quill.snow.css";
+    import { QuillEditor } from "@vueup/vue-quill";
     import BaseButton from "@/Components/BaseButton.vue";
     import FormDescripcion from "@/Components/Form/FormDescripcion.vue";
     import FormImage from "@/Components/Form/FormImage.vue";
     import FormName from "@/Components/Form/FormName.vue";
-    import { required, maxLength } from "@/constants/validationRules";
+    import { required, maxLength, fileMaxSizeRule, fileTypeRule } from "@/constants/validationRules";
     import AppLayout from "@/Layouts/AppLayout.vue";
     import { customConfirmSwal, customToastSwal } from "@/utils/swal";
     import { Head, router, useForm, usePage } from "@inertiajs/vue3";
@@ -623,8 +625,13 @@ watch(
                                 <v-col cols="12">
                                     <FormDescripcion v-model="form.summary" label="Resumen" rows="2" />
                                 </v-col>
-                                <v-col cols="12">
-                                    <FormDescripcion v-model="form.content" label="Contenido" rows="4" auto-grow />
+                                <v-col cols="12" style="margin-bottom:130px">
+                                    <QuillEditor v-model:content="form.content" 
+                                        contentType="html" 
+                                        theme="snow" 
+                                        toolbar="toolbarCompact" 
+                                        placeholder="Escribe el contenido del aviso..."
+                                        style="min-height:150px;"/>
                                 </v-col>
                                 <v-col cols="12">
                                     <v-select v-model="form.type" label="Tipo de aviso" prepend-inner-icon="mdi-shape"
@@ -636,7 +643,13 @@ watch(
                                         ]" item-title="title" item-value="value" :rules="[required]" />
                                 </v-col>
                                 <v-col cols="12">
-                                    <FormImage v-model="form.image" label="Imagen" ref="imageRef" />
+                                    <FormImage v-model="form.image" 
+                                        label="Imagen" 
+                                        ref="imageRef"
+                                        :rules="[
+                                            fileMaxSizeRule(2),
+                                            fileTypeRule(['jpg','jpeg','png','webp'])
+                                        ]" />
                                     <v-card height="150" variant="outlined" class="mt-2 d-flex align-center justify-center">
                                         <v-img v-if="imagePreview" :src="imagePreview" height="120" class="rounded" />
                                         <v-icon v-else size="40" color="grey">
@@ -696,15 +709,17 @@ watch(
             <v-dialog v-model="showGalleryModal" max-width="700" persistent>
                 <v-card title="Galería de imágenes">
                     <v-card-text>
-                        <v-file-input :model-value="galleryForm.images"
+                        <v-file-input v-model="galleryForm.images"
                             multiple
                             accept="image/*"
                             label="Subir imágenes"
                             prepend-icon="mdi-image-multiple"
                             show-size
                             chips
-                            @update:modelValue="handleImagesSelected"
-                            :disabled="totalImages >= 5"
+                            :rules="[
+                                fileMaxSizeRule(2),
+                                fileTypeRule(['jpg','jpeg','png','webp'])
+                            ]"
                         />
                         <v-alert
                             type="info"
@@ -712,7 +727,7 @@ watch(
                             density="compact"
                             class="mt-2"
                             icon="mdi-information-outline">
-                            Máximo 5 imágenes · 2MB por archivo
+                            2MB por archivo • formatos JPG, PNG o WEBP
                         </v-alert>
                 <!-- preview nuevas -->
                 <div class="d-flex flex-wrap mt-3">

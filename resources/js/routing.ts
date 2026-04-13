@@ -151,7 +151,15 @@ const routes: Routing[] = [
         group: null,
         // groupItems: null
     },
-    
+    // Publicidad de negocios
+    {
+        name: "business-ads.index",
+        title: "Publicidad de negocios",
+        icon: "mdi-storefront-outline",
+        value: "publicidad-negocios",
+        group: null,
+        // groupItems: null
+    },
     // Variables de sistema
     {
         name: "system-variables.index",

@@ -73,6 +73,14 @@ class PermissionSeeder extends Seeder
             array('name' => 'members.update', 'description' => 'Actualizar socios del club', 'contexts' => ['web']),
             array('name' => 'members.destroy', 'description' => 'Eliminar socios del club', 'contexts' => ['web']),
 
+            // Business Ads permissions
+            array('name' => 'business-ads.index', 'description' => 'Ver publicidad de negocios', 'contexts' => ['web']),
+            array('name' => 'business-ads.approve', 'description' => 'Aprobar publicidad de negocios', 'contexts' => ['web']),
+            array('name' => 'business-ads.reject', 'description' => 'Rechazar publicidad de negocios', 'contexts' => ['web']),
+            array('name' => 'business-ads.confirm-payment', 'description' => 'Confirmar pago de publicidad de negocios', 'contexts' => ['web']),
+            array('name' => 'business-ads.publish', 'description' => 'Publicar publicidad de negocios', 'contexts' => ['web']),
+            array('name' => 'business-ads.update', 'description' => 'Actualizar publicidad de negocios', 'contexts' => ['web']),
+            array('name' => 'business-ads.destroy', 'description' => 'Eliminar publicidad de negocios', 'contexts' => ['web']),         
 
         );
         foreach ($permissions as $permission) {
