@@ -163,6 +163,7 @@ interface MemberForm {
     relationship_name: string | null;
     is_primary_holder: boolean;
     is_locked: boolean;
+    is_from_source_membership: boolean;
 
     address: MemberAddressForm;
     employment: MemberEmploymentForm;
@@ -190,6 +191,7 @@ interface PrefillMember {
     relationship_id: number | null;
     relationship_name: string | null;
     is_primary_holder: boolean;
+    is_from_source_membership?: boolean;
     address?: Partial<MemberAddressForm> | null;
     employment?: Partial<MemberEmploymentForm> | null;
 }
@@ -482,6 +484,7 @@ const createEmptyMember = (
     relationship_name: relationshipName,
     is_primary_holder: isPrimaryHolder,
     is_locked: isLocked,
+    is_from_source_membership: false,
 
     address: createEmptyAddress(
         isPrimaryHolder ? (defaultCountry.value?.id ?? null) : null,
@@ -516,6 +519,8 @@ const buildMemberFromPrefill = (prefillMember: PrefillMember): MemberForm => {
     member.email = prefillMember.email ?? "";
     member.occupation = prefillMember.occupation ?? "";
     member.school_name = prefillMember.school_name ?? "";
+    member.is_from_source_membership =
+        prefillMember.is_from_source_membership ?? false;
     member.address = {
         ...createEmptyAddress(
             prefillMember.address?.country_id ??
@@ -644,6 +649,16 @@ const memberFieldError = (index: number, field: string) =>
 const memberAddressFieldError = (index: number, field: string) =>
     page.props.errors?.[`members.${index}.address.${field}`] ??
     form.errors[`members.${index}.address.${field}`];
+
+const isExistingSourceMember = (member: MemberForm) =>
+    usesSourceMembership.value &&
+    member.is_from_source_membership &&
+    member.id !== null &&
+    member.id !== undefined;
+
+const isIdentityLocked = (member: MemberForm) =>
+    usesSourceMembership.value &&
+    (member.is_primary_holder || isExistingSourceMember(member));
 
 const onBirthCountryChange = async (
     member: MemberForm,
@@ -1660,9 +1675,33 @@ const memberLabel = (member: MemberForm) => {
                                             <div
                                                 class="d-flex justify-space-between align-center mb-4"
                                             >
-                                                <h4>
-                                                    {{ memberLabel(member) }}
-                                                </h4>
+                                                <div class="d-flex align-center ga-2">
+                                                    <h4>
+                                                        {{ memberLabel(member) }}
+                                                    </h4>
+                                                    <v-chip
+                                                        v-if="
+                                                            isExistingSourceMember(
+                                                                member,
+                                                            )
+                                                        "
+                                                        size="small"
+                                                        color="info"
+                                                        variant="tonal"
+                                                    >
+                                                        Existente
+                                                    </v-chip>
+                                                    <v-chip
+                                                        v-else-if="
+                                                            usesSourceMembership
+                                                        "
+                                                        size="small"
+                                                        color="success"
+                                                        variant="tonal"
+                                                    >
+                                                        Nuevo
+                                                    </v-chip>
+                                                </div>
 
                                                 <v-btn
                                                     v-if="!member.is_locked"
@@ -1709,7 +1748,10 @@ const memberLabel = (member: MemberForm) => {
                                                             selectRequired,
                                                         ]"
                                                         :disabled="
-                                                            member.is_locked
+                                                            member.is_locked ||
+                                                            isExistingSourceMember(
+                                                                member,
+                                                            )
                                                         "
                                                         @update:modelValue="
                                                             onRelationshipChange(
@@ -1726,6 +1768,11 @@ const memberLabel = (member: MemberForm) => {
                                                         "
                                                         label="Nombre(s)"
                                                         :rules="[required]"
+                                                        :disabled="
+                                                            isIdentityLocked(
+                                                                member,
+                                                            )
+                                                        "
                                                     />
                                                 </v-col>
 
@@ -1736,6 +1783,11 @@ const memberLabel = (member: MemberForm) => {
                                                         "
                                                         label="Apellido paterno"
                                                         :rules="[required]"
+                                                        :disabled="
+                                                            isIdentityLocked(
+                                                                member,
+                                                            )
+                                                        "
                                                     />
                                                 </v-col>
 
@@ -1745,6 +1797,11 @@ const memberLabel = (member: MemberForm) => {
                                                             member.second_last_name
                                                         "
                                                         label="Apellido materno"
+                                                        :disabled="
+                                                            isIdentityLocked(
+                                                                member,
+                                                            )
+                                                        "
                                                     />
                                                 </v-col>
 
@@ -1761,6 +1818,11 @@ const memberLabel = (member: MemberForm) => {
                                                                 member,
                                                             ),
                                                         ]"
+                                                        :disabled="
+                                                            isIdentityLocked(
+                                                                member,
+                                                            )
+                                                        "
                                                         @update:modelValue="
                                                             onBirthdateChange(
                                                                 member,
@@ -1807,6 +1869,11 @@ const memberLabel = (member: MemberForm) => {
                                                                 'birth_country_id',
                                                             )
                                                         "
+                                                        :disabled="
+                                                            isIdentityLocked(
+                                                                member,
+                                                            )
+                                                        "
                                                         clearable
                                                         @update:modelValue="
                                                             onBirthCountryChange(
@@ -1846,6 +1913,9 @@ const memberLabel = (member: MemberForm) => {
                                                             )
                                                         "
                                                         :disabled="
+                                                            isIdentityLocked(
+                                                                member,
+                                                            ) ||
                                                             !member.birth_country_id
                                                         "
                                                         clearable
@@ -1887,6 +1957,9 @@ const memberLabel = (member: MemberForm) => {
                                                             )
                                                         "
                                                         :disabled="
+                                                            isIdentityLocked(
+                                                                member,
+                                                            ) ||
                                                             !member.birth_state_id
                                                         "
                                                         clearable
@@ -1919,6 +1992,11 @@ const memberLabel = (member: MemberForm) => {
                                                         item-title="title"
                                                         item-value="id"
                                                         label="Nacionalidad"
+                                                        :disabled="
+                                                            isIdentityLocked(
+                                                                member,
+                                                            )
+                                                        "
                                                         clearable
                                                         auto-select-first
                                                     />

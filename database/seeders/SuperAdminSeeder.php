@@ -28,7 +28,6 @@ class SuperAdminSeeder extends Seeder
 
         /*Define superadmin permissions */
         $superadminPermissions = array(
-            'dashboard',
             'profile.show',
             'permissions.index',
             'permissions.store',

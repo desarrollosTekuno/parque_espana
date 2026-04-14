@@ -263,7 +263,12 @@ class MemberController extends Controller
 
             if (!empty($validated['source_membership_id'])) {
                 $sourceMembership = Membership::query()
-                    ->with(['membershipType', 'club', 'account.primaryHolder.member'])
+                    ->with([
+                        'membershipType',
+                        'club',
+                        'account.primaryHolder.member',
+                        'account.accountMembers',
+                    ])
                     ->findOrFail($validated['source_membership_id']);
 
                 $fromMembershipType = $sourceMembership->membershipType;
@@ -1089,7 +1094,12 @@ class MemberController extends Controller
 
             if (!empty($validated['source_membership_id'])) {
                 $sourceMembership = Membership::query()
-                    ->with(['membershipType', 'club', 'account.primaryHolder.member'])
+                    ->with([
+                        'membershipType',
+                        'club',
+                        'account.primaryHolder.member',
+                        'account.accountMembers',
+                    ])
                     ->findOrFail($validated['source_membership_id']);
 
                 $fromMembershipType = $sourceMembership->membershipType;
@@ -1144,6 +1154,9 @@ class MemberController extends Controller
 
             if ($sourceMembership) {
                 $sourcePrimaryHolderId = $sourceMembership->account?->primaryHolder?->member_id;
+                $sourceAccountMemberIds = $sourceMembership->account?->accountMembers
+                    ? $sourceMembership->account->accountMembers->pluck('member_id')->map(fn ($id) => (int) $id)->all()
+                    : [];
                 $requestedPrimaryHolderId = collect($validated['members'])
                     ->firstWhere('is_primary_holder', true)['id'] ?? null;
 
@@ -1169,11 +1182,32 @@ class MemberController extends Controller
                         ]);
                     }
                 }
+
+                foreach ($validated['members'] as $index => $memberData) {
+                    if (!empty($memberData['id']) && !in_array((int) $memberData['id'], $sourceAccountMemberIds, true)) {
+                        return redirect()->back()->withErrors([
+                            'messageError' => "El integrante seleccionado en la posición " . ($index + 1) . " no pertenece a la cuenta origen.",
+                            'exception' => '',
+                        ]);
+                    }
+                }
             }
 
             $primaryMembers = collect($validated['members'])
                 ->where('is_primary_holder', true)
                 ->values();
+
+            $submittedExistingMemberIds = collect($validated['members'])
+                ->pluck('id')
+                ->filter()
+                ->map(fn ($id) => (int) $id);
+
+            if ($submittedExistingMemberIds->count() !== $submittedExistingMemberIds->unique()->count()) {
+                return redirect()->back()->withErrors([
+                    'messageError' => 'No puedes incluir al mismo integrante más de una vez en la solicitud.',
+                    'exception' => '',
+                ]);
+            }
 
             if ($primaryMembers->count() !== 1) {
                 // throw ValidationException::withMessages([
@@ -1248,7 +1282,11 @@ class MemberController extends Controller
                     ? 'La membresía del otro parque se agregó correctamente a la misma cuenta.'
                     : 'La cuenta de membresía y sus integrantes se registraron correctamente.');
 
-            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership, $sameClubTransition) {
+            $sourceAccountMembersById = $sourceMembership?->account?->accountMembers
+                ? $sourceMembership->account->accountMembers->keyBy('member_id')
+                : collect();
+
+            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership, $sameClubTransition, $sourceAccountMembersById) {
                 $sourceAccount = $sourceMembership?->account;
 
                 $membershipAccount = $sameClubTransition
@@ -1293,8 +1331,29 @@ class MemberController extends Controller
                         ...$birthLocationAttributes,
                     ];
 
-                    $member = !empty($memberData['id'])
-                        ? tap(Member::findOrFail($memberData['id']))->update($memberAttributes)
+                    $existingMember = !empty($memberData['id'])
+                        ? Member::findOrFail($memberData['id'])
+                        : null;
+
+                    if ($existingMember && $sourceAccountMembersById->has($existingMember->id)) {
+                        $memberAttributes = array_merge($memberAttributes, [
+                            'first_name' => $existingMember->first_name,
+                            'last_name' => $existingMember->last_name,
+                            'second_last_name' => $existingMember->second_last_name,
+                            'birthdate' => $existingMember->birthdate,
+                            'birth_place' => $existingMember->birth_place,
+                            'birth_country_id' => $existingMember->birth_country_id,
+                            'state' => $existingMember->state,
+                            'birth_state_id' => $existingMember->birth_state_id,
+                            'city' => $existingMember->city,
+                            'birth_city_id' => $existingMember->birth_city_id,
+                            'nationality_id' => $existingMember->nationality_id,
+                            'marital_status_id' => $existingMember->marital_status_id,
+                        ]);
+                    }
+
+                    $member = $existingMember
+                        ? tap($existingMember)->update($memberAttributes)
                         : Member::create($memberAttributes);
 
                     $submittedMemberIds[] = $member->id;
@@ -1323,7 +1382,9 @@ class MemberController extends Controller
                     }
 
                     $accountMemberAttributes = [
-                        'relationship_id' => $memberData['relationship_id'] ?? null,
+                        'relationship_id' => $sourceAccountMembersById->has($member->id)
+                            ? $sourceAccountMembersById->get($member->id)?->relationship_id
+                            : ($memberData['relationship_id'] ?? null),
                         'is_primary_holder' => $memberData['is_primary_holder'],
                     ];
 
@@ -1539,6 +1600,7 @@ class MemberController extends Controller
                     'birth_state_id' => $member?->birth_state_id,
                     'city' => $member?->birthCity?->name ?? $member?->city,
                     'birth_city_id' => $member?->birth_city_id,
+                    'is_from_source_membership' => true,
                     'nationality_id' => $member?->nationality_id,
                     'marital_status_id' => $member?->marital_status_id,
                     'phone' => $member?->phone,
