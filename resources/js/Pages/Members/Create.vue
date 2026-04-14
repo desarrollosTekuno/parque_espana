@@ -22,6 +22,7 @@ interface Props {
     originMembershipTypes?: MembershipType[];
     clubs?: Club[];
     relationships?: Relationship[];
+    countries?: CountryCatalog[];
     nationalities?: Nationality[];
     maritalStatuses?: MaritalStatus[];
     isCrossClubRequest?: boolean;
@@ -42,12 +43,27 @@ interface Relationship {
     name: string;
 }
 
-interface Nationality {
+interface CountryCatalog {
     id: number;
     code: string;
     name: string;
     demonym: string | null;
 }
+
+interface StateCatalog {
+    id: number;
+    country_id: number;
+    name: string;
+}
+
+interface CityCatalog {
+    id: number;
+    country_id: number;
+    state_id: number;
+    name: string;
+}
+
+interface Nationality extends CountryCatalog {}
 
 interface MaritalStatus {
     id: number;
@@ -92,6 +108,9 @@ interface SourceMembership {
 }
 
 interface MemberAddressForm {
+    country_id: number | null;
+    state_id: number | null;
+    city_id: number | null;
     street: string | null;
     neighborhood: string | null;
     postal_code: string | null;
@@ -126,6 +145,9 @@ interface MemberForm {
     birthdate: string | null;
     age: number | null;
 
+    birth_country_id: number | null;
+    birth_state_id: number | null;
+    birth_city_id: number | null;
     birth_place: string | null;
     city: string | null;
     state: string | null;
@@ -153,6 +175,9 @@ interface PrefillMember {
     last_name: string;
     second_last_name: string | null;
     birthdate: string | null;
+    birth_country_id: number | null;
+    birth_state_id: number | null;
+    birth_city_id: number | null;
     birth_place: string | null;
     city: string | null;
     state: string | null;
@@ -201,6 +226,7 @@ const props = withDefaults(defineProps<Props>(), {
     originMembershipTypes: () => [],
     clubs: () => [],
     relationships: () => [],
+    countries: () => [],
     nationalities: () => [],
     maritalStatuses: () => [],
     isCrossClubRequest: false,
@@ -209,6 +235,13 @@ const props = withDefaults(defineProps<Props>(), {
     sourceMembership: null,
     prefillMembers: () => [],
 });
+
+const countryOptions = computed(() =>
+    props.countries.map((country) => ({
+        id: country.id,
+        title: country.name,
+    })),
+);
 
 const nationalityOptions = computed(() =>
     props.nationalities.map((nationality) => ({
@@ -225,6 +258,97 @@ const maritalStatusOptions = computed(() =>
         title: maritalStatus.name,
     })),
 );
+
+const statesByCountry = ref<Record<number, StateCatalog[]>>({});
+const citiesByState = ref<Record<number, CityCatalog[]>>({});
+
+const normalizeText = (value: string | null | undefined) =>
+    (value ?? "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim();
+
+const defaultCountry = computed(
+    () =>
+        props.countries.find(
+            (country) =>
+                country.code === "MX" ||
+                normalizeText(country.name) === "mexico",
+        ) ?? null,
+);
+
+const getCountryName = (countryId: number | null) =>
+    props.countries.find((country) => country.id === countryId)?.name ?? "";
+
+const getStateOptions = (countryId: number | null) =>
+    countryId ? statesByCountry.value[countryId] ?? [] : [];
+
+const getStateName = (countryId: number | null, stateId: number | null) =>
+    getStateOptions(countryId).find((state) => state.id === stateId)?.name ??
+    "";
+
+const getCityOptions = (stateId: number | null) =>
+    stateId ? citiesByState.value[stateId] ?? [] : [];
+
+const getCityName = (stateId: number | null, cityId: number | null) =>
+    getCityOptions(stateId).find((city) => city.id === cityId)?.name ?? "";
+
+const fetchStates = async (countryId: number | null) => {
+    if (!countryId) return [];
+    if (statesByCountry.value[countryId]) {
+        return statesByCountry.value[countryId];
+    }
+
+    const response = await fetch(
+        route("members.location-catalogs.states", {
+            country_id: countryId,
+        }),
+        {
+            method: "GET",
+            headers: {
+                Accept: "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+            },
+        },
+    );
+
+    if (!response.ok) {
+        throw new Error("No se pudieron cargar los estados.");
+    }
+
+    const payload = (await response.json()) as StateCatalog[];
+    statesByCountry.value[countryId] = payload;
+    return payload;
+};
+
+const fetchCities = async (stateId: number | null) => {
+    if (!stateId) return [];
+    if (citiesByState.value[stateId]) {
+        return citiesByState.value[stateId];
+    }
+
+    const response = await fetch(
+        route("members.location-catalogs.cities", {
+            state_id: stateId,
+        }),
+        {
+            method: "GET",
+            headers: {
+                Accept: "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+            },
+        },
+    );
+
+    if (!response.ok) {
+        throw new Error("No se pudieron cargar las ciudades.");
+    }
+
+    const payload = (await response.json()) as CityCatalog[];
+    citiesByState.value[stateId] = payload;
+    return payload;
+};
 
 const pageTitle = computed(() =>
     props.isCrossClubRequest
@@ -305,13 +429,18 @@ const form = useForm<MembershipsForm>({
     members: [],
 });
 
-const createEmptyAddress = (): MemberAddressForm => ({
+const createEmptyAddress = (
+    defaultCountryId: number | null = null,
+): MemberAddressForm => ({
+    country_id: defaultCountryId,
+    state_id: null,
+    city_id: null,
     street: "",
     neighborhood: "",
     postal_code: "",
     city: "",
     state: "",
-    country: "México",
+    country: defaultCountryId ? getCountryName(defaultCountryId) : "",
     years_in_city: null,
 });
 
@@ -335,6 +464,9 @@ const createEmptyMember = (
     birthdate: null,
     age: null,
 
+    birth_country_id: null,
+    birth_state_id: null,
+    birth_city_id: null,
     birth_place: "",
     city: "",
     state: "",
@@ -351,7 +483,9 @@ const createEmptyMember = (
     is_primary_holder: isPrimaryHolder,
     is_locked: isLocked,
 
-    address: createEmptyAddress(),
+    address: createEmptyAddress(
+        isPrimaryHolder ? (defaultCountry.value?.id ?? null) : null,
+    ),
     employment: createEmptyEmployment(),
     documents: [],
 });
@@ -370,6 +504,9 @@ const buildMemberFromPrefill = (prefillMember: PrefillMember): MemberForm => {
     member.second_last_name = prefillMember.second_last_name ?? "";
     member.birthdate = prefillMember.birthdate ?? null;
     member.age = calculateAge(prefillMember.birthdate ?? null);
+    member.birth_country_id = prefillMember.birth_country_id ?? null;
+    member.birth_state_id = prefillMember.birth_state_id ?? null;
+    member.birth_city_id = prefillMember.birth_city_id ?? null;
     member.birth_place = prefillMember.birth_place ?? "";
     member.city = prefillMember.city ?? "";
     member.state = prefillMember.state ?? "";
@@ -380,7 +517,12 @@ const buildMemberFromPrefill = (prefillMember: PrefillMember): MemberForm => {
     member.occupation = prefillMember.occupation ?? "";
     member.school_name = prefillMember.school_name ?? "";
     member.address = {
-        ...createEmptyAddress(),
+        ...createEmptyAddress(
+            prefillMember.address?.country_id ??
+                (prefillMember.is_primary_holder
+                    ? (defaultCountry.value?.id ?? null)
+                    : null),
+        ),
         ...(prefillMember.address ?? {}),
     };
     member.employment = {
@@ -493,6 +635,109 @@ const createSpouseMember = (): MemberForm | null => {
 
 const addFamilyMember = () => {
     form.members.push(createEmptyMember(null, null, false, false));
+};
+
+const memberFieldError = (index: number, field: string) =>
+    page.props.errors?.[`members.${index}.${field}`] ??
+    form.errors[`members.${index}.${field}`];
+
+const memberAddressFieldError = (index: number, field: string) =>
+    page.props.errors?.[`members.${index}.address.${field}`] ??
+    form.errors[`members.${index}.address.${field}`];
+
+const onBirthCountryChange = async (
+    member: MemberForm,
+    countryId: number | null,
+) => {
+    member.birth_country_id = countryId;
+    member.birth_place = getCountryName(countryId);
+    member.birth_state_id = null;
+    member.state = "";
+    member.birth_city_id = null;
+    member.city = "";
+
+    if (countryId) {
+        await fetchStates(countryId);
+    }
+};
+
+const onBirthStateChange = async (member: MemberForm, stateId: number | null) => {
+    member.birth_state_id = stateId;
+    member.state = getStateName(member.birth_country_id, stateId);
+    member.birth_city_id = null;
+    member.city = "";
+
+    if (stateId) {
+        await fetchCities(stateId);
+    }
+};
+
+const onBirthCityChange = (member: MemberForm, cityId: number | null) => {
+    member.birth_city_id = cityId;
+    member.city = getCityName(member.birth_state_id, cityId);
+};
+
+const onAddressCountryChange = async (
+    member: MemberForm,
+    countryId: number | null,
+) => {
+    member.address.country_id = countryId;
+    member.address.country = getCountryName(countryId);
+    member.address.state_id = null;
+    member.address.state = "";
+    member.address.city_id = null;
+    member.address.city = "";
+
+    if (countryId) {
+        await fetchStates(countryId);
+    }
+};
+
+const onAddressStateChange = async (
+    member: MemberForm,
+    stateId: number | null,
+) => {
+    member.address.state_id = stateId;
+    member.address.state = getStateName(member.address.country_id, stateId);
+    member.address.city_id = null;
+    member.address.city = "";
+
+    if (stateId) {
+        await fetchCities(stateId);
+    }
+};
+
+const onAddressCityChange = (member: MemberForm, cityId: number | null) => {
+    member.address.city_id = cityId;
+    member.address.city = getCityName(member.address.state_id, cityId);
+};
+
+const initializeLocationCatalogsForMembers = async (members: MemberForm[]) => {
+    const countryIds = Array.from(
+        new Set(
+            members
+                .flatMap((member) => [
+                    member.birth_country_id,
+                    member.address.country_id,
+                ])
+                .filter((value): value is number => value !== null),
+        ),
+    );
+
+    await Promise.all(countryIds.map((countryId) => fetchStates(countryId)));
+
+    const stateIds = Array.from(
+        new Set(
+            members
+                .flatMap((member) => [
+                    member.birth_state_id,
+                    member.address.state_id,
+                ])
+                .filter((value): value is number => value !== null),
+        ),
+    );
+
+    await Promise.all(stateIds.map((stateId) => fetchCities(stateId)));
 };
 
 const onRelationshipChange = (member: MemberForm) => {
@@ -612,6 +857,7 @@ const selectType = (membershipType: MembershipType) => {
             .map((member) => buildMemberFromPrefill(member));
 
         form.members = members;
+        void initializeLocationCatalogsForMembers(members);
         void fetchPricingPreview();
         return;
     }
@@ -626,6 +872,7 @@ const selectType = (membershipType: MembershipType) => {
     }
 
     form.members = members;
+    void initializeLocationCatalogsForMembers(members);
     void fetchPricingPreview();
 };
 
@@ -841,6 +1088,9 @@ const submit = () => {
             second_last_name: member.second_last_name,
             birthdate: member.birthdate,
             age: member.age,
+            birth_country_id: member.birth_country_id,
+            birth_state_id: member.birth_state_id,
+            birth_city_id: member.birth_city_id,
             birth_place: member.birth_place,
             city: member.city,
             state: member.state,
@@ -853,7 +1103,12 @@ const submit = () => {
             relationship_id: member.relationship_id,
             relationship_name: member.relationship_name,
             is_primary_holder: member.is_primary_holder,
-            address: member.address,
+            address: {
+                ...member.address,
+                country_id: member.address.country_id,
+                state_id: member.address.state_id,
+                city_id: member.address.city_id,
+            },
             employment: member.employment,
         })),
     }));
@@ -1397,7 +1652,7 @@ const memberLabel = (member: MemberForm) => {
                                     </v-alert>
 
                                     <div
-                                        v-for="member in form.members"
+                                        v-for="(member, index) in form.members"
                                         :key="member.local_id"
                                         class="mb-6"
                                     >
@@ -1538,11 +1793,27 @@ const memberLabel = (member: MemberForm) => {
                                                     cols="12"
                                                     md="4"
                                                 >
-                                                    <v-text-field
+                                                    <v-autocomplete
                                                         v-model="
-                                                            member.birth_place
+                                                            member.birth_country_id
                                                         "
-                                                        label="Lugar de nacimiento"
+                                                        :items="countryOptions"
+                                                        item-title="title"
+                                                        item-value="id"
+                                                        label="País de nacimiento"
+                                                        :error-messages="
+                                                            memberFieldError(
+                                                                index,
+                                                                'birth_country_id',
+                                                            )
+                                                        "
+                                                        clearable
+                                                        @update:modelValue="
+                                                            onBirthCountryChange(
+                                                                member,
+                                                                $event,
+                                                            )
+                                                        "
                                                     />
                                                 </v-col>
 
@@ -1556,9 +1827,34 @@ const memberLabel = (member: MemberForm) => {
                                                     cols="12"
                                                     md="4"
                                                 >
-                                                    <v-text-field
-                                                        v-model="member.city"
-                                                        label="Ciudad"
+                                                    <v-autocomplete
+                                                        v-model="
+                                                            member.birth_state_id
+                                                        "
+                                                        :items="
+                                                            getStateOptions(
+                                                                member.birth_country_id,
+                                                            )
+                                                        "
+                                                        item-title="name"
+                                                        item-value="id"
+                                                        label="Estado de nacimiento"
+                                                        :error-messages="
+                                                            memberFieldError(
+                                                                index,
+                                                                'birth_state_id',
+                                                            )
+                                                        "
+                                                        :disabled="
+                                                            !member.birth_country_id
+                                                        "
+                                                        clearable
+                                                        @update:modelValue="
+                                                            onBirthStateChange(
+                                                                member,
+                                                                $event,
+                                                            )
+                                                        "
                                                     />
                                                 </v-col>
 
@@ -1572,9 +1868,34 @@ const memberLabel = (member: MemberForm) => {
                                                     cols="12"
                                                     md="4"
                                                 >
-                                                    <v-text-field
-                                                        v-model="member.state"
-                                                        label="Estado"
+                                                    <v-autocomplete
+                                                        v-model="
+                                                            member.birth_city_id
+                                                        "
+                                                        :items="
+                                                            getCityOptions(
+                                                                member.birth_state_id,
+                                                            )
+                                                        "
+                                                        item-title="name"
+                                                        item-value="id"
+                                                        label="Ciudad de nacimiento"
+                                                        :error-messages="
+                                                            memberFieldError(
+                                                                index,
+                                                                'birth_city_id',
+                                                            )
+                                                        "
+                                                        :disabled="
+                                                            !member.birth_state_id
+                                                        "
+                                                        clearable
+                                                        @update:modelValue="
+                                                            onBirthCityChange(
+                                                                member,
+                                                                $event,
+                                                            )
+                                                        "
                                                     />
                                                 </v-col>
 
@@ -1744,30 +2065,98 @@ const memberLabel = (member: MemberForm) => {
                                                 </v-col>
 
                                                 <v-col cols="12" md="4">
-                                                    <v-text-field
-                                                        v-model="
-                                                            member.address.city
-                                                        "
-                                                        label="Ciudad del domicilio"
-                                                    />
-                                                </v-col>
-
-                                                <v-col cols="12" md="4">
-                                                    <v-text-field
-                                                        v-model="
-                                                            member.address.state
-                                                        "
-                                                        label="Estado del domicilio"
-                                                    />
-                                                </v-col>
-
-                                                <v-col cols="12" md="4">
-                                                    <v-text-field
+                                                    <v-autocomplete
                                                         v-model="
                                                             member.address
-                                                                .country
+                                                                .country_id
                                                         "
+                                                        :items="countryOptions"
+                                                        item-title="title"
+                                                        item-value="id"
                                                         label="País"
+                                                        :error-messages="
+                                                            memberAddressFieldError(
+                                                                index,
+                                                                'country_id',
+                                                            )
+                                                        "
+                                                        clearable
+                                                        @update:modelValue="
+                                                            onAddressCountryChange(
+                                                                member,
+                                                                $event,
+                                                            )
+                                                        "
+                                                    />
+                                                </v-col>
+
+                                                <v-col cols="12" md="4">
+                                                    <v-autocomplete
+                                                        v-model="
+                                                            member.address
+                                                                .state_id
+                                                        "
+                                                        :items="
+                                                            getStateOptions(
+                                                                member.address
+                                                                    .country_id,
+                                                            )
+                                                        "
+                                                        item-title="name"
+                                                        item-value="id"
+                                                        label="Estado del domicilio"
+                                                        :error-messages="
+                                                            memberAddressFieldError(
+                                                                index,
+                                                                'state_id',
+                                                            )
+                                                        "
+                                                        :disabled="
+                                                            !member.address
+                                                                .country_id
+                                                        "
+                                                        clearable
+                                                        @update:modelValue="
+                                                            onAddressStateChange(
+                                                                member,
+                                                                $event,
+                                                            )
+                                                        "
+                                                    />
+                                                </v-col>
+
+                                                <v-col cols="12" md="4">
+                                                    <v-autocomplete
+                                                        v-model="
+                                                            member.address
+                                                                .city_id
+                                                        "
+                                                        :items="
+                                                            getCityOptions(
+                                                                member.address
+                                                                    .state_id,
+                                                            )
+                                                        "
+                                                        item-title="name"
+                                                        item-value="id"
+                                                        label="Ciudad del domicilio"
+                                                        :error-messages="
+                                                            memberAddressFieldError(
+                                                                index,
+                                                                'city_id',
+                                                            )
+                                                        "
+                                                        :disabled="
+                                                            !member.address
+                                                                .state_id
+                                                        "
+                                                        clearable
+                                                        @update:modelValue="
+                                                            onAddressCityChange(
+                                                                member,
+                                                                $event,
+                                                            )
+                                                        "
                                                     />
                                                 </v-col>
 

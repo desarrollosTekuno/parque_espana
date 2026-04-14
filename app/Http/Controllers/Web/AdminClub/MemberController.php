@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Web\AdminClub;
 
 use App\Http\Controllers\Controller;
 use App\Models\Administrator\Club;
+use App\Models\Catalogs\City;
 use App\Models\Catalogs\Country;
 use App\Models\Catalogs\MaritalStatus;
 use App\Models\Catalogs\Relationship;
+use App\Models\Catalogs\State;
 use App\Models\Members\Address;
 use App\Models\Members\EmploymentInfo;
 use App\Models\Members\Member;
@@ -166,14 +168,6 @@ class MemberController extends Controller
     public function create()
     {
         $clubId = session('club_id');
-
-        $relationships = Relationship::select('id', 'name')->get();
-        $nationalities = Country::select('id', 'iso2 as code', 'name', 'demonym')
-            ->orderBy('name')
-            ->get();
-        $maritalStatuses = MaritalStatus::select('id', 'code', 'name')
-            ->orderBy('name')
-            ->get();
         $membershipTypes = MembershipType::where('show_in_listing', true)
             ->select('id', 'club_id', 'code', 'name', 'description', 'allows_multiple_members', 'validity_months')
             ->with([
@@ -190,14 +184,42 @@ class MemberController extends Controller
             ->orderBy('name')
             ->get();
 
-        return Inertia::render('Members/Create', compact(
-            'membershipTypes',
-            'originMembershipTypes',
-            'clubs',
-            'relationships',
-            'nationalities',
-            'maritalStatuses'
-        ));
+        return Inertia::render('Members/Create', [
+            'membershipTypes' => $membershipTypes,
+            'originMembershipTypes' => $originMembershipTypes,
+            'clubs' => $clubs,
+            ...$this->getCreateFormCatalogs(),
+        ]);
+    }
+
+    public function locationStates(Request $request)
+    {
+        $validated = $request->validate([
+            'country_id' => ['required', new ExistsInSchema('catalogs', 'countries', 'id')],
+        ]);
+
+        return response()->json(
+            State::query()
+                ->select('id', 'country_id', 'name')
+                ->where('country_id', $validated['country_id'])
+                ->orderBy('name')
+                ->get()
+        );
+    }
+
+    public function locationCities(Request $request)
+    {
+        $validated = $request->validate([
+            'state_id' => ['required', new ExistsInSchema('catalogs', 'states', 'id')],
+        ]);
+
+        return response()->json(
+            City::query()
+                ->select('id', 'country_id', 'state_id', 'name')
+                ->where('state_id', $validated['state_id'])
+                ->orderBy('name')
+                ->get()
+        );
     }
 
     public function pricingPreview(Request $request)
@@ -691,6 +713,9 @@ class MemberController extends Controller
                 'second_last_name' => ['nullable', 'string', 'max:255'],
                 'birthdate' => ['required', 'date', 'before_or_equal:today'],
                 'birth_place' => ['nullable', 'string', 'max:255'],
+                'birth_country_id' => ['nullable', new ExistsInSchema('catalogs', 'countries', 'id')],
+                'birth_state_id' => ['nullable', new ExistsInSchema('catalogs', 'states', 'id')],
+                'birth_city_id' => ['nullable', new ExistsInSchema('catalogs', 'cities', 'id')],
                 'city' => ['nullable', 'string', 'max:255'],
                 'state' => ['nullable', 'string', 'max:255'],
                 'nationality_id' => ['nullable', new ExistsInSchema('catalogs', 'countries', 'id')],
@@ -704,6 +729,9 @@ class MemberController extends Controller
                 'address.street' => ['nullable', 'string', 'max:255'],
                 'address.neighborhood' => ['nullable', 'string', 'max:255'],
                 'address.postal_code' => ['nullable', 'string', 'max:10'],
+                'address.country_id' => ['nullable', new ExistsInSchema('catalogs', 'countries', 'id')],
+                'address.state_id' => ['nullable', new ExistsInSchema('catalogs', 'states', 'id')],
+                'address.city_id' => ['nullable', new ExistsInSchema('catalogs', 'cities', 'id')],
                 'address.city' => ['nullable', 'string', 'max:255'],
                 'address.state' => ['nullable', 'string', 'max:255'],
                 'address.country' => ['nullable', 'string', 'max:255'],
@@ -736,20 +764,31 @@ class MemberController extends Controller
             }
 
             DB::transaction(function () use ($validated, $membership, $relationship) {
+                $birthLocationAttributes = $this->resolveBirthLocationFields(
+                    $validated,
+                    'birth_country_id',
+                    'birth_state_id',
+                    'birth_city_id'
+                );
+                $addressLocationAttributes = $this->resolveAddressLocationFields(
+                    $validated['address'] ?? [],
+                    'address.country_id',
+                    'address.state_id',
+                    'address.city_id'
+                );
+
                 $member = Member::create([
                     'first_name' => $validated['first_name'],
                     'last_name' => $validated['last_name'],
                     'second_last_name' => $validated['second_last_name'] ?? null,
                     'birthdate' => $validated['birthdate'],
-                    'birth_place' => $validated['birth_place'] ?? null,
-                    'state' => $validated['state'] ?? null,
-                    'city' => $validated['city'] ?? null,
                     'nationality_id' => $validated['nationality_id'] ?? null,
                     'marital_status_id' => $validated['marital_status_id'] ?? null,
                     'phone' => $validated['phone'] ?? null,
                     'email' => $validated['email'] ?? null,
                     'occupation' => $validated['occupation'] ?? null,
                     'school_name' => $validated['school_name'] ?? null,
+                    ...$birthLocationAttributes,
                 ]);
 
                 if ($this->hasFilledValues($validated['address'] ?? [])) {
@@ -759,10 +798,8 @@ class MemberController extends Controller
                         'street' => $validated['address']['street'] ?? null,
                         'neighborhood' => $validated['address']['neighborhood'] ?? null,
                         'postal_code' => $validated['address']['postal_code'] ?? null,
-                        'city' => $validated['address']['city'] ?? null,
-                        'state' => $validated['address']['state'] ?? null,
-                        'country' => $validated['address']['country'] ?? null,
                         'years_in_city' => $validated['address']['years_in_city'] ?? null,
+                        ...$addressLocationAttributes,
                     ]);
                 }
 
@@ -1007,6 +1044,9 @@ class MemberController extends Controller
                 'members.*.birthdate' => ['nullable', 'date'],
                 'members.*.age' => ['nullable', 'integer', 'min:0', 'max:120'],
                 'members.*.birth_place' => ['nullable', 'string', 'max:255'],
+                'members.*.birth_country_id' => ['nullable', new ExistsInSchema('catalogs', 'countries', 'id')],
+                'members.*.birth_state_id' => ['nullable', new ExistsInSchema('catalogs', 'states', 'id')],
+                'members.*.birth_city_id' => ['nullable', new ExistsInSchema('catalogs', 'cities', 'id')],
                 'members.*.city' => ['nullable', 'string', 'max:255'],
                 'members.*.state' => ['nullable', 'string', 'max:255'],
                 'members.*.nationality_id' => ['nullable', new ExistsInSchema('catalogs', 'countries', 'id')],
@@ -1022,6 +1062,9 @@ class MemberController extends Controller
                 'members.*.address.street' => ['nullable', 'string', 'max:255'],
                 'members.*.address.neighborhood' => ['nullable', 'string', 'max:255'],
                 'members.*.address.postal_code' => ['nullable', 'string', 'max:10'],
+                'members.*.address.country_id' => ['nullable', new ExistsInSchema('catalogs', 'countries', 'id')],
+                'members.*.address.state_id' => ['nullable', new ExistsInSchema('catalogs', 'states', 'id')],
+                'members.*.address.city_id' => ['nullable', new ExistsInSchema('catalogs', 'cities', 'id')],
                 'members.*.address.city' => ['nullable', 'string', 'max:255'],
                 'members.*.address.state' => ['nullable', 'string', 'max:255'],
                 'members.*.address.country' => ['nullable', 'string', 'max:255'],
@@ -1222,21 +1265,32 @@ class MemberController extends Controller
 
                 $submittedMemberIds = [];
 
-                foreach ($validated['members'] as $memberData) {
+                foreach ($validated['members'] as $index => $memberData) {
+                    $birthLocationAttributes = $this->resolveBirthLocationFields(
+                        $memberData,
+                        "members.$index.birth_country_id",
+                        "members.$index.birth_state_id",
+                        "members.$index.birth_city_id"
+                    );
+                    $addressLocationAttributes = $this->resolveAddressLocationFields(
+                        $memberData['address'] ?? [],
+                        "members.$index.address.country_id",
+                        "members.$index.address.state_id",
+                        "members.$index.address.city_id"
+                    );
+
                     $memberAttributes = [
                         'first_name' => $memberData['first_name'],
                         'last_name' => $memberData['last_name'],
                         'second_last_name' => $memberData['second_last_name'] ?? null,
                         'birthdate' => $memberData['birthdate'] ?? null,
-                        'birth_place' => $memberData['birth_place'] ?? null,
-                        'state' => $memberData['state'] ?? null,
-                        'city' => $memberData['city'] ?? null,
                         'nationality_id' => $memberData['nationality_id'] ?? null,
                         'marital_status_id' => $memberData['marital_status_id'] ?? null,
                         'phone' => $memberData['phone'] ?? null,
                         'email' => $memberData['email'] ?? null,
                         'occupation' => $memberData['occupation'] ?? null,
                         'school_name' => $memberData['school_name'] ?? null,
+                        ...$birthLocationAttributes,
                     ];
 
                     $member = !empty($memberData['id'])
@@ -1253,10 +1307,8 @@ class MemberController extends Controller
                             'street' => $memberData['address']['street'] ?? null,
                             'neighborhood' => $memberData['address']['neighborhood'] ?? null,
                             'postal_code' => $memberData['address']['postal_code'] ?? null,
-                            'city' => $memberData['address']['city'] ?? null,
-                            'state' => $memberData['address']['state'] ?? null,
-                            'country' => $memberData['address']['country'] ?? null,
                             'years_in_city' => $memberData['address']['years_in_city'] ?? null,
+                            ...$addressLocationAttributes,
                         ]);
                     }
 
@@ -1421,13 +1473,25 @@ class MemberController extends Controller
     {
         $membership->load([
             'account.primaryHolder.member.primaryAddress',
+            'account.primaryHolder.member.primaryAddress.country',
+            'account.primaryHolder.member.primaryAddress.state',
+            'account.primaryHolder.member.primaryAddress.city',
             'account.primaryHolder.member.employmentInfo',
             'account.primaryHolder.member.nationality',
+            'account.primaryHolder.member.birthCountry',
+            'account.primaryHolder.member.birthState',
+            'account.primaryHolder.member.birthCity',
             'account.primaryHolder.member.maritalStatus',
             'account.accountMembers.relationship',
             'account.accountMembers.member.primaryAddress',
+            'account.accountMembers.member.primaryAddress.country',
+            'account.accountMembers.member.primaryAddress.state',
+            'account.accountMembers.member.primaryAddress.city',
             'account.accountMembers.member.employmentInfo',
             'account.accountMembers.member.nationality',
+            'account.accountMembers.member.birthCountry',
+            'account.accountMembers.member.birthState',
+            'account.accountMembers.member.birthCity',
             'account.accountMembers.member.maritalStatus',
             'membershipType',
             'club',
@@ -1440,11 +1504,14 @@ class MemberController extends Controller
 
     protected function getCreateFormCatalogs(): array
     {
+        $countries = Country::select('id', 'iso2 as code', 'name', 'demonym')
+            ->orderBy('name')
+            ->get();
+
         return [
             'relationships' => Relationship::select('id', 'name')->get(),
-            'nationalities' => Country::select('id', 'iso2 as code', 'name', 'demonym')
-                ->orderBy('name')
-                ->get(),
+            'countries' => $countries,
+            'nationalities' => $countries,
             'maritalStatuses' => MaritalStatus::select('id', 'code', 'name')
                 ->orderBy('name')
                 ->get(),
@@ -1466,9 +1533,12 @@ class MemberController extends Controller
                     'last_name' => $member?->last_name,
                     'second_last_name' => $member?->second_last_name,
                     'birthdate' => $member?->birthdate,
-                    'birth_place' => $member?->birth_place,
-                    'city' => $member?->city,
-                    'state' => $member?->state,
+                    'birth_place' => $member?->birthCountry?->name ?? $member?->birth_place,
+                    'birth_country_id' => $member?->birth_country_id,
+                    'state' => $member?->birthState?->name ?? $member?->state,
+                    'birth_state_id' => $member?->birth_state_id,
+                    'city' => $member?->birthCity?->name ?? $member?->city,
+                    'birth_city_id' => $member?->birth_city_id,
                     'nationality_id' => $member?->nationality_id,
                     'marital_status_id' => $member?->marital_status_id,
                     'phone' => $member?->phone,
@@ -1482,9 +1552,12 @@ class MemberController extends Controller
                         'street' => $address?->street,
                         'neighborhood' => $address?->neighborhood,
                         'postal_code' => $address?->postal_code,
-                        'city' => $address?->city,
-                        'state' => $address?->state,
-                        'country' => $address?->country,
+                        'country' => $address?->country?->name ?? $address?->country,
+                        'country_id' => $address?->country_id,
+                        'state' => $address?->state?->name ?? $address?->state,
+                        'state_id' => $address?->state_id,
+                        'city' => $address?->city?->name ?? $address?->city,
+                        'city_id' => $address?->city_id,
                         'years_in_city' => $address?->years_in_city,
                     ],
                     'employment' => [
@@ -1495,6 +1568,96 @@ class MemberController extends Controller
                 ];
             })
             ->values();
+    }
+
+    protected function resolveBirthLocationFields(
+        array $payload,
+        string $countryAttribute,
+        string $stateAttribute,
+        string $cityAttribute
+    ): array {
+        [$country, $state, $city] = $this->resolveLocationSelection(
+            countryId: isset($payload['birth_country_id']) ? (int) $payload['birth_country_id'] : null,
+            stateId: isset($payload['birth_state_id']) ? (int) $payload['birth_state_id'] : null,
+            cityId: isset($payload['birth_city_id']) ? (int) $payload['birth_city_id'] : null,
+            countryAttribute: $countryAttribute,
+            stateAttribute: $stateAttribute,
+            cityAttribute: $cityAttribute
+        );
+
+        return [
+            'birth_place' => $country?->name ?? ($payload['birth_place'] ?? null),
+            'birth_country_id' => $country?->id,
+            'state' => $state?->name ?? ($payload['state'] ?? null),
+            'birth_state_id' => $state?->id,
+            'city' => $city?->name ?? ($payload['city'] ?? null),
+            'birth_city_id' => $city?->id,
+        ];
+    }
+
+    protected function resolveAddressLocationFields(
+        array $payload,
+        string $countryAttribute,
+        string $stateAttribute,
+        string $cityAttribute
+    ): array {
+        [$country, $state, $city] = $this->resolveLocationSelection(
+            countryId: isset($payload['country_id']) ? (int) $payload['country_id'] : null,
+            stateId: isset($payload['state_id']) ? (int) $payload['state_id'] : null,
+            cityId: isset($payload['city_id']) ? (int) $payload['city_id'] : null,
+            countryAttribute: $countryAttribute,
+            stateAttribute: $stateAttribute,
+            cityAttribute: $cityAttribute
+        );
+
+        return [
+            'country' => $country?->name ?? ($payload['country'] ?? null),
+            'country_id' => $country?->id,
+            'state' => $state?->name ?? ($payload['state'] ?? null),
+            'state_id' => $state?->id,
+            'city' => $city?->name ?? ($payload['city'] ?? null),
+            'city_id' => $city?->id,
+        ];
+    }
+
+    protected function resolveLocationSelection(
+        ?int $countryId,
+        ?int $stateId,
+        ?int $cityId,
+        string $countryAttribute,
+        string $stateAttribute,
+        string $cityAttribute
+    ): array {
+        $country = $countryId ? Country::query()->find($countryId) : null;
+        $state = $stateId ? State::query()->find($stateId) : null;
+        $city = $cityId ? City::query()->find($cityId) : null;
+        $errors = [];
+
+        if ($state && !$country) {
+            $errors[$countryAttribute] = 'Selecciona un paÃ­s antes de seleccionar un estado.';
+        }
+
+        if ($state && $country && (int) $state->country_id !== (int) $country->id) {
+            $errors[$stateAttribute] = 'El estado seleccionado no pertenece al paÃ­s indicado.';
+        }
+
+        if ($city && !$state) {
+            $errors[$stateAttribute] = 'Selecciona un estado antes de seleccionar una ciudad.';
+        }
+
+        if ($city && $state && (int) $city->state_id !== (int) $state->id) {
+            $errors[$cityAttribute] = 'La ciudad seleccionada no pertenece al estado indicado.';
+        }
+
+        if ($city && $country && (int) $city->country_id !== (int) $country->id) {
+            $errors[$cityAttribute] = 'La ciudad seleccionada no pertenece al paÃ­s indicado.';
+        }
+
+        if (!empty($errors)) {
+            throw ValidationException::withMessages($errors);
+        }
+
+        return [$country, $state, $city];
     }
 
     protected function buildSourceMembershipPayload(Membership $membership): array
@@ -1593,9 +1756,9 @@ class MemberController extends Controller
             'relationship_id' => $accountMember->relationship_id,
             'birthdate' => $member?->birthdate,
             'age' => $member?->birthdate ? Carbon::parse($member->birthdate)->age : null,
-            'birth_place' => $member?->birth_place,
-            'city' => $member?->city,
-            'state' => $member?->state,
+            'birth_place' => $member?->birthCountry?->name ?? $member?->birth_place,
+            'city' => $member?->birthCity?->name ?? $member?->city,
+            'state' => $member?->birthState?->name ?? $member?->state,
             'nationality' => $member?->nationality?->demonym ?: $member?->nationality?->name,
             'marital_status' => $member?->maritalStatus?->name,
             'occupation' => $member?->occupation,
@@ -1604,9 +1767,9 @@ class MemberController extends Controller
                 'street' => $address?->street,
                 'neighborhood' => $address?->neighborhood,
                 'postal_code' => $address?->postal_code,
-                'city' => $address?->city,
-                'state' => $address?->state,
-                'country' => $address?->country,
+                'city' => $address?->city?->name ?? $address?->city,
+                'state' => $address?->state?->name ?? $address?->state,
+                'country' => $address?->country?->name ?? $address?->country,
                 'years_in_city' => $address?->years_in_city,
             ],
             'employment' => [
