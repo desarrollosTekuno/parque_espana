@@ -1661,8 +1661,8 @@ const memberLabel = (member: MemberForm) => {
                                     >
                                         {{
                                             props.isCrossClubRequest
-                                                ? "Los integrantes se precargaron desde la membresía de origen para agilizar la solicitud. Puedes ajustar la captura antes de enviarla."
-                                                : "Los integrantes se precargaron desde la cuenta actual para agilizar el cambio. Puedes ajustar la captura antes de confirmarla."
+                                                ? "Los integrantes se precargaron desde la membresía de origen y, cuando aplica, desde el grupo familiar para agilizar la solicitud. Puedes ajustar la captura antes de enviarla."
+                                                : "Los integrantes se precargaron desde la cuenta actual y, cuando aplica, desde el grupo familiar para agilizar el cambio. Puedes ajustar la captura antes de confirmarla."
                                         }}
                                     </v-alert>
 

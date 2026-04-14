@@ -81,6 +81,8 @@ interface AccountMemberItem {
 
 interface MembershipAccount {
     membership_number: string | null;
+    account_club_name?: string | null;
+    account_club_code?: string | null;
     members: AccountMemberItem[];
 }
 
@@ -458,6 +460,11 @@ const submit = async () => {
                             <p>
                                 <strong>No. cuenta:</strong>
                                 {{ props.account.membership_number || "-" }}
+                            </p>
+                            <p>
+                                <strong>Club de la cuenta:</strong>
+                                {{ props.account.account_club_code || "-" }} ·
+                                {{ props.account.account_club_name || "Sin club" }}
                             </p>
                             <p>
                                 <strong>Titular:</strong>

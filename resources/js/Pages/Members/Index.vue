@@ -9,6 +9,8 @@ interface MemberItem {
     id: number;
     membership_id: number | null;
     membership_number: string;
+    account_club_name: string | null;
+    account_club_code: string | null;
     holder_name: string;
     email: string | null;
     phone: string | null;
@@ -192,6 +194,16 @@ const emptyMessage = computed(() =>
                                     class="mx-4 mt-2"
                                     clearable
                                 />
+                            </div>
+                        </template>
+
+                        <template #item.membership_number="{ item }">
+                            <div class="font-weight-medium">
+                                {{ item.membership_number }}
+                            </div>
+                            <div class="text-caption text-medium-emphasis">
+                                {{ item.account_club_code || "-" }} ·
+                                {{ item.account_club_name || "Sin club" }}
                             </div>
                         </template>
 

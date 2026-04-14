@@ -45,6 +45,7 @@ class MemberController extends Controller
 
             $query = MembershipAccount::query()
                 ->with([
+                    'club',
                     'primaryHolder.member',
                     'memberships' => fn($membershipQuery) => $membershipQuery
                         ->with(['membershipType', 'club'])
@@ -118,6 +119,8 @@ class MemberController extends Controller
                         'id' => $account->id,
                         'membership_id' => $currentMembership?->id,
                         'membership_number' => $account->membership_number,
+                        'account_club_name' => $account->club?->name ?? $currentMembership?->club?->name,
+                        'account_club_code' => $account->club?->code ?? $currentMembership?->club?->code,
                         'holder_name' => $fullName,
                         'email' => $holder?->email,
                         'phone' => $holder?->phone,
@@ -282,6 +285,15 @@ class MemberController extends Controller
                 $currentMonthlyFee = (float) $sourceMembership->monthly_fee;
 
                 if (!$sameClubTransition) {
+                    $hasMultipleClubs = true;
+                }
+
+                $sourcePrimaryHolderId = $sourceMembership->account?->primaryHolder?->member_id;
+
+                if (
+                    $sourcePrimaryHolderId
+                    && $this->memberHasOtherActiveClubMembership((int) $sourcePrimaryHolderId, (int) $clubId)
+                ) {
                     $hasMultipleClubs = true;
                 }
 
@@ -1114,6 +1126,15 @@ class MemberController extends Controller
                 if (!$sameClubTransition) {
                     $hasMultipleClubs = true;
                 }
+
+                $sourcePrimaryHolderId = $sourceMembership->account?->primaryHolder?->member_id;
+
+                if (
+                    $sourcePrimaryHolderId
+                    && $this->memberHasOtherActiveClubMembership((int) $sourcePrimaryHolderId, (int) $clubId)
+                ) {
+                    $hasMultipleClubs = true;
+                }
             } elseif (!empty($validated['from_membership_type_id'])) {
                 $fromMembershipType = MembershipType::find($validated['from_membership_type_id']);
                 $sourceClubId = $validated['source_club_id'] ?? $fromMembershipType?->club_id;
@@ -1154,9 +1175,9 @@ class MemberController extends Controller
 
             if ($sourceMembership) {
                 $sourcePrimaryHolderId = $sourceMembership->account?->primaryHolder?->member_id;
-                $sourceAccountMemberIds = $sourceMembership->account?->accountMembers
-                    ? $sourceMembership->account->accountMembers->pluck('member_id')->map(fn ($id) => (int) $id)->all()
-                    : [];
+                $reusableSourceMemberIds = $this->resolveReusableSourceMemberIds($sourceMembership)
+                    ->map(fn ($id) => (int) $id)
+                    ->all();
                 $requestedPrimaryHolderId = collect($validated['members'])
                     ->firstWhere('is_primary_holder', true)['id'] ?? null;
 
@@ -1184,9 +1205,9 @@ class MemberController extends Controller
                 }
 
                 foreach ($validated['members'] as $index => $memberData) {
-                    if (!empty($memberData['id']) && !in_array((int) $memberData['id'], $sourceAccountMemberIds, true)) {
+                    if (!empty($memberData['id']) && !in_array((int) $memberData['id'], $reusableSourceMemberIds, true)) {
                         return redirect()->back()->withErrors([
-                            'messageError' => "El integrante seleccionado en la posición " . ($index + 1) . " no pertenece a la cuenta origen.",
+                            'messageError' => "El integrante seleccionado en la posición " . ($index + 1) . " no pertenece al grupo familiar de origen.",
                             'exception' => '',
                         ]);
                     }
@@ -1285,8 +1306,13 @@ class MemberController extends Controller
             $sourceAccountMembersById = $sourceMembership?->account?->accountMembers
                 ? $sourceMembership->account->accountMembers->keyBy('member_id')
                 : collect();
+            $reusableSourceMemberIds = $sourceMembership
+                ? $this->resolveReusableSourceMemberIds($sourceMembership)
+                    ->map(fn ($id) => (int) $id)
+                    ->all()
+                : [];
 
-            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership, $sameClubTransition, $sourceAccountMembersById) {
+            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership, $sameClubTransition, $sourceAccountMembersById, $reusableSourceMemberIds) {
                 $sourceAccount = $sourceMembership?->account;
 
                 $membershipAccount = $sameClubTransition
@@ -1335,7 +1361,7 @@ class MemberController extends Controller
                         ? Member::findOrFail($memberData['id'])
                         : null;
 
-                    if ($existingMember && $sourceAccountMembersById->has($existingMember->id)) {
+                    if ($existingMember && in_array((int) $existingMember->id, $reusableSourceMemberIds, true)) {
                         $memberAttributes = array_merge($memberAttributes, [
                             'first_name' => $existingMember->first_name,
                             'last_name' => $existingMember->last_name,
@@ -1533,6 +1559,7 @@ class MemberController extends Controller
     protected function loadMembershipContext(Membership $membership): Membership
     {
         $membership->load([
+            'account.club',
             'account.primaryHolder.member.primaryAddress',
             'account.primaryHolder.member.primaryAddress.country',
             'account.primaryHolder.member.primaryAddress.state',
@@ -1581,7 +1608,7 @@ class MemberController extends Controller
 
     protected function buildPrefillMembers(Membership $membership)
     {
-        return $membership->account->accountMembers
+        return $this->resolveReusableSourceAccountMembers($membership)
             ->sortByDesc('is_primary_holder')
             ->map(function (MembershipAccountMember $accountMember) {
                 $member = $accountMember->member;
@@ -1629,6 +1656,83 @@ class MemberController extends Controller
                     ],
                 ];
             })
+            ->values();
+    }
+
+    protected function resolveReusableSourceAccountMembers(Membership $membership)
+    {
+        $sourceAccountMembers = $membership->account?->accountMembers
+            ? $membership->account->accountMembers
+                ->filter(fn (MembershipAccountMember $accountMember) => !empty($accountMember->member_id))
+                ->keyBy('member_id')
+            : collect();
+
+        $accountGroupId = $membership->account?->account_group_id;
+
+        if (!$accountGroupId) {
+            return $sourceAccountMembers->values();
+        }
+
+        $groupAccountMembers = MembershipAccountMember::query()
+            ->with([
+                'relationship',
+                'member.primaryAddress.country',
+                'member.primaryAddress.state',
+                'member.primaryAddress.city',
+                'member.employmentInfo',
+                'member.nationality',
+                'member.birthCountry',
+                'member.birthState',
+                'member.birthCity',
+                'member.maritalStatus',
+            ])
+            ->whereHas('membershipAccount', function (Builder $query) use ($accountGroupId) {
+                $query->where('account_group_id', $accountGroupId)
+                    ->whereHas('memberships', function (Builder $membershipQuery) {
+                        $membershipQuery->where('status', 'active')
+                            ->where('is_primary', true);
+                    });
+            })
+            ->get()
+            ->filter(fn (MembershipAccountMember $accountMember) => !empty($accountMember->member_id))
+            ->keyBy('member_id');
+
+        return $sourceAccountMembers
+            ->union($groupAccountMembers)
+            ->values();
+    }
+
+    protected function resolveReusableSourceMemberIds(Membership $membership)
+    {
+        $sourceAccountMemberIds = $membership->account?->accountMembers
+            ? $membership->account->accountMembers
+                ->pluck('member_id')
+                ->filter()
+                ->values()
+            : collect();
+
+        $accountGroupId = $membership->account?->account_group_id;
+
+        if (!$accountGroupId) {
+            return $sourceAccountMemberIds;
+        }
+
+        $groupMemberIds = MembershipAccountMember::query()
+            ->whereHas('membershipAccount', function (Builder $query) use ($accountGroupId) {
+                $query->where('account_group_id', $accountGroupId)
+                    ->whereHas('memberships', function (Builder $membershipQuery) {
+                        $membershipQuery->where('status', 'active')
+                            ->where('is_primary', true);
+                    });
+            })
+            ->pluck('member_id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        return $sourceAccountMemberIds
+            ->merge($groupMemberIds)
+            ->unique()
             ->values();
     }
 
@@ -1772,10 +1876,13 @@ class MemberController extends Controller
             ->where('is_primary', true)
             ->values();
         $billableMembership = $activeMemberships->firstWhere('is_billable', true);
+        $accountClub = $membership->account?->club ?? $activeMemberships->first()?->club;
 
         return [
             'id' => $membership->account?->id,
             'membership_number' => $membership->account?->membership_number,
+            'account_club_name' => $accountClub?->name,
+            'account_club_code' => $accountClub?->code,
             'account_type' => $membership->account?->account_type,
             'status' => $membership->account?->status,
             'current_monthly_fee' => (float) ($billableMembership?->monthly_fee ?? 0),
@@ -2305,6 +2412,7 @@ class MemberController extends Controller
 
         return MembershipAccount::create([
             'account_group_id' => $group->id,
+            'club_id' => $club->id,
             'membership_number' => $this->generateMembershipNumber($club),
             'account_type' => $accountType,
             'status' => $status,
