@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\AmenityController;
 use App\Http\Controllers\Api\V1\LoginController;
 use App\Http\Controllers\Api\V1\ReservationController;
+use App\Http\Controllers\Api\V1\BusinessAdController;
 use App\Http\Controllers\Api\V1\ReservationGuestController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -22,6 +23,10 @@ Route::prefix('v1')->group(function () {
     // Amenities
     Route::get('/amenities/{amenityResource}/available-slots', [AmenityController::class, 'availableSlots'])->middleware('auth:sanctum');
     Route::get('/clubs/{club}/amenities', [AmenityController::class, 'amenitiesByClub'])->middleware('auth:sanctum');
+
+    // Business Ads
+    Route::post('/business-ads', [BusinessAdController::class, 'store']);
+
 });
 
 // Get user

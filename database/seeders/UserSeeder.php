@@ -13,11 +13,13 @@ class UserSeeder extends Seeder
      */
     public function run(): void
     {
-        User::factory()->superAdministrator()->create([
+        $user = User::firstOrCreate([
             'name' => 'Superadministrador',
             'email' => 'superadmin@tekuno.mx',
             'password' => bcrypt('Pa$$w0rd'),
         ]);
+        $user->assignRole('superadmin');
+        
         $adminClubs = User::factory()->administratorClub()->create([
             'name' => 'Administrador del Club',
             'email' => 'antoniotoxquisosa@hotmail.com',

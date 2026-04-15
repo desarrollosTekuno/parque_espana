@@ -21,12 +21,12 @@ return new class extends Migration
         });
 
         DB::table('advertising.business_ad_statuses')->insert([
-            ['id' => 1, 'name' => 'pending'],
-            ['id' => 2, 'name' => 'rejected'],
-            ['id' => 3, 'name' => 'approved'],
-            ['id' => 4, 'name' => 'paid'],
-            ['id' => 5, 'name' => 'published'],
-            ['id' => 6, 'name' => 'expired']
+            ['id' => 1, 'name' => 'Pendiente'],
+            ['id' => 2, 'name' => 'Rechazado'],
+            ['id' => 3, 'name' => 'Aprobado'],
+            ['id' => 4, 'name' => 'Pagado'],
+            ['id' => 5, 'name' => 'Publicado'],
+            ['id' => 6, 'name' => 'Expirado']
         ]);
     }
 

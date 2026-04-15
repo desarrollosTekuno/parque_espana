@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Web\AdminClub;
 
 use Illuminate\Routing\Controller;
 use Illuminate\Http\Request;
+use App\Models\Billing\Charge;
 use Illuminate\Support\Facades\DB;
 use App\Models\AdminClub\BusinessAd;
+use App\Models\Billing\ChargeConcept;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -24,34 +26,29 @@ class BusinessAdController extends Controller {
 
     public function index(Request $request){
         try {
-            $prefix = 'business_ads';
             $driver = DB::getDriverName();
-
-            $query = BusinessAd::with('status','user');
-            if ($search = $request->input("{$prefix}_search")) {
-
+            $query = BusinessAd::with(['status', 'member']);
+           // dd($query);
+            if ($search = $request->input("search")) {
                 $operator = $driver == 'pgsql' ? 'ilike' : 'like';
-
                 $query->where(function ($q) use ($search, $operator) {
                     $q->where('title', $operator, "%{$search}%")
-                      ->orWhere('description', $operator, "%{$search}%")
-                      ->orWhereHas('user', fn($u) =>
-                          $u->where('name', $operator, "%{$search}%")
-                      );
+                    ->orWhere('description', $operator, "%{$search}%")
+                    ->orWhereHas('user', function($u) use ($search, $operator){
+                        $u->where('name', $operator, "%{$search}%");
+                    });
                 });
             }
-            $sort = $request->input("{$prefix}_sort", 'id');
-            $order = $request->input("{$prefix}_order",'desc');
-            $query->orderBy($sort, $order);
-            $ads = $query->paginate($request->input("{$prefix}_per_page",10))
-                         ->appends($request->except('club_id'));
-            return Inertia::render('AdminClubs/BusinessAds/Index',[
+            $query->orderBy('id', 'desc');
+            $ads = $query->paginate(
+                $request->input("per_page", 10)
+            )->withQueryString();
+            return Inertia::render('AdminClubs/BusinessAds/Index', [
                 'ads' => $ads
             ]);
-
         } catch (\Exception $e) {
             report($e);
-            return Inertia::render('AdminClubs/BusinessAds/Index',[
+            return Inertia::render('AdminClubs/BusinessAds/Index', [
                 'ads' => [
                     'data' => [],
                     'total' => 0
@@ -66,19 +63,51 @@ class BusinessAdController extends Controller {
         try {
             DB::beginTransaction();
 
-            $ad = BusinessAd::findOrFail($id);
+            $ad = BusinessAd::with('member.accountMemberships.membershipAccount.memberships')
+                ->findOrFail($id);
             $ad->update([
                 'status_id' => 3, // approved
                 'approved_at' => now()
             ]);
 
+            if (!$ad->member) {
+                throw new \Exception('El anuncio no tiene miembro asociado');
+            }
+
+            $accountMembership = $ad->member->accountMemberships()->first();
+            if (!$accountMembership) {
+                throw new \Exception('El socio no tiene cuenta de membresía');
+            }
+            $membership = $accountMembership->membershipAccount->memberships->first();
+            if (!$membership) {
+                throw new \Exception('No se encontró membership');
+            }
+            $concept = ChargeConcept::findOrFail(3); 
+            Charge::create([
+                'membership_account_id' => $accountMembership->membership_account_id,
+                'membership_id' => $membership->id ?? null,
+                'member_id' => $ad->member_id,
+                'concept_id' => 3, 
+                'description' => $concept->description,
+                'amount' => $concept->default_amount, 
+                'balance' => $concept->default_amount,
+                'issue_date' => now(),
+                'due_date' => now()->addDays(7),
+                'period_year' => now()->year,
+                'period_month' => now()->month,
+                'allows_partial_payments' => false,
+                'status' => 'pending',
+                'metadata' => [
+                    'business_ad_id' => $ad->id
+                ]
+            ]);
             DB::commit();
             return back()->with('success','Anuncio aprobado correctamente');
 
         } catch (\Exception $e) {
             DB::rollBack();
             report($e);
-
+            //dd($e->getMessage());
             return back()->withErrors([
                 'messageError' => $e->getMessage()
             ]);

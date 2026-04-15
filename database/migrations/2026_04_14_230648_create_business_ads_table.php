@@ -13,8 +13,16 @@ return new class extends Migration
     {
         Schema::create('advertising.business_ads', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('member_id')
-                ->constrained('members.members')
+            $table->foreignId('member_id');
+            $table->foreign('member_id')
+                ->references('id')
+                ->on('members.members')
+                ->cascadeOnDelete();
+
+            $table->foreignId('club_id');
+            $table->foreign('club_id')
+                ->references('id')
+                ->on('clubs.clubs')
                 ->cascadeOnDelete();
             $table->string('name');
             $table->string('category')->nullable();
@@ -24,6 +32,7 @@ return new class extends Migration
             $table->string('phone')->nullable();
             $table->string('email')->nullable();
             $table->string('website')->nullable();
+            $table->text('rejection_reason')->nullable();
             $table->foreignId('status_id')
                 ->default(1)
                 ->constrained('advertising.business_ad_statuses');

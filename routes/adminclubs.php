@@ -34,7 +34,12 @@ Route::delete('announcements/gallery/{image}',[AnnouncementController::class,'de
 Route::get('announcements/{announcement}/gallery', [AnnouncementController::class,'getGallery'])->name('announcements.gallery.index');
 
 // business_ads
-Route::resource('/business-ads', BusinessAdController::class)->names('business-ads');
+Route::get('/business-ads', [BusinessAdController::class, 'index'])->name('business-ads.index');
+Route::post('/business-ads/{id}/approve', [BusinessAdController::class, 'approve'])->name('business-ads.approve');
+Route::post('/business-ads/{id}/reject', [BusinessAdController::class, 'reject'])->name('business-ads.reject');
+Route::post('/business-ads/{id}/confirm-payment', [BusinessAdController::class, 'confirmPayment'])->name('business-ads.confirm-payment');
+Route::post('/business-ads/{id}/publish', [BusinessAdController::class, 'publish'])->name('business-ads.publish');
+Route::delete('/business-ads/{id}', [BusinessAdController::class, 'destroy'])->name('business-ads.destroy');
 
 // members
 Route::get('/members/{membership}/additional-membership/create', [MemberController::class, 'createAdditionalMembership'])
