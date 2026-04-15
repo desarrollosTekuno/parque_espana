@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'country_state_city' => [
+        'base_url' => env('COUNTRY_STATE_CITY_BASE_URL', 'https://api.countrystatecity.in/v1'),
+        'api_key' => env('COUNTRY_STATE_CITY_API_KEY'),
+    ],
+
 ];

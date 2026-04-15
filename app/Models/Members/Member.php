@@ -3,8 +3,10 @@
 namespace App\Models\Members;
 
 use App\Models\Billing\Charge;
+use App\Models\Catalogs\City;
+use App\Models\Catalogs\Country;
 use App\Models\Catalogs\MaritalStatus;
-use App\Models\Catalogs\Nationality;
+use App\Models\Catalogs\State;
 use App\Models\Memberships\MembershipAccountMember;
 use App\Traits\SerializesDates;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -40,7 +42,22 @@ class Member extends Model
 
     public function nationality()
     {
-        return $this->belongsTo(Nationality::class, 'nationality_id');
+        return $this->belongsTo(Country::class, 'nationality_id');
+    }
+
+    public function birthCountry()
+    {
+        return $this->belongsTo(Country::class, 'birth_country_id');
+    }
+
+    public function birthState()
+    {
+        return $this->belongsTo(State::class, 'birth_state_id');
+    }
+
+    public function birthCity()
+    {
+        return $this->belongsTo(City::class, 'birth_city_id');
     }
 
     public function maritalStatus()

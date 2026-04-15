@@ -69,6 +69,8 @@ interface AccountMemberItem {
 interface MembershipAccount {
     id: number;
     membership_number: string | null;
+    account_club_name: string | null;
+    account_club_code: string | null;
     account_type: string | null;
     status: string | null;
     current_monthly_fee: number;
@@ -190,10 +192,14 @@ const addressSummary = (member: AccountMemberItem) => {
                             <v-col cols="12" md="4">
                                 <v-card class="pa-4 h-100" variant="tonal">
                                     <div class="text-caption text-medium-emphasis">
-                                        Folio
+                                        Cuenta
                                     </div>
                                     <div class="text-h6 font-weight-bold">
                                         {{ props.account.membership_number || "-" }}
+                                    </div>
+                                    <div class="text-body-2 mt-2">
+                                        {{ props.account.account_club_code || "-" }} ·
+                                        {{ props.account.account_club_name || "Sin club" }}
                                     </div>
                                     <div class="text-body-2 mt-2">
                                         Cuenta {{ accountTypeLabel }}

@@ -131,7 +131,7 @@ const submit = () => {
                                 Cuenta familiar origen
                             </div>
                             <p>
-                                <strong>Folio:</strong>
+                                <strong>No. cuenta:</strong>
                                 {{ props.membership.membership_number || "-" }}
                             </p>
                             <p>
@@ -152,7 +152,7 @@ const submit = () => {
                                 <p class="text-body-2 text-medium-emphasis mb-4">
                                     Selecciona al integrante que saldrá de la cuenta
                                     familiar y el tipo de membresía destino. Se creará
-                                    un nuevo folio para esa persona.
+                                    un nuevo no. cuenta para esa persona.
                                 </p>
 
                                 <v-autocomplete

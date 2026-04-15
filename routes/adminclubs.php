@@ -46,6 +46,10 @@ Route::get('/members/{membership}/additional-membership/create', [MemberControll
     ->name('members.additional-membership.create');
 Route::get('/members/pricing-preview', [MemberController::class, 'pricingPreview'])
     ->name('members.pricing-preview');
+Route::get('/members/location-catalogs/states', [MemberController::class, 'locationStates'])
+    ->name('members.location-catalogs.states');
+Route::get('/members/location-catalogs/cities', [MemberController::class, 'locationCities'])
+    ->name('members.location-catalogs.cities');
 Route::get('/members/{membership}/manage', [MemberController::class, 'show'])
     ->name('members.manage.show');
 Route::get('/members/{membership}/transition/create', [MemberController::class, 'createMembershipTransition'])

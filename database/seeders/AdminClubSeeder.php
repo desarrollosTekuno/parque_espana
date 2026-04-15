@@ -15,7 +15,6 @@ class AdminClubSeeder extends Seeder
     {
         //
         $adminClubPermissions = array(
-            'dashboard',
             'profile.show',
             'announcements.index',
             'announcements.store',

@@ -15,7 +15,6 @@ class PermissionSeeder extends Seeder
     public function run(): void
     {
         $permissions = array(
-            array('name' => 'dashboard', 'description' => 'Acceso al dashboard', 'contexts' => ['web']),
             array('name' => 'profile.show', 'description' => 'Ver perfil', 'contexts' => ['web']),
             array('name' => 'permissions.index', 'description' => 'Ver permisos', 'contexts' => ['web']),
             array('name' => 'permissions.store', 'description' => 'Crear permisos', 'contexts' => ['web']),
