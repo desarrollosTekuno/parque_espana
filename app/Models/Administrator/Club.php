@@ -16,6 +16,7 @@ class Club extends Model {
     use HasFactory, SoftDeletes,SerializesDates;
 
     protected $table = 'clubs.clubs';
+    protected $connection = 'pgsql';
 
     protected $guarded = ['id', 'created_at', 'updated_at'];
     protected $dates = ['deleted_at'];

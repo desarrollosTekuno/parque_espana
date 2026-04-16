@@ -15,6 +15,7 @@ use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\Traits\HasRoles;
 use Illuminate\Support\Facades\Auth;
+use App\Models\Members\Member;
 
 class User extends Authenticatable implements MustVerifyEmail
 {
@@ -79,5 +80,9 @@ class User extends Authenticatable implements MustVerifyEmail
             return $this->belongsToMany(Club::class, 'user_clubs', 'user_id', 'club_id');
         }
 
-    
+    public function member()
+    {
+        return $this->hasOne(Member::class, 'user_id');
+    }
+   
 }

@@ -13,20 +13,25 @@ const can = page.props.auth.permissions;
 interface Props {
     ads?: any;
 }
-
+interface Ad {
+    rejection_reason?: string;
+    status?: { name: string };
+    member?: { full_name?: string };
+    [key: string]: any;
+}
 const props = defineProps<Props>();
 const showDetailModal = ref(false);
-const selectedAd = ref<any>(null);
-const headers = [
+const selectedAd = ref<Ad | null>(null);
+const headers = ref([
     { title: "Negocio", key: "name" },
     { title: "Categoría", key: "category" },
-    { title: "Socio", key: "member.full_name" },
+    { title: "Socio", key: "member" }, 
     { title: "Estatus", key: "status" },
-    { title: "Fecha", key: "created_at" },
+    { title: "Fecha de solicitud", key: "created_at" },
     { title: "Acciones", key: "actions" }
-];
+]);
 
-const items = ref([]);
+const items = ref<Ad[]>([]);
 const total = ref(0);
 const loading = ref(false);
 
@@ -58,17 +63,6 @@ const fetchItems = () => {
         }
     );
 };
-
-watch(
-    () => props.ads,
-    (val) => {
-        items.value = val?.data ?? [];
-        total.value = val?.total ?? 0;
-        loading.value = false;
-    },
-    { immediate: true }
-);
-
 watch(
     [options, search],
     debounce(fetchItems, 400),
@@ -82,9 +76,14 @@ const viewDetail = (item: any) => {
 
 const formatDate = (val: string | null) => {
     if (!val) return "-";
-    const [date, time] = val.split(" ");
-    const [y, m, d] = date.split("-");
-    return `${d}/${m}/${y}`;
+
+    const date = new Date(val);
+
+    return date.toLocaleDateString("es-MX", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric"
+    });
 };
 
 const getStatusColor = (status: string) => {
@@ -149,55 +148,37 @@ const reject = (item: any) => {
     });
 };
 
-const confirmPayment = (item: any) => {
-    customConfirmSwal({ 
-        title: "¿Confirmar pago?",
-        text: "El anuncio será marcado como pagado y podrá ser publicado",
-        confirmText: "Sí, confirmar",
-        actionType: "payment"
-     })
-    .then(r => {
-        if (r.isConfirmed) {
-            router.post(route("business-ads.confirm-payment", item.id), {}, {
-                onSuccess: () => {
-                    customToastSwal({
-                        title: page.props.flash.success,
-                        icon: "success"
-                    });
-                    fetchItems();
-                    showDetailModal.value = false;
-                }
-            });
-        }
-    });
-};
-
-const publish = (item: any) => {
-    customConfirmSwal({ 
-        title: "¿Publicar anuncio?",
-        text: "El anuncio será publicado y visible para todos los usuarios",
-        confirmText: "Sí, publicar",
-        actionType: "publish"
-     })
-    .then(r => {
-        if (r.isConfirmed) {
-            router.post(route("business-ads.publish", item.id), {}, {
-                onSuccess: () => {
-                    customToastSwal({
-                        title: page.props.flash.success,
-                        icon: "success"
-                    });
-                    fetchItems();
-                    showDetailModal.value = false;
-                }
-            });
-        }
-    });
-};
 const isExpired = (item:any) => {
     if (!item.expires_at) return false;
     return new Date(item.expires_at) < new Date();
 };
+watch(
+    () => props.ads,
+    (val) => {
+        items.value = val?.data ?? [];
+        total.value = val?.total ?? 0;
+        loading.value = false;
+
+        const hasRejected = items.value.some(
+            (item) => item.status?.name === "Rechazado"
+        );
+
+        const alreadyExists = headers.value.some(h => h.key === "rejection_reason");
+
+        if (hasRejected && !alreadyExists) {
+            headers.value.splice(4, 0, {
+                title: "Motivo rechazo",
+                key: "rejection_reason"
+            });
+        }
+
+        if (!hasRejected && alreadyExists) {
+            headers.value = headers.value.filter(h => h.key !== "rejection_reason");
+        }
+    },
+    { immediate: true }
+);
+console.log(page.props.pendingBusinessAds);
 </script>
 
 <template>
@@ -219,8 +200,8 @@ const isExpired = (item:any) => {
             <template #top>
                 <v-text-field v-model="search" label="Buscar anuncio" />
             </template>
-            <template #item.user="{ item }">
-                {{ item.user?.name ?? '-' }}
+            <template #item.member="{ item }">
+                {{ item.member?.full_name ?? '-' }}
             </template>
             <template #item.status="{ item }">
                 <v-chip
@@ -233,10 +214,16 @@ const isExpired = (item:any) => {
             <template #item.created_at="{ item }">
                 {{ formatDate(item.created_at) }}
             </template>
+            <template #item.rejection_reason="{ item }: { item: Ad }">
+                <span v-if="item.rejection_reason" class="text-red-darken-2">
+                    {{ item.rejection_reason }}
+                </span>
+                <span v-else>-</span>
+            </template>
             <template #item.actions="{ item }">
-
                 <BaseButton
                     action="view"
+                    color="green"
                     @click="viewDetail(item)"
                 />
                 <!-- pending -->
@@ -248,22 +235,9 @@ const isExpired = (item:any) => {
 
                 <BaseButton
                     v-if="item.status?.name === 'Pendiente'" icon="mdi-close"
-                    action="delete"
+                    action="Rechazar"
+                    color="red"
                     @click="reject(item)"
-                />
-
-                <!-- approved -->
-                <BaseButton
-                    v-if="item.status?.name === 'Aprobado'" icon="mdi-cash"
-                    action="Confirmar pago"
-                    @click="confirmPayment(item)"
-                />
-
-                <!-- paid -->
-                <BaseButton
-                    v-if="item.status?.name === 'Pagado'" icon="mdi-publish"
-                    action="Publicar"
-                    @click="publish(item)"
                 />
             </template>
         </v-data-table-server>
@@ -282,13 +256,11 @@ const isExpired = (item:any) => {
                                 <!-- Imagen -->
                                 <v-img
                                     v-if="selectedAd.image"
-                                    :src="`/storage/${selectedAd.image}`"
+                                    :src="`${selectedAd.image}`"
                                     height="180"
                                     cover
                                 />
-
                                 <v-card-text>
-
                                     <!-- Título -->
                                     <div class="text-h6 font-weight-bold">
                                         {{ selectedAd.name }}
@@ -318,7 +290,15 @@ const isExpired = (item:any) => {
                                             🌐 {{ selectedAd.website }}
                                         </div>
                                     </div>
-
+                                    <v-alert
+                                        v-if="selectedAd.rejection_reason"
+                                        type="error"
+                                        variant="tonal"
+                                        class="mb-3"
+                                    >
+                                        <strong>Motivo de rechazo:</strong><br>
+                                        {{ selectedAd.rejection_reason }}
+                                    </v-alert>
                                 </v-card-text>
 
                                 <!-- Footer -->
@@ -333,7 +313,7 @@ const isExpired = (item:any) => {
                                     </v-chip>
 
                                     <!-- Vigencia -->
-                                    <div class="text-caption">
+                                    <div class="red">
                                         Expira: {{ formatDate(selectedAd.expires_at) }}
                                     </div>
 
@@ -361,24 +341,6 @@ const isExpired = (item:any) => {
                         :icon-only="false"
                         icon="mdi-close"
                         @click="reject(selectedAd)"
-                    />
-                    <!-- approved -->
-                    <BaseButton
-                        v-if="selectedAd?.status?.name === 'Aprobado'"
-                        text="Confirmar pago"
-                        action="payment"
-                        :icon-only="false"
-                        icon="mdi-cash"
-                        @click="confirmPayment(selectedAd)"
-                    />
-                    <!-- paid -->
-                    <BaseButton
-                        v-if="selectedAd?.status?.name === 'Pagado'"
-                        text="Publicar"
-                        action="publish"
-                        :icon-only="false"
-                        icon="mdi-cash"
-                        @click="publish(selectedAd)"
                     />
                     <BaseButton
                         text="Cerrar"

@@ -25,7 +25,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/clubs/{club}/amenities', [AmenityController::class, 'amenitiesByClub'])->middleware('auth:sanctum');
 
     // Business Ads
-    Route::post('/business-ads', [BusinessAdController::class, 'store']);
+    Route::post('/business-ads', [BusinessAdController::class, 'store'])->middleware('auth:sanctum');
 
 });
 

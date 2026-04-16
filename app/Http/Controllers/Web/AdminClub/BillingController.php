@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web\AdminClub;
 use App\Http\Controllers\Controller;
 use App\Models\Administrator\Club;
 use App\Models\Billing\Charge;
+use App\Models\AdminClub\BusinessAd;
 use App\Models\Billing\PaymentMethod;
 use App\Models\Memberships\MembershipAccount;
 use App\Rules\ExistsInSchema;
@@ -289,7 +290,7 @@ class BillingController extends Controller
         }
     }
 
-    public function storePayment(Request $request)
+    public function storePayment(Request $request) 
     {
         try {
             $validated = $request->validate([
@@ -325,7 +326,24 @@ class BillingController extends Controller
                 receivedBy: $request->user()?->id,
                 sessionClubId: session('club_id')
             );
+            
+            // Actualizar estatus de anuncios relacionados a los cargos aplicados
+            $chargeIds = collect($validated['applications'])->pluck('charge_id');
+            $charges = Charge::whereIn('id', $chargeIds)->get();
+            $businessAdIds = $charges
+                ->pluck('metadata.business_ad_id')
+                ->filter()
+                ->unique();
 
+            BusinessAd::whereIn('id', $businessAdIds)
+                ->where('status_id', 3)
+                ->update([
+                    'status_id' => 5,
+                    'paid_at' => now(),
+                    'published_at' => now(),
+                    'expires_at' => now()->addMonth()
+                ]);
+            
             return redirect()->back()->with('success', sprintf(
                 'Cobro registrado correctamente por $%s.',
                 number_format((float) $payment->amount, 2)

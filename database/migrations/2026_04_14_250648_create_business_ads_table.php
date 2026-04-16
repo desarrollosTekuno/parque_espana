@@ -24,6 +24,7 @@ return new class extends Migration
                 ->references('id')
                 ->on('clubs.clubs')
                 ->cascadeOnDelete();
+
             $table->string('name');
             $table->string('category')->nullable();
             $table->string('image')->nullable();

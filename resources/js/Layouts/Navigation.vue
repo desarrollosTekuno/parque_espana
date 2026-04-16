@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import routes from '@/routing';
 import { Link, usePage } from '@inertiajs/vue3';
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, computed } from 'vue';
 import { router } from "@inertiajs/vue3";
 const can = usePage().props.auth.permissions;
 const auth = usePage().props.auth;
-
 const page = usePage<any>();
-
+const pendingAds = computed(() => page.props.pendingBusinessAds ?? 0);
 const clubs = page.props.auth?.clubs ?? [];
 
 const selectedClub = ref(page.props.auth?.currentClub ?? null);
@@ -85,7 +84,7 @@ onMounted(() => {
                 <!-- {{ existSomeRoute(ruta.name) }} -->
                 <div v-if="ruta.group == null">
                     <Link v-if="existSomeRoute(ruta.name)" :href="route(ruta.name)" preserve-scroll>
-                    <v-list-item elevation="0" variant="elevated"  rounded="pill"
+                    <!--<v-list-item elevation="0" variant="elevated"  rounded="pill"
                          :title="ruta.title"
                         active-color="customSecondary"
                         base-color="customPrimary"
@@ -93,8 +92,23 @@ onMounted(() => {
                         <template #prepend>
                             <v-icon :icon="ruta.icon"></v-icon>
                         </template>
-                        <!-- :active="route().current(ruta.name)" :prepend-icon="ruta.icon" :title="ruta.title"> -->
-                        <!-- is open -->
+                    </v-list-item>-->
+                    <v-list-item elevation="0" variant="elevated" rounded="pill"
+                        active-color="customSecondary"
+                        base-color="customPrimary"
+                        :active="ruta.name instanceof Array ? route().current(ruta.name[0]) : route().current(ruta.name)">
+                        <template #prepend>
+                            <v-icon :icon="ruta.icon"></v-icon>
+                        </template>
+                        <v-list-item-title class="d-flex align-center justify-space-between w-100">
+                            <span>{{ ruta.title }}</span>
+                            <v-badge
+                                v-if="ruta.showBadge && pendingAds > 0"
+                                :content="pendingAds > 9 ? '9+' : pendingAds"
+                                color="red"
+                                inline
+                            />
+                        </v-list-item-title>
                     </v-list-item>
                     </Link>
                 </div>

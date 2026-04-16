@@ -4,6 +4,7 @@ interface Routing {
     icon: string;
     value: string;
     group: string | null;
+    showBadge?: boolean;
     groupItems?: Array<{
         name: string;
         title: string;
@@ -173,6 +174,7 @@ const routes: Routing[] = [
         icon: "mdi-storefront-outline",
         value: "publicidad-negocios",
         group: null,
+        showBadge: true 
         // groupItems: null
     },
     // Variables de sistema

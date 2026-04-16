@@ -10,8 +10,11 @@ class BusinessAd extends Model {
     use HasFactory, SoftDeletes;
 
     protected $table = 'advertising.business_ads'; 
+    protected $connection = 'pgsql';
     
     protected $fillable = [
+        'member_id',
+        'club_id',
         'name',
         'category',
         'description',
@@ -25,8 +28,15 @@ class BusinessAd extends Model {
         'paid_at',
         'published_at',
         'expires_at',
+        'rejection_reason',
     ];
     protected $dates = ['deleted_at'];
+    
+    protected $casts = [
+    'expires_at' => 'datetime',
+    'published_at' => 'datetime',
+    'paid_at' => 'datetime',
+];
 
     public function status()
     {

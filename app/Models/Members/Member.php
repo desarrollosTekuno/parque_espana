@@ -17,8 +17,9 @@ class Member extends Model
     use HasFactory, SerializesDates;
 
     protected $guarded = ['id', 'created_at', 'updated_at'];
-
     protected $table = 'members.members';
+    protected $connection = 'pgsql';
+    protected $appends = ['full_name'];
 
     public function accountMemberships()
     {

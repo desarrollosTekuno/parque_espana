@@ -7,7 +7,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
 use App\Models\AdminClub\BusinessAd;
-
+use Illuminate\Support\Facades\Auth;
+use App\Models\Administrator\Club;
+use App\Models\Members\Member;
 
 class BusinessAdController extends Controller {
 
@@ -16,13 +18,13 @@ class BusinessAdController extends Controller {
         //return Inertia::render('Ruta/Index', compact('items'));
     }
 
-     public function store(Request $request)
+    public function store(Request $request)
     {
         try {
 
             $validator = Validator::make($request->all(), [
-                'member_id' => 'required|exists:members.members,id',
-                'club_id' => 'required|exists:clubs.clubs,id',
+                'member_id' => 'required',
+                'club_id' => 'required',
                 'name' => 'required|string|max:255',
                 'category' => 'nullable|string|max:255',
                 'image' => 'nullable|image|max:2048',
@@ -41,14 +43,44 @@ class BusinessAdController extends Controller {
                 ], 422);
             }
 
+            $member = Member::find($request->member_id);
+            if (!$member) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El socio no existe'
+                ], 422);
+            }
+
+            $club = Club::find($request->club_id);
+            if (!$club) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El club no existe'
+                ], 422);
+            }
+
             $data = $validator->validated();
+
+            $exists = BusinessAd::where('member_id', $request->member_id)
+                ->where('club_id', $request->club_id)
+                ->where('name', $request->name)
+                ->exists();
+
+            if ($exists) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ya existe un anuncio con este nombre para este socio en este club'
+                ], 422);
+            }
+
             if ($request->hasFile('image')) {
                 $path = $request->file('image')->store('business_ads', 'public');
                 $data['image'] = Storage::url($path);
             }
+
             $ad = BusinessAd::create([
                 ...$data,
-                'status_id' => 1 // pendiente
+                'status_id' => 1
             ]);
 
             return response()->json([

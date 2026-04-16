@@ -26,8 +26,9 @@ class BusinessAdController extends Controller {
 
     public function index(Request $request){
         try {
+            $clubId = $request->club_id ?? session('club_id');
             $driver = DB::getDriverName();
-            $query = BusinessAd::with(['status', 'member']);
+            $query = BusinessAd::with(['status', 'member'])->where('club_id', $clubId);
            // dd($query);
             if ($search = $request->input("search")) {
                 $operator = $driver == 'pgsql' ? 'ilike' : 'like';
@@ -115,13 +116,14 @@ class BusinessAdController extends Controller {
     }
 
     /*   Rechazar anuncio   */
-    public function reject($id){
+    public function reject(Request $request, $id){
         try {
             DB::beginTransaction();
 
             $ad = BusinessAd::findOrFail($id);
             $ad->update([
-                'status_id' => 2 // rejected
+                'status_id' => 2, // rejected
+                'rejection_reason' => $request->reason,
             ]);
             DB::commit();
             return back()->with('success','Anuncio rechazado correctamente');
