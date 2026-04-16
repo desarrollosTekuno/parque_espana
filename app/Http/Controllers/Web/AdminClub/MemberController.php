@@ -2486,6 +2486,7 @@ class MemberController extends Controller
     ): Builder {
         return PricingRule::query()
             ->where('membership_type_id', $membershipTypeId)
+            ->where('is_active', true)
             ->when(
                 $fromMembershipTypeId !== null,
                 fn(Builder $query) => $query->where('from_membership_type_id', $fromMembershipTypeId),
@@ -2502,7 +2503,15 @@ class MemberController extends Controller
                 },
                 fn(Builder $query) => $query->whereNull('min_age')->whereNull('max_age')
             )
-            ->where('requires_multiple_clubs', $requiresMultipleClubs);
+            ->where('requires_multiple_clubs', $requiresMultipleClubs)
+            ->where(function (Builder $query) {
+                $query->whereNull('valid_from')
+                    ->orWhere('valid_from', '<=', now()->toDateString());
+            })
+            ->where(function (Builder $query) {
+                $query->whereNull('valid_until')
+                    ->orWhere('valid_until', '>=', now()->toDateString());
+            });
     }
 
     protected function generateMembershipNumber(Club $club): string
