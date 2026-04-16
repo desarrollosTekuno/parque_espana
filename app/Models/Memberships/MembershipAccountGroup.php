@@ -18,4 +18,9 @@ class MembershipAccountGroup extends Model
     {
         return $this->hasMany(MembershipAccount::class, 'account_group_id');
     }
+
+    public function absencePermits()
+    {
+        return $this->hasMany(AbsencePermit::class, 'account_group_id');
+    }
 }

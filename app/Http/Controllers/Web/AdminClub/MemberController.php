@@ -12,6 +12,7 @@ use App\Models\Catalogs\State;
 use App\Models\Members\Address;
 use App\Models\Members\EmploymentInfo;
 use App\Models\Members\Member;
+use App\Models\Memberships\AbsencePermit;
 use App\Models\Memberships\InterclubPackageRule;
 use App\Models\Memberships\Membership;
 use App\Models\Memberships\MembershipAccount;
@@ -516,6 +517,127 @@ class MemberController extends Controller
             'canSeparateMembers' => (bool) $membership->membershipType?->allows_multiple_members
                 && $membership->account->accountMembers->where('is_primary_holder', false)->isNotEmpty(),
         ]);
+    }
+
+    public function storeAbsencePermit(Request $request, Membership $membership)
+    {
+        try {
+            $clubId = session('club_id');
+
+            if ((int) $membership->club_id !== (int) $clubId) {
+                abort(404);
+            }
+
+            $membership = $this->loadMembershipContext($membership);
+
+            if ($membership->status !== 'active' || !$membership->is_primary) {
+                return redirect()->back()->withErrors([
+                    'messageError' => 'Solo puedes registrar un permiso por ausencia para una membresía activa y principal.',
+                    'exception' => '',
+                ]);
+            }
+
+            $validated = $request->validate([
+                'start_date' => ['required', 'date', 'after_or_equal:today'],
+                'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+                'charge_percentage' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
+                'notes' => ['nullable', 'string', 'max:1000'],
+            ]);
+
+            $accountGroup = $membership->account?->accountGroup;
+            $primaryHolder = $membership->account?->primaryHolder;
+
+            if (!$accountGroup || !$primaryHolder?->member_id) {
+                return redirect()->back()->withErrors([
+                    'messageError' => 'La cuenta no tiene un grupo o titular válido para registrar el permiso por ausencia.',
+                    'exception' => '',
+                ]);
+            }
+
+            $startDate = Carbon::parse($validated['start_date'])->startOfDay();
+            $endDate = Carbon::parse($validated['end_date'])->startOfDay();
+
+            $overlappingPermit = AbsencePermit::query()
+                ->where('account_group_id', $accountGroup->id)
+                ->whereIn('status', ['approved', 'active'])
+                ->whereDate('start_date', '<=', $endDate->toDateString())
+                ->whereDate('end_date', '>=', $startDate->toDateString())
+                ->exists();
+
+            if ($overlappingPermit) {
+                throw ValidationException::withMessages([
+                    'start_date' => 'Ya existe un permiso por ausencia vigente o programado que se cruza con el periodo seleccionado.',
+                ]);
+            }
+
+            AbsencePermit::create([
+                'account_group_id' => $accountGroup->id,
+                'membership_account_id' => $membership->membership_account_id,
+                'primary_member_id' => $primaryHolder->member_id,
+                'start_date' => $startDate->toDateString(),
+                'end_date' => $endDate->toDateString(),
+                'charge_percentage' => (float) ($validated['charge_percentage'] ?? 25),
+                'status' => $this->resolveAbsencePermitStatus($startDate, $endDate),
+                'blocks_facility_access' => true,
+                'blocks_reservations' => true,
+                'notes' => $validated['notes'] ?? null,
+                'approved_by' => $request->user()?->id,
+                'approved_at' => now(),
+            ]);
+
+            return redirect()
+                ->route('members.manage.show', $membership)
+                ->with('success', 'Permiso por ausencia registrado correctamente.');
+        } catch (ValidationException $e) {
+            return $this->validationExceptionResponse($e);
+        } catch (\Exception $e) {
+            report($e);
+
+            return redirect()->back()->withErrors([
+                'messageError' => 'Ocurrió un error al registrar el permiso por ausencia.',
+                'exception' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public function cancelAbsencePermit(Request $request, Membership $membership, AbsencePermit $absencePermit)
+    {
+        try {
+            $clubId = session('club_id');
+
+            if ((int) $membership->club_id !== (int) $clubId) {
+                abort(404);
+            }
+
+            $membership = $this->loadMembershipContext($membership);
+            $accountGroupId = (int) ($membership->account?->account_group_id ?? 0);
+
+            if ((int) $absencePermit->account_group_id !== $accountGroupId) {
+                abort(404);
+            }
+
+            if (in_array($absencePermit->status, ['cancelled', 'finished'], true)) {
+                return redirect()->back()->withErrors([
+                    'messageError' => 'El permiso por ausencia ya no puede cancelarse.',
+                    'exception' => '',
+                ]);
+            }
+
+            $absencePermit->update([
+                'status' => 'cancelled',
+            ]);
+
+            return redirect()
+                ->route('members.manage.show', $membership)
+                ->with('success', 'Permiso por ausencia cancelado correctamente.');
+        } catch (\Exception $e) {
+            report($e);
+
+            return redirect()->back()->withErrors([
+                'messageError' => 'Ocurrió un error al cancelar el permiso por ausencia.',
+                'exception' => $e->getMessage(),
+            ]);
+        }
     }
 
     public function createChangePrimaryHolder(Request $request, Membership $membership)
@@ -1560,6 +1682,7 @@ class MemberController extends Controller
     {
         $membership->load([
             'account.club',
+            'account.accountGroup.absencePermits',
             'account.primaryHolder.member.primaryAddress',
             'account.primaryHolder.member.primaryAddress.country',
             'account.primaryHolder.member.primaryAddress.state',
@@ -1871,12 +1994,23 @@ class MemberController extends Controller
 
     protected function buildMembershipAccountPayload(Membership $membership): array
     {
+        $this->syncAbsencePermitStatuses($membership->account?->accountGroup);
+
         $activeMemberships = $membership->account->memberships
             ->where('status', 'active')
             ->where('is_primary', true)
             ->values();
         $billableMembership = $activeMemberships->firstWhere('is_billable', true);
         $accountClub = $membership->account?->club ?? $activeMemberships->first()?->club;
+        $absencePermits = $membership->account?->accountGroup?->absencePermits
+            ? $membership->account->accountGroup->absencePermits
+                ->sortByDesc('start_date')
+                ->values()
+            : collect();
+        $currentAbsencePermit = $this->resolveCurrentAbsencePermit($absencePermits);
+        $billableMonthlyTotal = (float) $activeMemberships
+            ->where('is_billable', true)
+            ->sum('monthly_fee');
 
         return [
             'id' => $membership->account?->id,
@@ -1886,6 +2020,15 @@ class MemberController extends Controller
             'account_type' => $membership->account?->account_type,
             'status' => $membership->account?->status,
             'current_monthly_fee' => (float) ($billableMembership?->monthly_fee ?? 0),
+            'absence_permit_preview_fee' => $currentAbsencePermit
+                ? round($billableMonthlyTotal * ((float) $currentAbsencePermit->charge_percentage / 100), 2)
+                : null,
+            'current_absence_permit' => $currentAbsencePermit
+                ? $this->buildAbsencePermitPayload($currentAbsencePermit)
+                : null,
+            'absence_permits' => $absencePermits
+                ->map(fn (AbsencePermit $absencePermit) => $this->buildAbsencePermitPayload($absencePermit))
+                ->values(),
             'primary_holder' => $this->buildDetailedAccountMemberPayload($membership->account?->primaryHolder),
             'members' => $membership->account->accountMembers
                 ->sortByDesc('is_primary_holder')
@@ -1908,6 +2051,80 @@ class MemberController extends Controller
                 })
                 ->values(),
         ];
+    }
+
+    protected function buildAbsencePermitPayload(AbsencePermit $absencePermit): array
+    {
+        return [
+            'id' => $absencePermit->id,
+            'start_date' => $absencePermit->start_date,
+            'end_date' => $absencePermit->end_date,
+            'charge_percentage' => (float) $absencePermit->charge_percentage,
+            'status' => $absencePermit->status,
+            'blocks_facility_access' => (bool) $absencePermit->blocks_facility_access,
+            'blocks_reservations' => (bool) $absencePermit->blocks_reservations,
+            'notes' => $absencePermit->notes,
+            'approved_at' => optional($absencePermit->approved_at)?->toDateTimeString(),
+        ];
+    }
+
+    protected function resolveCurrentAbsencePermit($absencePermits): ?AbsencePermit
+    {
+        $today = now()->startOfDay()->toDateString();
+
+        return $absencePermits
+            ->first(function (AbsencePermit $absencePermit) use ($today) {
+                return in_array($absencePermit->status, ['approved', 'active'], true)
+                    && $absencePermit->start_date <= $today
+                    && $absencePermit->end_date >= $today;
+            });
+    }
+
+    protected function resolveAbsencePermitStatus(Carbon $startDate, Carbon $endDate): string
+    {
+        $today = now()->startOfDay();
+
+        if ($endDate->lt($today)) {
+            return 'finished';
+        }
+
+        if ($startDate->gt($today)) {
+            return 'approved';
+        }
+
+        return 'active';
+    }
+
+    protected function syncAbsencePermitStatuses(?MembershipAccountGroup $accountGroup): void
+    {
+        if (!$accountGroup || !$accountGroup->relationLoaded('absencePermits')) {
+            return;
+        }
+
+        $today = now()->startOfDay();
+
+        $accountGroup->absencePermits->each(function (AbsencePermit $absencePermit) use ($today) {
+            $newStatus = $absencePermit->status;
+            $startDate = Carbon::parse($absencePermit->start_date)->startOfDay();
+            $endDate = Carbon::parse($absencePermit->end_date)->startOfDay();
+
+            if ($absencePermit->status === 'cancelled') {
+                return;
+            }
+
+            if ($endDate->lt($today)) {
+                $newStatus = 'finished';
+            } elseif ($startDate->gt($today)) {
+                $newStatus = 'approved';
+            } else {
+                $newStatus = 'active';
+            }
+
+            if ($newStatus !== $absencePermit->status) {
+                $absencePermit->forceFill(['status' => $newStatus])->save();
+                $absencePermit->status = $newStatus;
+            }
+        });
     }
 
     protected function buildDetailedAccountMemberPayload(?MembershipAccountMember $accountMember): ?array

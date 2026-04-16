@@ -52,4 +52,9 @@ class MembershipAccount extends Model
     {
         return $this->hasMany(Payment::class, 'membership_account_id');
     }
+
+    public function absencePermits()
+    {
+        return $this->hasMany(AbsencePermit::class, 'membership_account_id');
+    }
 }

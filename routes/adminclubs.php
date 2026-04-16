@@ -52,6 +52,10 @@ Route::get('/members/location-catalogs/cities', [MemberController::class, 'locat
     ->name('members.location-catalogs.cities');
 Route::get('/members/{membership}/manage', [MemberController::class, 'show'])
     ->name('members.manage.show');
+Route::post('/members/{membership}/absence-permits', [MemberController::class, 'storeAbsencePermit'])
+    ->name('members.absence-permits.store');
+Route::patch('/members/{membership}/absence-permits/{absencePermit}/cancel', [MemberController::class, 'cancelAbsencePermit'])
+    ->name('members.absence-permits.cancel');
 Route::get('/members/{membership}/transition/create', [MemberController::class, 'createMembershipTransition'])
     ->name('members.transition.create');
 Route::get('/members/{membership}/change-holder', [MemberController::class, 'createChangePrimaryHolder'])
