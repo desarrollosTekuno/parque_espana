@@ -29,6 +29,7 @@ interface CountryCatalog {
     id: number;
     code: string;
     name: string;
+    translations: Record<string, string> | null;
     demonym: string | null;
 }
 
@@ -157,18 +158,25 @@ const normalizeText = (value: string | null | undefined) =>
         .toLowerCase()
         .trim();
 
+const getCountryDisplayName = (country: CountryCatalog | null | undefined) =>
+    country?.translations?.["es-MX"]?.trim() ||
+    country?.translations?.es?.trim() ||
+    country?.name ||
+    "";
+
 const defaultCountry = computed(
     () =>
         props.countries.find(
             (country) =>
                 country.code === "MX" ||
+                normalizeText(getCountryDisplayName(country)) === "mexico" ||
                 normalizeText(country.name) === "mexico",
         ) ?? null,
 );
 
 if (defaultCountry.value) {
     form.address.country_id = defaultCountry.value.id;
-    form.address.country = defaultCountry.value.name;
+    form.address.country = getCountryDisplayName(defaultCountry.value);
 }
 
 const accountHasSpouse = computed(() =>
@@ -197,7 +205,7 @@ const relationshipOptions = computed(() =>
 const countryOptions = computed(() =>
     props.countries.map((country) => ({
         value: country.id,
-        title: country.name,
+        title: getCountryDisplayName(country),
     })),
 );
 
@@ -216,7 +224,9 @@ const maritalStatusOptions = computed(() =>
 );
 
 const getCountryName = (countryId: number | null) =>
-    props.countries.find((country) => country.id === countryId)?.name ?? "";
+    getCountryDisplayName(
+        props.countries.find((country) => country.id === countryId),
+    );
 
 const getStateOptions = (countryId: number | null) =>
     countryId ? statesByCountry.value[countryId] ?? [] : [];
@@ -471,14 +481,14 @@ const submit = async () => {
                                 {{ props.membership.holder_name }}
                             </p>
                             <p>
-                                <strong>Membresia:</strong>
+                                <strong>Membresía:</strong>
                                 {{ props.membership.membership_type_name }}
                             </p>
                         </v-card>
 
                         <v-alert type="info" variant="tonal" class="mb-4">
                             Este flujo agrega un integrante a la misma cuenta familiar.
-                            La documentacion puede quedar pendiente por ahora.
+                            La documentación puede quedar pendiente por ahora.
                         </v-alert>
 
                         <v-form ref="formRef" @submit.prevent="submit">

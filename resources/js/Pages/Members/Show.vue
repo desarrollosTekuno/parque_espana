@@ -280,7 +280,7 @@ const cancelAbsencePermit = (absencePermitId: number) => {
                                         {{ props.account.primary_holder?.email || "Sin correo" }}
                                     </div>
                                     <div class="text-body-2">
-                                        {{ props.account.primary_holder?.phone || "Sin telefono" }}
+                                        {{ props.account.primary_holder?.phone || "Sin teléfono" }}
                                     </div>
                                 </v-card>
                             </v-col>
@@ -311,7 +311,7 @@ const cancelAbsencePermit = (absencePermitId: number) => {
                                         Acciones de la cuenta
                                     </div>
                                     <div class="text-body-2 text-medium-emphasis">
-                                        Desde aqui puedes gestionar la membresia y sus integrantes.
+                                        Desde aquí puedes gestionar la membresía y sus integrantes.
                                     </div>
                                 </div>
 
@@ -532,7 +532,7 @@ const cancelAbsencePermit = (absencePermitId: number) => {
 
                         <v-card class="pa-4 mt-4">
                             <div class="text-subtitle-1 font-weight-bold mb-4">
-                                Membresias activas
+                                Membresías activas
                             </div>
 
                             <div class="d-flex flex-column ga-3">
@@ -607,7 +607,7 @@ const cancelAbsencePermit = (absencePermitId: number) => {
                                         Integrantes de la cuenta
                                     </div>
                                     <div class="text-body-2 text-medium-emphasis">
-                                        Aqui puedes revisar la informacion general de cada integrante.
+                                        Aquí puedes revisar la información general de cada integrante.
                                     </div>
                                 </div>
 
@@ -657,7 +657,7 @@ const cancelAbsencePermit = (absencePermitId: number) => {
                                             {{ member.email || "-" }}
                                         </div>
                                         <div class="text-body-2">
-                                            <strong>Telefono:</strong>
+                                            <strong>Teléfono:</strong>
                                             {{ member.phone || "-" }}
                                         </div>
                                         <div class="text-body-2">
@@ -669,7 +669,7 @@ const cancelAbsencePermit = (absencePermitId: number) => {
                                             {{ member.marital_status || "-" }}
                                         </div>
                                         <div class="text-body-2">
-                                            <strong>Ocupacion:</strong>
+                                            <strong>Ocupación:</strong>
                                             {{ member.occupation || member.school_name || "-" }}
                                         </div>
                                         <div class="text-body-2">

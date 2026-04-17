@@ -15,6 +15,10 @@ class Country extends Model
 
     protected $table = 'catalogs.countries';
 
+    protected $casts = [
+        'translations' => 'array',
+    ];
+
     public function states(): HasMany
     {
         return $this->hasMany(State::class);

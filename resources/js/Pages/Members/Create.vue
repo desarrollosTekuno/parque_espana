@@ -47,6 +47,7 @@ interface CountryCatalog {
     id: number;
     code: string;
     name: string;
+    translations: Record<string, string> | null;
     demonym: string | null;
 }
 
@@ -241,7 +242,7 @@ const props = withDefaults(defineProps<Props>(), {
 const countryOptions = computed(() =>
     props.countries.map((country) => ({
         id: country.id,
-        title: country.name,
+        title: getCountryDisplayName(country),
     })),
 );
 
@@ -271,17 +272,26 @@ const normalizeText = (value: string | null | undefined) =>
         .toLowerCase()
         .trim();
 
+const getCountryDisplayName = (country: CountryCatalog | null | undefined) =>
+    country?.translations?.["es-MX"]?.trim() ||
+    country?.translations?.es?.trim() ||
+    country?.name ||
+    "";
+
 const defaultCountry = computed(
     () =>
         props.countries.find(
             (country) =>
                 country.code === "MX" ||
+                normalizeText(getCountryDisplayName(country)) === "mexico" ||
                 normalizeText(country.name) === "mexico",
         ) ?? null,
 );
 
 const getCountryName = (countryId: number | null) =>
-    props.countries.find((country) => country.id === countryId)?.name ?? "";
+    getCountryDisplayName(
+        props.countries.find((country) => country.id === countryId),
+    );
 
 const getStateOptions = (countryId: number | null) =>
     countryId ? statesByCountry.value[countryId] ?? [] : [];
@@ -1222,7 +1232,7 @@ const memberLabel = (member: MemberForm) => {
                                                     parque
                                                 </div>
                                                 <div class="text-body-2 mt-2">
-                                                    Se creara una nueva cuenta
+                                                    Se creará una nueva cuenta
                                                     en el club destino.
                                                 </div>
                                             </v-card>
@@ -1331,7 +1341,7 @@ const memberLabel = (member: MemberForm) => {
                                                     Misma cuenta, mismo no. cuenta
                                                 </div>
                                                 <div class="text-body-2 mt-2">
-                                                    Se conservara el no. cuenta
+                                                    Se conservará el no. cuenta
                                                     {{
                                                         props.sourceMembership
                                                             .membership_number ||

@@ -233,7 +233,7 @@ class MemberController extends Controller
 
             if (!$sessionClubId) {
                 return response()->json([
-                    'message' => 'No hay un club seleccionado en la sesion.',
+                    'message' => 'No hay un club seleccionado en la sesión.',
                 ], 422);
             }
 
@@ -961,7 +961,7 @@ class MemberController extends Controller
 
             return redirect()
                 ->route('members.manage.show', $membership)
-                ->with('success', 'El familiar se agrego correctamente a la cuenta.');
+                ->with('success', 'El familiar se agregó correctamente a la cuenta.');
         } catch (ValidationException $e) {
             return $this->validationExceptionResponse($e);
         } catch (\Exception $e) {
@@ -1161,7 +1161,7 @@ class MemberController extends Controller
 
             if (!$sessionClubId) {
                 return redirect()->back()->withErrors([
-                    'messageError' => 'No hay un club seleccionado en la sesion.',
+                    'messageError' => 'No hay un club seleccionado en la sesión.',
                     'exception' => '',
                 ]);
             }
@@ -1367,7 +1367,7 @@ class MemberController extends Controller
                 //     'members' => 'La membresia seleccionada no permite multiples integrantes.',
                 // ]);
                 return redirect()->back()->withErrors([
-                    'messageError' => 'La membresía seleccionada no permite multiples integrantes.',
+                    'messageError' => 'La membresía seleccionada no permite múltiples integrantes.',
                     'exception' => '',
                 ]);
             }
@@ -1579,7 +1579,7 @@ class MemberController extends Controller
                         'new_membership_type_id' => $membershipType->id,
                         'changed_by' => auth()->id(),
                         'effective_date' => now()->toDateString(),
-                        'reason' => 'Cambio de tipo de membresia',
+                        'reason' => 'Cambio de tipo de membresía',
                         'previous_monthly_fee' => $previousMonthlyFee,
                         'new_monthly_fee' => $pricing['monthly_fee'],
                         'metadata' => json_encode([
@@ -1715,7 +1715,7 @@ class MemberController extends Controller
 
     protected function getCreateFormCatalogs(): array
     {
-        $countries = Country::select('id', 'iso2 as code', 'name', 'demonym')
+        $countries = Country::select('id', 'iso2 as code', 'name', 'translations', 'demonym')
             ->orderBy('name')
             ->get();
 
@@ -1744,7 +1744,7 @@ class MemberController extends Controller
                     'last_name' => $member?->last_name,
                     'second_last_name' => $member?->second_last_name,
                     'birthdate' => $member?->birthdate,
-                    'birth_place' => $member?->birthCountry?->name ?? $member?->birth_place,
+                    'birth_place' => $this->getCountryDisplayName($member?->birthCountry) ?? $member?->birth_place,
                     'birth_country_id' => $member?->birth_country_id,
                     'state' => $member?->birthState?->name ?? $member?->state,
                     'birth_state_id' => $member?->birth_state_id,
@@ -1764,7 +1764,7 @@ class MemberController extends Controller
                         'street' => $address?->street,
                         'neighborhood' => $address?->neighborhood,
                         'postal_code' => $address?->postal_code,
-                        'country' => $address?->country?->name ?? $address?->country,
+                        'country' => $this->getCountryDisplayName($address?->country) ?? $address?->country,
                         'country_id' => $address?->country_id,
                         'state' => $address?->state?->name ?? $address?->state,
                         'state_id' => $address?->state_id,
@@ -1875,7 +1875,7 @@ class MemberController extends Controller
         );
 
         return [
-            'birth_place' => $country?->name ?? ($payload['birth_place'] ?? null),
+            'birth_place' => $this->getCountryDisplayName($country) ?? ($payload['birth_place'] ?? null),
             'birth_country_id' => $country?->id,
             'state' => $state?->name ?? ($payload['state'] ?? null),
             'birth_state_id' => $state?->id,
@@ -1900,7 +1900,7 @@ class MemberController extends Controller
         );
 
         return [
-            'country' => $country?->name ?? ($payload['country'] ?? null),
+            'country' => $this->getCountryDisplayName($country) ?? ($payload['country'] ?? null),
             'country_id' => $country?->id,
             'state' => $state?->name ?? ($payload['state'] ?? null),
             'state_id' => $state?->id,
@@ -2142,7 +2142,7 @@ class MemberController extends Controller
             'relationship_id' => $accountMember->relationship_id,
             'birthdate' => $member?->birthdate,
             'age' => $member?->birthdate ? Carbon::parse($member->birthdate)->age : null,
-            'birth_place' => $member?->birthCountry?->name ?? $member?->birth_place,
+            'birth_place' => $this->getCountryDisplayName($member?->birthCountry) ?? $member?->birth_place,
             'city' => $member?->birthCity?->name ?? $member?->city,
             'state' => $member?->birthState?->name ?? $member?->state,
             'nationality' => $member?->nationality?->demonym ?: $member?->nationality?->name,
@@ -2155,7 +2155,7 @@ class MemberController extends Controller
                 'postal_code' => $address?->postal_code,
                 'city' => $address?->city?->name ?? $address?->city,
                 'state' => $address?->state?->name ?? $address?->state,
-                'country' => $address?->country?->name ?? $address?->country,
+                'country' => $this->getCountryDisplayName($address?->country) ?? $address?->country,
                 'years_in_city' => $address?->years_in_city,
             ],
             'employment' => [
@@ -2164,6 +2164,23 @@ class MemberController extends Controller
                 'company_phone' => $employment?->company_phone,
             ],
         ];
+    }
+
+    protected function getCountryDisplayName(Country|string|null $country): ?string
+    {
+        if (!$country) {
+            return null;
+        }
+
+        if (is_string($country)) {
+            return $country;
+        }
+
+        $translations = is_array($country->translations) ? $country->translations : [];
+
+        return $translations['es-MX']
+            ?? $translations['es']
+            ?? $country->name;
     }
 
     protected function buildSeparationCandidateMembers(Membership $membership)
