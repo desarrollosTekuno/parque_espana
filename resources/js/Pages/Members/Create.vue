@@ -259,8 +259,21 @@ const maritalStatusOptions = computed(() =>
     props.maritalStatuses.map((maritalStatus) => ({
         id: maritalStatus.id,
         title: maritalStatus.name,
+        code: maritalStatus.code,
     })),
 );
+
+const FAMILY_MARITAL_STATUS_CODES = ["married", "domestic_partnership"];
+
+const filteredMaritalStatusOptions = computed(() => {
+    const isFamilyMembership = form.membershipType?.allows_multiple_members === true;
+
+    return maritalStatusOptions.value.filter((option) =>
+        isFamilyMembership
+            ? FAMILY_MARITAL_STATUS_CODES.includes(option.code)
+            : !FAMILY_MARITAL_STATUS_CODES.includes(option.code),
+    );
+});
 
 const statesByCountry = ref<Record<number, StateCatalog[]>>({});
 const citiesByState = ref<Record<number, CityCatalog[]>>({});
@@ -1000,6 +1013,15 @@ const isChildRelationship = (member: MemberForm) => {
 
 const isSpouseRelationship = (member: MemberForm) => {
     return member.relationship_name === "Cónyuge";
+};
+
+const onMaritalStatusChange = (member: MemberForm) => {
+    if (!member.is_primary_holder) return;
+
+    const spouse = form.members.find((m) => isSpouseRelationship(m));
+    if (spouse) {
+        spouse.marital_status_id = member.marital_status_id;
+    }
 };
 
 const birthdateRule = (member: MemberForm) => {
@@ -2027,13 +2049,23 @@ const memberLabel = (member: MemberForm) => {
                                                             member.marital_status_id
                                                         "
                                                         :items="
-                                                            maritalStatusOptions
+                                                            filteredMaritalStatusOptions
                                                         "
                                                         item-title="title"
                                                         item-value="id"
                                                         label="Estado civil"
+                                                        :disabled="
+                                                            isSpouseRelationship(
+                                                                member,
+                                                            )
+                                                        "
                                                         clearable
                                                         auto-select-first
+                                                        @update:modelValue="
+                                                            onMaritalStatusChange(
+                                                                member,
+                                                            )
+                                                        "
                                                     />
                                                 </v-col>
 
