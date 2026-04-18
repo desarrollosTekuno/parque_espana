@@ -3,6 +3,7 @@ import routes from '@/routing';
 import { Link, usePage } from '@inertiajs/vue3';
 import { onMounted, ref, computed } from 'vue';
 import { router } from "@inertiajs/vue3";
+import { useDisplay } from 'vuetify';
 
 const can = usePage().props.auth.permissions;
 const auth = usePage().props.auth;
@@ -28,6 +29,12 @@ const changeClub = () => {
 const drawer = defineModel('drawer');
 const props = defineProps<{ rail: boolean }>();
 const opened = ref<string[]>();
+const display = useDisplay();
+
+// true cuando el drawer está en modo colapsado (solo íconos)
+const isRail = computed(() =>
+    display.mobile.value ? !props.rail : props.rail
+);
 
 const existSomeRoute = (routeNames: any): boolean => {
     if (routeNames instanceof Array) {
@@ -115,38 +122,43 @@ onMounted(() => {
                 <template v-for="ruta in routes" :key="ruta.value">
 
                     <!-- Ítem simple -->
-                    <Link
+                    <v-tooltip
                         v-if="ruta.group == null && existSomeRoute(ruta.name)"
-                        :href="route(ruta.name)"
-                        preserve-scroll
+                        :text="ruta.title"
+                        location="end"
+                        :disabled="!isRail"
                     >
-                        <v-list-item
-                            rounded="lg"
-                            variant="text"
-                            color="#FEFEFE"
-                            :active="isActive(ruta.name)"
-                            class="nav-item mb-1"
-                            :class="isActive(ruta.name) ? 'nav-item--active' : 'nav-item--inactive'"
-                        >
-                            <template #prepend>
-                                <v-icon
-                                    :icon="ruta.icon"
-                                    :color="isActive(ruta.name) ? '#0A2540' : '#FEFEFE'"
-                                />
-                            </template>
-                            <v-list-item-title class="d-flex align-center justify-space-between w-100">
-                                <span :style="isActive(ruta.name) ? 'color: #0A2540; font-weight: 700; letter-spacing: 0.01em;' : 'color: #FEFEFE;'">
-                                    {{ ruta.title }}
-                                </span>
-                                <v-badge
-                                    v-if="ruta.showBadge && pendingAds > 0"
-                                    :content="pendingAds > 9 ? '9+' : pendingAds"
-                                    color="#D4172A"
-                                    inline
-                                />
-                            </v-list-item-title>
-                        </v-list-item>
-                    </Link>
+                        <template #activator="{ props: tipProps }">
+                            <Link :href="route(ruta.name)" preserve-scroll v-bind="tipProps">
+                                <v-list-item
+                                    rounded="lg"
+                                    variant="text"
+                                    color="#FEFEFE"
+                                    :active="isActive(ruta.name)"
+                                    class="nav-item mb-1"
+                                    :class="isActive(ruta.name) ? 'nav-item--active' : 'nav-item--inactive'"
+                                >
+                                    <template #prepend>
+                                        <v-icon
+                                            :icon="ruta.icon"
+                                            :color="isActive(ruta.name) ? '#0A2540' : '#FEFEFE'"
+                                        />
+                                    </template>
+                                    <v-list-item-title class="d-flex align-center justify-space-between w-100">
+                                        <span :style="isActive(ruta.name) ? 'color: #0A2540; font-weight: 700; letter-spacing: 0.01em;' : 'color: #FEFEFE;'">
+                                            {{ ruta.title }}
+                                        </span>
+                                        <v-badge
+                                            v-if="ruta.showBadge && pendingAds > 0"
+                                            :content="pendingAds > 9 ? '9+' : pendingAds"
+                                            color="#D4172A"
+                                            inline
+                                        />
+                                    </v-list-item-title>
+                                </v-list-item>
+                            </Link>
+                        </template>
+                    </v-tooltip>
 
                     <!-- Ítem con submenú -->
                     <v-list-group
@@ -155,15 +167,19 @@ onMounted(() => {
                         fluid
                     >
                         <template #activator="{ props: activatorProps }">
-                            <v-list-item
-                                v-bind="activatorProps"
-                                variant="text"
-                                rounded="lg"
-                                color="#FEFEFE"
-                                :title="ruta.title"
-                                :prepend-icon="ruta.icon"
-                                class="nav-item nav-item--inactive mb-1"
-                            />
+                            <v-tooltip :text="ruta.title" location="end" :disabled="!isRail">
+                                <template #activator="{ props: tipProps }">
+                                    <v-list-item
+                                        v-bind="{ ...activatorProps, ...tipProps }"
+                                        variant="text"
+                                        rounded="lg"
+                                        color="#FEFEFE"
+                                        :title="ruta.title"
+                                        :prepend-icon="ruta.icon"
+                                        class="nav-item nav-item--inactive mb-1"
+                                    />
+                                </template>
+                            </v-tooltip>
                         </template>
 
                         <Link
@@ -194,15 +210,20 @@ onMounted(() => {
         <div class="nav-logout-area">
             <v-divider style="border-color: rgba(255,255,255,0.08);" />
             <v-list density="comfortable" nav class="px-2 py-1" bg-color="transparent">
-                <v-list-item
-                    variant="text"
-                    rounded="lg"
-                    color="#D4172A"
-                    class="nav-item nav-item--logout"
-                    prepend-icon="mdi-logout"
-                    title="Cerrar Sesión"
-                    @click="router.post(route('logout'))"
-                />
+                <v-tooltip text="Cerrar Sesión" location="end" :disabled="!isRail">
+                    <template #activator="{ props: tipProps }">
+                        <v-list-item
+                            v-bind="tipProps"
+                            variant="text"
+                            rounded="lg"
+                            color="#D4172A"
+                            class="nav-item nav-item--logout"
+                            prepend-icon="mdi-logout"
+                            title="Cerrar Sesión"
+                            @click="router.post(route('logout'))"
+                        />
+                    </template>
+                </v-tooltip>
             </v-list>
         </div>
     </v-navigation-drawer>
