@@ -809,6 +809,40 @@ class MemberController extends Controller
             ]);
         }
 
+        $currentAccountId = $membership->membership_account_id;
+        $accountGroupId = $membership->account?->account_group_id;
+        $currentMemberIds = $membership->account->accountMembers->pluck('member_id');
+
+        $availableGroupMembers = collect();
+        if ($accountGroupId) {
+            $availableGroupMembers = MembershipAccountMember::query()
+                ->with(['member', 'relationship', 'membershipAccount.club'])
+                ->whereHas('membershipAccount', function (Builder $q) use ($accountGroupId, $currentAccountId) {
+                    $q->where('account_group_id', $accountGroupId)
+                      ->where('id', '!=', $currentAccountId);
+                })
+                ->whereNotIn('member_id', $currentMemberIds)
+                ->where('is_primary_holder', false)
+                ->get()
+                ->unique('member_id')
+                ->map(fn(MembershipAccountMember $am) => [
+                    'member_id'         => $am->member_id,
+                    'full_name'         => trim(implode(' ', array_filter([
+                        $am->member?->first_name,
+                        $am->member?->last_name,
+                        $am->member?->second_last_name,
+                    ]))),
+                    'birthdate'         => $am->member?->birthdate,
+                    'age'               => $am->member?->birthdate
+                                            ? Carbon::parse($am->member->birthdate)->age
+                                            : null,
+                    'relationship_name' => $am->relationship?->name,
+                    'club_name'         => $am->membershipAccount?->club?->name,
+                    'club_code'         => $am->membershipAccount?->club?->code,
+                ])
+                ->values();
+        }
+
         return Inertia::render('Members/AddFamilyMember', [
             'membership' => $this->buildSourceMembershipPayload($membership),
             'account' => $this->buildMembershipAccountPayload($membership),
@@ -818,6 +852,7 @@ class MemberController extends Controller
                 ->get()
                 ->reject(fn(Relationship $relationship) => $this->isTitularRelationship($relationship->name))
                 ->values(),
+            'availableGroupMembers' => $availableGroupMembers,
         ]);
     }
 
@@ -846,6 +881,64 @@ class MemberController extends Controller
                 ]);
             }
 
+            // ── Caso A: vincular un miembro existente del grupo ────────────────
+            if ($request->filled('existing_member_id')) {
+                $validated = $request->validate([
+                    'existing_member_id' => ['required', 'integer'],
+                    'relationship_id'    => ['required', new ExistsInSchema('catalogs', 'relationships', 'id')],
+                ]);
+
+                $existingMember = Member::findOrFail($validated['existing_member_id']);
+                $relationship   = Relationship::findOrFail($validated['relationship_id']);
+
+                // Verificar que pertenezca al mismo grupo y no esté ya en la cuenta
+                $accountGroupId    = $membership->account?->account_group_id;
+                $currentAccountId  = $membership->membership_account_id;
+                $currentMemberIds  = $membership->account->accountMembers->pluck('member_id');
+
+                $isInGroup = MembershipAccountMember::query()
+                    ->whereHas('membershipAccount', fn(Builder $q) => $q->where('account_group_id', $accountGroupId)
+                        ->where('id', '!=', $currentAccountId))
+                    ->where('member_id', $existingMember->id)
+                    ->exists();
+
+                if (!$isInGroup) {
+                    throw ValidationException::withMessages([
+                        'existing_member_id' => 'El integrante seleccionado no pertenece al grupo familiar.',
+                    ]);
+                }
+
+                if ($currentMemberIds->contains($existingMember->id)) {
+                    throw ValidationException::withMessages([
+                        'existing_member_id' => 'El integrante ya forma parte de esta cuenta.',
+                    ]);
+                }
+
+                if ($this->isTitularRelationship($relationship->name)) {
+                    throw ValidationException::withMessages([
+                        'relationship_id' => 'No puedes asignar el parentesco de titular.',
+                    ]);
+                }
+
+                if ($this->isSpouseRelationship($relationship->name) && $this->membershipAccountHasSpouse($membership)) {
+                    throw ValidationException::withMessages([
+                        'relationship_id' => 'La cuenta familiar ya cuenta con un cónyuge registrado.',
+                    ]);
+                }
+
+                MembershipAccountMember::create([
+                    'membership_account_id' => $currentAccountId,
+                    'member_id'             => $existingMember->id,
+                    'relationship_id'       => $relationship->id,
+                    'is_primary_holder'     => false,
+                ]);
+
+                return redirect()
+                    ->route('members.manage.show', $membership)
+                    ->with('success', 'El familiar se agregó correctamente a la cuenta.');
+            }
+
+            // ── Caso B: crear un nuevo integrante ───────────────────────────────
             $validated = $request->validate([
                 'first_name' => ['required', 'string', 'max:255'],
                 'last_name' => ['required', 'string', 'max:255'],
