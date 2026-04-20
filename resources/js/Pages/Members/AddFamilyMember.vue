@@ -29,6 +29,7 @@ interface CountryCatalog {
     id: number;
     code: string;
     name: string;
+    translations: Record<string, string> | null;
     demonym: string | null;
 }
 
@@ -86,6 +87,16 @@ interface MembershipAccount {
     members: AccountMemberItem[];
 }
 
+interface AvailableGroupMember {
+    member_id: number;
+    full_name: string;
+    birthdate: string | null;
+    age: number | null;
+    relationship_name: string | null;
+    club_name: string | null;
+    club_code: string | null;
+}
+
 interface Props {
     membership: SourceMembership;
     account: MembershipAccount;
@@ -93,6 +104,7 @@ interface Props {
     countries?: CountryCatalog[];
     nationalities?: Nationality[];
     maritalStatuses?: MaritalStatus[];
+    availableGroupMembers?: AvailableGroupMember[];
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -100,11 +112,20 @@ const props = withDefaults(defineProps<Props>(), {
     countries: () => [],
     nationalities: () => [],
     maritalStatuses: () => [],
+    availableGroupMembers: () => [],
 });
 
 const formRef = ref();
+const existingFormRef = ref();
 const statesByCountry = ref<Record<number, StateCatalog[]>>({});
 const citiesByState = ref<Record<number, CityCatalog[]>>({});
+
+// Modo: 'new' = crear nuevo integrante | 'existing' = vincular del grupo
+const mode = ref<'new' | 'existing'>(
+    props.availableGroupMembers.length > 0 ? 'existing' : 'new'
+);
+const selectedGroupMemberId = ref<number | null>(null);
+const existingRelationshipId = ref<number | null>(null);
 
 const form = useForm({
     first_name: "",
@@ -157,18 +178,25 @@ const normalizeText = (value: string | null | undefined) =>
         .toLowerCase()
         .trim();
 
+const getCountryDisplayName = (country: CountryCatalog | null | undefined) =>
+    country?.translations?.["es-MX"]?.trim() ||
+    country?.translations?.es?.trim() ||
+    country?.name ||
+    "";
+
 const defaultCountry = computed(
     () =>
         props.countries.find(
             (country) =>
                 country.code === "MX" ||
+                normalizeText(getCountryDisplayName(country)) === "mexico" ||
                 normalizeText(country.name) === "mexico",
         ) ?? null,
 );
 
 if (defaultCountry.value) {
     form.address.country_id = defaultCountry.value.id;
-    form.address.country = defaultCountry.value.name;
+    form.address.country = getCountryDisplayName(defaultCountry.value);
 }
 
 const accountHasSpouse = computed(() =>
@@ -197,7 +225,7 @@ const relationshipOptions = computed(() =>
 const countryOptions = computed(() =>
     props.countries.map((country) => ({
         value: country.id,
-        title: country.name,
+        title: getCountryDisplayName(country),
     })),
 );
 
@@ -216,7 +244,9 @@ const maritalStatusOptions = computed(() =>
 );
 
 const getCountryName = (countryId: number | null) =>
-    props.countries.find((country) => country.id === countryId)?.name ?? "";
+    getCountryDisplayName(
+        props.countries.find((country) => country.id === countryId),
+    );
 
 const getStateOptions = (countryId: number | null) =>
     countryId ? statesByCountry.value[countryId] ?? [] : [];
@@ -411,7 +441,39 @@ const birthdateRule = (value: string | null) => {
     return true;
 };
 
+const submitExisting = async () => {
+    const { valid } = await existingFormRef.value?.validate();
+    if (!valid) return;
+
+    const existingForm = useForm({
+        existing_member_id: selectedGroupMemberId.value,
+        relationship_id: existingRelationshipId.value,
+    });
+
+    existingForm.post(route("members.family-members.store", props.membership.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            customToastSwal({
+                title: page.props.flash.success || "Familiar agregado correctamente.",
+                icon: "success",
+            });
+        },
+        onError: () => {
+            customToastSwal({
+                title: `Error: ${existingForm.errors.messageError || "No se pudo agregar el familiar"}`,
+                text: `${existingForm.errors.exception || ""}`,
+                icon: "error",
+            });
+        },
+    });
+};
+
 const submit = async () => {
+    if (mode.value === 'existing') {
+        await submitExisting();
+        return;
+    }
+
     const { valid } = await formRef.value?.validate();
 
     if (!valid) return;
@@ -471,16 +533,134 @@ const submit = async () => {
                                 {{ props.membership.holder_name }}
                             </p>
                             <p>
-                                <strong>Membresia:</strong>
+                                <strong>Membresía:</strong>
                                 {{ props.membership.membership_type_name }}
                             </p>
                         </v-card>
 
                         <v-alert type="info" variant="tonal" class="mb-4">
                             Este flujo agrega un integrante a la misma cuenta familiar.
-                            La documentacion puede quedar pendiente por ahora.
+                            La documentación puede quedar pendiente por ahora.
                         </v-alert>
 
+                        <!-- Toggle de modo solo si hay miembros disponibles en el grupo -->
+                        <v-btn-toggle
+                            v-if="props.availableGroupMembers.length > 0"
+                            v-model="mode"
+                            mandatory
+                            variant="outlined"
+                            class="mb-6 w-100"
+                        >
+                            <v-btn value="existing" class="flex-1-1">
+                                <v-icon start>mdi-account-group</v-icon>
+                                Del grupo familiar
+                            </v-btn>
+                            <v-btn value="new" class="flex-1-1">
+                                <v-icon start>mdi-account-plus</v-icon>
+                                Nuevo integrante
+                            </v-btn>
+                        </v-btn-toggle>
+
+                        <!-- MODO: Vincular existente del grupo -->
+                        <template v-if="mode === 'existing'">
+                            <v-form ref="existingFormRef">
+                                <v-card class="pa-4">
+                                    <div class="text-subtitle-1 font-weight-bold mb-4">
+                                        Integrantes disponibles del grupo
+                                    </div>
+
+                                    <p class="text-body-2 text-medium-emphasis mb-4">
+                                        Estos integrantes ya existen en la otra cuenta del titular
+                                        y pueden agregarse a esta cuenta sin crear un registro nuevo.
+                                    </p>
+
+                                    <v-row class="mb-4">
+                                        <v-col
+                                            v-for="member in props.availableGroupMembers"
+                                            :key="member.member_id"
+                                            cols="12"
+                                            md="6"
+                                        >
+                                            <v-card
+                                                :variant="selectedGroupMemberId === member.member_id ? 'tonal' : 'outlined'"
+                                                :color="selectedGroupMemberId === member.member_id ? 'primary' : undefined"
+                                                class="pa-4 cursor-pointer"
+                                                style="cursor: pointer;"
+                                                @click="selectedGroupMemberId = member.member_id"
+                                            >
+                                                <div class="d-flex align-center justify-space-between">
+                                                    <div>
+                                                        <div class="font-weight-medium">
+                                                            {{ member.full_name }}
+                                                        </div>
+                                                        <div class="text-caption text-medium-emphasis">
+                                                            {{ member.relationship_name || "Sin parentesco" }}
+                                                            · {{ member.club_code }} - {{ member.club_name }}
+                                                        </div>
+                                                        <div class="text-caption text-medium-emphasis">
+                                                            Edad: {{ member.age ?? "-" }}
+                                                        </div>
+                                                    </div>
+                                                    <v-icon
+                                                        v-if="selectedGroupMemberId === member.member_id"
+                                                        color="primary"
+                                                    >
+                                                        mdi-check-circle
+                                                    </v-icon>
+                                                </div>
+                                            </v-card>
+                                        </v-col>
+                                    </v-row>
+
+                                    <!-- Validación: requiere selección -->
+                                    <v-input
+                                        :model-value="selectedGroupMemberId"
+                                        :rules="[(v) => !!v || 'Debes seleccionar un integrante']"
+                                        class="mb-2"
+                                        style="display: none;"
+                                    />
+
+                                    <v-divider class="my-4" />
+
+                                    <div class="text-subtitle-2 font-weight-bold mb-3">
+                                        Parentesco en esta cuenta
+                                    </div>
+
+                                    <v-row>
+                                        <v-col cols="12" md="6">
+                                            <v-autocomplete
+                                                v-model="existingRelationshipId"
+                                                :items="relationshipOptions"
+                                                item-title="title"
+                                                item-value="value"
+                                                label="Parentesco"
+                                                :rules="[selectRequired]"
+                                                clearable
+                                            />
+                                        </v-col>
+                                    </v-row>
+
+                                    <div class="d-flex justify-end ga-2 mt-4">
+                                        <v-btn
+                                            variant="text"
+                                            @click="router.visit(route('members.manage.show', props.membership.id))"
+                                        >
+                                            Cancelar
+                                        </v-btn>
+                                        <v-btn
+                                            color="primary"
+                                            :disabled="!selectedGroupMemberId || !existingRelationshipId"
+                                            @click="submit"
+                                        >
+                                            Agregar a esta cuenta
+                                        </v-btn>
+                                    </div>
+                                </v-card>
+                            </v-form>
+                        </template>
+
+                        <!-- MODO: Crear nuevo integrante -->
+                        <template v-if="mode === 'new'">
                         <v-form ref="formRef" @submit.prevent="submit">
                             <v-card class="pa-4">
                                 <div class="text-subtitle-1 font-weight-bold mb-4">
@@ -775,6 +955,7 @@ const submit = async () => {
                                 </div>
                             </v-card>
                         </v-form>
+                        </template>
                     </v-container>
                 </v-col>
             </v-row>

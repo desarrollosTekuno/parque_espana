@@ -360,6 +360,7 @@ class ImportLocationCatalogs extends Command
         $country->fill([
             'external_id' => $countryData['id'] ?? null,
             'name' => $countryData['name'],
+            'translations' => $this->normalizeTranslations($countryData['translations'] ?? null),
             'iso2' => $countryData['iso2'],
             'iso3' => $countryData['iso3'] ?? null,
             'numeric_code' => $countryData['numeric_code'] ?? null,
@@ -493,6 +494,18 @@ class ImportLocationCatalogs extends Command
 
         return $this->demonymMap = collect($decoded)
             ->mapWithKeys(fn ($demonym, $code) => [Str::upper((string) $code) => $demonym])
+            ->all();
+    }
+
+    protected function normalizeTranslations(mixed $translations): ?array
+    {
+        if (!is_array($translations)) {
+            return null;
+        }
+
+        return collect($translations)
+            ->filter(fn ($value, $key) => is_string($key) && $key !== '' && is_string($value) && trim($value) !== '')
+            ->mapWithKeys(fn (string $value, string $key) => [trim($key) => trim($value)])
             ->all();
     }
 }

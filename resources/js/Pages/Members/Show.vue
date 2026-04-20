@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import BaseButton from "@/Components/BaseButton.vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
-import { Head, router } from "@inertiajs/vue3";
-import { computed } from "vue";
+import { Head, router, useForm } from "@inertiajs/vue3";
+import { computed, ref } from "vue";
 
 interface SourceMembership {
     id: number;
@@ -27,6 +27,18 @@ interface ActiveMembershipItem {
     status: string;
     start_date: string | null;
     end_date: string | null;
+}
+
+interface AbsencePermitItem {
+    id: number;
+    start_date: string;
+    end_date: string;
+    charge_percentage: number;
+    status: string;
+    blocks_facility_access: boolean;
+    blocks_reservations: boolean;
+    notes: string | null;
+    approved_at: string | null;
 }
 
 interface MemberAddress {
@@ -74,6 +86,9 @@ interface MembershipAccount {
     account_type: string | null;
     status: string | null;
     current_monthly_fee: number;
+    absence_permit_preview_fee: number | null;
+    current_absence_permit: AbsencePermitItem | null;
+    absence_permits: AbsencePermitItem[];
     primary_holder: AccountMemberItem | null;
     members: AccountMemberItem[];
     active_memberships: ActiveMembershipItem[];
@@ -93,6 +108,14 @@ const props = withDefaults(defineProps<Props>(), {
     canSeparateMembers: false,
 });
 
+const showAbsencePermitDialog = ref(false);
+const absencePermitForm = useForm({
+    start_date: "",
+    end_date: "",
+    charge_percentage: 25,
+    notes: "",
+});
+
 const currencyFormatter = new Intl.NumberFormat("es-MX", {
     style: "currency",
     currency: "MXN",
@@ -106,6 +129,8 @@ const accountTypeLabel = computed(() =>
 const statusLabel = (status: string | null) => {
     const map: Record<string, string> = {
         active: "Activa",
+        approved: "Programado",
+        finished: "Finalizado",
         pending: "Pendiente",
         suspended: "Suspendida",
         cancelled: "Cancelada",
@@ -117,6 +142,8 @@ const statusLabel = (status: string | null) => {
 const statusColor = (status: string | null) => {
     const map: Record<string, string> = {
         active: "success",
+        approved: "info",
+        finished: "default",
         pending: "warning",
         suspended: "orange",
         cancelled: "error",
@@ -153,6 +180,37 @@ const addressSummary = (member: AccountMemberItem) => {
     ]
         .filter(Boolean)
         .join(", ");
+};
+
+const openAbsencePermitDialog = () => {
+    absencePermitForm.reset();
+    absencePermitForm.clearErrors();
+    absencePermitForm.charge_percentage = 25;
+    showAbsencePermitDialog.value = true;
+};
+
+const submitAbsencePermit = () => {
+    absencePermitForm.post(route("members.absence-permits.store", props.membership.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            showAbsencePermitDialog.value = false;
+            absencePermitForm.reset();
+            absencePermitForm.charge_percentage = 25;
+        },
+    });
+};
+
+const cancelAbsencePermit = (absencePermitId: number) => {
+    router.patch(
+        route("members.absence-permits.cancel", {
+            membership: props.membership.id,
+            absencePermit: absencePermitId,
+        }),
+        {},
+        {
+            preserveScroll: true,
+        },
+    );
 };
 </script>
 
@@ -222,7 +280,7 @@ const addressSummary = (member: AccountMemberItem) => {
                                         {{ props.account.primary_holder?.email || "Sin correo" }}
                                     </div>
                                     <div class="text-body-2">
-                                        {{ props.account.primary_holder?.phone || "Sin telefono" }}
+                                        {{ props.account.primary_holder?.phone || "Sin teléfono" }}
                                     </div>
                                 </v-card>
                             </v-col>
@@ -253,7 +311,7 @@ const addressSummary = (member: AccountMemberItem) => {
                                         Acciones de la cuenta
                                     </div>
                                     <div class="text-body-2 text-medium-emphasis">
-                                        Desde aqui puedes gestionar la membresia y sus integrantes.
+                                        Desde aquí puedes gestionar la membresía y sus integrantes.
                                     </div>
                                 </div>
 
@@ -309,8 +367,172 @@ const addressSummary = (member: AccountMemberItem) => {
                         </v-card>
 
                         <v-card class="pa-4 mt-4">
+                            <div class="d-flex flex-wrap align-center justify-space-between ga-2 mb-4">
+                                <div>
+                                    <div class="text-subtitle-1 font-weight-bold">
+                                        Permiso por ausencia
+                                    </div>
+                                    <div class="text-body-2 text-medium-emphasis">
+                                        Durante su vigencia se cobra el porcentaje configurado sobre las membresías cobrables y se bloquea el uso de instalaciones.
+                                    </div>
+                                </div>
+
+                                <v-btn color="primary" variant="tonal" @click="openAbsencePermitDialog">
+                                    Registrar permiso
+                                </v-btn>
+                            </div>
+
+                            <v-row>
+                                <v-col cols="12" md="4">
+                                    <v-card variant="tonal" class="pa-4 h-100">
+                                        <div class="text-caption text-medium-emphasis">
+                                            Estado actual
+                                        </div>
+                                        <div class="text-h6 font-weight-bold">
+                                            {{
+                                                props.account.current_absence_permit
+                                                    ? statusLabel(
+                                                          props.account.current_absence_permit.status,
+                                                      )
+                                                    : "Sin permiso activo"
+                                            }}
+                                        </div>
+                                        <div
+                                            v-if="props.account.current_absence_permit"
+                                            class="text-body-2 mt-2"
+                                        >
+                                            Vigencia:
+                                            {{ formatDate(props.account.current_absence_permit.start_date) }}
+                                            a
+                                            {{ formatDate(props.account.current_absence_permit.end_date) }}
+                                        </div>
+                                    </v-card>
+                                </v-col>
+
+                                <v-col cols="12" md="4">
+                                    <v-card variant="tonal" class="pa-4 h-100">
+                                        <div class="text-caption text-medium-emphasis">
+                                            Porcentaje durante permiso
+                                        </div>
+                                        <div class="text-h6 font-weight-bold">
+                                            {{
+                                                props.account.current_absence_permit
+                                                    ? `${props.account.current_absence_permit.charge_percentage}%`
+                                                    : "25%"
+                                            }}
+                                        </div>
+                                        <div class="text-body-2 mt-2">
+                                            Aplicado sobre membresías cobrables del titular.
+                                        </div>
+                                    </v-card>
+                                </v-col>
+
+                                <v-col cols="12" md="4">
+                                    <v-card variant="tonal" class="pa-4 h-100">
+                                        <div class="text-caption text-medium-emphasis">
+                                            Cuota estimada con permiso
+                                        </div>
+                                        <div class="text-h6 font-weight-bold">
+                                            {{
+                                                props.account.absence_permit_preview_fee !== null
+                                                    ? currencyFormatter.format(
+                                                          props.account.absence_permit_preview_fee,
+                                                      )
+                                                    : "-"
+                                            }}
+                                        </div>
+                                        <div class="text-body-2 mt-2">
+                                            Estimado mensual mientras el permiso esté activo.
+                                        </div>
+                                    </v-card>
+                                </v-col>
+                            </v-row>
+
+                            <div class="mt-4">
+                                <div class="text-subtitle-2 font-weight-bold mb-3">
+                                    Historial
+                                </div>
+
+                                <div
+                                    v-if="!props.account.absence_permits.length"
+                                    class="text-body-2 text-medium-emphasis"
+                                >
+                                    No hay permisos por ausencia registrados.
+                                </div>
+
+                                <div v-else class="d-flex flex-column ga-3">
+                                    <div
+                                        v-for="absencePermit in props.account.absence_permits"
+                                        :key="absencePermit.id"
+                                        class="border rounded-lg px-4 py-3"
+                                    >
+                                        <div class="d-flex flex-wrap align-center justify-space-between ga-2">
+                                            <div>
+                                                <div class="font-weight-medium">
+                                                    {{ formatDate(absencePermit.start_date) }}
+                                                    a
+                                                    {{ formatDate(absencePermit.end_date) }}
+                                                </div>
+                                                <div class="text-caption text-medium-emphasis">
+                                                    {{ absencePermit.charge_percentage }}% sobre cuota cobrable
+                                                </div>
+                                            </div>
+
+                                            <div class="d-flex flex-wrap ga-2">
+                                                <v-chip
+                                                    size="small"
+                                                    :color="statusColor(absencePermit.status)"
+                                                    variant="tonal"
+                                                >
+                                                    {{ statusLabel(absencePermit.status) }}
+                                                </v-chip>
+
+                                                <v-btn
+                                                    v-if="
+                                                        ['approved', 'active'].includes(
+                                                            absencePermit.status,
+                                                        )
+                                                    "
+                                                    color="error"
+                                                    size="small"
+                                                    variant="text"
+                                                    @click="
+                                                        cancelAbsencePermit(absencePermit.id)
+                                                    "
+                                                >
+                                                    Cancelar
+                                                </v-btn>
+                                            </div>
+                                        </div>
+
+                                        <div class="text-body-2 mt-2">
+                                            {{
+                                                absencePermit.blocks_facility_access
+                                                    ? "Bloquea instalaciones"
+                                                    : "No bloquea instalaciones"
+                                            }}
+                                            ·
+                                            {{
+                                                absencePermit.blocks_reservations
+                                                    ? "Bloquea reservaciones"
+                                                    : "No bloquea reservaciones"
+                                            }}
+                                        </div>
+
+                                        <div
+                                            v-if="absencePermit.notes"
+                                            class="text-body-2 text-medium-emphasis mt-2"
+                                        >
+                                            {{ absencePermit.notes }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </v-card>
+
+                        <v-card class="pa-4 mt-4">
                             <div class="text-subtitle-1 font-weight-bold mb-4">
-                                Membresias activas
+                                Membresías activas
                             </div>
 
                             <div class="d-flex flex-column ga-3">
@@ -385,7 +607,7 @@ const addressSummary = (member: AccountMemberItem) => {
                                         Integrantes de la cuenta
                                     </div>
                                     <div class="text-body-2 text-medium-emphasis">
-                                        Aqui puedes revisar la informacion general de cada integrante.
+                                        Aquí puedes revisar la información general de cada integrante.
                                     </div>
                                 </div>
 
@@ -435,7 +657,7 @@ const addressSummary = (member: AccountMemberItem) => {
                                             {{ member.email || "-" }}
                                         </div>
                                         <div class="text-body-2">
-                                            <strong>Telefono:</strong>
+                                            <strong>Teléfono:</strong>
                                             {{ member.phone || "-" }}
                                         </div>
                                         <div class="text-body-2">
@@ -447,7 +669,7 @@ const addressSummary = (member: AccountMemberItem) => {
                                             {{ member.marital_status || "-" }}
                                         </div>
                                         <div class="text-body-2">
-                                            <strong>Ocupacion:</strong>
+                                            <strong>Ocupación:</strong>
                                             {{ member.occupation || member.school_name || "-" }}
                                         </div>
                                         <div class="text-body-2">
@@ -463,4 +685,67 @@ const addressSummary = (member: AccountMemberItem) => {
             </v-row>
         </div>
     </AppLayout>
+
+    <v-dialog v-model="showAbsencePermitDialog" max-width="640">
+        <v-card>
+            <v-card-title class="text-h6">Registrar permiso por ausencia</v-card-title>
+            <v-card-text>
+                <v-row>
+                    <v-col cols="12" md="6">
+                        <v-text-field
+                            v-model="absencePermitForm.start_date"
+                            label="Fecha de inicio"
+                            type="date"
+                            :error-messages="absencePermitForm.errors.start_date"
+                        />
+                    </v-col>
+
+                    <v-col cols="12" md="6">
+                        <v-text-field
+                            v-model="absencePermitForm.end_date"
+                            label="Fecha de fin"
+                            type="date"
+                            :error-messages="absencePermitForm.errors.end_date"
+                        />
+                    </v-col>
+
+                    <v-col cols="12" md="6">
+                        <v-text-field
+                            v-model="absencePermitForm.charge_percentage"
+                            label="Porcentaje a cobrar"
+                            type="number"
+                            min="0.01"
+                            max="100"
+                            step="0.01"
+                            :error-messages="
+                                absencePermitForm.errors.charge_percentage
+                            "
+                        />
+                    </v-col>
+
+                    <v-col cols="12">
+                        <v-textarea
+                            v-model="absencePermitForm.notes"
+                            label="Notas"
+                            rows="3"
+                            auto-grow
+                            :error-messages="absencePermitForm.errors.notes"
+                        />
+                    </v-col>
+                </v-row>
+            </v-card-text>
+            <v-card-actions class="justify-end">
+                <v-btn variant="text" @click="showAbsencePermitDialog = false">
+                    Cerrar
+                </v-btn>
+                <v-btn
+                    color="primary"
+                    :loading="absencePermitForm.processing"
+                    @click="submitAbsencePermit"
+                >
+                    Guardar
+                </v-btn>
+            </v-card-actions>
+        </v-card>
+    </v-dialog>
 </template>

@@ -47,6 +47,7 @@ interface CountryCatalog {
     id: number;
     code: string;
     name: string;
+    translations: Record<string, string> | null;
     demonym: string | null;
 }
 
@@ -241,7 +242,7 @@ const props = withDefaults(defineProps<Props>(), {
 const countryOptions = computed(() =>
     props.countries.map((country) => ({
         id: country.id,
-        title: country.name,
+        title: getCountryDisplayName(country),
     })),
 );
 
@@ -258,8 +259,21 @@ const maritalStatusOptions = computed(() =>
     props.maritalStatuses.map((maritalStatus) => ({
         id: maritalStatus.id,
         title: maritalStatus.name,
+        code: maritalStatus.code,
     })),
 );
+
+const FAMILY_MARITAL_STATUS_CODES = ["married", "domestic_partnership"];
+
+const filteredMaritalStatusOptions = computed(() => {
+    const isFamilyMembership = form.membershipType?.allows_multiple_members === true;
+
+    return maritalStatusOptions.value.filter((option) =>
+        isFamilyMembership
+            ? FAMILY_MARITAL_STATUS_CODES.includes(option.code)
+            : !FAMILY_MARITAL_STATUS_CODES.includes(option.code),
+    );
+});
 
 const statesByCountry = ref<Record<number, StateCatalog[]>>({});
 const citiesByState = ref<Record<number, CityCatalog[]>>({});
@@ -271,17 +285,26 @@ const normalizeText = (value: string | null | undefined) =>
         .toLowerCase()
         .trim();
 
+const getCountryDisplayName = (country: CountryCatalog | null | undefined) =>
+    country?.translations?.["es-MX"]?.trim() ||
+    country?.translations?.es?.trim() ||
+    country?.name ||
+    "";
+
 const defaultCountry = computed(
     () =>
         props.countries.find(
             (country) =>
                 country.code === "MX" ||
+                normalizeText(getCountryDisplayName(country)) === "mexico" ||
                 normalizeText(country.name) === "mexico",
         ) ?? null,
 );
 
 const getCountryName = (countryId: number | null) =>
-    props.countries.find((country) => country.id === countryId)?.name ?? "";
+    getCountryDisplayName(
+        props.countries.find((country) => country.id === countryId),
+    );
 
 const getStateOptions = (countryId: number | null) =>
     countryId ? statesByCountry.value[countryId] ?? [] : [];
@@ -992,6 +1015,15 @@ const isSpouseRelationship = (member: MemberForm) => {
     return member.relationship_name === "Cónyuge";
 };
 
+const onMaritalStatusChange = (member: MemberForm) => {
+    if (!member.is_primary_holder) return;
+
+    const spouse = form.members.find((m) => isSpouseRelationship(m));
+    if (spouse) {
+        spouse.marital_status_id = member.marital_status_id;
+    }
+};
+
 const birthdateRule = (member: MemberForm) => {
     return (value: string | null) => {
         if (!value) return "La fecha de nacimiento es requerida";
@@ -1222,7 +1254,7 @@ const memberLabel = (member: MemberForm) => {
                                                     parque
                                                 </div>
                                                 <div class="text-body-2 mt-2">
-                                                    Se creara una nueva cuenta
+                                                    Se creará una nueva cuenta
                                                     en el club destino.
                                                 </div>
                                             </v-card>
@@ -1331,7 +1363,7 @@ const memberLabel = (member: MemberForm) => {
                                                     Misma cuenta, mismo no. cuenta
                                                 </div>
                                                 <div class="text-body-2 mt-2">
-                                                    Se conservara el no. cuenta
+                                                    Se conservará el no. cuenta
                                                     {{
                                                         props.sourceMembership
                                                             .membership_number ||
@@ -2017,13 +2049,23 @@ const memberLabel = (member: MemberForm) => {
                                                             member.marital_status_id
                                                         "
                                                         :items="
-                                                            maritalStatusOptions
+                                                            filteredMaritalStatusOptions
                                                         "
                                                         item-title="title"
                                                         item-value="id"
                                                         label="Estado civil"
+                                                        :disabled="
+                                                            isSpouseRelationship(
+                                                                member,
+                                                            )
+                                                        "
                                                         clearable
                                                         auto-select-first
+                                                        @update:modelValue="
+                                                            onMaritalStatusChange(
+                                                                member,
+                                                            )
+                                                        "
                                                     />
                                                 </v-col>
 

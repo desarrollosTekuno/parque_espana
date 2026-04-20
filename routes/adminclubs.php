@@ -10,6 +10,8 @@ use App\Http\Controllers\Web\AdminClub\BlockedPeriodController;
 use App\Http\Controllers\Web\AdminClub\SystemVariableController;
 use App\Http\Controllers\Web\AdminClub\AmenityScheduleController;
 use App\Http\Controllers\Web\AdminClub\BusinessCategoryController;
+use App\Http\Controllers\Web\AdminClub\InterclubPackageRuleController;
+use App\Http\Controllers\Web\AdminClub\PricingRuleController;
 use App\Http\Controllers\Web\AdminClub\AmenityResourceController;
 use App\Http\Controllers\Web\AdminClub\ReservationGuestListController;
 use Illuminate\Support\Facades\Route;
@@ -26,6 +28,12 @@ Route::resource('/system-variables', SystemVariableController::class)->only(['in
 Route::resource('/guest-lists', ReservationGuestListController::class)->only(['index', 'update'])->names('guest-lists');
 Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
 Route::post('/billing/payments', [BillingController::class, 'storePayment'])->name('billing.payments.store');
+Route::resource('/pricing-rules', PricingRuleController::class)
+    ->only(['index', 'store', 'update', 'destroy'])
+    ->names('pricing-rules');
+Route::resource('/interclub-package-rules', InterclubPackageRuleController::class)
+    ->only(['index', 'store', 'update', 'destroy'])
+    ->names('interclub-package-rules');
 
 // announcements
 Route::resource('/announcements', AnnouncementController::class)->names('announcements');
@@ -60,6 +68,10 @@ Route::get('/members/location-catalogs/cities', [MemberController::class, 'locat
     ->name('members.location-catalogs.cities');
 Route::get('/members/{membership}/manage', [MemberController::class, 'show'])
     ->name('members.manage.show');
+Route::post('/members/{membership}/absence-permits', [MemberController::class, 'storeAbsencePermit'])
+    ->name('members.absence-permits.store');
+Route::patch('/members/{membership}/absence-permits/{absencePermit}/cancel', [MemberController::class, 'cancelAbsencePermit'])
+    ->name('members.absence-permits.cancel');
 Route::get('/members/{membership}/transition/create', [MemberController::class, 'createMembershipTransition'])
     ->name('members.transition.create');
 Route::get('/members/{membership}/change-holder', [MemberController::class, 'createChangePrimaryHolder'])

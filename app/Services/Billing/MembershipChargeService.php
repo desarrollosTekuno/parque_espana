@@ -2,6 +2,7 @@
 
 namespace App\Services\Billing;
 
+use App\Models\Memberships\AbsencePermit;
 use App\Models\Billing\Charge;
 use App\Models\Billing\ChargeConcept;
 use App\Models\Memberships\Membership;
@@ -19,10 +20,15 @@ class MembershipChargeService
         bool $reconcileExistingMonthlyCharge = false
     ): void {
         $chargeDate = ($chargeDate ?? now())->copy()->startOfDay();
+        $effectiveMonthlyFee = $this->resolveAbsenceAdjustedMonthlyFee(
+            membership: $membership,
+            monthlyFee: $monthlyFee,
+            chargeDate: $chargeDate
+        );
 
-        if ((bool) $membership->is_billable && $monthlyFee > 0) {
+        if ((bool) $membership->is_billable && $effectiveMonthlyFee > 0) {
             $monthlyConcept = $this->resolveConcept('MONTHLY_FEE');
-            $monthlyChargeAmount = $monthlyFee;
+            $monthlyChargeAmount = $effectiveMonthlyFee;
             $monthlyChargeDescription = $this->buildMonthlyChargeDescription($membership, $chargeDate);
 
             if ($reconcileExistingMonthlyCharge) {
@@ -32,13 +38,13 @@ class MembershipChargeService
                     chargeDate: $chargeDate
                 );
 
-                $monthlyChargeAmount = round($monthlyFee - $existingPeriodMonthlyAmount, 2);
+                $monthlyChargeAmount = round($effectiveMonthlyFee - $existingPeriodMonthlyAmount, 2);
 
                 if ($existingPeriodMonthlyAmount > 0 && $monthlyChargeAmount > 0) {
                     $monthlyChargeDescription = $this->buildMonthlyAdjustmentChargeDescription(
                         membership: $membership,
                         chargeDate: $chargeDate,
-                        totalMonthlyFee: $monthlyFee
+                        totalMonthlyFee: $effectiveMonthlyFee
                     );
                 }
             }
@@ -61,6 +67,7 @@ class MembershipChargeService
                     'metadata' => array_merge($metadata, [
                         'concept_code' => $monthlyConcept->code,
                         'target_monthly_fee' => $monthlyFee,
+                        'effective_monthly_fee' => $effectiveMonthlyFee,
                         'is_monthly_adjustment' => $reconcileExistingMonthlyCharge,
                     ]),
                 ]);
@@ -150,5 +157,38 @@ class MembershipChargeService
             ->where('period_month', (int) $chargeDate->format('m'))
             ->where('status', '!=', 'cancelled')
             ->sum('amount');
+    }
+
+    protected function resolveAbsenceAdjustedMonthlyFee(
+        Membership $membership,
+        float $monthlyFee,
+        Carbon $chargeDate
+    ): float {
+        $absencePermit = $this->resolveApplicableAbsencePermit($membership, $chargeDate);
+
+        if (!$absencePermit) {
+            return $monthlyFee;
+        }
+
+        return round($monthlyFee * ((float) $absencePermit->charge_percentage / 100), 2);
+    }
+
+    protected function resolveApplicableAbsencePermit(
+        Membership $membership,
+        Carbon $chargeDate
+    ): ?AbsencePermit {
+        $accountGroupId = $membership->account?->account_group_id;
+
+        if (!$accountGroupId) {
+            return null;
+        }
+
+        return AbsencePermit::query()
+            ->where('account_group_id', $accountGroupId)
+            ->whereIn('status', ['approved', 'active'])
+            ->whereDate('start_date', '<=', $chargeDate->toDateString())
+            ->whereDate('end_date', '>=', $chargeDate->toDateString())
+            ->orderBy('start_date')
+            ->first();
     }
 }

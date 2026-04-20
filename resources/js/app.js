@@ -42,23 +42,41 @@ const vuetify = createVuetify({
     theme: {
         defaultTheme: "myTheme",
         themes: {
+            // ── Tema claro (contenido principal) ─────────────────────────────
             myTheme: {
                 dark: false,
                 colors: {
-                    customPrimary: "#0C1A2C",
-                    customSecondary: "#D9D9D9",
-                    customThird: "#F1EFE8",
-                    customFourth: "#E03A3E",
-                    customFifth: "#B0B0B0",
+                    // Paleta oficial
+                    primary:    "#0097B2", // Acento       — botones, links, steppers
+                    secondary:  "#D4172A", // Secundario   — acciones importantes
+                    warning:    "#F4B403", // Secundario 2 — advertencias
+                    info:       "#004AAD", // Acento 3     — informativo
+                    accent:     "#EE70A8", // Acento 2     — decorativo
+                    background: "#FEFEFE", // Principal
+                    surface:    "#FEFEFE",
+
+                    // Tokens custom (usados en Navigation y componentes heredados)
+                    customPrimary:   "#000000", // Fondo drawer / texto oscuro
+                    customSecondary: "#D4172A", // Ítem activo del menú
+                    customThird:     "#004AAD", // Banda de perfil de usuario
+                    customFourth:    "#0097B2", // Acento interactivo
+                    customFifth:     "#F4B403", // Highlight / advertencia
                 },
             },
+            // ── Tema oscuro (navigation drawer) ──────────────────────────────
             myDarkTheme: {
                 dark: true,
                 colors: {
-                    primary: "#F1EFE8",
-                    background: "#B0B0B0",
-                    drawer: "#E03A3E",
-                    customPrimary: "#F0F0F0",
+                    primary:    "#0097B2",
+                    secondary:  "#D4172A",
+                    background: "#000000",
+                    surface:    "#111111",
+
+                    customPrimary:   "#FEFEFE", // Texto / íconos inactivos
+                    customSecondary: "#D4172A", // Ítem activo
+                    customThird:     "#004AAD", // Banda de perfil
+                    customFourth:    "#0097B2", // Club selector / acento
+                    customFifth:     "#F4B403", // Highlight
                 },
             },
         },

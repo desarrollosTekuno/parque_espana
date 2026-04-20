@@ -2,6 +2,7 @@
 
 namespace App\Models\Memberships;
 
+use App\Models\Administrator\Club;
 use App\Models\Catalogs\DocumentType;
 use App\Traits\SerializesDates;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -17,6 +18,11 @@ class MembershipType extends Model
     public function pricingRules()
     {
         return $this->hasMany(PricingRule::class, 'membership_type_id');
+    }
+
+    public function club()
+    {
+        return $this->belongsTo(Club::class, 'club_id');
     }
 
     public function documentTypes()

@@ -31,6 +31,8 @@ class ProcessMembershipAgeTransitions extends Command
 
     protected int $skipped = 0;
 
+    protected array $transitionAccountGroupsByMember = [];
+
     public function __construct(
         protected MembershipChargeService $membershipChargeService
     ) {
@@ -90,6 +92,8 @@ class ProcessMembershipAgeTransitions extends Command
             ->whereHas('membershipType', function (Builder $query) {
                 $query->where('allows_multiple_members', true);
             })
+            ->orderBy('club_id')
+            ->orderBy('id')
             ->get();
 
         foreach ($familyMemberships as $familyMembership) {
@@ -170,12 +174,18 @@ class ProcessMembershipAgeTransitions extends Command
                     $titularRelationshipId,
                     $asOfDate
                 ) {
-                    $group = MembershipAccountGroup::create([
-                        'status' => 'active',
-                    ]);
+                    $existingBillableMembership = $this->resolveOtherBillablePrimaryMembership(
+                        memberId: (int) $member->id,
+                        currentClubId: (int) $familyMembership->club_id
+                    );
+
+                    $group = $existingBillableMembership?->account?->accountGroup
+                        ?? $this->resolveTransitionAccountGroup($member);
+                    $shouldBeBillable = $existingBillableMembership === null;
 
                     $newAccount = MembershipAccount::create([
                         'account_group_id' => $group->id,
+                        'club_id' => $familyMembership->club_id,
                         'membership_number' => $this->generateMembershipNumber($familyMembership->club),
                         'account_type' => 'individual',
                         'status' => 'active',
@@ -194,7 +204,7 @@ class ProcessMembershipAgeTransitions extends Command
                         'membership_type_id' => $targetMembershipType->id,
                         'origin_membership_type_id' => $familyMembership->membership_type_id,
                         'is_primary' => true,
-                        'is_billable' => true,
+                        'is_billable' => $shouldBeBillable,
                         'monthly_fee' => $pricingRule->monthly_fee,
                         'start_date' => $asOfDate->toDateString(),
                         'end_date' => $targetMembershipType->validity_months
@@ -205,16 +215,18 @@ class ProcessMembershipAgeTransitions extends Command
 
                     $newMembership->load(['membershipType', 'account.primaryHolder']);
 
-                    $this->membershipChargeService->createInitialCharges(
-                        membership: $newMembership,
-                        monthlyFee: (float) $pricingRule->monthly_fee,
-                        inscriptionFee: (float) ($pricingRule->inscription_fee ?? 0),
-                        metadata: [
-                            'charge_origin' => 'automatic_family_to_solidaria',
-                            'source_membership_id' => $familyMembership->id,
-                        ],
-                        chargeDate: $asOfDate->copy()
-                    );
+                    if ($shouldBeBillable) {
+                        $this->membershipChargeService->createInitialCharges(
+                            membership: $newMembership,
+                            monthlyFee: (float) $pricingRule->monthly_fee,
+                            inscriptionFee: (float) ($pricingRule->inscription_fee ?? 0),
+                            metadata: [
+                                'charge_origin' => 'automatic_family_to_solidaria',
+                                'source_membership_id' => $familyMembership->id,
+                            ],
+                            chargeDate: $asOfDate->copy()
+                        );
+                    }
 
                     $accountMember->delete();
 
@@ -232,6 +244,7 @@ class ProcessMembershipAgeTransitions extends Command
                             'source_membership_id' => $familyMembership->id,
                             'source_account_id' => $familyMembership->membership_account_id,
                             'member_id' => $member->id,
+                            'is_billable' => $shouldBeBillable,
                         ]),
                         'created_at' => now(),
                         'updated_at' => now(),
@@ -485,6 +498,47 @@ class ProcessMembershipAgeTransitions extends Command
                 $query->where('member_id', $memberId);
             })
             ->exists();
+    }
+
+    protected function resolveOtherBillablePrimaryMembership(int $memberId, int $currentClubId): ?Membership
+    {
+        return Membership::query()
+            ->with('account.accountGroup')
+            ->where('status', 'active')
+            ->where('is_primary', true)
+            ->where('is_billable', true)
+            ->where('club_id', '!=', $currentClubId)
+            ->whereHas('account.primaryHolder', function (Builder $query) use ($memberId) {
+                $query->where('member_id', $memberId);
+            })
+            ->orderBy('club_id')
+            ->orderBy('id')
+            ->first();
+    }
+
+    protected function resolveTransitionAccountGroup(Member $member): MembershipAccountGroup
+    {
+        if (isset($this->transitionAccountGroupsByMember[$member->id])) {
+            return $this->transitionAccountGroupsByMember[$member->id];
+        }
+
+        $existingGroup = MembershipAccountGroup::query()
+            ->whereHas('accounts.memberships', function (Builder $query) use ($member) {
+                $query->where('status', 'active')
+                    ->where('is_primary', true)
+                    ->whereHas('account.primaryHolder', function (Builder $primaryHolderQuery) use ($member) {
+                        $primaryHolderQuery->where('member_id', $member->id);
+                    });
+            })
+            ->first();
+
+        if ($existingGroup) {
+            return $this->transitionAccountGroupsByMember[$member->id] = $existingGroup;
+        }
+
+        return $this->transitionAccountGroupsByMember[$member->id] = MembershipAccountGroup::create([
+            'status' => 'active',
+        ]);
     }
 
     protected function resolveAgeAt(?Member $member, Carbon $asOfDate): ?int

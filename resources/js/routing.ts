@@ -199,6 +199,20 @@ const routes: Routing[] = [
         group: null,
         // groupItems: null
     },
+    {
+        name: "pricing-rules.index",
+        title: "Reglas de precio",
+        icon: "mdi-currency-usd",
+        value: "reglas-precio",
+        group: null,
+    },
+    {
+        name: "interclub-package-rules.index",
+        title: "Paquetes interclub",
+        icon: "mdi-swap-horizontal",
+        value: "paquetes-interclub",
+        group: null,
+    },
     
     /*
     {
