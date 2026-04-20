@@ -21,5 +21,6 @@ Route::post('/change-club', [ClubController::class, 'changeClub'])
 // Accesos app móvil
 Route::resource('/member-access', MemberAccessController::class)
     ->only(['index', 'store', 'destroy'])
-    ->names('member-access');
+    ->names('member-access')
+    ->parameters(['member-access' => 'member']);
 // php artisan make:model AdminClub/BlockedPeriod -m  && php artisan make:controller Web/AdminClub/BlockedPeriodController --resource

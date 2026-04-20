@@ -2,12 +2,9 @@
 
 namespace App\Http\Controllers\Web\Administrator;
 
-use App\Models\Context;
 use App\Models\Members\Member;
-use App\Models\Memberships\MembershipAccountMember;
-use App\Models\Role;
 use App\Models\User;
-use App\Rules\ExistsInSchema;
+use App\Services\MemberAccessService;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
@@ -18,16 +15,7 @@ use Inertia\Inertia;
 
 class MemberAccessController extends Controller
 {
-    /**
-     * Mapeo de código de club al valor de contexto móvil correspondiente.
-     * Si se agregan más clubs en el futuro, extender este mapa.
-     */
-    private const CLUB_CONTEXT_MAP = [
-        'PE1' => 'mobile_club_1',
-        'PE2' => 'mobile_club_2',
-    ];
-
-    public function __construct()
+    public function __construct(private MemberAccessService $accessService)
     {
         $this->middleware('permission:member-access.index')->only('index');
         $this->middleware('permission:member-access.store')->only('store');
@@ -48,14 +36,13 @@ class MemberAccessController extends Controller
         if ($search = $request->input("{$prefix}_search")) {
             $query->where(function ($q) use ($search, $driver) {
                 $op = $driver === 'pgsql' ? 'ilike' : 'like';
-                $q->where('first_name',       $op, "%{$search}%")
-                  ->orWhere('last_name',       $op, "%{$search}%")
-                  ->orWhere('second_last_name',$op, "%{$search}%")
-                  ->orWhere('email',           $op, "%{$search}%");
+                $q->where('first_name',        $op, "%{$search}%")
+                  ->orWhere('last_name',        $op, "%{$search}%")
+                  ->orWhere('second_last_name', $op, "%{$search}%")
+                  ->orWhere('email',            $op, "%{$search}%");
             });
         }
 
-        // Filtro: con acceso / sin acceso
         if ($request->input("{$prefix}_access") === 'with') {
             $query->whereNotNull('user_id');
         } elseif ($request->input("{$prefix}_access") === 'without') {
@@ -80,8 +67,7 @@ class MemberAccessController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'member_id' => ['required',  new ExistsInSchema('members', 'members', 'id')],
-            // 'source_membership_id' => ['nullable', new ExistsInSchema('memberships', 'memberships', 'id')],
+            'member_id' => ['required', 'integer'],
             'email'     => ['required', 'email', 'unique:users,email'],
             'password'  => ['required', 'confirmed', Password::min(8)],
         ]);
@@ -90,7 +76,7 @@ class MemberAccessController extends Controller
             return redirect()->back()->withErrors(
                 array_merge(
                     ['messageError' => $validator->errors()->first(), 'exception' => ''],
-                    $validator->errors()->toArray()   // expone email, password, etc. como claves individuales
+                    $validator->errors()->toArray()
                 )
             );
         }
@@ -106,20 +92,22 @@ class MemberAccessController extends Controller
                 ]);
             }
 
-            // Crear el usuario
+            if (!$member->birthdate || \Carbon\Carbon::parse($member->birthdate)->age < 14) {
+                return redirect()->back()->withErrors([
+                    'messageError' => 'El acceso a la app móvil solo puede otorgarse a personas mayores de 14 años.',
+                    'exception'    => '',
+                ]);
+            }
+
             $user = User::create([
                 'name'     => $member->full_name,
                 'email'    => $request->email,
                 'password' => Hash::make($request->password),
             ]);
 
-            // Vincular al miembro
             $member->update(['user_id' => $user->id]);
 
-            // Asignar roles según los clubs con membresía activa
-            $this->assignMobileRoles($user, $member);
-
-            app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+            $this->accessService->syncMobileRoles($member->fresh());
 
             DB::commit();
             return redirect()->back()->with('success', 'Acceso a la app móvil otorgado con éxito.');
@@ -148,11 +136,11 @@ class MemberAccessController extends Controller
 
             $user = $member->user;
 
-            // Desvincular primero
             $member->update(['user_id' => null]);
 
-            // Eliminar tokens y usuario
             $user->tokens()->delete();
+            $user->roles()->detach();
+            $user->clubs()->detach();
             $user->delete();
 
             app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
@@ -165,54 +153,6 @@ class MemberAccessController extends Controller
                 'messageError' => 'Ocurrió un error al revocar el acceso.',
                 'exception'    => $e->getMessage(),
             ]);
-        }
-    }
-
-    /**
-     * Determina los clubs activos del miembro y le asigna el rol
-     * correcto (socio_titular o socio_dependiente) por cada uno.
-     */
-    private function assignMobileRoles(User $user, Member $member): void
-    {
-        $accountMemberships = MembershipAccountMember::with('membershipAccount.club')
-            ->where('member_id', $member->id)
-            ->get();
-
-        foreach ($accountMemberships as $accountMember) {
-            $club = $accountMember->membershipAccount?->club;
-
-            if (!$club) {
-                continue;
-            }
-
-            $contextValue = self::CLUB_CONTEXT_MAP[$club->code] ?? null;
-
-            if (!$contextValue) {
-                continue;
-            }
-
-            $context = Context::where('value', $contextValue)->first();
-
-            if (!$context) {
-                continue;
-            }
-
-            $roleName = $accountMember->is_primary_holder
-                ? 'socio_titular'
-                : 'socio_dependiente';
-
-            $role = Role::where('name', $roleName)
-                ->where('context_id', $context->id)
-                ->first();
-
-            if ($role) {
-                $user->assignRole($role);
-
-                // Agregar el club a user_clubs si no existe
-                if (!$user->clubs()->where('club_id', $club->id)->exists()) {
-                    $user->clubs()->attach($club->id);
-                }
-            }
         }
     }
 }

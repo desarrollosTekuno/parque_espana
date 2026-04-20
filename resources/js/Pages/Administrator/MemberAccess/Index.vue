@@ -102,11 +102,12 @@ const passwordMatchRule = (v: string) =>
 
 /* ── DataTable server-side ── */
 const headers = [
-    { title: "Nombre",  key: "full_name",  sortable: false },
-    { title: "Email",   key: "email" },
-    { title: "Clubs",   key: "clubs",      sortable: false },
-    { title: "Acceso",  key: "access",     sortable: false },
-    { title: "Acciones",key: "actions",    sortable: false },
+    { title: "Nombre",          key: "full_name",    sortable: false },
+    { title: "Edad",            key: "age",          sortable: false },
+    { title: "Email de acceso", key: "access_email", sortable: false },
+    { title: "Clubs",           key: "clubs",        sortable: false },
+    { title: "Acceso",          key: "access",       sortable: false },
+    { title: "Acciones",        key: "actions",      sortable: false },
 ];
 
 const items   = ref(props.members_access?.data ?? []);
@@ -203,6 +204,25 @@ watch([options, search, accessFilter], debounce(fetchItems, 400), { deep: true }
                 items-per-page-text="Mostrar"
                 no-data-text="No hay miembros para mostrar"
             >
+                <!-- Edad -->
+                <template #item.age="{ item }">
+                    <v-chip
+                        v-if="item.age !== null"
+                        :color="item.age >= 14 ? 'default' : 'warning'"
+                        size="small"
+                        variant="tonal"
+                    >
+                        {{ item.age }} años
+                    </v-chip>
+                    <span v-else class="text-grey-lighten-1">—</span>
+                </template>
+
+                <!-- Email de acceso -->
+                <template #item.access_email="{ item }">
+                    <span v-if="item.user">{{ item.user.email }}</span>
+                    <span v-else class="text-grey-lighten-1">—</span>
+                </template>
+
                 <!-- Clubs -->
                 <template #item.clubs="{ item }">
                     <v-chip
@@ -233,14 +253,26 @@ watch([options, search, accessFilter], debounce(fetchItems, 400), { deep: true }
                 <template #item.actions="{ item }">
                     <!-- Dar acceso -->
                     <BaseButton
-                        v-if="!item.user_id && can.includes('members.store')"
+                        v-if="!item.user_id && can.includes('member-access.store') && item.age >= 14"
                         action="add"
                         tooltip="Dar acceso a la app"
                         @click="openGrantAccess(item)"
                     />
+                    <!-- Aviso menor de edad -->
+                    <v-tooltip
+                        v-else-if="!item.user_id && item.age !== null && item.age < 14"
+                        text="Menor de 14 años — no puede tener acceso"
+                        location="top"
+                    >
+                        <template #activator="{ props: tip }">
+                            <v-icon v-bind="tip" color="warning" class="ma-1">
+                                mdi-account-alert-outline
+                            </v-icon>
+                        </template>
+                    </v-tooltip>
                     <!-- Revocar acceso -->
                     <BaseButton
-                        v-if="item.user_id && can.includes('members.destroy')"
+                        v-if="item.user_id && can.includes('member-access.destroy')"
                         action="delete"
                         tooltip="Revocar acceso"
                         @click="revokeAccess(item)"

@@ -93,6 +93,9 @@ class PermissionSeeder extends Seeder
             // 
             
             array('name' => 'member-access.index', 'description' => 'Ver acceso de miembros', 'contexts' => ['web']),
+            array('name' => 'member-access.store', 'description' => 'Asignar acceso a miembros', 'contexts' => ['web']),
+            array('name' => 'member-access.destroy', 'description' => 'Revocar acceso a miembros', 'contexts' => ['web']),
+         
 
             // -------------------------------------------------------
             // App Móvil - Permisos base (aplican a ambos clubs)
