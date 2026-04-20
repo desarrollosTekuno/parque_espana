@@ -169,13 +169,26 @@ const routes: Routing[] = [
     },
     // Publicidad de negocios
     {
-        name: "business-ads.index",
-        title: "Publicidad de negocios",
+        name: ["business-ads.index", "business-categories.index"],
+        title: "Publicidad",
         icon: "mdi-storefront-outline",
         value: "publicidad-negocios",
-        group: null,
-        showBadge: true 
-        // groupItems: null
+        group: "Publicidad de negocios",
+        showBadge: true,
+        groupItems: [
+            {
+                name: "business-ads.index",
+                title: "Publicaciones de negocios",
+                icon: "mdi-storefront-outline",
+                value: "anuncios-activos",
+            },
+            {
+                name: "business-categories.index",
+                title: "Categorías de negocios",
+                icon: "mdi-shape-outline",
+                value: "categorias-negocios",
+            },
+        ]
     },
     // Variables de sistema
     {

@@ -28,19 +28,23 @@ class BusinessAdController extends Controller {
         try {
             $clubId = $request->club_id ?? session('club_id');
             $driver = DB::getDriverName();
-            $query = BusinessAd::with(['status', 'member'])->where('club_id', $clubId);
+            $query = BusinessAd::with(['status', 'member', 'category'])->where('club_id', $clubId);
            // dd($query);
             if ($search = $request->input("search")) {
                 $operator = $driver == 'pgsql' ? 'ilike' : 'like';
                 $query->where(function ($q) use ($search, $operator) {
-                    $q->where('title', $operator, "%{$search}%")
-                    ->orWhere('description', $operator, "%{$search}%")
-                    ->orWhereHas('user', function($u) use ($search, $operator){
-                        $u->where('name', $operator, "%{$search}%");
+                    $q->where('name', $operator, "%{$search}%")
+                    ->orWhereHas('category', function($q) use ($search, $operator){
+                        $q->where('name', $operator, "%{$search}%");
+                    })
+                    ->orWhereHas('member', function($u) use ($search, $operator){
+                        $u->where('first_name', $operator, "%{$search}%")
+                        ->orWhere('last_name', $operator, "%{$search}%");
                     });
                 });
             }
             $query->orderBy('id', 'desc');
+            //dd($request->all());
             $ads = $query->paginate(
                 $request->input("per_page", 10)
             )->withQueryString();
@@ -130,86 +134,6 @@ class BusinessAdController extends Controller {
 
         } catch (\Exception $e) {
             DB::rollBack();
-            report($e);
-
-            return back()->withErrors([
-                'messageError' => $e->getMessage()
-            ]);
-        }
-    }
-
-    /*     Confirmar pago    */
-    public function confirmPayment($id){
-        try {
-            DB::beginTransaction();
-            $ad = BusinessAd::findOrFail($id);
-
-            if ($ad->status_id != 3) {
-                throw ValidationException::withMessages([
-                    'status' => 'El anuncio debe estar aprobado antes de confirmar el pago'
-                ]);
-            }
-
-            $ad->update([
-                'status_id' => 4, // paid
-                'paid_at' => now()
-            ]);
-
-            DB::commit();
-
-            return back()->with('success','Pago confirmado correctamente');
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            report($e);
-
-            return back()->withErrors([
-                'messageError' => $e->getMessage()
-            ]);
-        }
-    }
-
-    /*      Publicar anuncio    */
-    public function publish($id){
-        try {
-            DB::beginTransaction();
-
-            $ad = BusinessAd::findOrFail($id);
-
-            if ($ad->status_id != 4) {
-                throw ValidationException::withMessages([
-                    'status' => 'El anuncio debe estar pagado antes de publicarse'
-                ]);
-            }
-
-            $ad->update([
-                'status_id' => 5, // published
-                'published_at' => now(),
-                'expires_at' => now()->addMonth()
-            ]);
-
-            DB::commit();
-
-            return back()->with('success','Anuncio publicado correctamente');
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            report($e);
-
-            return back()->withErrors([
-                'messageError' => $e->getMessage()
-            ]);
-        }
-    }
-
-    /*     Eliminar    */
-    public function destroy(BusinessAd $businessAd){
-        try {
-
-            $businessAd->delete();
-            return back()->with('success','Anuncio eliminado correctamente');
-
-        } catch (\Exception $e) {
             report($e);
 
             return back()->withErrors([

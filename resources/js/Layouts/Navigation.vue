@@ -46,6 +46,18 @@ onMounted(() => {
     // Va a buscar la ruta activa para activar en el submenu la ruta activa
     // opened.value = routes.find((ruta) => ruta.groupItems?.find((groupItem) => route().current(groupItem.name)))?.group ?? '';
 });
+const shouldShowBadge = (ruta:any) => {
+    if (!ruta.showBadge || pendingAds.value <= 0) return false;
+    if (ruta.groupItems) {
+        return ruta.groupItems.some((sub:any) =>
+            sub.name === 'business-ads.index'
+        );
+    }
+    if (Array.isArray(ruta.name)) {
+        return ruta.name.includes('business-ads.index');
+    }
+    return ruta.name === 'business-ads.index';
+};
 </script>
 <template>
     <!-- <v-navigation-drawer :v-model="drawer" :location="$vuetify.display.mobile ? 'left' : undefined" :permanent="rail"
@@ -96,14 +108,14 @@ onMounted(() => {
                     <v-list-item elevation="0" variant="elevated" rounded="pill"
                         active-color="customSecondary"
                         base-color="customPrimary"
-                        :active="ruta.name instanceof Array ? route().current(ruta.name[0]) : route().current(ruta.name)">
+                        :active="Array.isArray(ruta.name) ? ruta.name.some(n => route().current(n)) : route().current(ruta.name)">
                         <template #prepend>
                             <v-icon :icon="ruta.icon"></v-icon>
                         </template>
                         <v-list-item-title class="d-flex align-center justify-space-between w-100">
                             <span>{{ ruta.title }}</span>
                             <v-badge
-                                v-if="ruta.showBadge && pendingAds > 0"
+                                v-if="shouldShowBadge(ruta)"
                                 :content="pendingAds > 9 ? '9+' : pendingAds"
                                 color="red"
                                 inline
@@ -117,9 +129,21 @@ onMounted(() => {
                     <!-- <v-list-group v-if="can.includes(ruta.name)" :value="ruta.group" fluid> -->
                     <v-list-group v-if="existSomeRoute(ruta.name)" :value="ruta.group" fluid>
                         <!-- {{ existSomeRoute(ruta.name) ? "Existe" : "no" }} -->
-                        <template v-slot:activator="{ props, isOpen }">
-                            <v-list-item color="customSecondary" v-bind="props" :title="ruta.title" :prepend-icon="ruta.icon"
-                                </v-list-item>
+                        <template v-slot:activator="{ props }">
+                            <v-list-item
+                                v-bind="props"
+                                :title="ruta.title"
+                                :prepend-icon="ruta.icon"
+                            >
+                                <template v-slot:append>
+                                    <v-badge
+                                        v-if="shouldShowBadge(ruta)"
+                                        :content="pendingAds.value > 9 ? '9+' : pendingAds"
+                                        color="red"
+                                        class="badge-pulse"
+                                    />
+                                </template>
+                            </v-list-item>
                         </template>
                         <Link v-for="groupItem in ruta.groupItems" :key="groupItem.value" :href="route(groupItem.name)" preserve-scroll>
                         <v-list-item elevation="0 ml-2" v-if="can.includes(groupItem.name)" variant="elevated" color="customSecondary"
@@ -141,3 +165,23 @@ onMounted(() => {
         <!-- {{ can }} -->
     </v-navigation-drawer>
 </template>
+<style>
+.badge-pulse .v-badge__badge {
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(244, 67, 54, 0.7);
+  }
+  70% {
+    transform: scale(1.2);
+    box-shadow: 0 0 0 10px rgba(244, 67, 54, 0);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(244, 67, 54, 0);
+  }
+}
+</style>
