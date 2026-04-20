@@ -65,6 +65,8 @@ class AdminClubSeeder extends Seeder
             'business-ads.update',
             'business-ads.destroy',
 
+            'member-access.index'
+
         );
         $adminClubRole = Role::updateOrCreate([
             'name' => 'admin_club',

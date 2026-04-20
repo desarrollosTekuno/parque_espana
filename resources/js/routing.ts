@@ -32,7 +32,7 @@ const routes: Routing[] = [
         // groupItems: null
     },
     {
-        name: ["members.index", "members.create", "members.edit", "members.additional-membership.create", "members.manage.show", "members.family-members.create"],
+        name: ["members.index", "members.create", "members.edit", "members.additional-membership.create", "members.manage.show", "members.family-members.create", "member-access.index"],
         title: "Socios",
         icon: "mdi-account-group-outline",
         value: "sociosMenu",
@@ -50,7 +50,14 @@ const routes: Routing[] = [
                 title: "Nuevo socio",
                 icon: "mdi-account-plus-outline",
                 value: "nuevo-socio",
-            }
+            },
+            // accesos app móvil
+            {
+                name: "member-access.index",
+                title: "Accesos App Móvil",
+                icon: "mdi-cellphone-key",
+                value: "accesos-app",
+            },
         ],
     },
     {

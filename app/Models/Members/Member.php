@@ -8,6 +8,7 @@ use App\Models\Catalogs\Country;
 use App\Models\Catalogs\MaritalStatus;
 use App\Models\Catalogs\State;
 use App\Models\Memberships\MembershipAccountMember;
+use App\Models\User;
 use App\Traits\SerializesDates;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -20,6 +21,11 @@ class Member extends Model
     protected $table = 'members.members';
     protected $connection = 'pgsql';
     protected $appends = ['full_name'];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
 
     public function accountMemberships()
     {

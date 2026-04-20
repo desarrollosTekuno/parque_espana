@@ -89,13 +89,43 @@ class PermissionSeeder extends Seeder
             array('name' => 'business-ads.confirm-payment', 'description' => 'Confirmar pago de publicidad de negocios', 'contexts' => ['web']),
             array('name' => 'business-ads.publish', 'description' => 'Publicar publicidad de negocios', 'contexts' => ['web']),
             array('name' => 'business-ads.update', 'description' => 'Actualizar publicidad de negocios', 'contexts' => ['web']),
-            array('name' => 'business-ads.destroy', 'description' => 'Eliminar publicidad de negocios', 'contexts' => ['web']),         
+            array('name' => 'business-ads.destroy', 'description' => 'Eliminar publicidad de negocios', 'contexts' => ['web']),
+            // 
+            
+            array('name' => 'member-access.index', 'description' => 'Ver acceso de miembros', 'contexts' => ['web']),
+
+            // -------------------------------------------------------
+            // App Móvil - Permisos base (aplican a ambos clubs)
+            // -------------------------------------------------------
+
+            // Reservaciones
+            array('name' => 'mobile.reservations.index',         'description' => 'Ver mis reservaciones',          'contexts' => ['mobile_club_1', 'mobile_club_2']),
+            array('name' => 'mobile.reservations.store',         'description' => 'Crear reservación',              'contexts' => ['mobile_club_1', 'mobile_club_2']),
+            array('name' => 'mobile.reservations.cancel',        'description' => 'Cancelar mis reservaciones',     'contexts' => ['mobile_club_1', 'mobile_club_2']),
+            array('name' => 'mobile.reservations.guests.index',  'description' => 'Ver lista de invitados',         'contexts' => ['mobile_club_1', 'mobile_club_2']),
+            array('name' => 'mobile.reservations.guests.manage', 'description' => 'Gestionar lista de invitados',   'contexts' => ['mobile_club_1', 'mobile_club_2']),
+
+            // Amenidades
+            array('name' => 'mobile.amenities.index',     'description' => 'Ver amenidades disponibles',  'contexts' => ['mobile_club_1', 'mobile_club_2']),
+
+            // Membresía
+            array('name' => 'mobile.membership.show',     'description' => 'Ver mi membresía y vigencia', 'contexts' => ['mobile_club_1', 'mobile_club_2']),
+
+            // Estado de cuenta (solo titular)
+            array('name' => 'mobile.billing.show',        'description' => 'Ver estado de cuenta',        'contexts' => ['mobile_club_1', 'mobile_club_2']),
+
+            // Anuncios
+            array('name' => 'mobile.announcements.index', 'description' => 'Ver anuncios del club',       'contexts' => ['mobile_club_1', 'mobile_club_2']),
+
+            // Reglas del club
+            array('name' => 'mobile.rules.index',         'description' => 'Ver reglamento del club',     'contexts' => ['mobile_club_1', 'mobile_club_2']),
 
         );
         foreach ($permissions as $permission) {
-            $createPermission= Permission::updateOrCreate(['name' => $permission['name']], [
-                'description' => $permission['description'],
-            ]);
+            $createPermission = Permission::updateOrCreate(
+                ['name' => $permission['name']],
+                ['description' => $permission['description'], 'guard_name' => 'web']
+            );
             if (isset($permission['contexts'])) {
                 $createPermission->contexts()->sync(
                     array_map(function ($context) {
