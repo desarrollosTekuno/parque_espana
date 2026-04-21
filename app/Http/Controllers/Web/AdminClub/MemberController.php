@@ -358,43 +358,44 @@ class MemberController extends Controller
                 yearsInSourceClub: $yearsInSourceClub
             );
 
+            $newMonthlyFeeTotal = (float) $pricing['monthly_fee'];
+            $newMonthlyFeeShare = $this->resolvePreviewMonthlyFeeShare(
+                $newMonthlyFeeTotal,
+                $hasMultipleClubs
+            );
+            $inscriptionFee = (float) ($pricing['inscription_fee'] ?? 0);
+            $additionalMonthlyCharge = $this->resolveAdditionalMonthlyCharge(
+                currentMonthlyFee: $currentMonthlyFee,
+                newMonthlyFeeTotal: $newMonthlyFeeTotal
+            );
+            $amountDueToday = $this->resolvePreviewAmountDueToday(
+                currentMonthlyFee: $currentMonthlyFee,
+                newMonthlyFeeTotal: $newMonthlyFeeTotal,
+                newMonthlyFeeShare: $newMonthlyFeeShare,
+                inscriptionFee: $inscriptionFee
+            );
+
             return response()->json([
                 'membership_type_id' => $membershipType->id,
                 'membership_type_name' => $membershipType->name,
                 'membership_type_code' => $membershipType->code,
-                'monthly_fee' => $this->resolvePreviewMonthlyFeeShare(
-                    (float) $pricing['monthly_fee'],
-                    $hasMultipleClubs
-                ),
-                'monthly_fee_total' => (float) $pricing['monthly_fee'],
-                'monthly_fee_share' => $this->resolvePreviewMonthlyFeeShare(
-                    (float) $pricing['monthly_fee'],
-                    $hasMultipleClubs
-                ),
-                'inscription_fee' => (float) ($pricing['inscription_fee'] ?? 0),
-                'total_due' => $this->resolvePreviewMonthlyFeeShare(
-                    (float) $pricing['monthly_fee'],
-                    $hasMultipleClubs
-                ) + (float) ($pricing['inscription_fee'] ?? 0),
+                'monthly_fee' => $newMonthlyFeeShare,
+                'monthly_fee_total' => $newMonthlyFeeTotal,
+                'monthly_fee_share' => $newMonthlyFeeShare,
+                'inscription_fee' => $inscriptionFee,
+                'total_due' => $amountDueToday,
+                'amount_due_today' => $amountDueToday,
                 'rule_type' => $pricing['rule_type'] ?? null,
                 'source_membership_becomes_non_billable' => (bool) ($pricing['source_membership_becomes_non_billable'] ?? false),
                 'current_monthly_fee' => $currentMonthlyFee,
-                'additional_monthly_charge' => $this->resolveAdditionalMonthlyCharge(
-                    currentMonthlyFee: $currentMonthlyFee,
-                    newMonthlyFee: $this->resolvePreviewMonthlyFeeShare(
-                        (float) $pricing['monthly_fee'],
-                        $hasMultipleClubs
-                    ),
-                    sourceMembershipBecomesNonBillable: (bool) ($pricing['source_membership_becomes_non_billable'] ?? false)
-                ),
+                'additional_monthly_charge' => $additionalMonthlyCharge,
                 'charge_explanation' => $this->buildPricingPreviewExplanation(
                     currentMonthlyFee: $currentMonthlyFee,
-                    newMonthlyFee: $this->resolvePreviewMonthlyFeeShare(
-                        (float) $pricing['monthly_fee'],
-                        $hasMultipleClubs
-                    ),
-                    inscriptionFee: (float) ($pricing['inscription_fee'] ?? 0),
-                    sourceMembershipBecomesNonBillable: (bool) ($pricing['source_membership_becomes_non_billable'] ?? false),
+                    newMonthlyFeeTotal: $newMonthlyFeeTotal,
+                    newMonthlyFeeShare: $newMonthlyFeeShare,
+                    inscriptionFee: $inscriptionFee,
+                    amountDueToday: $amountDueToday,
+                    additionalMonthlyCharge: $additionalMonthlyCharge,
                     sameClubTransition: $sameClubTransition
                 ),
             ]);
@@ -2689,18 +2690,13 @@ class MemberController extends Controller
 
     protected function resolveAdditionalMonthlyCharge(
         ?float $currentMonthlyFee,
-        float $newMonthlyFee,
-        bool $sourceMembershipBecomesNonBillable
+        float $newMonthlyFeeTotal
     ): ?float {
         if ($currentMonthlyFee === null) {
             return null;
         }
 
-        if (!$sourceMembershipBecomesNonBillable) {
-            return null;
-        }
-
-        return round($newMonthlyFee - $currentMonthlyFee, 2);
+        return round(max($newMonthlyFeeTotal - $currentMonthlyFee, 0), 2);
     }
 
     protected function resolveCurrentGroupMonthlyFee(Membership $membership): float
@@ -2733,23 +2729,96 @@ class MemberController extends Controller
             : round($monthlyFeeTotal, 2);
     }
 
+    protected function resolvePreviewAmountDueToday(
+        ?float $currentMonthlyFee,
+        float $newMonthlyFeeTotal,
+        float $newMonthlyFeeShare,
+        float $inscriptionFee
+    ): float {
+        if ($currentMonthlyFee === null) {
+            return round($newMonthlyFeeShare + $inscriptionFee, 2);
+        }
+
+        return round(max($newMonthlyFeeTotal - $currentMonthlyFee, 0) + $inscriptionFee, 2);
+    }
+
     protected function buildPricingPreviewExplanation(
         ?float $currentMonthlyFee,
-        float $newMonthlyFee,
+        float $newMonthlyFeeTotal,
+        float $newMonthlyFeeShare,
         float $inscriptionFee,
-        bool $sourceMembershipBecomesNonBillable,
+        float $amountDueToday,
+        ?float $additionalMonthlyCharge,
         bool $sameClubTransition
     ): string {
-        $formattedNewMonthlyFee = number_format($newMonthlyFee, 2);
+        $formattedNewMonthlyFeeTotal = number_format($newMonthlyFeeTotal, 2);
+        $formattedNewMonthlyFeeShare = number_format($newMonthlyFeeShare, 2);
         $formattedInscriptionFee = number_format($inscriptionFee, 2);
+        $formattedAmountDueToday = number_format($amountDueToday, 2);
 
-        if ($sameClubTransition) {
+        if ($currentMonthlyFee === null) {
+            $message = $newMonthlyFeeTotal === $newMonthlyFeeShare
+                ? "La mensualidad de este parque será de $$formattedNewMonthlyFeeShare."
+                : "La cuota total del esquema será de $$formattedNewMonthlyFeeTotal y en este parque se cobrará $$formattedNewMonthlyFeeShare al mes.";
+
+            if ($inscriptionFee > 0) {
+                return $message . " Hoy se pagarán $$formattedAmountDueToday considerando mensualidad e inscripción.";
+            }
+
+            return $message . " Hoy se pagará $$formattedAmountDueToday.";
+
             if ($inscriptionFee > 0) {
                 return "Se actualizará la cuota mensual a $$formattedNewMonthlyFee y se cobrará un cargo extra de inscripción por $$formattedInscriptionFee.";
             }
 
             return "Se actualizará la cuota mensual a $$formattedNewMonthlyFee.";
         }
+
+        $formattedCurrentMonthlyFee = number_format($currentMonthlyFee, 2);
+        $formattedAdditionalCharge = number_format((float) ($additionalMonthlyCharge ?? 0), 2);
+        $difference = round($newMonthlyFeeTotal - $currentMonthlyFee, 2);
+
+        if ($difference > 0) {
+            $message = "La cuota total del esquema pasará de $$formattedCurrentMonthlyFee a $$formattedNewMonthlyFeeTotal. En este parque se cobrará $$formattedNewMonthlyFeeShare al mes.";
+
+            if (($additionalMonthlyCharge ?? 0) > 0) {
+                $message .= " Hoy se cobrará un ajuste de $$formattedAdditionalCharge";
+
+                if ($inscriptionFee > 0) {
+                    $message .= " más $$formattedInscriptionFee de inscripción";
+                }
+
+                return $message . ", para un total de $$formattedAmountDueToday.";
+            }
+
+            if ($inscriptionFee > 0) {
+                return $message . " Hoy solo se cobrará la inscripción por $$formattedInscriptionFee.";
+            }
+
+            return $message . " Hoy no se generará cobro adicional.";
+        }
+
+        if ($difference < 0) {
+            $message = "La cuota total del esquema bajará de $$formattedCurrentMonthlyFee a $$formattedNewMonthlyFeeTotal. En este parque se cobrará $$formattedNewMonthlyFeeShare al mes.";
+
+            if ($inscriptionFee > 0) {
+                return $message . " No se generará saldo a favor; hoy solo se cobrará la inscripción por $$formattedInscriptionFee.";
+            }
+
+            return $message . " No se generará saldo a favor ni cobro adicional hoy.";
+        }
+
+        $message = $sameClubTransition
+            ? "La cuota total del esquema se mantiene en $$formattedNewMonthlyFeeTotal."
+            : "La cuota total del esquema se mantiene en $$formattedNewMonthlyFeeTotal.";
+
+        $message .= " En este parque se cobrará $$formattedNewMonthlyFeeShare al mes.";
+
+        if ($inscriptionFee > 0) {
+            return $message . " Hoy solo se cobrará la inscripción por $$formattedInscriptionFee.";
+        }
+
+        return $message . " Hoy no se generará cobro adicional.";
 
         if ($sourceMembershipBecomesNonBillable && $currentMonthlyFee !== null) {
             $additionalCharge = round($newMonthlyFee - $currentMonthlyFee, 2);

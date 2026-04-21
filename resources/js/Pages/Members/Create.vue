@@ -215,8 +215,11 @@ interface PricingPreview {
     membership_type_name: string;
     membership_type_code: string | null;
     monthly_fee: number;
+    monthly_fee_total: number;
+    monthly_fee_share: number;
     inscription_fee: number;
     total_due: number;
+    amount_due_today: number;
     rule_type: string | null;
     source_membership_becomes_non_billable: boolean;
     current_monthly_fee: number | null;
@@ -1469,7 +1472,7 @@ const memberLabel = (member: MemberForm) => {
                                     </div>
 
                                     <v-row class="mt-2">
-                                        <v-col cols="12" md="4">
+                                        <v-col cols="12" md="3">
                                             <v-skeleton-loader
                                                 v-if="pricingPreviewLoading"
                                                 type="paragraph"
@@ -1478,7 +1481,7 @@ const memberLabel = (member: MemberForm) => {
                                                 <div
                                                     class="text-caption text-medium-emphasis"
                                                 >
-                                                    Mensualidad
+                                                    Cuota total del esquema
                                                 </div>
                                                 <div
                                                     class="text-h6 font-weight-bold"
@@ -1486,7 +1489,7 @@ const memberLabel = (member: MemberForm) => {
                                                     {{
                                                         pricingPreview
                                                             ? currencyFormatter.format(
-                                                                  pricingPreview.monthly_fee,
+                                                                  pricingPreview.monthly_fee_total,
                                                               )
                                                             : "-"
                                                     }}
@@ -1494,7 +1497,32 @@ const memberLabel = (member: MemberForm) => {
                                             </template>
                                         </v-col>
 
-                                        <v-col cols="12" md="4">
+                                        <v-col cols="12" md="3">
+                                            <v-skeleton-loader
+                                                v-if="pricingPreviewLoading"
+                                                type="paragraph"
+                                            />
+                                            <template v-else>
+                                                <div
+                                                    class="text-caption text-medium-emphasis"
+                                                >
+                                                    Cuota de este parque
+                                                </div>
+                                                <div
+                                                    class="text-h6 font-weight-bold"
+                                                >
+                                                    {{
+                                                        pricingPreview
+                                                            ? currencyFormatter.format(
+                                                                  pricingPreview.monthly_fee_share,
+                                                              )
+                                                            : "-"
+                                                    }}
+                                                </div>
+                                            </template>
+                                        </v-col>
+
+                                        <v-col cols="12" md="3">
                                             <v-skeleton-loader
                                                 v-if="pricingPreviewLoading"
                                                 type="paragraph"
@@ -1519,7 +1547,7 @@ const memberLabel = (member: MemberForm) => {
                                             </template>
                                         </v-col>
 
-                                        <v-col cols="12" md="4">
+                                        <v-col cols="12" md="3">
                                             <v-skeleton-loader
                                                 v-if="pricingPreviewLoading"
                                                 type="paragraph"
@@ -1528,7 +1556,7 @@ const memberLabel = (member: MemberForm) => {
                                                 <div
                                                     class="text-caption text-medium-emphasis"
                                                 >
-                                                    Total estimado inicial
+                                                    Total a pagar hoy
                                                 </div>
                                                 <div
                                                     class="text-h6 font-weight-bold"
@@ -1536,12 +1564,68 @@ const memberLabel = (member: MemberForm) => {
                                                     {{
                                                         pricingPreview
                                                             ? currencyFormatter.format(
-                                                                  pricingPreview.total_due,
+                                                                  pricingPreview.amount_due_today,
                                                               )
                                                             : "-"
                                                     }}
                                                 </div>
                                             </template>
+                                        </v-col>
+                                    </v-row>
+
+                                    <v-row
+                                        v-if="
+                                            !pricingPreviewLoading &&
+                                            pricingPreview &&
+                                            (pricingPreview.current_monthly_fee !==
+                                                null ||
+                                                pricingPreview.additional_monthly_charge !==
+                                                    null)
+                                        "
+                                        class="mt-1"
+                                    >
+                                        <v-col
+                                            v-if="
+                                                pricingPreview.current_monthly_fee !==
+                                                null
+                                            "
+                                            cols="12"
+                                            md="6"
+                                        >
+                                            <div
+                                                class="text-caption text-medium-emphasis"
+                                            >
+                                                Cuota actual del esquema
+                                            </div>
+                                            <div class="text-body-1">
+                                                {{
+                                                    currencyFormatter.format(
+                                                        pricingPreview.current_monthly_fee,
+                                                    )
+                                                }}
+                                            </div>
+                                        </v-col>
+
+                                        <v-col
+                                            v-if="
+                                                pricingPreview.additional_monthly_charge !==
+                                                null
+                                            "
+                                            cols="12"
+                                            md="6"
+                                        >
+                                            <div
+                                                class="text-caption text-medium-emphasis"
+                                            >
+                                                Ajuste mensual de hoy
+                                            </div>
+                                            <div class="text-body-1">
+                                                {{
+                                                    currencyFormatter.format(
+                                                        pricingPreview.additional_monthly_charge,
+                                                    )
+                                                }}
+                                            </div>
                                         </v-col>
                                     </v-row>
 
