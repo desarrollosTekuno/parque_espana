@@ -23,6 +23,9 @@ interface ActiveMembershipItem {
     club_name: string | null;
     club_code: string | null;
     monthly_fee: number;
+    monthly_fee_total: number;
+    monthly_fee_share: number;
+    billing_split_mode: string | null;
     is_billable: boolean;
     status: string;
     start_date: string | null;
@@ -572,6 +575,14 @@ const cancelAbsencePermit = (absencePermitId: number) => {
                                                         : "Incluida"
                                                 }}
                                             </v-chip>
+                                            <v-chip
+                                                v-if="activeMembership.billing_split_mode === 'equal_split'"
+                                                size="small"
+                                                color="info"
+                                                variant="tonal"
+                                            >
+                                                50/50
+                                            </v-chip>
 
                                             <v-chip
                                                 size="small"
@@ -586,7 +597,18 @@ const cancelAbsencePermit = (absencePermitId: number) => {
                                     <div class="text-body-2 mt-2">
                                         {{
                                             currencyFormatter.format(
-                                                activeMembership.monthly_fee,
+                                                activeMembership.monthly_fee_share,
+                                            )
+                                        }}
+                                    </div>
+                                    <div
+                                        v-if="activeMembership.monthly_fee_total !== activeMembership.monthly_fee_share"
+                                        class="text-caption text-medium-emphasis"
+                                    >
+                                        Cuota total del esquema:
+                                        {{
+                                            currencyFormatter.format(
+                                                activeMembership.monthly_fee_total,
                                             )
                                         }}
                                     </div>

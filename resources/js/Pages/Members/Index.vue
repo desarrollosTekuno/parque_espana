@@ -29,6 +29,9 @@ interface ActiveMembershipItem {
     club_name: string | null;
     club_code: string | null;
     monthly_fee: number;
+    monthly_fee_total: number;
+    monthly_fee_share: number;
+    billing_split_mode: string | null;
     is_billable: boolean;
     start_date: string | null;
     end_date: string | null;
@@ -239,6 +242,14 @@ const emptyMessage = computed(() =>
                                                 }}
                                             </v-chip>
                                             <v-chip
+                                                v-if="membership.billing_split_mode === 'equal_split'"
+                                                size="small"
+                                                color="info"
+                                                variant="tonal"
+                                            >
+                                                50/50
+                                            </v-chip>
+                                            <v-chip
                                                 size="small"
                                                 :color="statusColor(membership.status)"
                                                 variant="tonal"
@@ -251,9 +262,16 @@ const emptyMessage = computed(() =>
                                     <div class="text-caption text-medium-emphasis mt-2">
                                         {{
                                             membership.is_billable
-                                                ? `Cuota a cobrar: ${currencyFormatter.format(membership.monthly_fee)}`
-                                                : `Monto referencial: ${currencyFormatter.format(membership.monthly_fee)}`
+                                                ? `Cuota a cobrar: ${currencyFormatter.format(membership.monthly_fee_share)}`
+                                                : `Monto referencial: ${currencyFormatter.format(membership.monthly_fee_share)}`
                                         }}
+                                    </div>
+                                    <div
+                                        v-if="membership.monthly_fee_total !== membership.monthly_fee_share"
+                                        class="text-caption text-medium-emphasis"
+                                    >
+                                        Cuota total del esquema:
+                                        {{ currencyFormatter.format(membership.monthly_fee_total) }}
                                     </div>
                                 </div>
                             </div>

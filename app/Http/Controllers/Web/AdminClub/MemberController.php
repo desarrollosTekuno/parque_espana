@@ -125,7 +125,7 @@ class MemberController extends Controller
                         'holder_name' => $fullName,
                         'email' => $holder?->email,
                         'phone' => $holder?->phone,
-                        'monthly_fee' => (float) ($billableMembership?->monthly_fee ?? 0),
+                        'monthly_fee' => (float) $activeMemberships->sum(fn (Membership $membership) => $membership->resolved_monthly_fee_share),
                         'status' => $currentMembership?->status,
                         'can_change_membership' => $currentMembership !== null
                             && Str::contains($currentMembershipCode, '_IND'),
@@ -140,7 +140,10 @@ class MemberController extends Controller
                                 'membership_type_code' => $membership->membershipType?->code,
                                 'club_name' => $membership->club?->name,
                                 'club_code' => $membership->club?->code,
-                                'monthly_fee' => (float) $membership->monthly_fee,
+                                'monthly_fee' => (float) $membership->resolved_monthly_fee_share,
+                                'monthly_fee_total' => (float) $membership->resolved_monthly_fee_total,
+                                'monthly_fee_share' => (float) $membership->resolved_monthly_fee_share,
+                                'billing_split_mode' => $membership->billing_split_mode,
                                 'is_billable' => (bool) $membership->is_billable,
                                 'start_date' => $membership->start_date,
                                 'end_date' => $membership->end_date,
@@ -283,7 +286,7 @@ class MemberController extends Controller
                     ? Carbon::parse($sourceMembership->start_date)->diffInYears(now())
                     : null;
                 $sameClubTransition = (int) $clubId === (int) $sourceMembership->club_id;
-                $currentMonthlyFee = (float) $sourceMembership->monthly_fee;
+                $currentMonthlyFee = $this->resolveCurrentGroupMonthlyFee($sourceMembership);
 
                 if (!$sameClubTransition) {
                     $hasMultipleClubs = true;
@@ -359,20 +362,37 @@ class MemberController extends Controller
                 'membership_type_id' => $membershipType->id,
                 'membership_type_name' => $membershipType->name,
                 'membership_type_code' => $membershipType->code,
-                'monthly_fee' => (float) $pricing['monthly_fee'],
+                'monthly_fee' => $this->resolvePreviewMonthlyFeeShare(
+                    (float) $pricing['monthly_fee'],
+                    $hasMultipleClubs
+                ),
+                'monthly_fee_total' => (float) $pricing['monthly_fee'],
+                'monthly_fee_share' => $this->resolvePreviewMonthlyFeeShare(
+                    (float) $pricing['monthly_fee'],
+                    $hasMultipleClubs
+                ),
                 'inscription_fee' => (float) ($pricing['inscription_fee'] ?? 0),
-                'total_due' => (float) $pricing['monthly_fee'] + (float) ($pricing['inscription_fee'] ?? 0),
+                'total_due' => $this->resolvePreviewMonthlyFeeShare(
+                    (float) $pricing['monthly_fee'],
+                    $hasMultipleClubs
+                ) + (float) ($pricing['inscription_fee'] ?? 0),
                 'rule_type' => $pricing['rule_type'] ?? null,
                 'source_membership_becomes_non_billable' => (bool) ($pricing['source_membership_becomes_non_billable'] ?? false),
                 'current_monthly_fee' => $currentMonthlyFee,
                 'additional_monthly_charge' => $this->resolveAdditionalMonthlyCharge(
                     currentMonthlyFee: $currentMonthlyFee,
-                    newMonthlyFee: (float) $pricing['monthly_fee'],
+                    newMonthlyFee: $this->resolvePreviewMonthlyFeeShare(
+                        (float) $pricing['monthly_fee'],
+                        $hasMultipleClubs
+                    ),
                     sourceMembershipBecomesNonBillable: (bool) ($pricing['source_membership_becomes_non_billable'] ?? false)
                 ),
                 'charge_explanation' => $this->buildPricingPreviewExplanation(
                     currentMonthlyFee: $currentMonthlyFee,
-                    newMonthlyFee: (float) $pricing['monthly_fee'],
+                    newMonthlyFee: $this->resolvePreviewMonthlyFeeShare(
+                        (float) $pricing['monthly_fee'],
+                        $hasMultipleClubs
+                    ),
                     inscriptionFee: (float) ($pricing['inscription_fee'] ?? 0),
                     sourceMembershipBecomesNonBillable: (bool) ($pricing['source_membership_becomes_non_billable'] ?? false),
                     sameClubTransition: $sameClubTransition
@@ -1194,6 +1214,9 @@ class MemberController extends Controller
                     'is_primary' => true,
                     'is_billable' => true,
                     'monthly_fee' => $selectedTargetOption['monthly_fee'],
+                    'monthly_fee_total' => $selectedTargetOption['monthly_fee'],
+                    'monthly_fee_share' => $selectedTargetOption['monthly_fee'],
+                    'billing_split_mode' => 'single',
                     'start_date' => now()->toDateString(),
                     'end_date' => $targetMembershipType->validity_months
                         ? now()->addMonthsNoOverflow($targetMembershipType->validity_months)->toDateString()
@@ -1201,7 +1224,9 @@ class MemberController extends Controller
                     'status' => 'active',
                 ]);
 
-                $newMembership->load(['membershipType', 'account.primaryHolder']);
+                $newMembership = $this->membershipChargeService
+                    ->synchronizeMembershipFees($newMembership, (float) $selectedTargetOption['monthly_fee'])
+                    ->firstWhere('id', $newMembership->id) ?? $newMembership->fresh(['membershipType', 'account.primaryHolder']);
 
                 $this->membershipChargeService->createInitialCharges(
                     membership: $newMembership,
@@ -1659,6 +1684,9 @@ class MemberController extends Controller
                         'is_primary' => true,
                         'is_billable' => $previousBillableState,
                         'monthly_fee' => $pricing['monthly_fee'],
+                        'monthly_fee_total' => $pricing['monthly_fee'],
+                        'monthly_fee_share' => $pricing['monthly_fee'],
+                        'billing_split_mode' => 'single',
                         'start_date' => now()->toDateString(),
                         'end_date' => $membershipType->validity_months
                             ? now()->addMonthsNoOverflow($membershipType->validity_months)->toDateString()
@@ -1684,7 +1712,9 @@ class MemberController extends Controller
                         'updated_at' => now(),
                     ]);
 
-                    $sourceMembership->load(['membershipType', 'account.primaryHolder']);
+                    $sourceMembership = $this->membershipChargeService
+                        ->synchronizeMembershipFees($sourceMembership, (float) $pricing['monthly_fee'])
+                        ->firstWhere('id', $sourceMembership->id) ?? $sourceMembership->fresh(['membershipType', 'account.primaryHolder']);
 
                     $this->membershipChargeService->createInitialCharges(
                         membership: $sourceMembership,
@@ -1710,6 +1740,9 @@ class MemberController extends Controller
                     'is_primary' => true,
                     'is_billable' => true,
                     'monthly_fee' => $pricing['monthly_fee'],
+                    'monthly_fee_total' => $pricing['monthly_fee'],
+                    'monthly_fee_share' => $pricing['monthly_fee'],
+                    'billing_split_mode' => 'single',
                     'start_date' => now()->toDateString(),
                     'end_date' => $membershipType->validity_months
                         ? now()->addMonthsNoOverflow($membershipType->validity_months)->toDateString()
@@ -1717,7 +1750,9 @@ class MemberController extends Controller
                     'status' => 'active',
                 ]);
 
-                $newMembership->load(['membershipType', 'account.primaryHolder']);
+                $newMembership = $this->membershipChargeService
+                    ->synchronizeMembershipFees($newMembership, (float) $pricing['monthly_fee'])
+                    ->firstWhere('id', $newMembership->id) ?? $newMembership->fresh(['membershipType', 'account.primaryHolder']);
 
                 $this->membershipChargeService->createInitialCharges(
                     membership: $newMembership,
@@ -2102,8 +2137,7 @@ class MemberController extends Controller
             : collect();
         $currentAbsencePermit = $this->resolveCurrentAbsencePermit($absencePermits);
         $billableMonthlyTotal = (float) $activeMemberships
-            ->where('is_billable', true)
-            ->sum('monthly_fee');
+            ->sum(fn (Membership $activeMembership) => $activeMembership->resolved_monthly_fee_share);
 
         return [
             'id' => $membership->account?->id,
@@ -2112,7 +2146,7 @@ class MemberController extends Controller
             'account_club_code' => $accountClub?->code,
             'account_type' => $membership->account?->account_type,
             'status' => $membership->account?->status,
-            'current_monthly_fee' => (float) ($billableMembership?->monthly_fee ?? 0),
+            'current_monthly_fee' => (float) $activeMemberships->sum(fn (Membership $activeMembership) => $activeMembership->resolved_monthly_fee_share),
             'absence_permit_preview_fee' => $currentAbsencePermit
                 ? round($billableMonthlyTotal * ((float) $currentAbsencePermit->charge_percentage / 100), 2)
                 : null,
@@ -2135,7 +2169,10 @@ class MemberController extends Controller
                         'membership_type_code' => $activeMembership->membershipType?->code,
                         'club_name' => $activeMembership->club?->name,
                         'club_code' => $activeMembership->club?->code,
-                        'monthly_fee' => (float) $activeMembership->monthly_fee,
+                        'monthly_fee' => (float) $activeMembership->resolved_monthly_fee_share,
+                        'monthly_fee_total' => (float) $activeMembership->resolved_monthly_fee_total,
+                        'monthly_fee_share' => (float) $activeMembership->resolved_monthly_fee_share,
+                        'billing_split_mode' => $activeMembership->billing_split_mode,
                         'is_billable' => (bool) $activeMembership->is_billable,
                         'status' => $activeMembership->status,
                         'start_date' => $activeMembership->start_date,
@@ -2664,6 +2701,36 @@ class MemberController extends Controller
         }
 
         return round($newMonthlyFee - $currentMonthlyFee, 2);
+    }
+
+    protected function resolveCurrentGroupMonthlyFee(Membership $membership): float
+    {
+        $accountGroupId = $membership->account?->account_group_id;
+
+        if (!$accountGroupId) {
+            return (float) $membership->resolved_monthly_fee_total;
+        }
+
+        $activePrimaryMemberships = Membership::query()
+            ->where('is_primary', true)
+            ->whereIn('status', ['active', 'suspended'])
+            ->whereHas('account', function (Builder $query) use ($accountGroupId) {
+                $query->where('account_group_id', $accountGroupId);
+            })
+            ->get();
+
+        if ($activePrimaryMemberships->isEmpty()) {
+            return (float) $membership->resolved_monthly_fee_total;
+        }
+
+        return (float) $activePrimaryMemberships->max(fn (Membership $activeMembership) => $activeMembership->resolved_monthly_fee_total);
+    }
+
+    protected function resolvePreviewMonthlyFeeShare(float $monthlyFeeTotal, bool $hasMultipleClubs): float
+    {
+        return $hasMultipleClubs
+            ? round($monthlyFeeTotal / 2, 2)
+            : round($monthlyFeeTotal, 2);
     }
 
     protected function buildPricingPreviewExplanation(
