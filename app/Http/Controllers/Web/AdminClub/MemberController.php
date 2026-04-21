@@ -1877,6 +1877,161 @@ class MemberController extends Controller
         return $membership;
     }
 
+    public function editMember(Request $request, Membership $membership, Member $member)
+    {
+        $clubId = session('club_id');
+
+        if ((int) $membership->club_id !== (int) $clubId) {
+            abort(404);
+        }
+
+        $membership = $this->loadMembershipContext($membership);
+
+        $accountMember = $membership->account->accountMembers
+            ->firstWhere('member_id', $member->id);
+
+        if (!$accountMember) {
+            abort(404);
+        }
+
+        $member->load(['primaryAddress', 'employmentInfo', 'birthCountry', 'birthState', 'birthCity', 'nationality', 'maritalStatus']);
+
+        return Inertia::render('Members/EditMember', [
+            'membership' => $this->buildSourceMembershipPayload($membership),
+            'accountMember' => [
+                'member_id'        => $member->id,
+                'is_primary_holder' => (bool) $accountMember->is_primary_holder,
+                'relationship_id'  => $accountMember->relationship_id,
+                'first_name'       => $member->first_name,
+                'last_name'        => $member->last_name,
+                'second_last_name' => $member->second_last_name,
+                'birthdate'        => $member->birthdate,
+                'phone'            => $member->phone,
+                'email'            => $member->email,
+                'birth_country_id' => $member->birth_country_id,
+                'birth_state_id'   => $member->birth_state_id,
+                'birth_city_id'    => $member->birth_city_id,
+                'nationality_id'   => $member->nationality_id,
+                'marital_status_id' => $member->marital_status_id,
+                'occupation'       => $member->occupation,
+                'school_name'      => $member->school_name,
+                'address' => [
+                    'street'       => $member->primaryAddress?->street,
+                    'neighborhood' => $member->primaryAddress?->neighborhood,
+                    'postal_code'  => $member->primaryAddress?->postal_code,
+                    'country_id'   => $member->primaryAddress?->country_id,
+                    'state_id'     => $member->primaryAddress?->state_id,
+                    'city_id'      => $member->primaryAddress?->city_id,
+                    'years_in_city' => $member->primaryAddress?->years_in_city,
+                ],
+                'employment' => [
+                    'company_name'    => $member->employmentInfo?->company_name,
+                    'company_address' => $member->employmentInfo?->company_address,
+                    'company_phone'   => $member->employmentInfo?->company_phone,
+                ],
+            ],
+            ...$this->getCreateFormCatalogs(),
+        ]);
+    }
+
+    public function updateMember(Request $request, Membership $membership, Member $member)
+    {
+        try {
+            $clubId = session('club_id');
+
+            if ((int) $membership->club_id !== (int) $clubId) {
+                abort(404);
+            }
+
+            $membership = $this->loadMembershipContext($membership);
+
+            $accountMember = $membership->account->accountMembers
+                ->firstWhere('member_id', $member->id);
+
+            if (!$accountMember) {
+                abort(404);
+            }
+
+            $validated = $request->validate([
+                'first_name'       => ['required', 'string', 'max:100'],
+                'last_name'        => ['required', 'string', 'max:100'],
+                'second_last_name' => ['nullable', 'string', 'max:100'],
+                'birthdate'        => ['required', 'date'],
+                'phone'            => ['nullable', 'string', 'max:20'],
+                'email'            => ['nullable', 'email', 'max:150'],
+                'birth_country_id' => ['nullable', new ExistsInSchema('catalogs', 'countries', 'id')],
+                'birth_state_id'   => ['nullable', new ExistsInSchema('catalogs', 'states', 'id')],
+                'birth_city_id'    => ['nullable', new ExistsInSchema('catalogs', 'cities', 'id')],
+                'nationality_id'   => ['nullable', new ExistsInSchema('catalogs', 'countries', 'id')],
+                'marital_status_id' => ['nullable', new ExistsInSchema('catalogs', 'marital_statuses', 'id')],
+                'occupation'       => ['nullable', 'string', 'max:150'],
+                'school_name'      => ['nullable', 'string', 'max:150'],
+                'relationship_id'  => ['nullable', 'exists:catalogs.relationships,id'],
+                'address.street'       => ['nullable', 'string', 'max:200'],
+                'address.neighborhood' => ['nullable', 'string', 'max:200'],
+                'address.postal_code'  => ['nullable', 'string', 'max:20'],
+                'address.country_id'   => ['nullable', new ExistsInSchema('catalogs', 'countries', 'id')],
+                'address.state_id'     => ['nullable', new ExistsInSchema('catalogs', 'states', 'id')],
+                'address.city_id'      => ['nullable', new ExistsInSchema('catalogs', 'cities', 'id')],
+                'address.years_in_city' => ['nullable', 'integer', 'min:0'],
+                'employment.company_name'    => ['nullable', 'string', 'max:200'],
+                'employment.company_address' => ['nullable', 'string', 'max:200'],
+                'employment.company_phone'   => ['nullable', 'string', 'max:20'],
+            ]);
+
+            DB::transaction(function () use ($validated, $member, $accountMember) {
+                $member->update([
+                    'first_name'        => $validated['first_name'],
+                    'last_name'         => $validated['last_name'],
+                    'second_last_name'  => $validated['second_last_name'] ?? null,
+                    'birthdate'         => $validated['birthdate'],
+                    'phone'             => $validated['phone'] ?? null,
+                    'email'             => $validated['email'] ?? null,
+                    'birth_country_id'  => $validated['birth_country_id'] ?? null,
+                    'birth_state_id'    => $validated['birth_state_id'] ?? null,
+                    'birth_city_id'     => $validated['birth_city_id'] ?? null,
+                    'nationality_id'    => $validated['nationality_id'] ?? null,
+                    'marital_status_id' => $validated['marital_status_id'] ?? null,
+                    'occupation'        => $validated['occupation'] ?? null,
+                    'school_name'       => $validated['school_name'] ?? null,
+                ]);
+
+                if (!$accountMember->is_primary_holder && !empty($validated['relationship_id'])) {
+                    $accountMember->update(['relationship_id' => $validated['relationship_id']]);
+                }
+
+                $addressData = array_filter($validated['address'] ?? [], fn($v) => $v !== null);
+                if (!empty($addressData)) {
+                    $member->addresses()->updateOrCreate(
+                        ['is_primary' => true],
+                        array_merge($addressData, ['is_primary' => true])
+                    );
+                }
+
+                $employmentData = array_filter($validated['employment'] ?? [], fn($v) => $v !== null);
+                if (!empty($employmentData)) {
+                    $member->employmentInfo()->updateOrCreate(
+                        ['member_id' => $member->id],
+                        $employmentData
+                    );
+                }
+            });
+
+            return redirect()
+                ->route('members.manage.show', $membership)
+                ->with('success', 'Información del integrante actualizada correctamente.');
+        } catch (ValidationException $e) {
+            return $this->validationExceptionResponse($e);
+        } catch (\Exception $e) {
+            report($e);
+
+            return redirect()->back()->withErrors([
+                'messageError' => 'Ocurrió un error al actualizar la información del integrante.',
+                'exception' => $e->getMessage(),
+            ]);
+        }
+    }
+
     protected function getCreateFormCatalogs(): array
     {
         $countries = Country::select('id', 'iso2 as code', 'name', 'translations', 'demonym')

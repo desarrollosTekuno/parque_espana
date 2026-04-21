@@ -709,6 +709,18 @@ const cancelAbsencePermit = (absencePermitId: number) => {
                                             <strong>Domicilio:</strong>
                                             {{ addressSummary(member) || "-" }}
                                         </div>
+
+                                        <div class="d-flex justify-end mt-3">
+                                            <v-btn
+                                                size="small"
+                                                variant="tonal"
+                                                color="primary"
+                                                prepend-icon="mdi-pencil"
+                                                @click="router.visit(route('members.member.edit', { membership: props.membership.id, member: member.member_id }))"
+                                            >
+                                                Editar
+                                            </v-btn>
+                                        </div>
                                     </v-card>
                                 </v-col>
                             </v-row>

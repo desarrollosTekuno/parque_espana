@@ -82,4 +82,8 @@ Route::get('/members/{membership}/separation/create', [MemberController::class, 
     ->name('members.separation.create');
 Route::post('/members/{membership}/separation', [MemberController::class, 'storeMemberSeparation'])
     ->name('members.separation.store');
+Route::get('/members/{membership}/member/{member}/edit', [MemberController::class, 'editMember'])
+    ->name('members.member.edit');
+Route::put('/members/{membership}/member/{member}', [MemberController::class, 'updateMember'])
+    ->name('members.member.update');
 Route::resource('/members', MemberController::class)->only(['index', 'create', 'store', 'edit', 'update'])->names('members');
