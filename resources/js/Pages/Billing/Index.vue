@@ -93,6 +93,7 @@ interface PaymentMethodItem {
     requires_reference: boolean;
     requires_bank_name: boolean;
     requires_check_number: boolean;
+    affects_cash_cut: boolean;
 }
 
 interface ClubPaymentMethodItem {
@@ -1456,6 +1457,23 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                                             "
                                             hide-details="auto"
                                         />
+                                    </v-col>
+
+                                    <v-col cols="12">
+                                        <v-alert
+                                            v-if="
+                                                selectedPaymentMethod &&
+                                                !selectedPaymentMethod.affects_cash_cut
+                                            "
+                                            type="info"
+                                            variant="tonal"
+                                        >
+                                            Este pago se registrara como
+                                            <strong>pago con servicios</strong>.
+                                            Liquidara los cargos seleccionados,
+                                            pero no impactara el corte de caja
+                                            monetario.
+                                        </v-alert>
                                     </v-col>
 
                                     <v-col cols="12" md="4">

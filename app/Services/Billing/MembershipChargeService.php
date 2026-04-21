@@ -15,10 +15,12 @@ class MembershipChargeService
     public function synchronizeMembershipFees(
         Membership $membership,
         ?float $groupTotalMonthlyFee = null,
-        ?Carbon $effectiveDate = null
+        ?Carbon $effectiveDate = null,
+        ?string $billingSplitMode = null
     ): Collection {
         $referenceDate = ($effectiveDate ?? now())->copy()->startOfDay();
         $groupMemberships = $this->resolveGroupPrimaryMemberships($membership, $referenceDate);
+        $billingSplitMode = $billingSplitMode ?? $membership->billing_split_mode ?? 'single';
 
         if ($groupMemberships->isEmpty()) {
             $singleTotal = round($groupTotalMonthlyFee ?? $this->resolveMembershipMonthlyFeeTotal($membership), 2);
@@ -34,7 +36,7 @@ class MembershipChargeService
             return collect([$membership->fresh(['membershipType', 'account.primaryHolder.member', 'club'])]);
         }
 
-        if ($this->shouldSplitMonthlyChargesAcrossGroup($groupMemberships)) {
+        if ($this->shouldSplitMonthlyChargesAcrossGroup($groupMemberships, $billingSplitMode)) {
             $groupTotal = round(
                 $groupTotalMonthlyFee ?? $this->resolveGroupMonthlyTotal($groupMemberships, $this->resolveMembershipMonthlyFeeTotal($membership)),
                 2
@@ -396,9 +398,17 @@ class MembershipChargeService
             ->get();
     }
 
-    protected function shouldSplitMonthlyChargesAcrossGroup(Collection $memberships): bool
+    protected function shouldSplitMonthlyChargesAcrossGroup(Collection $memberships, ?string $billingSplitMode = null): bool
     {
         if ($memberships->count() < 2) {
+            return false;
+        }
+
+        $resolvedMode = $billingSplitMode
+            ?? $memberships->pluck('billing_split_mode')->filter()->first()
+            ?? 'single';
+
+        if ($resolvedMode !== 'equal_split') {
             return false;
         }
 

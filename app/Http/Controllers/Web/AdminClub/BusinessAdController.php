@@ -83,15 +83,24 @@ class BusinessAdController extends Controller {
             if (!$membership) {
                 throw new \Exception('No se encontró membership');
             }
-            $concept = ChargeConcept::findOrFail(3); 
+            $concept = ChargeConcept::query()
+                ->with('clubAmounts')
+                ->where('code', 'BUSINESS_AD')
+                ->firstOrFail();
+            $conceptAmount = $concept->resolveAmountForClub($ad->club_id);
+
+            if ($conceptAmount === null) {
+                throw new \Exception('El concepto de cobro para negocio/publicidad no tiene monto configurado.');
+            }
+
             Charge::create([
                 'membership_account_id' => $accountMembership->membership_account_id,
                 'membership_id' => $membership->id ?? null,
                 'member_id' => $ad->member_id,
-                'concept_id' => 3, 
+                'concept_id' => $concept->id,
                 'description' => $concept->description,
-                'amount' => $concept->default_amount, 
-                'balance' => $concept->default_amount,
+                'amount' => $conceptAmount,
+                'balance' => $conceptAmount,
                 'issue_date' => now(),
                 'due_date' => now()->addDays(7),
                 'period_year' => now()->year,
@@ -99,7 +108,9 @@ class BusinessAdController extends Controller {
                 'allows_partial_payments' => false,
                 'status' => 'pending',
                 'metadata' => [
-                    'business_ad_id' => $ad->id
+                    'business_ad_id' => $ad->id,
+                    'club_id' => $ad->club_id,
+                    'concept_amount_source' => 'club_or_default',
                 ]
             ]);
             DB::commit();

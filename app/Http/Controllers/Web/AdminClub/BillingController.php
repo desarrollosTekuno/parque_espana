@@ -228,6 +228,7 @@ class BillingController extends Controller
                                     'requires_reference' => (bool) $clubPaymentMethod->paymentMethod?->requires_reference,
                                     'requires_bank_name' => (bool) $clubPaymentMethod->paymentMethod?->requires_bank_name,
                                     'requires_check_number' => (bool) $clubPaymentMethod->paymentMethod?->requires_check_number,
+                                    'affects_cash_cut' => (bool) $clubPaymentMethod->paymentMethod?->affects_cash_cut,
                                 ];
                             })
                             ->filter(fn (array $method) => !empty($method['id']))

@@ -63,6 +63,8 @@ class PaymentRegistrationService
                 'status' => 'registered',
                 'metadata' => [
                     'session_club_id' => $sessionClubId,
+                    'settlement_channel' => $paymentMethod->affects_cash_cut ? 'cashier' : 'services',
+                    'affects_cash_cut' => (bool) $paymentMethod->affects_cash_cut,
                 ],
             ]);
 

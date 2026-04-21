@@ -59,9 +59,9 @@ const props = withDefaults(defineProps<Props>(), {
 const headers = [
     { title: "No. cuenta", key: "membership_number" },
     { title: "Titular", key: "holder_name" },
-    { title: "Membresias activas", key: "active_memberships", sortable: false },
+    { title: "Membresías activas", key: "active_memberships", sortable: false },
     { title: "Correo", key: "email", sortable: false },
-    { title: "Telefono", key: "phone", sortable: false },
+    { title: "Teléfono", key: "phone", sortable: false },
     { title: "Cuota actual", key: "monthly_fee" },
     { title: "Estatus", key: "status" },
     { title: "Acciones", key: "actions", sortable: false },
@@ -188,7 +188,7 @@ const emptyMessage = computed(() =>
                                     No hay socios titulares activos para mostrar.
                                     Actualmente existen
                                     {{ pendingMembersCount }}
-                                    membresias pendientes.
+                                    membresías pendientes.
                                 </v-alert>
 
                                 <v-text-field
@@ -360,8 +360,8 @@ const emptyMessage = computed(() =>
                                     v-if="item.can_change_membership"
                                     :icon-only="false"
                                     action="edit"
-                                    text="Cambiar membresia"
-                                    tooltip="Cambiar el tipo de membresia en este parque"
+                                    text="Cambiar membresía"
+                                    tooltip="Cambiar el tipo de membresía en este parque"
                                     @click="
                                         router.visit(
                                             route(
@@ -376,8 +376,8 @@ const emptyMessage = computed(() =>
                                 <BaseButton
                                     :icon-only="false"
                                     action="add"
-                                    text="Agregar membresia"
-                                    tooltip="Agregar membresia del otro parque"
+                                    text="Agregar membresía"
+                                    tooltip="Agregar membresía del otro parque"
                                     @click="
                                         router.visit(
                                             route(

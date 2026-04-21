@@ -359,20 +359,24 @@ class MemberController extends Controller
             );
 
             $newMonthlyFeeTotal = (float) $pricing['monthly_fee'];
+            $billingSplitMode = (string) ($pricing['billing_split_mode'] ?? 'single');
+            $usesSharedBilling = $billingSplitMode === 'equal_split';
             $newMonthlyFeeShare = $this->resolvePreviewMonthlyFeeShare(
                 $newMonthlyFeeTotal,
-                $hasMultipleClubs
+                $billingSplitMode
             );
             $inscriptionFee = (float) ($pricing['inscription_fee'] ?? 0);
             $additionalMonthlyCharge = $this->resolveAdditionalMonthlyCharge(
                 currentMonthlyFee: $currentMonthlyFee,
-                newMonthlyFeeTotal: $newMonthlyFeeTotal
+                newMonthlyFeeTotal: $newMonthlyFeeTotal,
+                usesSharedBilling: $usesSharedBilling
             );
             $amountDueToday = $this->resolvePreviewAmountDueToday(
                 currentMonthlyFee: $currentMonthlyFee,
                 newMonthlyFeeTotal: $newMonthlyFeeTotal,
                 newMonthlyFeeShare: $newMonthlyFeeShare,
-                inscriptionFee: $inscriptionFee
+                inscriptionFee: $inscriptionFee,
+                usesSharedBilling: $usesSharedBilling
             );
 
             return response()->json([
@@ -386,6 +390,7 @@ class MemberController extends Controller
                 'total_due' => $amountDueToday,
                 'amount_due_today' => $amountDueToday,
                 'rule_type' => $pricing['rule_type'] ?? null,
+                'billing_split_mode' => $billingSplitMode,
                 'source_membership_becomes_non_billable' => (bool) ($pricing['source_membership_becomes_non_billable'] ?? false),
                 'current_monthly_fee' => $currentMonthlyFee,
                 'additional_monthly_charge' => $additionalMonthlyCharge,
@@ -396,7 +401,8 @@ class MemberController extends Controller
                     inscriptionFee: $inscriptionFee,
                     amountDueToday: $amountDueToday,
                     additionalMonthlyCharge: $additionalMonthlyCharge,
-                    sameClubTransition: $sameClubTransition
+                    sameClubTransition: $sameClubTransition,
+                    usesSharedBilling: $usesSharedBilling
                 ),
             ]);
         } catch (ValidationException $e) {
@@ -1217,7 +1223,7 @@ class MemberController extends Controller
                     'monthly_fee' => $selectedTargetOption['monthly_fee'],
                     'monthly_fee_total' => $selectedTargetOption['monthly_fee'],
                     'monthly_fee_share' => $selectedTargetOption['monthly_fee'],
-                    'billing_split_mode' => 'single',
+                    'billing_split_mode' => $selectedTargetOption['billing_split_mode'] ?? 'single',
                     'start_date' => now()->toDateString(),
                     'end_date' => $targetMembershipType->validity_months
                         ? now()->addMonthsNoOverflow($targetMembershipType->validity_months)->toDateString()
@@ -1226,7 +1232,12 @@ class MemberController extends Controller
                 ]);
 
                 $newMembership = $this->membershipChargeService
-                    ->synchronizeMembershipFees($newMembership, (float) $selectedTargetOption['monthly_fee'])
+                    ->synchronizeMembershipFees(
+                        $newMembership,
+                        (float) $selectedTargetOption['monthly_fee'],
+                        null,
+                        $selectedTargetOption['billing_split_mode'] ?? 'single'
+                    )
                     ->firstWhere('id', $newMembership->id) ?? $newMembership->fresh(['membershipType', 'account.primaryHolder']);
 
                 $this->membershipChargeService->createInitialCharges(
@@ -1687,7 +1698,7 @@ class MemberController extends Controller
                         'monthly_fee' => $pricing['monthly_fee'],
                         'monthly_fee_total' => $pricing['monthly_fee'],
                         'monthly_fee_share' => $pricing['monthly_fee'],
-                        'billing_split_mode' => 'single',
+                        'billing_split_mode' => $pricing['billing_split_mode'] ?? 'single',
                         'start_date' => now()->toDateString(),
                         'end_date' => $membershipType->validity_months
                             ? now()->addMonthsNoOverflow($membershipType->validity_months)->toDateString()
@@ -1714,7 +1725,12 @@ class MemberController extends Controller
                     ]);
 
                     $sourceMembership = $this->membershipChargeService
-                        ->synchronizeMembershipFees($sourceMembership, (float) $pricing['monthly_fee'])
+                        ->synchronizeMembershipFees(
+                            $sourceMembership,
+                            (float) $pricing['monthly_fee'],
+                            null,
+                            $pricing['billing_split_mode'] ?? 'single'
+                        )
                         ->firstWhere('id', $sourceMembership->id) ?? $sourceMembership->fresh(['membershipType', 'account.primaryHolder']);
 
                     $this->membershipChargeService->createInitialCharges(
@@ -1743,7 +1759,7 @@ class MemberController extends Controller
                     'monthly_fee' => $pricing['monthly_fee'],
                     'monthly_fee_total' => $pricing['monthly_fee'],
                     'monthly_fee_share' => $pricing['monthly_fee'],
-                    'billing_split_mode' => 'single',
+                    'billing_split_mode' => $pricing['billing_split_mode'] ?? 'single',
                     'start_date' => now()->toDateString(),
                     'end_date' => $membershipType->validity_months
                         ? now()->addMonthsNoOverflow($membershipType->validity_months)->toDateString()
@@ -1752,7 +1768,12 @@ class MemberController extends Controller
                 ]);
 
                 $newMembership = $this->membershipChargeService
-                    ->synchronizeMembershipFees($newMembership, (float) $pricing['monthly_fee'])
+                    ->synchronizeMembershipFees(
+                        $newMembership,
+                        (float) $pricing['monthly_fee'],
+                        null,
+                        $pricing['billing_split_mode'] ?? 'single'
+                    )
                     ->firstWhere('id', $newMembership->id) ?? $newMembership->fresh(['membershipType', 'account.primaryHolder']);
 
                 $this->membershipChargeService->createInitialCharges(
@@ -2378,6 +2399,7 @@ class MemberController extends Controller
                         'name' => $targetMembershipType->name,
                         'monthly_fee' => (float) $pricing['monthly_fee'],
                         'inscription_fee' => (float) ($pricing['inscription_fee'] ?? 0),
+                        'billing_split_mode' => $pricing['billing_split_mode'] ?? 'single',
                     ];
                 } catch (ValidationException $e) {
                     return null;
@@ -2448,6 +2470,7 @@ class MemberController extends Controller
                 'inscription_fee' => (float) $interclubRule->inscription_fee,
                 'rule_type' => 'interclub',
                 'source_membership_becomes_non_billable' => true,
+                'billing_split_mode' => $this->isMonthlyPassMembershipType($membershipType) ? 'single' : 'equal_split',
             ];
         }
 
@@ -2470,14 +2493,20 @@ class MemberController extends Controller
             ]);
         }
 
+        $sourceMembershipBecomesNonBillable = $this->shouldSourceMembershipBecomeNonBillable(
+            membershipType: $membershipType,
+            fromMembershipType: $fromMembershipType,
+            pricingRule: $pricingRule
+        );
+
         return [
             'monthly_fee' => (float) $pricingRule->monthly_fee,
             'inscription_fee' => (float) ($pricingRule->inscription_fee ?? 0),
             'rule_type' => 'pricing_rule',
-            'source_membership_becomes_non_billable' => $this->shouldSourceMembershipBecomeNonBillable(
+            'source_membership_becomes_non_billable' => $sourceMembershipBecomesNonBillable,
+            'billing_split_mode' => $this->resolveBillingSplitMode(
                 membershipType: $membershipType,
-                fromMembershipType: $fromMembershipType,
-                pricingRule: $pricingRule
+                sourceMembershipBecomesNonBillable: $sourceMembershipBecomesNonBillable
             ),
         ];
     }
@@ -2566,6 +2595,10 @@ class MemberController extends Controller
         ?MembershipType $fromMembershipType,
         PricingRule $pricingRule
     ): bool {
+        if ($this->isMonthlyPassMembershipType($membershipType)) {
+            return false;
+        }
+
         if ($this->isPe1PackageMembershipType($membershipType)) {
             return true;
         }
@@ -2579,6 +2612,17 @@ class MemberController extends Controller
         }
 
         return true;
+    }
+
+    protected function resolveBillingSplitMode(
+        MembershipType $membershipType,
+        bool $sourceMembershipBecomesNonBillable
+    ): string {
+        if ($this->isMonthlyPassMembershipType($membershipType)) {
+            return 'single';
+        }
+
+        return $sourceMembershipBecomesNonBillable ? 'equal_split' : 'single';
     }
 
     protected function shouldApplyAgeFilter(MembershipType $membershipType): bool
@@ -2690,9 +2734,10 @@ class MemberController extends Controller
 
     protected function resolveAdditionalMonthlyCharge(
         ?float $currentMonthlyFee,
-        float $newMonthlyFeeTotal
+        float $newMonthlyFeeTotal,
+        bool $usesSharedBilling
     ): ?float {
-        if ($currentMonthlyFee === null) {
+        if ($currentMonthlyFee === null || !$usesSharedBilling) {
             return null;
         }
 
@@ -2722,9 +2767,9 @@ class MemberController extends Controller
         return (float) $activePrimaryMemberships->max(fn (Membership $activeMembership) => $activeMembership->resolved_monthly_fee_total);
     }
 
-    protected function resolvePreviewMonthlyFeeShare(float $monthlyFeeTotal, bool $hasMultipleClubs): float
+    protected function resolvePreviewMonthlyFeeShare(float $monthlyFeeTotal, string $billingSplitMode): float
     {
-        return $hasMultipleClubs
+        return $billingSplitMode === 'equal_split'
             ? round($monthlyFeeTotal / 2, 2)
             : round($monthlyFeeTotal, 2);
     }
@@ -2733,9 +2778,10 @@ class MemberController extends Controller
         ?float $currentMonthlyFee,
         float $newMonthlyFeeTotal,
         float $newMonthlyFeeShare,
-        float $inscriptionFee
+        float $inscriptionFee,
+        bool $usesSharedBilling
     ): float {
-        if ($currentMonthlyFee === null) {
+        if ($currentMonthlyFee === null || !$usesSharedBilling) {
             return round($newMonthlyFeeShare + $inscriptionFee, 2);
         }
 
@@ -2749,7 +2795,8 @@ class MemberController extends Controller
         float $inscriptionFee,
         float $amountDueToday,
         ?float $additionalMonthlyCharge,
-        bool $sameClubTransition
+        bool $sameClubTransition,
+        bool $usesSharedBilling
     ): string {
         $formattedNewMonthlyFeeTotal = number_format($newMonthlyFeeTotal, 2);
         $formattedNewMonthlyFeeShare = number_format($newMonthlyFeeShare, 2);
@@ -2772,6 +2819,18 @@ class MemberController extends Controller
             }
 
             return "Se actualizará la cuota mensual a $$formattedNewMonthlyFee.";
+        }
+
+        if (!$usesSharedBilling) {
+            $message = $sameClubTransition
+                ? "La mensualidad de este parque se actualizara a $" . number_format($newMonthlyFeeShare, 2) . "."
+                : "Esta membresia mantendra un cobro independiente de $" . number_format($newMonthlyFeeShare, 2) . " al mes en este parque.";
+
+            if ($inscriptionFee > 0) {
+                return $message . " Hoy se pagaran $" . number_format($amountDueToday, 2) . " considerando mensualidad e inscripcion.";
+            }
+
+            return $message . " Hoy se pagara $" . number_format($amountDueToday, 2) . ".";
         }
 
         $formattedCurrentMonthlyFee = number_format($currentMonthlyFee, 2);

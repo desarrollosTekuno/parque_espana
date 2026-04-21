@@ -201,6 +201,13 @@ const routes: Routing[] = [
         group: null,
     },
     {
+        name: "billing-concepts.index",
+        title: "Conceptos de cobro",
+        icon: "mdi-receipt-text-outline",
+        value: "conceptos-cobro",
+        group: null,
+    },
+    {
         name: "interclub-package-rules.index",
         title: "Paquetes interclub",
         icon: "mdi-swap-horizontal",

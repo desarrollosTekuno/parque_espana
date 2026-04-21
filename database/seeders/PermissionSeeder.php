@@ -81,6 +81,10 @@ class PermissionSeeder extends Seeder
             array('name' => 'members.destroy', 'description' => 'Eliminar socios del club', 'contexts' => ['web']),
             array('name' => 'billing.index', 'description' => 'Ver modulo de cobranza', 'contexts' => ['web']),
             array('name' => 'billing.store', 'description' => 'Registrar cobros', 'contexts' => ['web']),
+            array('name' => 'billing-concepts.index', 'description' => 'Ver conceptos de cobro', 'contexts' => ['web']),
+            array('name' => 'billing-concepts.store', 'description' => 'Crear conceptos de cobro', 'contexts' => ['web']),
+            array('name' => 'billing-concepts.update', 'description' => 'Actualizar conceptos de cobro', 'contexts' => ['web']),
+            array('name' => 'billing-concepts.destroy', 'description' => 'Eliminar conceptos de cobro', 'contexts' => ['web']),
 
             // Business Ads permissions
             array('name' => 'business-ads.index', 'description' => 'Ver publicidad de negocios', 'contexts' => ['web']),

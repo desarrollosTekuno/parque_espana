@@ -231,6 +231,12 @@ class GenerateMonthlyMembershipCharges extends Command
             return false;
         }
 
+        $splitMode = $memberships->pluck('billing_split_mode')->filter()->first() ?? 'single';
+
+        if ($splitMode !== 'equal_split') {
+            return false;
+        }
+
         return $memberships
             ->pluck('club_id')
             ->filter()
