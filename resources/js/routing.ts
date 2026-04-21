@@ -177,16 +177,16 @@ const routes: Routing[] = [
         showBadge: true,
         groupItems: [
             {
-                name: "business-ads.index",
-                title: "Publicaciones de negocios",
-                icon: "mdi-storefront-outline",
-                value: "anuncios-activos",
-            },
-            {
                 name: "business-categories.index",
                 title: "Categorías de negocios",
                 icon: "mdi-shape-outline",
                 value: "categorias-negocios",
+            },
+            {
+                name: "business-ads.index",
+                title: "Publicaciones de negocios",
+                icon: "mdi-storefront-outline",
+                value: "anuncios-activos",
             },
         ]
     },

@@ -154,9 +154,12 @@ class AnnouncementController extends Controller
 
     public function store(Request $request)
     {
+        $request->validate([
+            'images.*' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
+        ]);
         try {
             DB::beginTransaction();
-            $clubId = $request->club_id ?? session('club_id');
+            $clubId = $request->club_id ?? session('club_id'); 
             $imagePath = null;
             if ($request->hasFile('image')) {
                 $imagePath = $request->file('image')
@@ -211,6 +214,9 @@ class AnnouncementController extends Controller
      */
    public function update(Request $request, Announcement $announcement)
     {
+        $request->validate([
+            'images.*' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
+        ]);
         try {
             DB::beginTransaction();
             $clubId = $request->club_id ?? session('club_id');
