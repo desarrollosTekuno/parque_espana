@@ -317,7 +317,7 @@ class MembershipChargeService
     protected function buildMonthlyChargeDescription(Membership $membership, Carbon $chargeDate): string
     {
         $monthLabel = $chargeDate->locale('es')->translatedFormat('F Y');
-        $membershipTypeName = $membership->membershipType?->name ?? 'Membresia';
+        $membershipTypeName = $membership->membershipType?->name ?? 'Membresía';
 
         return sprintf('Mensualidad %s - %s', ucfirst($monthLabel), $membershipTypeName);
     }
@@ -328,10 +328,10 @@ class MembershipChargeService
         float $totalMonthlyFee
     ): string {
         $monthLabel = $chargeDate->locale('es')->translatedFormat('F Y');
-        $membershipTypeName = $membership->membershipType?->name ?? 'Membresia';
+        $membershipTypeName = $membership->membershipType?->name ?? 'Membresía';
 
         return sprintf(
-            'Complemento de mensualidad %s - %s (total del periodo $%s)',
+            'Complemento de mensualidad %s - %s (total del período $%s)',
             ucfirst($monthLabel),
             $membershipTypeName,
             number_format($totalMonthlyFee, 2)
@@ -340,9 +340,9 @@ class MembershipChargeService
 
     protected function buildInscriptionChargeDescription(Membership $membership): string
     {
-        $membershipTypeName = $membership->membershipType?->name ?? 'Membresia';
+        $membershipTypeName = $membership->membershipType?->name ?? 'Membresía';
 
-        return sprintf('Inscripcion - %s', $membershipTypeName);
+        return sprintf('Inscripción - %s', $membershipTypeName);
     }
 
     protected function resolveExistingPeriodMonthlyAmount(

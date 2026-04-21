@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import BaseButton from "@/Components/BaseButton.vue";
+import MonthPicker from "@/Components/MonthPicker.vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { Head, router, useForm } from "@inertiajs/vue3";
 import { computed, ref } from "vue";
@@ -113,11 +114,21 @@ const props = withDefaults(defineProps<Props>(), {
 
 const showAbsencePermitDialog = ref(false);
 const absencePermitForm = useForm({
-    start_date: "",
-    end_date: "",
+    start_month: "",
+    end_month: "",
     charge_percentage: 25,
     notes: "",
 });
+
+const currentMonth = computed(() => {
+    const now = new Date();
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    return `${now.getFullYear()}-${mm}`;
+});
+
+const minEndMonth = computed(() =>
+    absencePermitForm.start_month || currentMonth.value
+);
 
 const currencyFormatter = new Intl.NumberFormat("es-MX", {
     style: "currency",
@@ -714,20 +725,20 @@ const cancelAbsencePermit = (absencePermitId: number) => {
             <v-card-text>
                 <v-row>
                     <v-col cols="12" md="6">
-                        <v-text-field
-                            v-model="absencePermitForm.start_date"
-                            label="Fecha de inicio"
-                            type="date"
-                            :error-messages="absencePermitForm.errors.start_date"
+                        <MonthPicker
+                            v-model="absencePermitForm.start_month"
+                            label="Mes de inicio"
+                            :min="currentMonth"
+                            :error-messages="absencePermitForm.errors.start_month"
                         />
                     </v-col>
 
                     <v-col cols="12" md="6">
-                        <v-text-field
-                            v-model="absencePermitForm.end_date"
-                            label="Fecha de fin"
-                            type="date"
-                            :error-messages="absencePermitForm.errors.end_date"
+                        <MonthPicker
+                            v-model="absencePermitForm.end_month"
+                            label="Mes de fin"
+                            :min="minEndMonth"
+                            :error-messages="absencePermitForm.errors.end_month"
                         />
                     </v-col>
 

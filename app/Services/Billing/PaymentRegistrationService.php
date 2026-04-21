@@ -161,7 +161,7 @@ class PaymentRegistrationService
         }
 
         if ($paymentMethod->requires_check_number && blank($checkNumber)) {
-            $errors['check_number'] = 'Debes capturar el numero de cheque.';
+            $errors['check_number'] = 'Debes capturar el número de cheque.';
         }
 
         if (!empty($errors)) {

@@ -134,14 +134,14 @@ class BillingConceptController extends Controller
             return redirect()->back()->with('success', 'Concepto de cobro creado correctamente.');
         } catch (\Illuminate\Validation\ValidationException $e) {
             return redirect()->back()->withErrors(array_merge($e->errors(), [
-                'messageError' => collect($e->errors())->flatten()->first() ?? 'Ocurrio un error de validacion.',
+                'messageError' => collect($e->errors())->flatten()->first() ?? 'Ocurrió un error de validación.',
                 'exception' => '',
             ]));
         } catch (\Exception $e) {
             report($e);
 
             return redirect()->back()->withErrors([
-                'messageError' => 'Ocurrio un error al crear el concepto de cobro.',
+                'messageError' => 'Ocurrió un error al crear el concepto de cobro.',
                 'exception' => $e->getMessage(),
             ]);
         }
@@ -160,14 +160,14 @@ class BillingConceptController extends Controller
             return redirect()->back()->with('success', 'Concepto de cobro actualizado correctamente.');
         } catch (\Illuminate\Validation\ValidationException $e) {
             return redirect()->back()->withErrors(array_merge($e->errors(), [
-                'messageError' => collect($e->errors())->flatten()->first() ?? 'Ocurrio un error de validacion.',
+                'messageError' => collect($e->errors())->flatten()->first() ?? 'Ocurrió un error de validación.',
                 'exception' => '',
             ]));
         } catch (\Exception $e) {
             report($e);
 
             return redirect()->back()->withErrors([
-                'messageError' => 'Ocurrio un error al actualizar el concepto de cobro.',
+                'messageError' => 'Ocurrió un error al actualizar el concepto de cobro.',
                 'exception' => $e->getMessage(),
             ]);
         }
@@ -183,7 +183,7 @@ class BillingConceptController extends Controller
             report($e);
 
             return redirect()->back()->withErrors([
-                'messageError' => 'Ocurrio un error al eliminar el concepto de cobro.',
+                'messageError' => 'Ocurrió un error al eliminar el concepto de cobro.',
                 'exception' => $e->getMessage(),
             ]);
         }

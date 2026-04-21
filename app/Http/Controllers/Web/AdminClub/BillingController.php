@@ -335,14 +335,14 @@ class BillingController extends Controller
             $errors = $e->errors();
 
             return redirect()->back()->withErrors(array_merge($errors, [
-                'messageError' => collect($errors)->flatten()->first() ?? 'Ocurrio un error de validacion.',
+                'messageError' => collect($errors)->flatten()->first() ?? 'Ocurrió un error de validación.',
                 'exception' => '',
             ]));
         } catch (\Exception $e) {
             report($e);
 
             return redirect()->back()->withErrors([
-                'messageError' => 'Ocurrio un error al registrar el cobro.',
+                'messageError' => 'Ocurrió un error al registrar el cobro.',
                 'exception' => $e->getMessage(),
             ]);
         }
@@ -406,7 +406,7 @@ class BillingController extends Controller
     {
         return match ($originCode) {
             'inscription' => 'Inscripción',
-            'monthly_cycle' => 'Mensualidad del periodo',
+            'monthly_cycle' => 'Mensualidad del período',
             'monthly_adjustment' => 'Ajuste mensual',
             'membership_registration' => 'Alta de membresía',
             'additional_membership' => 'Membresía adicional',

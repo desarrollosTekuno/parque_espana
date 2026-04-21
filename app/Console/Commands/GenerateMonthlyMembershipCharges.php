@@ -15,7 +15,7 @@ class GenerateMonthlyMembershipCharges extends Command
         {--date= : Fecha del periodo a generar en formato YYYY-MM-DD}
         {--dry-run : Solo muestra los cargos que se generarían sin escribir en base de datos}';
 
-    protected $description = 'Genera las mensualidades del periodo para membresías activas o suspendidas.';
+    protected $description = 'Genera las mensualidades del período para membresías activas o suspendidas.';
 
     protected int $generated = 0;
 

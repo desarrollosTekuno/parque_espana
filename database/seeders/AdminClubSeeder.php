@@ -69,6 +69,11 @@ class AdminClubSeeder extends Seeder
             'member-access.store',
             'member-access.destroy',
 
+            'billing-concepts.index',
+            'billing-concepts.store',
+            'billing-concepts.update',
+            'billing-concepts.destroy',
+
         );
         $adminClubRole = Role::updateOrCreate([
             'name' => 'admin_club',

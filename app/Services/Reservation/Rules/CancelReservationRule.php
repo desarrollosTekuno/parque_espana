@@ -23,7 +23,7 @@ class CancelReservationRule implements ReservationRule
 
         if ($today->gt($limitDate))
         {
-            throw new ReservationException('No puedes cancelar una reservacion con menos de ' . $days . ' dias de anticipación');
+            throw new ReservationException('No puedes cancelar una reservación con menos de ' . $days . ' días de anticipación');
         }
     }
 }

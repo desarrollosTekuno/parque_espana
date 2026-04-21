@@ -63,7 +63,7 @@ const headers = computed(() => [
             : "Monto del parque",
         key: "club_amount",
     },
-    { title: "Configuracion", key: "settings", sortable: false },
+    { title: "Configuración", key: "settings", sortable: false },
     { title: "Activo", key: "is_active", sortable: false },
     { title: "Acciones", key: "actions", sortable: false },
 ]);
@@ -76,7 +76,7 @@ const currencyFormatter = new Intl.NumberFormat("es-MX", {
 
 const yesNoOptions = [
     { title: "Todos", value: null },
-    { title: "Si", value: "true" },
+    { title: "Sí", value: "true" },
     { title: "No", value: "false" },
 ];
 
@@ -318,7 +318,7 @@ watch(
                                 {{ item.code }} · {{ item.name }}
                             </div>
                             <div class="text-caption text-medium-emphasis">
-                                {{ item.description || "Sin descripcion" }}
+                                {{ item.description || "Sin descripción" }}
                             </div>
                         </template>
 
@@ -391,7 +391,7 @@ watch(
                             <v-col cols="12" md="4">
                                 <v-text-field
                                     v-model="form.code"
-                                    label="Codigo"
+                                    label="Código"
                                     :rules="[(value: unknown) => !!value || 'Campo requerido']"
                                     :error-messages="form.errors.code"
                                 />
@@ -409,7 +409,7 @@ watch(
                             <v-col cols="12">
                                 <v-textarea
                                     v-model="form.description"
-                                    label="Descripcion"
+                                    label="Descripción"
                                     rows="2"
                                     auto-grow
                                     :error-messages="form.errors.description"

@@ -565,11 +565,28 @@ class MemberController extends Controller
             }
 
             $validated = $request->validate([
-                'start_date' => ['required', 'date', 'after_or_equal:today'],
-                'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+                'start_month' => ['required', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/'],
+                'end_month'   => ['required', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/'],
                 'charge_percentage' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
                 'notes' => ['nullable', 'string', 'max:1000'],
             ]);
+
+            $startDate = Carbon::createFromFormat('Y-m', $validated['start_month'])->startOfMonth()->startOfDay();
+            $endDate   = Carbon::createFromFormat('Y-m', $validated['end_month'])->endOfMonth()->startOfDay();
+
+            $currentMonthStart = now()->startOfMonth()->startOfDay();
+
+            if ($startDate->lt($currentMonthStart)) {
+                throw ValidationException::withMessages([
+                    'start_month' => 'El mes de inicio debe ser el mes actual o uno futuro.',
+                ]);
+            }
+
+            if ($endDate->lt($startDate)) {
+                throw ValidationException::withMessages([
+                    'end_month' => 'El mes de fin debe ser igual o posterior al mes de inicio.',
+                ]);
+            }
 
             $accountGroup = $membership->account?->accountGroup;
             $primaryHolder = $membership->account?->primaryHolder;
@@ -581,9 +598,6 @@ class MemberController extends Controller
                 ]);
             }
 
-            $startDate = Carbon::parse($validated['start_date'])->startOfDay();
-            $endDate = Carbon::parse($validated['end_date'])->startOfDay();
-
             $overlappingPermit = AbsencePermit::query()
                 ->where('account_group_id', $accountGroup->id)
                 ->whereIn('status', ['approved', 'active'])
@@ -593,7 +607,7 @@ class MemberController extends Controller
 
             if ($overlappingPermit) {
                 throw ValidationException::withMessages([
-                    'start_date' => 'Ya existe un permiso por ausencia vigente o programado que se cruza con el periodo seleccionado.',
+                    'start_date' => 'Ya existe un permiso por ausencia vigente o programado que se cruza con el período seleccionado.',
                 ]);
             }
 
@@ -1278,7 +1292,7 @@ class MemberController extends Controller
             return $this->validationExceptionResponse($e);
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([
-                'messageError' => 'Ocurrio un error al separar al integrante.',
+                'messageError' => 'Ocurrió un error al separar al integrante.',
                 'exception' => $e->getMessage(),
             ]);
         }
@@ -2073,11 +2087,11 @@ class MemberController extends Controller
         $errors = [];
 
         if ($state && !$country) {
-            $errors[$countryAttribute] = 'Selecciona un paÃ­s antes de seleccionar un estado.';
+            $errors[$countryAttribute] = 'Selecciona un país antes de seleccionar un estado.';
         }
 
         if ($state && $country && (int) $state->country_id !== (int) $country->id) {
-            $errors[$stateAttribute] = 'El estado seleccionado no pertenece al paÃ­s indicado.';
+            $errors[$stateAttribute] = 'El estado seleccionado no pertenece al país indicado.';
         }
 
         if ($city && !$state) {
@@ -2089,7 +2103,7 @@ class MemberController extends Controller
         }
 
         if ($city && $country && (int) $city->country_id !== (int) $country->id) {
-            $errors[$cityAttribute] = 'La ciudad seleccionada no pertenece al paÃ­s indicado.';
+            $errors[$cityAttribute] = 'La ciudad seleccionada no pertenece al país indicado.';
         }
 
         if (!empty($errors)) {
@@ -2823,14 +2837,14 @@ class MemberController extends Controller
 
         if (!$usesSharedBilling) {
             $message = $sameClubTransition
-                ? "La mensualidad de este parque se actualizara a $" . number_format($newMonthlyFeeShare, 2) . "."
-                : "Esta membresia mantendra un cobro independiente de $" . number_format($newMonthlyFeeShare, 2) . " al mes en este parque.";
+                ? "La mensualidad de este parque se actualizará a $" . number_format($newMonthlyFeeShare, 2) . "."
+                : "Esta membresía mantendrá un cobro independiente de $" . number_format($newMonthlyFeeShare, 2) . " al mes en este parque.";
 
             if ($inscriptionFee > 0) {
-                return $message . " Hoy se pagaran $" . number_format($amountDueToday, 2) . " considerando mensualidad e inscripcion.";
+                return $message . " Hoy se pagarán $" . number_format($amountDueToday, 2) . " considerando mensualidad e inscripción.";
             }
 
-            return $message . " Hoy se pagara $" . number_format($amountDueToday, 2) . ".";
+            return $message . " Hoy se pagará $" . number_format($amountDueToday, 2) . ".";
         }
 
         $formattedCurrentMonthlyFee = number_format($currentMonthlyFee, 2);

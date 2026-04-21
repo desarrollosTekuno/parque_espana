@@ -671,7 +671,7 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
 
         <div class="d-flex flex-column ga-4">
             <v-alert type="info" variant="tonal">
-                Este modulo concentra los cargos pendientes de ambos parques.
+                Este módulo concentra los cargos pendientes de ambos parques.
                 Puedes filtrar por parque cuando lo necesites, pero la pantalla
                 siempre te muestra la cuenta completa del socio para evitar
                 confusiones al cobrar.
@@ -820,7 +820,7 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                                     {{ item.email || "Sin correo" }}
                                 </div>
                                 <div class="text-caption text-medium-emphasis">
-                                    {{ item.phone || "Sin telefono" }}
+                                    {{ item.phone || "Sin teléfono" }}
                                 </div>
                             </template>
 
@@ -989,7 +989,7 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                                                                         >
                                                                             {{
                                                                                 charge.description ||
-                                                                                "Sin membresia asociada"
+                                                                                "Sin membresía asociada"
                                                                             }}
                                                                         </div>
                                                                     </div>
@@ -1214,7 +1214,7 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                                                             <div
                                                                 class="text-subtitle-2 font-weight-bold"
                                                             >
-                                                                Resumen rapido
+                                                                Resumen rápido
                                                             </div>
                                                             <div
                                                                 class="text-body-2 mt-3"
@@ -1377,7 +1377,7 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                     <v-card-title>Registrar cobro</v-card-title>
                     <v-card-subtitle>
                         Captura el pago y define exactamente a que cargos se
-                        aplicara.
+                        aplicará
                     </v-card-subtitle>
 
                     <v-card-text class="d-flex flex-column ga-4">
@@ -1449,7 +1449,7 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                                                     }),
                                                 )
                                             "
-                                            label="Metodo de pago"
+                                            label="Método de pago"
                                             :rules="paymentMethodRules"
                                             :error-messages="
                                                 paymentForm.errors
@@ -1468,10 +1468,10 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                                             type="info"
                                             variant="tonal"
                                         >
-                                            Este pago se registrara como
+                                            Este pago se registrará como
                                             <strong>pago con servicios</strong>.
-                                            Liquidara los cargos seleccionados,
-                                            pero no impactara el corte de caja
+                                            Liquidará los cargos seleccionados,
+                                            pero no impactará el corte de caja
                                             monetario.
                                         </v-alert>
                                     </v-col>
@@ -1522,7 +1522,7 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                                     <v-col cols="12" md="4">
                                         <v-text-field
                                             v-model="paymentForm.check_number"
-                                            label="Numero de cheque"
+                                            label="Número de cheque"
                                             :disabled="
                                                 !selectedPaymentMethod?.requires_check_number
                                             "
@@ -1607,7 +1607,7 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                                                     >
                                                         {{
                                                             charge.description ||
-                                                            "Sin descripcion"
+                                                            "Sin descripción"
                                                         }}
                                                     </div>
                                                 </div>
