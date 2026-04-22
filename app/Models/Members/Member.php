@@ -8,7 +8,9 @@ use App\Models\Catalogs\Country;
 use App\Models\Catalogs\MaritalStatus;
 use App\Models\Catalogs\State;
 use App\Models\Memberships\MembershipAccountMember;
+use App\Models\User;
 use App\Traits\SerializesDates;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -19,7 +21,12 @@ class Member extends Model
     protected $guarded = ['id', 'created_at', 'updated_at'];
     protected $table = 'members.members';
     protected $connection = 'pgsql';
-    protected $appends = ['full_name'];
+    protected $appends = ['full_name', 'age'];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
 
     public function accountMemberships()
     {
@@ -70,8 +77,15 @@ class Member extends Model
     {
         return $this->hasMany(Charge::class, 'member_id');
     }
-    public function getFullNameAttribute()
+    public function getFullNameAttribute(): string
     {
         return "{$this->first_name} {$this->last_name}";
+    }
+
+    public function getAgeAttribute(): ?int
+    {
+        return $this->birthdate
+            ? Carbon::parse($this->birthdate)->age
+            : null;
     }
 }

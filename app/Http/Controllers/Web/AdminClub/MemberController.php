@@ -125,7 +125,7 @@ class MemberController extends Controller
                         'holder_name' => $fullName,
                         'email' => $holder?->email,
                         'phone' => $holder?->phone,
-                        'monthly_fee' => (float) ($billableMembership?->monthly_fee ?? 0),
+                        'monthly_fee' => (float) $activeMemberships->sum(fn (Membership $membership) => $membership->resolved_monthly_fee_share),
                         'status' => $currentMembership?->status,
                         'can_change_membership' => $currentMembership !== null
                             && Str::contains($currentMembershipCode, '_IND'),
@@ -140,7 +140,10 @@ class MemberController extends Controller
                                 'membership_type_code' => $membership->membershipType?->code,
                                 'club_name' => $membership->club?->name,
                                 'club_code' => $membership->club?->code,
-                                'monthly_fee' => (float) $membership->monthly_fee,
+                                'monthly_fee' => (float) $membership->resolved_monthly_fee_share,
+                                'monthly_fee_total' => (float) $membership->resolved_monthly_fee_total,
+                                'monthly_fee_share' => (float) $membership->resolved_monthly_fee_share,
+                                'billing_split_mode' => $membership->billing_split_mode,
                                 'is_billable' => (bool) $membership->is_billable,
                                 'start_date' => $membership->start_date,
                                 'end_date' => $membership->end_date,
@@ -283,7 +286,7 @@ class MemberController extends Controller
                     ? Carbon::parse($sourceMembership->start_date)->diffInYears(now())
                     : null;
                 $sameClubTransition = (int) $clubId === (int) $sourceMembership->club_id;
-                $currentMonthlyFee = (float) $sourceMembership->monthly_fee;
+                $currentMonthlyFee = $this->resolveCurrentGroupMonthlyFee($sourceMembership);
 
                 if (!$sameClubTransition) {
                     $hasMultipleClubs = true;
@@ -355,27 +358,51 @@ class MemberController extends Controller
                 yearsInSourceClub: $yearsInSourceClub
             );
 
+            $newMonthlyFeeTotal = (float) $pricing['monthly_fee'];
+            $billingSplitMode = (string) ($pricing['billing_split_mode'] ?? 'single');
+            $usesSharedBilling = $billingSplitMode === 'equal_split';
+            $newMonthlyFeeShare = $this->resolvePreviewMonthlyFeeShare(
+                $newMonthlyFeeTotal,
+                $billingSplitMode
+            );
+            $inscriptionFee = (float) ($pricing['inscription_fee'] ?? 0);
+            $additionalMonthlyCharge = $this->resolveAdditionalMonthlyCharge(
+                currentMonthlyFee: $currentMonthlyFee,
+                newMonthlyFeeTotal: $newMonthlyFeeTotal,
+                usesSharedBilling: $usesSharedBilling
+            );
+            $amountDueToday = $this->resolvePreviewAmountDueToday(
+                currentMonthlyFee: $currentMonthlyFee,
+                newMonthlyFeeTotal: $newMonthlyFeeTotal,
+                newMonthlyFeeShare: $newMonthlyFeeShare,
+                inscriptionFee: $inscriptionFee,
+                usesSharedBilling: $usesSharedBilling
+            );
+
             return response()->json([
                 'membership_type_id' => $membershipType->id,
                 'membership_type_name' => $membershipType->name,
                 'membership_type_code' => $membershipType->code,
-                'monthly_fee' => (float) $pricing['monthly_fee'],
-                'inscription_fee' => (float) ($pricing['inscription_fee'] ?? 0),
-                'total_due' => (float) $pricing['monthly_fee'] + (float) ($pricing['inscription_fee'] ?? 0),
+                'monthly_fee' => $newMonthlyFeeShare,
+                'monthly_fee_total' => $newMonthlyFeeTotal,
+                'monthly_fee_share' => $newMonthlyFeeShare,
+                'inscription_fee' => $inscriptionFee,
+                'total_due' => $amountDueToday,
+                'amount_due_today' => $amountDueToday,
                 'rule_type' => $pricing['rule_type'] ?? null,
+                'billing_split_mode' => $billingSplitMode,
                 'source_membership_becomes_non_billable' => (bool) ($pricing['source_membership_becomes_non_billable'] ?? false),
                 'current_monthly_fee' => $currentMonthlyFee,
-                'additional_monthly_charge' => $this->resolveAdditionalMonthlyCharge(
-                    currentMonthlyFee: $currentMonthlyFee,
-                    newMonthlyFee: (float) $pricing['monthly_fee'],
-                    sourceMembershipBecomesNonBillable: (bool) ($pricing['source_membership_becomes_non_billable'] ?? false)
-                ),
+                'additional_monthly_charge' => $additionalMonthlyCharge,
                 'charge_explanation' => $this->buildPricingPreviewExplanation(
                     currentMonthlyFee: $currentMonthlyFee,
-                    newMonthlyFee: (float) $pricing['monthly_fee'],
-                    inscriptionFee: (float) ($pricing['inscription_fee'] ?? 0),
-                    sourceMembershipBecomesNonBillable: (bool) ($pricing['source_membership_becomes_non_billable'] ?? false),
-                    sameClubTransition: $sameClubTransition
+                    newMonthlyFeeTotal: $newMonthlyFeeTotal,
+                    newMonthlyFeeShare: $newMonthlyFeeShare,
+                    inscriptionFee: $inscriptionFee,
+                    amountDueToday: $amountDueToday,
+                    additionalMonthlyCharge: $additionalMonthlyCharge,
+                    sameClubTransition: $sameClubTransition,
+                    usesSharedBilling: $usesSharedBilling
                 ),
             ]);
         } catch (ValidationException $e) {
@@ -538,11 +565,28 @@ class MemberController extends Controller
             }
 
             $validated = $request->validate([
-                'start_date' => ['required', 'date', 'after_or_equal:today'],
-                'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+                'start_month' => ['required', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/'],
+                'end_month'   => ['required', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/'],
                 'charge_percentage' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
                 'notes' => ['nullable', 'string', 'max:1000'],
             ]);
+
+            $startDate = Carbon::createFromFormat('Y-m', $validated['start_month'])->startOfMonth()->startOfDay();
+            $endDate   = Carbon::createFromFormat('Y-m', $validated['end_month'])->endOfMonth()->startOfDay();
+
+            $currentMonthStart = now()->startOfMonth()->startOfDay();
+
+            if ($startDate->lt($currentMonthStart)) {
+                throw ValidationException::withMessages([
+                    'start_month' => 'El mes de inicio debe ser el mes actual o uno futuro.',
+                ]);
+            }
+
+            if ($endDate->lt($startDate)) {
+                throw ValidationException::withMessages([
+                    'end_month' => 'El mes de fin debe ser igual o posterior al mes de inicio.',
+                ]);
+            }
 
             $accountGroup = $membership->account?->accountGroup;
             $primaryHolder = $membership->account?->primaryHolder;
@@ -554,9 +598,6 @@ class MemberController extends Controller
                 ]);
             }
 
-            $startDate = Carbon::parse($validated['start_date'])->startOfDay();
-            $endDate = Carbon::parse($validated['end_date'])->startOfDay();
-
             $overlappingPermit = AbsencePermit::query()
                 ->where('account_group_id', $accountGroup->id)
                 ->whereIn('status', ['approved', 'active'])
@@ -566,7 +607,7 @@ class MemberController extends Controller
 
             if ($overlappingPermit) {
                 throw ValidationException::withMessages([
-                    'start_date' => 'Ya existe un permiso por ausencia vigente o programado que se cruza con el periodo seleccionado.',
+                    'start_date' => 'Ya existe un permiso por ausencia vigente o programado que se cruza con el período seleccionado.',
                 ]);
             }
 
@@ -1194,6 +1235,9 @@ class MemberController extends Controller
                     'is_primary' => true,
                     'is_billable' => true,
                     'monthly_fee' => $selectedTargetOption['monthly_fee'],
+                    'monthly_fee_total' => $selectedTargetOption['monthly_fee'],
+                    'monthly_fee_share' => $selectedTargetOption['monthly_fee'],
+                    'billing_split_mode' => $selectedTargetOption['billing_split_mode'] ?? 'single',
                     'start_date' => now()->toDateString(),
                     'end_date' => $targetMembershipType->validity_months
                         ? now()->addMonthsNoOverflow($targetMembershipType->validity_months)->toDateString()
@@ -1201,7 +1245,14 @@ class MemberController extends Controller
                     'status' => 'active',
                 ]);
 
-                $newMembership->load(['membershipType', 'account.primaryHolder']);
+                $newMembership = $this->membershipChargeService
+                    ->synchronizeMembershipFees(
+                        $newMembership,
+                        (float) $selectedTargetOption['monthly_fee'],
+                        null,
+                        $selectedTargetOption['billing_split_mode'] ?? 'single'
+                    )
+                    ->firstWhere('id', $newMembership->id) ?? $newMembership->fresh(['membershipType', 'account.primaryHolder']);
 
                 $this->membershipChargeService->createInitialCharges(
                     membership: $newMembership,
@@ -1241,7 +1292,7 @@ class MemberController extends Controller
             return $this->validationExceptionResponse($e);
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([
-                'messageError' => 'Ocurrio un error al separar al integrante.',
+                'messageError' => 'Ocurrió un error al separar al integrante.',
                 'exception' => $e->getMessage(),
             ]);
         }
@@ -1659,6 +1710,9 @@ class MemberController extends Controller
                         'is_primary' => true,
                         'is_billable' => $previousBillableState,
                         'monthly_fee' => $pricing['monthly_fee'],
+                        'monthly_fee_total' => $pricing['monthly_fee'],
+                        'monthly_fee_share' => $pricing['monthly_fee'],
+                        'billing_split_mode' => $pricing['billing_split_mode'] ?? 'single',
                         'start_date' => now()->toDateString(),
                         'end_date' => $membershipType->validity_months
                             ? now()->addMonthsNoOverflow($membershipType->validity_months)->toDateString()
@@ -1684,7 +1738,14 @@ class MemberController extends Controller
                         'updated_at' => now(),
                     ]);
 
-                    $sourceMembership->load(['membershipType', 'account.primaryHolder']);
+                    $sourceMembership = $this->membershipChargeService
+                        ->synchronizeMembershipFees(
+                            $sourceMembership,
+                            (float) $pricing['monthly_fee'],
+                            null,
+                            $pricing['billing_split_mode'] ?? 'single'
+                        )
+                        ->firstWhere('id', $sourceMembership->id) ?? $sourceMembership->fresh(['membershipType', 'account.primaryHolder']);
 
                     $this->membershipChargeService->createInitialCharges(
                         membership: $sourceMembership,
@@ -1710,6 +1771,9 @@ class MemberController extends Controller
                     'is_primary' => true,
                     'is_billable' => true,
                     'monthly_fee' => $pricing['monthly_fee'],
+                    'monthly_fee_total' => $pricing['monthly_fee'],
+                    'monthly_fee_share' => $pricing['monthly_fee'],
+                    'billing_split_mode' => $pricing['billing_split_mode'] ?? 'single',
                     'start_date' => now()->toDateString(),
                     'end_date' => $membershipType->validity_months
                         ? now()->addMonthsNoOverflow($membershipType->validity_months)->toDateString()
@@ -1717,7 +1781,14 @@ class MemberController extends Controller
                     'status' => 'active',
                 ]);
 
-                $newMembership->load(['membershipType', 'account.primaryHolder']);
+                $newMembership = $this->membershipChargeService
+                    ->synchronizeMembershipFees(
+                        $newMembership,
+                        (float) $pricing['monthly_fee'],
+                        null,
+                        $pricing['billing_split_mode'] ?? 'single'
+                    )
+                    ->firstWhere('id', $newMembership->id) ?? $newMembership->fresh(['membershipType', 'account.primaryHolder']);
 
                 $this->membershipChargeService->createInitialCharges(
                     membership: $newMembership,
@@ -1804,6 +1875,161 @@ class MemberController extends Controller
         ]);
 
         return $membership;
+    }
+
+    public function editMember(Request $request, Membership $membership, Member $member)
+    {
+        $clubId = session('club_id');
+
+        if ((int) $membership->club_id !== (int) $clubId) {
+            abort(404);
+        }
+
+        $membership = $this->loadMembershipContext($membership);
+
+        $accountMember = $membership->account->accountMembers
+            ->firstWhere('member_id', $member->id);
+
+        if (!$accountMember) {
+            abort(404);
+        }
+
+        $member->load(['primaryAddress', 'employmentInfo', 'birthCountry', 'birthState', 'birthCity', 'nationality', 'maritalStatus']);
+
+        return Inertia::render('Members/EditMember', [
+            'membership' => $this->buildSourceMembershipPayload($membership),
+            'accountMember' => [
+                'member_id'        => $member->id,
+                'is_primary_holder' => (bool) $accountMember->is_primary_holder,
+                'relationship_id'  => $accountMember->relationship_id,
+                'first_name'       => $member->first_name,
+                'last_name'        => $member->last_name,
+                'second_last_name' => $member->second_last_name,
+                'birthdate'        => $member->birthdate,
+                'phone'            => $member->phone,
+                'email'            => $member->email,
+                'birth_country_id' => $member->birth_country_id,
+                'birth_state_id'   => $member->birth_state_id,
+                'birth_city_id'    => $member->birth_city_id,
+                'nationality_id'   => $member->nationality_id,
+                'marital_status_id' => $member->marital_status_id,
+                'occupation'       => $member->occupation,
+                'school_name'      => $member->school_name,
+                'address' => [
+                    'street'       => $member->primaryAddress?->street,
+                    'neighborhood' => $member->primaryAddress?->neighborhood,
+                    'postal_code'  => $member->primaryAddress?->postal_code,
+                    'country_id'   => $member->primaryAddress?->country_id,
+                    'state_id'     => $member->primaryAddress?->state_id,
+                    'city_id'      => $member->primaryAddress?->city_id,
+                    'years_in_city' => $member->primaryAddress?->years_in_city,
+                ],
+                'employment' => [
+                    'company_name'    => $member->employmentInfo?->company_name,
+                    'company_address' => $member->employmentInfo?->company_address,
+                    'company_phone'   => $member->employmentInfo?->company_phone,
+                ],
+            ],
+            ...$this->getCreateFormCatalogs(),
+        ]);
+    }
+
+    public function updateMember(Request $request, Membership $membership, Member $member)
+    {
+        try {
+            $clubId = session('club_id');
+
+            if ((int) $membership->club_id !== (int) $clubId) {
+                abort(404);
+            }
+
+            $membership = $this->loadMembershipContext($membership);
+
+            $accountMember = $membership->account->accountMembers
+                ->firstWhere('member_id', $member->id);
+
+            if (!$accountMember) {
+                abort(404);
+            }
+
+            $validated = $request->validate([
+                'first_name'       => ['required', 'string', 'max:100'],
+                'last_name'        => ['required', 'string', 'max:100'],
+                'second_last_name' => ['nullable', 'string', 'max:100'],
+                'birthdate'        => ['required', 'date'],
+                'phone'            => ['nullable', 'string', 'max:20'],
+                'email'            => ['nullable', 'email', 'max:150'],
+                'birth_country_id' => ['nullable', new ExistsInSchema('catalogs', 'countries', 'id')],
+                'birth_state_id'   => ['nullable', new ExistsInSchema('catalogs', 'states', 'id')],
+                'birth_city_id'    => ['nullable', new ExistsInSchema('catalogs', 'cities', 'id')],
+                'nationality_id'   => ['nullable', new ExistsInSchema('catalogs', 'countries', 'id')],
+                'marital_status_id' => ['nullable', new ExistsInSchema('catalogs', 'marital_statuses', 'id')],
+                'occupation'       => ['nullable', 'string', 'max:150'],
+                'school_name'      => ['nullable', 'string', 'max:150'],
+                'relationship_id'  => ['nullable', 'exists:catalogs.relationships,id'],
+                'address.street'       => ['nullable', 'string', 'max:200'],
+                'address.neighborhood' => ['nullable', 'string', 'max:200'],
+                'address.postal_code'  => ['nullable', 'string', 'max:20'],
+                'address.country_id'   => ['nullable', new ExistsInSchema('catalogs', 'countries', 'id')],
+                'address.state_id'     => ['nullable', new ExistsInSchema('catalogs', 'states', 'id')],
+                'address.city_id'      => ['nullable', new ExistsInSchema('catalogs', 'cities', 'id')],
+                'address.years_in_city' => ['nullable', 'integer', 'min:0'],
+                'employment.company_name'    => ['nullable', 'string', 'max:200'],
+                'employment.company_address' => ['nullable', 'string', 'max:200'],
+                'employment.company_phone'   => ['nullable', 'string', 'max:20'],
+            ]);
+
+            DB::transaction(function () use ($validated, $member, $accountMember) {
+                $member->update([
+                    'first_name'        => $validated['first_name'],
+                    'last_name'         => $validated['last_name'],
+                    'second_last_name'  => $validated['second_last_name'] ?? null,
+                    'birthdate'         => $validated['birthdate'],
+                    'phone'             => $validated['phone'] ?? null,
+                    'email'             => $validated['email'] ?? null,
+                    'birth_country_id'  => $validated['birth_country_id'] ?? null,
+                    'birth_state_id'    => $validated['birth_state_id'] ?? null,
+                    'birth_city_id'     => $validated['birth_city_id'] ?? null,
+                    'nationality_id'    => $validated['nationality_id'] ?? null,
+                    'marital_status_id' => $validated['marital_status_id'] ?? null,
+                    'occupation'        => $validated['occupation'] ?? null,
+                    'school_name'       => $validated['school_name'] ?? null,
+                ]);
+
+                if (!$accountMember->is_primary_holder && !empty($validated['relationship_id'])) {
+                    $accountMember->update(['relationship_id' => $validated['relationship_id']]);
+                }
+
+                $addressData = array_filter($validated['address'] ?? [], fn($v) => $v !== null);
+                if (!empty($addressData)) {
+                    $member->addresses()->updateOrCreate(
+                        ['is_primary' => true],
+                        array_merge($addressData, ['is_primary' => true])
+                    );
+                }
+
+                $employmentData = array_filter($validated['employment'] ?? [], fn($v) => $v !== null);
+                if (!empty($employmentData)) {
+                    $member->employmentInfo()->updateOrCreate(
+                        ['member_id' => $member->id],
+                        $employmentData
+                    );
+                }
+            });
+
+            return redirect()
+                ->route('members.manage.show', $membership)
+                ->with('success', 'Información del integrante actualizada correctamente.');
+        } catch (ValidationException $e) {
+            return $this->validationExceptionResponse($e);
+        } catch (\Exception $e) {
+            report($e);
+
+            return redirect()->back()->withErrors([
+                'messageError' => 'Ocurrió un error al actualizar la información del integrante.',
+                'exception' => $e->getMessage(),
+            ]);
+        }
     }
 
     protected function getCreateFormCatalogs(): array
@@ -2016,11 +2242,11 @@ class MemberController extends Controller
         $errors = [];
 
         if ($state && !$country) {
-            $errors[$countryAttribute] = 'Selecciona un paÃ­s antes de seleccionar un estado.';
+            $errors[$countryAttribute] = 'Selecciona un país antes de seleccionar un estado.';
         }
 
         if ($state && $country && (int) $state->country_id !== (int) $country->id) {
-            $errors[$stateAttribute] = 'El estado seleccionado no pertenece al paÃ­s indicado.';
+            $errors[$stateAttribute] = 'El estado seleccionado no pertenece al país indicado.';
         }
 
         if ($city && !$state) {
@@ -2032,7 +2258,7 @@ class MemberController extends Controller
         }
 
         if ($city && $country && (int) $city->country_id !== (int) $country->id) {
-            $errors[$cityAttribute] = 'La ciudad seleccionada no pertenece al paÃ­s indicado.';
+            $errors[$cityAttribute] = 'La ciudad seleccionada no pertenece al país indicado.';
         }
 
         if (!empty($errors)) {
@@ -2102,8 +2328,7 @@ class MemberController extends Controller
             : collect();
         $currentAbsencePermit = $this->resolveCurrentAbsencePermit($absencePermits);
         $billableMonthlyTotal = (float) $activeMemberships
-            ->where('is_billable', true)
-            ->sum('monthly_fee');
+            ->sum(fn (Membership $activeMembership) => $activeMembership->resolved_monthly_fee_share);
 
         return [
             'id' => $membership->account?->id,
@@ -2112,7 +2337,7 @@ class MemberController extends Controller
             'account_club_code' => $accountClub?->code,
             'account_type' => $membership->account?->account_type,
             'status' => $membership->account?->status,
-            'current_monthly_fee' => (float) ($billableMembership?->monthly_fee ?? 0),
+            'current_monthly_fee' => (float) $activeMemberships->sum(fn (Membership $activeMembership) => $activeMembership->resolved_monthly_fee_share),
             'absence_permit_preview_fee' => $currentAbsencePermit
                 ? round($billableMonthlyTotal * ((float) $currentAbsencePermit->charge_percentage / 100), 2)
                 : null,
@@ -2135,7 +2360,10 @@ class MemberController extends Controller
                         'membership_type_code' => $activeMembership->membershipType?->code,
                         'club_name' => $activeMembership->club?->name,
                         'club_code' => $activeMembership->club?->code,
-                        'monthly_fee' => (float) $activeMembership->monthly_fee,
+                        'monthly_fee' => (float) $activeMembership->resolved_monthly_fee_share,
+                        'monthly_fee_total' => (float) $activeMembership->resolved_monthly_fee_total,
+                        'monthly_fee_share' => (float) $activeMembership->resolved_monthly_fee_share,
+                        'billing_split_mode' => $activeMembership->billing_split_mode,
                         'is_billable' => (bool) $activeMembership->is_billable,
                         'status' => $activeMembership->status,
                         'start_date' => $activeMembership->start_date,
@@ -2340,6 +2568,7 @@ class MemberController extends Controller
                         'name' => $targetMembershipType->name,
                         'monthly_fee' => (float) $pricing['monthly_fee'],
                         'inscription_fee' => (float) ($pricing['inscription_fee'] ?? 0),
+                        'billing_split_mode' => $pricing['billing_split_mode'] ?? 'single',
                     ];
                 } catch (ValidationException $e) {
                     return null;
@@ -2410,6 +2639,7 @@ class MemberController extends Controller
                 'inscription_fee' => (float) $interclubRule->inscription_fee,
                 'rule_type' => 'interclub',
                 'source_membership_becomes_non_billable' => true,
+                'billing_split_mode' => $this->isMonthlyPassMembershipType($membershipType) ? 'single' : 'equal_split',
             ];
         }
 
@@ -2432,14 +2662,20 @@ class MemberController extends Controller
             ]);
         }
 
+        $sourceMembershipBecomesNonBillable = $this->shouldSourceMembershipBecomeNonBillable(
+            membershipType: $membershipType,
+            fromMembershipType: $fromMembershipType,
+            pricingRule: $pricingRule
+        );
+
         return [
             'monthly_fee' => (float) $pricingRule->monthly_fee,
             'inscription_fee' => (float) ($pricingRule->inscription_fee ?? 0),
             'rule_type' => 'pricing_rule',
-            'source_membership_becomes_non_billable' => $this->shouldSourceMembershipBecomeNonBillable(
+            'source_membership_becomes_non_billable' => $sourceMembershipBecomesNonBillable,
+            'billing_split_mode' => $this->resolveBillingSplitMode(
                 membershipType: $membershipType,
-                fromMembershipType: $fromMembershipType,
-                pricingRule: $pricingRule
+                sourceMembershipBecomesNonBillable: $sourceMembershipBecomesNonBillable
             ),
         ];
     }
@@ -2528,6 +2764,10 @@ class MemberController extends Controller
         ?MembershipType $fromMembershipType,
         PricingRule $pricingRule
     ): bool {
+        if ($this->isMonthlyPassMembershipType($membershipType)) {
+            return false;
+        }
+
         if ($this->isPe1PackageMembershipType($membershipType)) {
             return true;
         }
@@ -2541,6 +2781,17 @@ class MemberController extends Controller
         }
 
         return true;
+    }
+
+    protected function resolveBillingSplitMode(
+        MembershipType $membershipType,
+        bool $sourceMembershipBecomesNonBillable
+    ): string {
+        if ($this->isMonthlyPassMembershipType($membershipType)) {
+            return 'single';
+        }
+
+        return $sourceMembershipBecomesNonBillable ? 'equal_split' : 'single';
     }
 
     protected function shouldApplyAgeFilter(MembershipType $membershipType): bool
@@ -2652,37 +2903,150 @@ class MemberController extends Controller
 
     protected function resolveAdditionalMonthlyCharge(
         ?float $currentMonthlyFee,
-        float $newMonthlyFee,
-        bool $sourceMembershipBecomesNonBillable
+        float $newMonthlyFeeTotal,
+        bool $usesSharedBilling
     ): ?float {
-        if ($currentMonthlyFee === null) {
+        if ($currentMonthlyFee === null || !$usesSharedBilling) {
             return null;
         }
 
-        if (!$sourceMembershipBecomesNonBillable) {
-            return null;
+        return round(max($newMonthlyFeeTotal - $currentMonthlyFee, 0), 2);
+    }
+
+    protected function resolveCurrentGroupMonthlyFee(Membership $membership): float
+    {
+        $accountGroupId = $membership->account?->account_group_id;
+
+        if (!$accountGroupId) {
+            return (float) $membership->resolved_monthly_fee_total;
         }
 
-        return round($newMonthlyFee - $currentMonthlyFee, 2);
+        $activePrimaryMemberships = Membership::query()
+            ->where('is_primary', true)
+            ->whereIn('status', ['active', 'suspended'])
+            ->whereHas('account', function (Builder $query) use ($accountGroupId) {
+                $query->where('account_group_id', $accountGroupId);
+            })
+            ->get();
+
+        if ($activePrimaryMemberships->isEmpty()) {
+            return (float) $membership->resolved_monthly_fee_total;
+        }
+
+        return (float) $activePrimaryMemberships->max(fn (Membership $activeMembership) => $activeMembership->resolved_monthly_fee_total);
+    }
+
+    protected function resolvePreviewMonthlyFeeShare(float $monthlyFeeTotal, string $billingSplitMode): float
+    {
+        return $billingSplitMode === 'equal_split'
+            ? round($monthlyFeeTotal / 2, 2)
+            : round($monthlyFeeTotal, 2);
+    }
+
+    protected function resolvePreviewAmountDueToday(
+        ?float $currentMonthlyFee,
+        float $newMonthlyFeeTotal,
+        float $newMonthlyFeeShare,
+        float $inscriptionFee,
+        bool $usesSharedBilling
+    ): float {
+        if ($currentMonthlyFee === null || !$usesSharedBilling) {
+            return round($newMonthlyFeeShare + $inscriptionFee, 2);
+        }
+
+        return round(max($newMonthlyFeeTotal - $currentMonthlyFee, 0) + $inscriptionFee, 2);
     }
 
     protected function buildPricingPreviewExplanation(
         ?float $currentMonthlyFee,
-        float $newMonthlyFee,
+        float $newMonthlyFeeTotal,
+        float $newMonthlyFeeShare,
         float $inscriptionFee,
-        bool $sourceMembershipBecomesNonBillable,
-        bool $sameClubTransition
+        float $amountDueToday,
+        ?float $additionalMonthlyCharge,
+        bool $sameClubTransition,
+        bool $usesSharedBilling
     ): string {
-        $formattedNewMonthlyFee = number_format($newMonthlyFee, 2);
+        $formattedNewMonthlyFeeTotal = number_format($newMonthlyFeeTotal, 2);
+        $formattedNewMonthlyFeeShare = number_format($newMonthlyFeeShare, 2);
         $formattedInscriptionFee = number_format($inscriptionFee, 2);
+        $formattedAmountDueToday = number_format($amountDueToday, 2);
 
-        if ($sameClubTransition) {
+        if ($currentMonthlyFee === null) {
+            $message = $newMonthlyFeeTotal === $newMonthlyFeeShare
+                ? "La mensualidad de este parque será de $$formattedNewMonthlyFeeShare."
+                : "La cuota total del esquema será de $$formattedNewMonthlyFeeTotal y en este parque se cobrará $$formattedNewMonthlyFeeShare al mes.";
+
+            if ($inscriptionFee > 0) {
+                return $message . " Hoy se pagarán $$formattedAmountDueToday considerando mensualidad e inscripción.";
+            }
+
+            return $message . " Hoy se pagará $$formattedAmountDueToday.";
+
             if ($inscriptionFee > 0) {
                 return "Se actualizará la cuota mensual a $$formattedNewMonthlyFee y se cobrará un cargo extra de inscripción por $$formattedInscriptionFee.";
             }
 
             return "Se actualizará la cuota mensual a $$formattedNewMonthlyFee.";
         }
+
+        if (!$usesSharedBilling) {
+            $message = $sameClubTransition
+                ? "La mensualidad de este parque se actualizará a $" . number_format($newMonthlyFeeShare, 2) . "."
+                : "Esta membresía mantendrá un cobro independiente de $" . number_format($newMonthlyFeeShare, 2) . " al mes en este parque.";
+
+            if ($inscriptionFee > 0) {
+                return $message . " Hoy se pagarán $" . number_format($amountDueToday, 2) . " considerando mensualidad e inscripción.";
+            }
+
+            return $message . " Hoy se pagará $" . number_format($amountDueToday, 2) . ".";
+        }
+
+        $formattedCurrentMonthlyFee = number_format($currentMonthlyFee, 2);
+        $formattedAdditionalCharge = number_format((float) ($additionalMonthlyCharge ?? 0), 2);
+        $difference = round($newMonthlyFeeTotal - $currentMonthlyFee, 2);
+
+        if ($difference > 0) {
+            $message = "La cuota total del esquema pasará de $$formattedCurrentMonthlyFee a $$formattedNewMonthlyFeeTotal. En este parque se cobrará $$formattedNewMonthlyFeeShare al mes.";
+
+            if (($additionalMonthlyCharge ?? 0) > 0) {
+                $message .= " Hoy se cobrará un ajuste de $$formattedAdditionalCharge";
+
+                if ($inscriptionFee > 0) {
+                    $message .= " más $$formattedInscriptionFee de inscripción";
+                }
+
+                return $message . ", para un total de $$formattedAmountDueToday.";
+            }
+
+            if ($inscriptionFee > 0) {
+                return $message . " Hoy solo se cobrará la inscripción por $$formattedInscriptionFee.";
+            }
+
+            return $message . " Hoy no se generará cobro adicional.";
+        }
+
+        if ($difference < 0) {
+            $message = "La cuota total del esquema bajará de $$formattedCurrentMonthlyFee a $$formattedNewMonthlyFeeTotal. En este parque se cobrará $$formattedNewMonthlyFeeShare al mes.";
+
+            if ($inscriptionFee > 0) {
+                return $message . " No se generará saldo a favor; hoy solo se cobrará la inscripción por $$formattedInscriptionFee.";
+            }
+
+            return $message . " No se generará saldo a favor ni cobro adicional hoy.";
+        }
+
+        $message = $sameClubTransition
+            ? "La cuota total del esquema se mantiene en $$formattedNewMonthlyFeeTotal."
+            : "La cuota total del esquema se mantiene en $$formattedNewMonthlyFeeTotal.";
+
+        $message .= " En este parque se cobrará $$formattedNewMonthlyFeeShare al mes.";
+
+        if ($inscriptionFee > 0) {
+            return $message . " Hoy solo se cobrará la inscripción por $$formattedInscriptionFee.";
+        }
+
+        return $message . " Hoy no se generará cobro adicional.";
 
         if ($sourceMembershipBecomesNonBillable && $currentMonthlyFee !== null) {
             $additionalCharge = round($newMonthlyFee - $currentMonthlyFee, 2);

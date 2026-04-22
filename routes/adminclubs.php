@@ -11,6 +11,7 @@ use App\Http\Controllers\Web\AdminClub\BlockedPeriodController;
 use App\Http\Controllers\Web\AdminClub\SystemVariableController;
 use App\Http\Controllers\Web\AdminClub\AmenityScheduleController;
 use App\Http\Controllers\Web\AdminClub\BusinessCategoryController;
+use App\Http\Controllers\Web\AdminClub\BillingConceptController;
 use App\Http\Controllers\Web\AdminClub\InterclubPackageRuleController;
 use App\Http\Controllers\Web\AdminClub\PricingRuleController;
 use App\Http\Controllers\Web\AdminClub\AmenityResourceController;
@@ -29,6 +30,9 @@ Route::resource('/system-variables', SystemVariableController::class)->only(['in
 Route::resource('/guest-lists', ReservationGuestListController::class)->only(['index', 'update'])->names('guest-lists');
 Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
 Route::post('/billing/payments', [BillingController::class, 'storePayment'])->name('billing.payments.store');
+Route::resource('/billing-concepts', BillingConceptController::class)
+    ->only(['index', 'store', 'update', 'destroy'])
+    ->names('billing-concepts');
 Route::resource('/pricing-rules', PricingRuleController::class)
     ->only(['index', 'store', 'update', 'destroy'])
     ->names('pricing-rules');
@@ -90,4 +94,8 @@ Route::get('/members/{membership}/separation/create', [MemberController::class, 
     ->name('members.separation.create');
 Route::post('/members/{membership}/separation', [MemberController::class, 'storeMemberSeparation'])
     ->name('members.separation.store');
+Route::get('/members/{membership}/member/{member}/edit', [MemberController::class, 'editMember'])
+    ->name('members.member.edit');
+Route::put('/members/{membership}/member/{member}', [MemberController::class, 'updateMember'])
+    ->name('members.member.update');
 Route::resource('/members', MemberController::class)->only(['index', 'create', 'store', 'edit', 'update'])->names('members');

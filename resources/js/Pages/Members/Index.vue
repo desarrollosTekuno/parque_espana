@@ -29,6 +29,9 @@ interface ActiveMembershipItem {
     club_name: string | null;
     club_code: string | null;
     monthly_fee: number;
+    monthly_fee_total: number;
+    monthly_fee_share: number;
+    billing_split_mode: string | null;
     is_billable: boolean;
     start_date: string | null;
     end_date: string | null;
@@ -56,9 +59,9 @@ const props = withDefaults(defineProps<Props>(), {
 const headers = [
     { title: "No. cuenta", key: "membership_number" },
     { title: "Titular", key: "holder_name" },
-    { title: "Membresias activas", key: "active_memberships", sortable: false },
+    { title: "Membresías activas", key: "active_memberships", sortable: false },
     { title: "Correo", key: "email", sortable: false },
-    { title: "Telefono", key: "phone", sortable: false },
+    { title: "Teléfono", key: "phone", sortable: false },
     { title: "Cuota actual", key: "monthly_fee" },
     { title: "Estatus", key: "status" },
     { title: "Acciones", key: "actions", sortable: false },
@@ -185,7 +188,7 @@ const emptyMessage = computed(() =>
                                     No hay socios titulares activos para mostrar.
                                     Actualmente existen
                                     {{ pendingMembersCount }}
-                                    membresias pendientes.
+                                    membresías pendientes.
                                 </v-alert>
 
                                 <v-text-field
@@ -239,6 +242,14 @@ const emptyMessage = computed(() =>
                                                 }}
                                             </v-chip>
                                             <v-chip
+                                                v-if="membership.billing_split_mode === 'equal_split'"
+                                                size="small"
+                                                color="info"
+                                                variant="tonal"
+                                            >
+                                                50/50
+                                            </v-chip>
+                                            <v-chip
                                                 size="small"
                                                 :color="statusColor(membership.status)"
                                                 variant="tonal"
@@ -251,9 +262,16 @@ const emptyMessage = computed(() =>
                                     <div class="text-caption text-medium-emphasis mt-2">
                                         {{
                                             membership.is_billable
-                                                ? `Cuota a cobrar: ${currencyFormatter.format(membership.monthly_fee)}`
-                                                : `Monto referencial: ${currencyFormatter.format(membership.monthly_fee)}`
+                                                ? `Cuota a cobrar: ${currencyFormatter.format(membership.monthly_fee_share)}`
+                                                : `Monto referencial: ${currencyFormatter.format(membership.monthly_fee_share)}`
                                         }}
+                                    </div>
+                                    <div
+                                        v-if="membership.monthly_fee_total !== membership.monthly_fee_share"
+                                        class="text-caption text-medium-emphasis"
+                                    >
+                                        Cuota total del esquema:
+                                        {{ currencyFormatter.format(membership.monthly_fee_total) }}
                                     </div>
                                 </div>
                             </div>
@@ -342,8 +360,8 @@ const emptyMessage = computed(() =>
                                     v-if="item.can_change_membership"
                                     :icon-only="false"
                                     action="edit"
-                                    text="Cambiar membresia"
-                                    tooltip="Cambiar el tipo de membresia en este parque"
+                                    text="Cambiar membresía"
+                                    tooltip="Cambiar el tipo de membresía en este parque"
                                     @click="
                                         router.visit(
                                             route(
@@ -358,8 +376,8 @@ const emptyMessage = computed(() =>
                                 <BaseButton
                                     :icon-only="false"
                                     action="add"
-                                    text="Agregar membresia"
-                                    tooltip="Agregar membresia del otro parque"
+                                    text="Agregar membresía"
+                                    tooltip="Agregar membresía del otro parque"
                                     @click="
                                         router.visit(
                                             route(

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import BaseButton from "@/Components/BaseButton.vue";
+import MonthPicker from "@/Components/MonthPicker.vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { Head, router, useForm } from "@inertiajs/vue3";
 import { computed, ref } from "vue";
@@ -23,6 +24,9 @@ interface ActiveMembershipItem {
     club_name: string | null;
     club_code: string | null;
     monthly_fee: number;
+    monthly_fee_total: number;
+    monthly_fee_share: number;
+    billing_split_mode: string | null;
     is_billable: boolean;
     status: string;
     start_date: string | null;
@@ -110,11 +114,21 @@ const props = withDefaults(defineProps<Props>(), {
 
 const showAbsencePermitDialog = ref(false);
 const absencePermitForm = useForm({
-    start_date: "",
-    end_date: "",
+    start_month: "",
+    end_month: "",
     charge_percentage: 25,
     notes: "",
 });
+
+const currentMonth = computed(() => {
+    const now = new Date();
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    return `${now.getFullYear()}-${mm}`;
+});
+
+const minEndMonth = computed(() =>
+    absencePermitForm.start_month || currentMonth.value
+);
 
 const currencyFormatter = new Intl.NumberFormat("es-MX", {
     style: "currency",
@@ -572,6 +586,14 @@ const cancelAbsencePermit = (absencePermitId: number) => {
                                                         : "Incluida"
                                                 }}
                                             </v-chip>
+                                            <v-chip
+                                                v-if="activeMembership.billing_split_mode === 'equal_split'"
+                                                size="small"
+                                                color="info"
+                                                variant="tonal"
+                                            >
+                                                50/50
+                                            </v-chip>
 
                                             <v-chip
                                                 size="small"
@@ -586,7 +608,18 @@ const cancelAbsencePermit = (absencePermitId: number) => {
                                     <div class="text-body-2 mt-2">
                                         {{
                                             currencyFormatter.format(
-                                                activeMembership.monthly_fee,
+                                                activeMembership.monthly_fee_share,
+                                            )
+                                        }}
+                                    </div>
+                                    <div
+                                        v-if="activeMembership.monthly_fee_total !== activeMembership.monthly_fee_share"
+                                        class="text-caption text-medium-emphasis"
+                                    >
+                                        Cuota total del esquema:
+                                        {{
+                                            currencyFormatter.format(
+                                                activeMembership.monthly_fee_total,
                                             )
                                         }}
                                     </div>
@@ -676,6 +709,18 @@ const cancelAbsencePermit = (absencePermitId: number) => {
                                             <strong>Domicilio:</strong>
                                             {{ addressSummary(member) || "-" }}
                                         </div>
+
+                                        <div class="d-flex justify-end mt-3">
+                                            <v-btn
+                                                size="small"
+                                                variant="tonal"
+                                                color="primary"
+                                                prepend-icon="mdi-pencil"
+                                                @click="router.visit(route('members.member.edit', { membership: props.membership.id, member: member.member_id }))"
+                                            >
+                                                Editar
+                                            </v-btn>
+                                        </div>
                                     </v-card>
                                 </v-col>
                             </v-row>
@@ -692,20 +737,20 @@ const cancelAbsencePermit = (absencePermitId: number) => {
             <v-card-text>
                 <v-row>
                     <v-col cols="12" md="6">
-                        <v-text-field
-                            v-model="absencePermitForm.start_date"
-                            label="Fecha de inicio"
-                            type="date"
-                            :error-messages="absencePermitForm.errors.start_date"
+                        <MonthPicker
+                            v-model="absencePermitForm.start_month"
+                            label="Mes de inicio"
+                            :min="currentMonth"
+                            :error-messages="absencePermitForm.errors.start_month"
                         />
                     </v-col>
 
                     <v-col cols="12" md="6">
-                        <v-text-field
-                            v-model="absencePermitForm.end_date"
-                            label="Fecha de fin"
-                            type="date"
-                            :error-messages="absencePermitForm.errors.end_date"
+                        <MonthPicker
+                            v-model="absencePermitForm.end_month"
+                            label="Mes de fin"
+                            :min="minEndMonth"
+                            :error-messages="absencePermitForm.errors.end_month"
                         />
                     </v-col>
 

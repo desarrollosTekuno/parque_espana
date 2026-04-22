@@ -198,6 +198,8 @@ class ProcessMembershipAgeTransitions extends Command
                         'is_primary_holder' => true,
                     ]);
 
+                    $billingSplitMode = $familyMembership->billing_split_mode ?? 'single';
+
                     $newMembership = Membership::create([
                         'membership_account_id' => $newAccount->id,
                         'club_id' => $familyMembership->club_id,
@@ -206,6 +208,9 @@ class ProcessMembershipAgeTransitions extends Command
                         'is_primary' => true,
                         'is_billable' => $shouldBeBillable,
                         'monthly_fee' => $pricingRule->monthly_fee,
+                        'monthly_fee_total' => $pricingRule->monthly_fee,
+                        'monthly_fee_share' => $pricingRule->monthly_fee,
+                        'billing_split_mode' => $billingSplitMode,
                         'start_date' => $asOfDate->toDateString(),
                         'end_date' => $targetMembershipType->validity_months
                             ? $asOfDate->copy()->addMonthsNoOverflow($targetMembershipType->validity_months)->toDateString()
@@ -213,7 +218,9 @@ class ProcessMembershipAgeTransitions extends Command
                         'status' => 'active',
                     ]);
 
-                    $newMembership->load(['membershipType', 'account.primaryHolder']);
+                    $newMembership = $this->membershipChargeService
+                        ->synchronizeMembershipFees($newMembership, (float) $pricingRule->monthly_fee, $asOfDate->copy(), $billingSplitMode)
+                        ->firstWhere('id', $newMembership->id) ?? $newMembership->fresh(['membershipType', 'account.primaryHolder']);
 
                     if ($shouldBeBillable) {
                         $this->membershipChargeService->createInitialCharges(
@@ -358,12 +365,17 @@ class ProcessMembershipAgeTransitions extends Command
                     'is_primary_holder' => true,
                 ]);
 
+                $billingSplitMode = $solidariaMembership->billing_split_mode ?? 'single';
+
                 $solidariaMembership->update([
                     'membership_type_id' => $targetMembershipType->id,
                     'origin_membership_type_id' => $previousMembershipTypeId,
                     'is_primary' => true,
                     'is_billable' => $solidariaMembership->is_billable,
                     'monthly_fee' => $pricingRule->monthly_fee,
+                    'monthly_fee_total' => $pricingRule->monthly_fee,
+                    'monthly_fee_share' => $pricingRule->monthly_fee,
+                    'billing_split_mode' => $billingSplitMode,
                     'start_date' => $asOfDate->toDateString(),
                     'end_date' => $targetMembershipType->validity_months
                         ? $asOfDate->copy()->addMonthsNoOverflow($targetMembershipType->validity_months)->toDateString()
@@ -371,7 +383,9 @@ class ProcessMembershipAgeTransitions extends Command
                     'status' => 'active',
                 ]);
 
-                $solidariaMembership->load(['membershipType', 'account.primaryHolder']);
+                $solidariaMembership = $this->membershipChargeService
+                    ->synchronizeMembershipFees($solidariaMembership, (float) $pricingRule->monthly_fee, $asOfDate->copy(), $billingSplitMode)
+                    ->firstWhere('id', $solidariaMembership->id) ?? $solidariaMembership->fresh(['membershipType', 'account.primaryHolder']);
 
                 $this->membershipChargeService->createInitialCharges(
                     membership: $solidariaMembership,

@@ -4,6 +4,7 @@ namespace App\Models\Administrator;
 
 use App\Models\AdminClub\Amenity;
 use App\Models\AdminClub\Survey;
+use App\Models\Billing\ChargeConceptClubAmount;
 use App\Models\Billing\ClubPaymentMethod;
 use App\Models\Billing\Payment;
 use App\Models\Administrator\UserClub;
@@ -50,5 +51,10 @@ class Club extends Model {
     public function surveys()
     {
         return $this->hasMany(Survey::class, 'club_id');
+    }
+
+    public function chargeConceptAmounts()
+    {
+        return $this->hasMany(ChargeConceptClubAmount::class, 'club_id');
     }
 }
