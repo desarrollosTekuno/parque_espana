@@ -9,6 +9,10 @@ import {
     fileTypeRule,
     requiredFileRule,
     fileExactCountRule,
+    minLength,
+    maxLength,
+    postalCode,
+    fileMaxSizeRule,
 } from "@/constants/validationRules";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { customToastSwal } from "@/utils/swal";
@@ -1883,7 +1887,7 @@ const memberLabel = (member: MemberForm) => {
                                                             member.first_name
                                                         "
                                                         label="Nombre(s)"
-                                                        :rules="[required]"
+                                                        :rules="[required,minLength(2), maxLength(75)]"
                                                         :disabled="
                                                             isIdentityLocked(
                                                                 member,
@@ -1898,7 +1902,7 @@ const memberLabel = (member: MemberForm) => {
                                                             member.last_name
                                                         "
                                                         label="Apellido paterno"
-                                                        :rules="[required]"
+                                                        :rules="[required,minLength(2), maxLength(50)]"
                                                         :disabled="
                                                             isIdentityLocked(
                                                                 member,
@@ -1918,6 +1922,8 @@ const memberLabel = (member: MemberForm) => {
                                                                 member,
                                                             )
                                                         "
+                                                        :rules="[minLength(2), maxLength(50)]"
+
                                                     />
                                                 </v-col>
 
@@ -1997,6 +2003,7 @@ const memberLabel = (member: MemberForm) => {
                                                                 $event,
                                                             )
                                                         "
+                                                        :rules="[selectRequired]"
                                                     />
                                                 </v-col>
 
@@ -2041,6 +2048,9 @@ const memberLabel = (member: MemberForm) => {
                                                                 $event,
                                                             )
                                                         "
+                                                        :rules="[
+                                                            selectRequired,
+                                                        ]"
                                                     />
                                                 </v-col>
 
@@ -2115,6 +2125,9 @@ const memberLabel = (member: MemberForm) => {
                                                         "
                                                         clearable
                                                         auto-select-first
+                                                        :rules="[
+                                                            selectRequired,
+                                                        ]"
                                                     />
                                                 </v-col>
 
@@ -2150,6 +2163,9 @@ const memberLabel = (member: MemberForm) => {
                                                                 member,
                                                             )
                                                         "
+                                                        :rules="[
+                                                            selectRequired,
+                                                        ]"
                                                     />
                                                 </v-col>
 
@@ -2172,7 +2188,9 @@ const memberLabel = (member: MemberForm) => {
                                                                       required,
                                                                       validatePhone,
                                                                   ]
-                                                                : []
+                                                                : [
+                                                                        validatePhone,
+                                                                ]
                                                         "
                                                     />
                                                 </v-col>
@@ -2186,8 +2204,9 @@ const memberLabel = (member: MemberForm) => {
                                                                 ? [
                                                                       required,
                                                                       email,
+                                                                      maxLength(255)
                                                                   ]
-                                                                : [email]
+                                                                : [email, maxLength(255)]
                                                         "
                                                     />
                                                 </v-col>
@@ -2204,6 +2223,7 @@ const memberLabel = (member: MemberForm) => {
                                                             member.occupation
                                                         "
                                                         label="Ocupación"
+                                                        :rules="[required, minLength(2), maxLength(100)]"
                                                     />
                                                 </v-col>
 
@@ -2221,6 +2241,7 @@ const memberLabel = (member: MemberForm) => {
                                                             member.school_name
                                                         "
                                                         label="Colegio"
+                                                        :rules="[required, minLength(3), maxLength(150)]"
                                                     />
                                                 </v-col>
                                             </v-row>
@@ -2245,6 +2266,7 @@ const memberLabel = (member: MemberForm) => {
                                                                 .street
                                                         "
                                                         label="Calle"
+                                                        :rules="[required, minLength(3), maxLength(150)]"
                                                     />
                                                 </v-col>
 
@@ -2255,6 +2277,7 @@ const memberLabel = (member: MemberForm) => {
                                                                 .neighborhood
                                                         "
                                                         label="Colonia"
+                                                        :rules="[required, minLength(3), maxLength(150)]"
                                                     />
                                                 </v-col>
 
@@ -2265,6 +2288,7 @@ const memberLabel = (member: MemberForm) => {
                                                                 .postal_code
                                                         "
                                                         label="Código postal"
+                                                        :rules="[postalCode]"
                                                     />
                                                 </v-col>
 
@@ -2291,6 +2315,7 @@ const memberLabel = (member: MemberForm) => {
                                                                 $event,
                                                             )
                                                         "
+                                                        :rules="[selectRequired]"
                                                     />
                                                 </v-col>
 
@@ -2326,6 +2351,9 @@ const memberLabel = (member: MemberForm) => {
                                                                 $event,
                                                             )
                                                         "
+                                                        :rules="[
+                                                            selectRequired,
+                                                        ]"
                                                     />
                                                 </v-col>
 
@@ -2365,13 +2393,13 @@ const memberLabel = (member: MemberForm) => {
                                                 </v-col>
 
                                                 <v-col cols="12" md="4">
-                                                    <v-text-field
+                                                    <v-number-input
                                                         v-model="
                                                             member.address
                                                                 .years_in_city
                                                         "
-                                                        type="number"
                                                         label="Años radicando en la ciudad"
+                                                        :rules="[required]"
                                                     />
                                                 </v-col>
                                             </v-row>
@@ -2396,6 +2424,7 @@ const memberLabel = (member: MemberForm) => {
                                                                 .company_name
                                                         "
                                                         label="Empresa"
+                                                        :rules="[required, minLength(2), maxLength(150)]"
                                                     />
                                                 </v-col>
 
@@ -2406,6 +2435,7 @@ const memberLabel = (member: MemberForm) => {
                                                                 .company_address
                                                         "
                                                         label="Dirección de la empresa"
+                                                            :rules="[required, minLength(5), maxLength(255)]"
                                                     />
                                                 </v-col>
 
@@ -2416,6 +2446,7 @@ const memberLabel = (member: MemberForm) => {
                                                                 .company_phone
                                                         "
                                                         label="Teléfono de la empresa"
+                                                        :rules="[required, validatePhone]"
                                                     />
                                                 </v-col>
                                             </v-row>
@@ -2522,6 +2553,7 @@ const memberLabel = (member: MemberForm) => {
                                                             fileTypeRule(
                                                                 doc.allowed_extensions,
                                                             ),
+                                                            fileMaxSizeRule(2)
                                                         ]"
                                                         clearable
                                                     />
