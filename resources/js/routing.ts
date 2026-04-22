@@ -190,6 +190,14 @@ const routes: Routing[] = [
             },
         ]
     },
+    // Encuestas
+    {
+        name: "surveys.index",
+        title: "Encuestas",
+        icon: "mdi-poll",
+        value: "surveys",
+        group: null
+    },
     // Variables de sistema
     {
         name: "system-variables.index",
@@ -213,7 +221,6 @@ const routes: Routing[] = [
         value: "paquetes-interclub",
         group: null,
     },
-    
     /*
     {
         name: ["dashboard"],

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Web\AdminClub\SurveyController;
 use App\Http\Controllers\Web\AdminClub\MemberController;
 use App\Http\Controllers\Web\AdminClub\BillingController;
 use App\Http\Controllers\Web\AdminClub\AmenityController;
@@ -56,6 +57,9 @@ Route::prefix('business-categories')->name('business-categories.')->group(functi
     Route::put('{id}', [BusinessCategoryController::class, 'update'])->name('update');
     Route::delete('{id}', [BusinessCategoryController::class, 'destroy'])->name('destroy');
 });
+
+// surveys
+Route::resource('/surveys', SurveyController::class)->names('surveys');
 
 // members
 Route::get('/members/{membership}/additional-membership/create', [MemberController::class, 'createAdditionalMembership'])

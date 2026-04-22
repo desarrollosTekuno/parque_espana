@@ -91,7 +91,14 @@ class PermissionSeeder extends Seeder
             array('name' => 'business-categories.index', 'description' => 'Ver categorías de negocios', 'contexts' => ['web']),
             array('name' => 'business-categories.store', 'description' => 'Crear categorías de negocios', 'contexts' => ['web']),
             array('name' => 'business-categories.update', 'description' => 'Actualizar categorías de negocios', 'contexts' => ['web']),
-            array('name' => 'business-categories.destroy', 'description' => 'Eliminar categorías de negocios', 'contexts' => ['web']),          
+            array('name' => 'business-categories.destroy', 'description' => 'Eliminar categorías de negocios', 'contexts' => ['web']),   
+            
+            // Surveys
+            array('name' => 'surveys.index', 'description' => 'Ver encuestas', 'contexts' => ['web']),
+            array('name' => 'surveys.store', 'description' => 'Crear encuestas', 'contexts' => ['web']),
+            array('name' => 'surveys.update', 'description' => 'Actualizar encuestas', 'contexts' => ['web']),
+            array('name' => 'surveys.destroy', 'description' => 'Eliminar encuestas', 'contexts' => ['web']),
+            
 
         );
         foreach ($permissions as $permission) {
