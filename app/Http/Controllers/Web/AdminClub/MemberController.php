@@ -1966,7 +1966,7 @@ class MemberController extends Controller
                 'marital_status_id' => ['nullable', new ExistsInSchema('catalogs', 'marital_statuses', 'id')],
                 'occupation'       => ['nullable', 'string', 'max:150'],
                 'school_name'      => ['nullable', 'string', 'max:150'],
-                'relationship_id'  => ['nullable', 'exists:catalogs.relationships,id'],
+                'relationship_id'  => ['nullable', new ExistsInSchema('catalogs', 'relationships', 'id')],
                 'address.street'       => ['nullable', 'string', 'max:200'],
                 'address.neighborhood' => ['nullable', 'string', 'max:200'],
                 'address.postal_code'  => ['nullable', 'string', 'max:20'],
