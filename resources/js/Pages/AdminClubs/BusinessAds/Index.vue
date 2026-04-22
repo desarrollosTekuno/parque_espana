@@ -54,7 +54,7 @@ const fetchItems = () => {
         {
             page: options.value.page,
             per_page: options.value.itemsPerPage,
-            search: search.value
+            search: search.value.trim() || null
         },
         {
             preserveState: true,
@@ -63,12 +63,6 @@ const fetchItems = () => {
         }
     );
 };
-watch(
-    [options, search],
-    debounce(fetchItems, 400),
-    { deep: true }
-);
-
 const viewDetail = (item: any) => {
     selectedAd.value = item;
     showDetailModal.value = true;
@@ -178,7 +172,18 @@ watch(
     },
     { immediate: true }
 );
-console.log(page.props.pendingBusinessAds);
+watch(search, (val) => {
+    console.log("Buscando:", val);
+});
+watch(search, debounce(() => {
+    options.value.page = 1;
+    fetchItems();
+}, 400));
+watch(
+    [options],
+    debounce(fetchItems, 400),
+    { deep: true }
+);
 </script>
 
 <template>
@@ -199,6 +204,9 @@ console.log(page.props.pendingBusinessAds);
         >
             <template #top>
                 <v-text-field v-model="search" label="Buscar anuncio" />
+            </template>
+            <template #item.category="{ item }">
+                {{ item.category?.name ?? '-' }}
             </template>
             <template #item.member="{ item }">
                 {{ item.member?.full_name ?? '-' }}
@@ -268,7 +276,7 @@ console.log(page.props.pendingBusinessAds);
 
                                     <!-- Categoría -->
                                     <div class="text-caption text-grey mb-2">
-                                        {{ selectedAd.category ?? 'Sin categoría' }}
+                                        {{ selectedAd.category?.name ?? 'Sin categoría' }}
                                     </div>
 
                                     <!-- Descripción -->

@@ -57,8 +57,21 @@ onMounted(() => {
         .filter((ruta) => ruta.groupItems?.find((groupItem) => route().current(groupItem.name)))
         ?.map((ruta) => ruta.group) ?? [];
 });
+const shouldShowBadge = (ruta:any) => {
+    if (!ruta.showBadge || pendingAds.value <= 0) return false;
+    if (ruta.groupItems) {
+        return ruta.groupItems.some((sub:any) =>
+            sub.name === 'business-ads.index'
+        );
+    }
+    if (Array.isArray(ruta.name)) {
+        return ruta.name.includes('business-ads.index');
+    }
+    return ruta.name === 'business-ads.index';
+};
 </script>
 
+```html
 <template>
     <v-navigation-drawer
         v-model="drawer"
@@ -69,7 +82,7 @@ onMounted(() => {
         class="font-poppins"
         style="background-color: #0A2540;"
     >
-        <!-- ── Banda de perfil con acento rojo ── -->
+        <!-- Perfil -->
         <v-list bg-color="transparent" class="pa-0">
             <v-list-item
                 class="py-4 px-4"
@@ -82,7 +95,7 @@ onMounted(() => {
                         color="#F4B403"
                         size="40"
                         class="mr-3"
-                        style="font-weight: 700; color: #0A2540; font-size: 1rem;"
+                        style="font-weight: 700; color: #0A2540;"
                     >
                         {{ userInitials }}
                     </v-avatar>
@@ -90,7 +103,7 @@ onMounted(() => {
             </v-list-item>
         </v-list>
 
-        <!-- ── Selector de club ── -->
+        <!-- Selector de club -->
         <div v-if="clubs?.length" class="px-3 pt-3 pb-1">
             <v-select
                 v-model="selectedClub"
@@ -108,7 +121,7 @@ onMounted(() => {
 
         <v-divider style="border-color: rgba(255,255,255,0.08);" />
 
-        <!-- ── Menú de navegación (scrolleable) ── -->
+        <!-- Navegación -->
         <div class="nav-scroll-area">
             <v-list
                 open-strategy="multiple"
@@ -117,11 +130,11 @@ onMounted(() => {
                 nav
                 class="px-2 pt-2 pb-1"
                 bg-color="transparent"
-                @update:opened="newOpened => { opened = newOpened; }"
+                @update:opened="val => opened = val"
             >
                 <template v-for="ruta in routes" :key="ruta.value">
 
-                    <!-- Ítem simple -->
+                    <!-- Item simple -->
                     <v-tooltip
                         v-if="ruta.group == null && existSomeRoute(ruta.name)"
                         :text="ruta.title"
@@ -131,6 +144,7 @@ onMounted(() => {
                         <template #activator="{ props: tipProps }">
                             <Link :href="route(ruta.name)" preserve-scroll v-bind="tipProps">
                                 <v-list-item
+                                    v-bind="tipProps"
                                     rounded="lg"
                                     variant="text"
                                     color="#FEFEFE"
@@ -139,17 +153,13 @@ onMounted(() => {
                                     :class="isActive(ruta.name) ? 'nav-item--active' : 'nav-item--inactive'"
                                 >
                                     <template #prepend>
-                                        <v-icon
-                                            :icon="ruta.icon"
-                                            :color="isActive(ruta.name) ? '#0A2540' : '#FEFEFE'"
-                                        />
+                                        <v-icon :icon="ruta.icon" />
                                     </template>
-                                    <v-list-item-title class="d-flex align-center justify-space-between w-100">
-                                        <span :style="isActive(ruta.name) ? 'color: #0A2540; font-weight: 700; letter-spacing: 0.01em;' : 'color: #FEFEFE;'">
-                                            {{ ruta.title }}
-                                        </span>
+
+                                    <v-list-item-title class="d-flex justify-space-between w-100">
+                                        <span>{{ ruta.title }}</span>
                                         <v-badge
-                                            v-if="ruta.showBadge && pendingAds > 0"
+                                            v-if="shouldShowBadge(ruta)"
                                             :content="pendingAds > 9 ? '9+' : pendingAds"
                                             color="#D4172A"
                                             inline
@@ -160,44 +170,47 @@ onMounted(() => {
                         </template>
                     </v-tooltip>
 
-                    <!-- Ítem con submenú -->
+                    <!-- Item con grupo -->
                     <v-list-group
-                        v-else-if="ruta.group != null && existSomeRoute(ruta.name)"
+                        v-else-if="ruta.group && existSomeRoute(ruta.name)"
                         :value="ruta.group"
                         fluid
                     >
-                        <template #activator="{ props: activatorProps }">
+                        <template #activator="{ props }">
                             <v-tooltip :text="ruta.title" location="end" :disabled="!isRail">
                                 <template #activator="{ props: tipProps }">
                                     <v-list-item
-                                        v-bind="{ ...activatorProps, ...tipProps }"
-                                        variant="text"
-                                        rounded="lg"
-                                        color="#FEFEFE"
+                                        v-bind="{ ...props, ...tipProps }"
                                         :title="ruta.title"
                                         :prepend-icon="ruta.icon"
-                                        class="nav-item nav-item--inactive mb-1"
-                                    />
+                                        class="nav-item mb-1"
+                                    >
+                                        <template #append>
+                                            <v-badge
+                                                v-if="shouldShowBadge(ruta)"
+                                                class="badge-pulse"
+                                                :content="pendingAds > 9 ? '9+' : pendingAds"
+                                                color="#D4172A"
+                                                >
+                                            </v-badge>
+                                        </template>
+                                    </v-list-item>
                                 </template>
                             </v-tooltip>
                         </template>
 
                         <Link
-                            v-for="groupItem in ruta.groupItems"
-                            :key="groupItem.value"
-                            :href="route(groupItem.name)"
+                            v-for="sub in ruta.groupItems"
+                            :key="sub.value"
+                            :href="route(sub.name)"
                             preserve-scroll
                         >
                             <v-list-item
-                                v-if="can.includes(groupItem.name)"
-                                variant="text"
-                                rounded="lg"
-                                :color="route().current(groupItem.name) ? '#0A2540' : '#FEFEFE'"
+                                v-if="can.includes(sub.name)"
+                                :title="sub.title"
+                                :prepend-icon="sub.icon"
                                 class="nav-item ml-3 mb-1"
-                                :class="route().current(groupItem.name) ? 'nav-item--active-sub' : 'nav-item--inactive'"
-                                :active="route().current(groupItem.name)"
-                                :prepend-icon="groupItem.icon"
-                                :title="groupItem.title"
+                                :active="route().current(sub.name)"
                             />
                         </Link>
                     </v-list-group>
@@ -206,18 +219,15 @@ onMounted(() => {
             </v-list>
         </div>
 
-        <!-- ── Cerrar sesión (fijo al fondo) ── -->
+        <!-- Logout -->
         <div class="nav-logout-area">
             <v-divider style="border-color: rgba(255,255,255,0.08);" />
-            <v-list density="comfortable" nav class="px-2 py-1" bg-color="transparent">
+
+            <v-list density="comfortable" nav class="px-2 py-1">
                 <v-tooltip text="Cerrar Sesión" location="end" :disabled="!isRail">
-                    <template #activator="{ props: tipProps }">
+                    <template #activator="{ props }">
                         <v-list-item
-                            v-bind="tipProps"
-                            variant="text"
-                            rounded="lg"
-                            color="#D4172A"
-                            class="nav-item nav-item--logout"
+                            v-bind="props"
                             prepend-icon="mdi-logout"
                             title="Cerrar Sesión"
                             @click="router.post(route('logout'))"
@@ -226,10 +236,32 @@ onMounted(() => {
                 </v-tooltip>
             </v-list>
         </div>
+
     </v-navigation-drawer>
 </template>
-
-<style scoped>
+<style>
+.badge-pulse .v-badge__badge {
+  animation: pulse 1.5s infinite;
+}
+.v-badge__badge {
+  font-size: 10px;
+  min-width: 18px;
+  height: 18px;
+}
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(244, 67, 54, 0.7);
+  }
+  70% {
+    transform: scale(1.2);
+    box-shadow: 0 0 0 10px rgba(244, 67, 54, 0);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(244, 67, 54, 0);
+  }
+}
 .nav-item--inactive {
     opacity: 0.6;
 }

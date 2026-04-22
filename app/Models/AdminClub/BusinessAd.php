@@ -42,8 +42,14 @@ class BusinessAd extends Model {
     {
         return $this->belongsTo(BusinessAdStatus::class, 'status_id');
     }
+    
     public function member()
     {
         return $this->belongsTo(Member::class, 'member_id');
+    }
+
+    public function category()
+    {
+        return $this->belongsTo(BusinessCategory::class);
     }
 }

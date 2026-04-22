@@ -1,20 +1,20 @@
 <?php
 
-use App\Htpp\Controllers\Web\AdminClub\Announcement;
+use App\Http\Controllers\Web\AdminClub\MemberController;
+use App\Http\Controllers\Web\AdminClub\BillingController;
 use App\Http\Controllers\Web\AdminClub\AmenityController;
 use App\Http\Controllers\Web\AdminClub\BusinessAdController;
 use App\Http\Controllers\Web\AdminClub\ReservationController;
 use App\Http\Controllers\Web\AdminClub\AnnouncementController;
 use App\Http\Controllers\Web\AdminClub\BlockedPeriodController;
+use App\Http\Controllers\Web\AdminClub\SystemVariableController;
 use App\Http\Controllers\Web\AdminClub\AmenityScheduleController;
-use App\Http\Controllers\Web\AdminClub\BillingController;
+use App\Http\Controllers\Web\AdminClub\BusinessCategoryController;
 use App\Http\Controllers\Web\AdminClub\BillingConceptController;
 use App\Http\Controllers\Web\AdminClub\InterclubPackageRuleController;
-use App\Http\Controllers\Web\AdminClub\MemberController;
 use App\Http\Controllers\Web\AdminClub\PricingRuleController;
 use App\Http\Controllers\Web\AdminClub\AmenityResourceController;
 use App\Http\Controllers\Web\AdminClub\ReservationGuestListController;
-use App\Http\Controllers\Web\AdminClub\SystemVariableController;
 use Illuminate\Support\Facades\Route;
 
 // amenities
@@ -53,6 +53,14 @@ Route::post('/business-ads/{id}/confirm-payment', [BusinessAdController::class, 
 Route::post('/business-ads/{id}/publish', [BusinessAdController::class, 'publish'])->name('business-ads.publish');
 Route::delete('/business-ads/{id}', [BusinessAdController::class, 'destroy'])->name('business-ads.destroy');
 
+// business_ads categories
+Route::prefix('business-categories')->name('business-categories.')->group(function () {
+    Route::get('/', [BusinessCategoryController::class, 'index'])->name('index');
+    Route::post('/', [BusinessCategoryController::class, 'store'])->name('store');
+    Route::put('{id}', [BusinessCategoryController::class, 'update'])->name('update');
+    Route::delete('{id}', [BusinessCategoryController::class, 'destroy'])->name('destroy');
+});
+
 // members
 Route::get('/members/{membership}/additional-membership/create', [MemberController::class, 'createAdditionalMembership'])
     ->name('members.additional-membership.create');
@@ -74,7 +82,7 @@ Route::get('/members/{membership}/change-holder', [MemberController::class, 'cre
     ->name('members.change-holder.create');
 Route::patch('/members/{membership}/change-holder', [MemberController::class, 'updatePrimaryHolder'])
     ->name('members.change-holder.update');
-Route::get('/members/{membership}/family-members/create', [MemberController::class, 'createFamilyMember'])
+Route::get('/members/{membership}/family-members/create', [MemberController::class, 'createFamilyMember']) 
     ->name('members.family-members.create');
 Route::post('/members/{membership}/family-members', [MemberController::class, 'storeFamilyMember'])
     ->name('members.family-members.store');

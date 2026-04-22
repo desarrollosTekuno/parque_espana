@@ -89,11 +89,13 @@ class PermissionSeeder extends Seeder
             // Business Ads permissions
             array('name' => 'business-ads.index', 'description' => 'Ver publicidad de negocios', 'contexts' => ['web']),
             array('name' => 'business-ads.approve', 'description' => 'Aprobar publicidad de negocios', 'contexts' => ['web']),
-            array('name' => 'business-ads.reject', 'description' => 'Rechazar publicidad de negocios', 'contexts' => ['web']),
-            array('name' => 'business-ads.confirm-payment', 'description' => 'Confirmar pago de publicidad de negocios', 'contexts' => ['web']),
-            array('name' => 'business-ads.publish', 'description' => 'Publicar publicidad de negocios', 'contexts' => ['web']),
-            array('name' => 'business-ads.update', 'description' => 'Actualizar publicidad de negocios', 'contexts' => ['web']),
-            array('name' => 'business-ads.destroy', 'description' => 'Eliminar publicidad de negocios', 'contexts' => ['web']),
+            array('name' => 'business-ads.reject', 'description' => 'Rechazar publicidad de negocios', 'contexts' => ['web']),   
+            
+            // Business Categories permissions
+            array('name' => 'business-categories.index', 'description' => 'Ver categorías de negocios', 'contexts' => ['web']),
+            array('name' => 'business-categories.store', 'description' => 'Crear categorías de negocios', 'contexts' => ['web']),
+            array('name' => 'business-categories.update', 'description' => 'Actualizar categorías de negocios', 'contexts' => ['web']),
+            array('name' => 'business-categories.destroy', 'description' => 'Eliminar categorías de negocios', 'contexts' => ['web']), 
             // 
             
             array('name' => 'member-access.index', 'description' => 'Ver acceso de miembros', 'contexts' => ['web']),
