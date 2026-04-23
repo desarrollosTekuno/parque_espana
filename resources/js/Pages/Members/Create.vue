@@ -1164,6 +1164,10 @@ const submit = () => {
                 city_id: member.address.city_id,
             },
             employment: member.employment,
+            documents: member.documents.map((doc) => ({
+                document_type_id: doc.document_type_id,
+                files: doc.files ?? [],
+            })),
         })),
     }));
 
@@ -2546,10 +2550,9 @@ const memberLabel = (member: MemberForm) => {
                                                             doc.allow_multiple
                                                         "
                                                         :rules="[
-                                                            fileExactCountRule(
-                                                                doc.number_files,
-                                                            ),
-                                                            requiredFileRule,
+                                                            ...(doc.is_required
+                                                                ? [requiredFileRule, fileExactCountRule(doc.number_files)]
+                                                                : []),
                                                             fileTypeRule(
                                                                 doc.allowed_extensions,
                                                             ),
