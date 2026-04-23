@@ -60,6 +60,19 @@ return [
             'report' => false,
         ],
 
+        'sftp' => [
+            'driver'     => 'sftp',
+            'host'       => env('SFTP_HOST'),
+            'username'   => env('SFTP_USERNAME'),
+            'privateKey' => env('SFTP_PRIVATE_KEY_PATH'),  // ruta absoluta a la llave privada
+            'passphrase' => env('SFTP_PASSPHRASE', null),  // dejar vacío si la llave no tiene passphrase
+            'port'       => (int) env('SFTP_PORT', 22),
+            'root'       => env('SFTP_ROOT', '/'),          // directorio raíz en el servidor
+            'timeout'    => (int) env('SFTP_TIMEOUT', 30),
+            'throw'      => false,
+            'report'     => false,
+        ],
+
     ],
 
     /*

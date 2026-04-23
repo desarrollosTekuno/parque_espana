@@ -12,6 +12,7 @@ use App\Models\Catalogs\State;
 use App\Models\Members\Address;
 use App\Models\Members\EmploymentInfo;
 use App\Models\Members\Member;
+use App\Models\Members\MemberDocument;
 use App\Models\Memberships\AbsencePermit;
 use App\Models\Memberships\InterclubPackageRule;
 use App\Models\Memberships\Membership;
@@ -26,6 +27,8 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -1356,6 +1359,11 @@ class MemberController extends Controller
                 'members.*.employment.company_name' => ['nullable', 'string', 'max:255'],
                 'members.*.employment.company_address' => ['nullable', 'string', 'max:255'],
                 'members.*.employment.company_phone' => ['nullable', 'string', 'max:50'],
+                // Documentos
+                'members.*.documents'                       => ['nullable', 'array'],
+                'members.*.documents.*.document_type_id'   => ['required_with:members.*.documents.*', 'integer'],
+                'members.*.documents.*.files'               => ['nullable', 'array'],
+                'members.*.documents.*.files.*'             => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
             ]);
 
             $clubId = $validated['target_club_id'] ?? $sessionClubId;
@@ -1578,7 +1586,10 @@ class MemberController extends Controller
                     ->all()
                 : [];
 
-            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership, $sameClubTransition, $sourceAccountMembersById, $reusableSourceMemberIds) {
+            // Collect [member_id => documents[]] inside the transaction to upload after commit
+            $savedMemberDocuments = [];
+
+            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership, $sameClubTransition, $sourceAccountMembersById, $reusableSourceMemberIds, &$savedMemberDocuments) {
                 $sourceAccount = $sourceMembership?->account;
 
                 $membershipAccount = $sameClubTransition
@@ -1649,6 +1660,11 @@ class MemberController extends Controller
                         : Member::create($memberAttributes);
 
                     $submittedMemberIds[] = $member->id;
+
+                    // Queue documents for SFTP upload after transaction commits
+                    if (!empty($memberData['documents'])) {
+                        $savedMemberDocuments[$member->id] = $memberData['documents'];
+                    }
 
                     if ($this->hasFilledValues($memberData['address'] ?? [])) {
                         Address::updateOrCreate([
@@ -1809,6 +1825,9 @@ class MemberController extends Controller
                 }
             });
 
+            // ── Upload documents to SFTP after transaction commits ────────────
+            $this->uploadMemberDocuments($savedMemberDocuments);
+
             return redirect()
                 ->back()
                 ->with('success', $successMessage);
@@ -1819,6 +1838,67 @@ class MemberController extends Controller
                 'messageError' => 'Ocurrió un error al guardar la membresía y sus integrantes.',
                 'exception' => $e->getMessage(),
             ]);
+        }
+    }
+
+    /**
+     * Upload member documents to SFTP and persist records in members.documents.
+     * File failures are logged but do not abort the response.
+     *
+     * @param array<int, array> $memberDocuments  [member_id => documents[]]
+     */
+    protected function uploadMemberDocuments(array $memberDocuments): void
+    {
+        if (empty($memberDocuments)) {
+            return;
+        }
+
+        foreach ($memberDocuments as $memberId => $documents) {
+            foreach ($documents as $docData) {
+                $documentTypeId = $docData['document_type_id'] ?? null;
+                $files          = $docData['files'] ?? [];
+
+                if (!$documentTypeId || empty($files)) {
+                    continue;
+                }
+
+                foreach ($files as $file) {
+                    if (!($file instanceof \Illuminate\Http\UploadedFile)) {
+                        continue;
+                    }
+
+                    try {
+                        $extension = $file->getClientOriginalExtension();
+                        $baseName  = Str::slug(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME));
+                        $filename  = now()->format('YmdHis') . '_' . $baseName . '.' . $extension;
+                        $directory = "members/{$memberId}/{$documentTypeId}";
+
+                        $uploaded = Storage::disk('sftp')->putFileAs($directory, $file, $filename);
+
+                        if ($uploaded === false) {
+                            Log::error('SFTP document upload returned false (archivo no subido)', [
+                                'member_id'        => $memberId,
+                                'document_type_id' => $documentTypeId,
+                                'file'             => $file->getClientOriginalName(),
+                            ]);
+                            continue;
+                        }
+
+                        MemberDocument::create([
+                            'member_id'        => $memberId,
+                            'document_type_id' => $documentTypeId,
+                            'file_path'        => "{$directory}/{$filename}",
+                        ]);
+                    } catch (\Throwable $e) {
+                        Log::error('SFTP document upload failed', [
+                            'member_id'        => $memberId,
+                            'document_type_id' => $documentTypeId,
+                            'file'             => $file->getClientOriginalName(),
+                            'error'            => $e->getMessage(),
+                        ]);
+                    }
+                }
+            }
         }
     }
 
@@ -1966,7 +2046,7 @@ class MemberController extends Controller
                 'marital_status_id' => ['nullable', new ExistsInSchema('catalogs', 'marital_statuses', 'id')],
                 'occupation'       => ['nullable', 'string', 'max:150'],
                 'school_name'      => ['nullable', 'string', 'max:150'],
-                'relationship_id'  => ['nullable', 'exists:catalogs.relationships,id'],
+                'relationship_id'  => ['nullable', new ExistsInSchema('catalogs', 'relationships', 'id')],
                 'address.street'       => ['nullable', 'string', 'max:200'],
                 'address.neighborhood' => ['nullable', 'string', 'max:200'],
                 'address.postal_code'  => ['nullable', 'string', 'max:20'],
