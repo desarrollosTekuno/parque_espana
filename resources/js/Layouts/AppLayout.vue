@@ -30,7 +30,11 @@ const clicStop = (displayMobile: boolean) => {
 <template>
     <v-responsive class="border rounded">
         <v-app>
-            <v-app-bar prominent>
+            <v-app-bar
+                prominent
+                elevation="0"
+                style="background-color: #0A2540; border-bottom: 3px solid #F4B403;"
+            >
                 <v-app-bar-nav-icon
                     :icon="
                         $vuetify.display.mobile
@@ -40,6 +44,7 @@ const clicStop = (displayMobile: boolean) => {
                             : 'mdi-menu'
                     "
                     variant="text"
+                    color="#FEFEFE"
                     @click.stop="clicStop($vuetify.display.mobile)"
                 ></v-app-bar-nav-icon>
                 <v-spacer></v-spacer>

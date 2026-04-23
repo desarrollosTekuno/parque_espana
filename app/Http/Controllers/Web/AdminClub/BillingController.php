@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web\AdminClub;
 use App\Http\Controllers\Controller;
 use App\Models\Administrator\Club;
 use App\Models\Billing\Charge;
+use App\Models\AdminClub\BusinessAd;
 use App\Models\Billing\PaymentMethod;
 use App\Models\Memberships\MembershipAccount;
 use App\Rules\ExistsInSchema;
@@ -193,25 +194,7 @@ class BillingController extends Controller
                             })
                             ->values(),
                         'charges' => $charges
-                            ->map(function (Charge $charge) {
-                                $club = $charge->membership?->club;
-
-                                return [
-                                    'id' => $charge->id,
-                                    'concept_name' => $charge->concept?->name,
-                                    'concept_code' => $charge->concept?->code,
-                                    'description' => $charge->description,
-                                    'amount' => (float) $charge->amount,
-                                    'balance' => (float) $charge->balance,
-                                    'due_date' => $charge->due_date,
-                                    'status' => $charge->status,
-                                    'allows_partial_payments' => (bool) $charge->allows_partial_payments,
-                                    'club_id' => $club?->id,
-                                    'club_code' => $club?->code,
-                                    'club_name' => $club?->name,
-                                    'membership_type_name' => $charge->membership?->membershipType?->name,
-                                ];
-                            })
+                            ->map(fn (Charge $charge) => $this->buildChargePayload($charge))
                             ->values(),
                     ];
                 })
@@ -245,6 +228,7 @@ class BillingController extends Controller
                                     'requires_reference' => (bool) $clubPaymentMethod->paymentMethod?->requires_reference,
                                     'requires_bank_name' => (bool) $clubPaymentMethod->paymentMethod?->requires_bank_name,
                                     'requires_check_number' => (bool) $clubPaymentMethod->paymentMethod?->requires_check_number,
+                                    'affects_cash_cut' => (bool) $clubPaymentMethod->paymentMethod?->affects_cash_cut,
                                 ];
                             })
                             ->filter(fn (array $method) => !empty($method['id']))
@@ -289,7 +273,7 @@ class BillingController extends Controller
         }
     }
 
-    public function storePayment(Request $request)
+    public function storePayment(Request $request) 
     {
         try {
             $validated = $request->validate([
@@ -325,7 +309,24 @@ class BillingController extends Controller
                 receivedBy: $request->user()?->id,
                 sessionClubId: session('club_id')
             );
+            
+            // Actualizar estatus de anuncios relacionados a los cargos aplicados
+            $chargeIds = collect($validated['applications'])->pluck('charge_id');
+            $charges = Charge::whereIn('id', $chargeIds)->get();
+            $businessAdIds = $charges
+                ->pluck('metadata.business_ad_id')
+                ->filter()
+                ->unique();
 
+            BusinessAd::whereIn('id', $businessAdIds)
+                ->where('status_id', 3)
+                ->update([
+                    'status_id' => 5,
+                    'paid_at' => now(),
+                    'published_at' => now(),
+                    'expires_at' => now()->addMonth()
+                ]);
+            
             return redirect()->back()->with('success', sprintf(
                 'Cobro registrado correctamente por $%s.',
                 number_format((float) $payment->amount, 2)
@@ -334,16 +335,119 @@ class BillingController extends Controller
             $errors = $e->errors();
 
             return redirect()->back()->withErrors(array_merge($errors, [
-                'messageError' => collect($errors)->flatten()->first() ?? 'Ocurrio un error de validacion.',
+                'messageError' => collect($errors)->flatten()->first() ?? 'Ocurrió un error de validación.',
                 'exception' => '',
             ]));
         } catch (\Exception $e) {
             report($e);
 
             return redirect()->back()->withErrors([
-                'messageError' => 'Ocurrio un error al registrar el cobro.',
+                'messageError' => 'Ocurrió un error al registrar el cobro.',
                 'exception' => $e->getMessage(),
             ]);
         }
+    }
+
+    protected function buildChargePayload(Charge $charge): array
+    {
+        $club = $charge->membership?->club;
+        $metadata = is_array($charge->metadata) ? $charge->metadata : [];
+        $originCode = $this->resolveChargeOriginCode($charge, $metadata);
+        $badges = $this->resolveChargeBadges($metadata);
+
+        return [
+            'id' => $charge->id,
+            'concept_name' => $charge->concept?->name,
+            'concept_code' => $charge->concept?->code,
+            'description' => $charge->description,
+            'amount' => (float) $charge->amount,
+            'balance' => (float) $charge->balance,
+            'due_date' => $charge->due_date,
+            'status' => $charge->status,
+            'allows_partial_payments' => (bool) $charge->allows_partial_payments,
+            'club_id' => $club?->id,
+            'club_code' => $club?->code,
+            'club_name' => $club?->name,
+            'membership_type_name' => $charge->membership?->membershipType?->name,
+            'origin_code' => $originCode,
+            'origin_label' => $this->resolveChargeOriginLabel($originCode),
+            'badges' => $badges,
+            'target_monthly_fee' => isset($metadata['target_monthly_fee']) ? (float) $metadata['target_monthly_fee'] : null,
+            'monthly_fee_total' => isset($metadata['monthly_fee_total']) ? (float) $metadata['monthly_fee_total'] : null,
+            'monthly_fee_share' => isset($metadata['monthly_fee_share']) ? (float) $metadata['monthly_fee_share'] : null,
+            'effective_monthly_fee' => isset($metadata['effective_monthly_fee']) ? (float) $metadata['effective_monthly_fee'] : null,
+        ];
+    }
+
+    protected function resolveChargeOriginCode(Charge $charge, array $metadata): string
+    {
+        if (($charge->concept?->code ?? null) === 'INSCRIPTION') {
+            return 'inscription';
+        }
+
+        if (!empty($metadata['is_monthly_adjustment'])) {
+            return 'monthly_adjustment';
+        }
+
+        if (($metadata['generation_type'] ?? null) === 'monthly_cycle') {
+            return 'monthly_cycle';
+        }
+
+        return match ($metadata['charge_origin'] ?? null) {
+            'membership_registration' => 'membership_registration',
+            'additional_membership' => 'additional_membership',
+            'membership_transition' => 'membership_transition',
+            'age_transition' => 'age_transition',
+            default => 'charge',
+        };
+    }
+
+    protected function resolveChargeOriginLabel(string $originCode): string
+    {
+        return match ($originCode) {
+            'inscription' => 'Inscripción',
+            'monthly_cycle' => 'Mensualidad del período',
+            'monthly_adjustment' => 'Ajuste mensual',
+            'membership_registration' => 'Alta de membresía',
+            'additional_membership' => 'Membresía adicional',
+            'membership_transition' => 'Cambio de membresía',
+            'age_transition' => 'Transición por edad',
+            default => 'Cargo generado',
+        };
+    }
+
+    protected function resolveChargeBadges(array $metadata): array
+    {
+        $badges = [];
+
+        if (!empty($metadata['split_mode'])) {
+            $badges[] = [
+                'label' => '50/50',
+                'color' => 'primary',
+            ];
+        }
+
+        if (!empty($metadata['absence_permit_id'])) {
+            $badges[] = [
+                'label' => 'Permiso por ausencia',
+                'color' => 'warning',
+            ];
+        }
+
+        if (($metadata['generation_type'] ?? null) === 'monthly_cycle') {
+            $badges[] = [
+                'label' => 'Mensualidad',
+                'color' => 'secondary',
+            ];
+        }
+
+        if (!empty($metadata['is_monthly_adjustment'])) {
+            $badges[] = [
+                'label' => 'Ajuste',
+                'color' => 'info',
+            ];
+        }
+
+        return $badges;
     }
 }

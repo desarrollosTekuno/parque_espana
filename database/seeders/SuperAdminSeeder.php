@@ -15,7 +15,7 @@ class SuperAdminSeeder extends Seeder
     public function run(): void
     {
         //
-        $superadmin = Role::create([
+        $superadmin = Role::firstOrCreate([
             'name' => 'superadmin',
             'description' => 'Super Administrador',
             'context_id' => Context::firstOrCreate([
@@ -28,7 +28,6 @@ class SuperAdminSeeder extends Seeder
 
         /*Define superadmin permissions */
         $superadminPermissions = array(
-            'dashboard',
             'profile.show',
             'permissions.index',
             'permissions.store',

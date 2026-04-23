@@ -22,6 +22,7 @@ class ClubPaymentMethodSeeder extends Seeder
                 'CASH',
                 'BANK_TRANSFER',
                 'APP_PAYMENT',
+                'SERVICES',
             ];
 
             if ($club->code === 'PE2') {

@@ -25,12 +25,28 @@ interface Relationship {
     name: string;
 }
 
-interface Nationality {
+interface CountryCatalog {
     id: number;
     code: string;
     name: string;
+    translations: Record<string, string> | null;
     demonym: string | null;
 }
+
+interface StateCatalog {
+    id: number;
+    country_id: number;
+    name: string;
+}
+
+interface CityCatalog {
+    id: number;
+    country_id: number;
+    state_id: number;
+    name: string;
+}
+
+interface Nationality extends CountryCatalog {}
 
 interface MaritalStatus {
     id: number;
@@ -39,6 +55,9 @@ interface MaritalStatus {
 }
 
 interface MemberAddress {
+    country_id: number | null;
+    state_id: number | null;
+    city_id: number | null;
     street: string | null;
     neighborhood: string | null;
     postal_code: string | null;
@@ -63,30 +82,59 @@ interface AccountMemberItem {
 
 interface MembershipAccount {
     membership_number: string | null;
+    account_club_name?: string | null;
+    account_club_code?: string | null;
     members: AccountMemberItem[];
+}
+
+interface AvailableGroupMember {
+    member_id: number;
+    full_name: string;
+    birthdate: string | null;
+    age: number | null;
+    relationship_name: string | null;
+    club_name: string | null;
+    club_code: string | null;
 }
 
 interface Props {
     membership: SourceMembership;
     account: MembershipAccount;
     relationships?: Relationship[];
+    countries?: CountryCatalog[];
     nationalities?: Nationality[];
     maritalStatuses?: MaritalStatus[];
+    availableGroupMembers?: AvailableGroupMember[];
 }
 
 const props = withDefaults(defineProps<Props>(), {
     relationships: () => [],
+    countries: () => [],
     nationalities: () => [],
     maritalStatuses: () => [],
+    availableGroupMembers: () => [],
 });
 
 const formRef = ref();
+const existingFormRef = ref();
+const statesByCountry = ref<Record<number, StateCatalog[]>>({});
+const citiesByState = ref<Record<number, CityCatalog[]>>({});
+
+// Modo: 'new' = crear nuevo integrante | 'existing' = vincular del grupo
+const mode = ref<'new' | 'existing'>(
+    props.availableGroupMembers.length > 0 ? 'existing' : 'new'
+);
+const selectedGroupMemberId = ref<number | null>(null);
+const existingRelationshipId = ref<number | null>(null);
 
 const form = useForm({
     first_name: "",
     last_name: "",
     second_last_name: "",
     birthdate: null as string | null,
+    birth_country_id: null as number | null,
+    birth_state_id: null as number | null,
+    birth_city_id: null as number | null,
     birth_place: "",
     city: "",
     state: "",
@@ -98,12 +146,15 @@ const form = useForm({
     school_name: "",
     relationship_id: null as number | null,
     address: {
+        country_id: null as number | null,
+        state_id: null as number | null,
+        city_id: null as number | null,
         street: "",
         neighborhood: "",
         postal_code: "",
         city: "",
         state: "",
-        country: "Mexico",
+        country: "",
         years_in_city: null as number | null,
     },
     employment: {
@@ -126,6 +177,27 @@ const normalizeText = (value: string | null | undefined) =>
         .replace(/[\u0300-\u036f]/g, "")
         .toLowerCase()
         .trim();
+
+const getCountryDisplayName = (country: CountryCatalog | null | undefined) =>
+    country?.translations?.["es-MX"]?.trim() ||
+    country?.translations?.es?.trim() ||
+    country?.name ||
+    "";
+
+const defaultCountry = computed(
+    () =>
+        props.countries.find(
+            (country) =>
+                country.code === "MX" ||
+                normalizeText(getCountryDisplayName(country)) === "mexico" ||
+                normalizeText(country.name) === "mexico",
+        ) ?? null,
+);
+
+if (defaultCountry.value) {
+    form.address.country_id = defaultCountry.value.id;
+    form.address.country = getCountryDisplayName(defaultCountry.value);
+}
 
 const accountHasSpouse = computed(() =>
     props.account.members.some((member) =>
@@ -150,6 +222,13 @@ const relationshipOptions = computed(() =>
         })),
 );
 
+const countryOptions = computed(() =>
+    props.countries.map((country) => ({
+        value: country.id,
+        title: getCountryDisplayName(country),
+    })),
+);
+
 const nationalityOptions = computed(() =>
     props.nationalities.map((nationality) => ({
         value: nationality.id,
@@ -163,6 +242,142 @@ const maritalStatusOptions = computed(() =>
         title: maritalStatus.name,
     })),
 );
+
+const getCountryName = (countryId: number | null) =>
+    getCountryDisplayName(
+        props.countries.find((country) => country.id === countryId),
+    );
+
+const getStateOptions = (countryId: number | null) =>
+    countryId ? statesByCountry.value[countryId] ?? [] : [];
+
+const getStateName = (countryId: number | null, stateId: number | null) =>
+    getStateOptions(countryId).find((state) => state.id === stateId)?.name ??
+    "";
+
+const getCityOptions = (stateId: number | null) =>
+    stateId ? citiesByState.value[stateId] ?? [] : [];
+
+const getCityName = (stateId: number | null, cityId: number | null) =>
+    getCityOptions(stateId).find((city) => city.id === cityId)?.name ?? "";
+
+const fetchStates = async (countryId: number | null) => {
+    if (!countryId) return [];
+    if (statesByCountry.value[countryId]) {
+        return statesByCountry.value[countryId];
+    }
+
+    const response = await fetch(
+        route("members.location-catalogs.states", {
+            country_id: countryId,
+        }),
+        {
+            method: "GET",
+            headers: {
+                Accept: "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+            },
+        },
+    );
+
+    if (!response.ok) {
+        throw new Error("No se pudieron cargar los estados.");
+    }
+
+    const payload = (await response.json()) as StateCatalog[];
+    statesByCountry.value[countryId] = payload;
+    return payload;
+};
+
+const fetchCities = async (stateId: number | null) => {
+    if (!stateId) return [];
+    if (citiesByState.value[stateId]) {
+        return citiesByState.value[stateId];
+    }
+
+    const response = await fetch(
+        route("members.location-catalogs.cities", {
+            state_id: stateId,
+        }),
+        {
+            method: "GET",
+            headers: {
+                Accept: "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+            },
+        },
+    );
+
+    if (!response.ok) {
+        throw new Error("No se pudieron cargar las ciudades.");
+    }
+
+    const payload = (await response.json()) as CityCatalog[];
+    citiesByState.value[stateId] = payload;
+    return payload;
+};
+
+const onBirthCountryChange = async (countryId: number | null) => {
+    form.birth_country_id = countryId;
+    form.birth_place = getCountryName(countryId);
+    form.birth_state_id = null;
+    form.state = "";
+    form.birth_city_id = null;
+    form.city = "";
+
+    if (countryId) {
+        await fetchStates(countryId);
+    }
+};
+
+const onBirthStateChange = async (stateId: number | null) => {
+    form.birth_state_id = stateId;
+    form.state = getStateName(form.birth_country_id, stateId);
+    form.birth_city_id = null;
+    form.city = "";
+
+    if (stateId) {
+        await fetchCities(stateId);
+    }
+};
+
+const onBirthCityChange = (cityId: number | null) => {
+    form.birth_city_id = cityId;
+    form.city = getCityName(form.birth_state_id, cityId);
+};
+
+const onAddressCountryChange = async (countryId: number | null) => {
+    form.address.country_id = countryId;
+    form.address.country = getCountryName(countryId);
+    form.address.state_id = null;
+    form.address.state = "";
+    form.address.city_id = null;
+    form.address.city = "";
+
+    if (countryId) {
+        await fetchStates(countryId);
+    }
+};
+
+const onAddressStateChange = async (stateId: number | null) => {
+    form.address.state_id = stateId;
+    form.address.state = getStateName(form.address.country_id, stateId);
+    form.address.city_id = null;
+    form.address.city = "";
+
+    if (stateId) {
+        await fetchCities(stateId);
+    }
+};
+
+const onAddressCityChange = (cityId: number | null) => {
+    form.address.city_id = cityId;
+    form.address.city = getCityName(form.address.state_id, cityId);
+};
+
+if (form.address.country_id) {
+    void fetchStates(form.address.country_id);
+}
 
 const parseDateInput = (value: string | null): Date | null => {
     if (!value) return null;
@@ -216,17 +431,49 @@ const birthdateRule = (value: string | null) => {
     const age = calculateAge(value);
 
     if (age === null || age < 0) {
-        return "La fecha de nacimiento no es valida";
+        return "La fecha de nacimiento no es válida";
     }
 
     if (isChildRelationship.value && age >= 24) {
-        return "Los hijos no pueden ser mayores de 24 anos";
+        return "Los hijos no pueden ser mayores de 24 años";
     }
 
     return true;
 };
 
+const submitExisting = async () => {
+    const { valid } = await existingFormRef.value?.validate();
+    if (!valid) return;
+
+    const existingForm = useForm({
+        existing_member_id: selectedGroupMemberId.value,
+        relationship_id: existingRelationshipId.value,
+    });
+
+    existingForm.post(route("members.family-members.store", props.membership.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            customToastSwal({
+                title: page.props.flash.success || "Familiar agregado correctamente.",
+                icon: "success",
+            });
+        },
+        onError: () => {
+            customToastSwal({
+                title: `Error: ${existingForm.errors.messageError || "No se pudo agregar el familiar"}`,
+                text: `${existingForm.errors.exception || ""}`,
+                icon: "error",
+            });
+        },
+    });
+};
+
 const submit = async () => {
+    if (mode.value === 'existing') {
+        await submitExisting();
+        return;
+    }
+
     const { valid } = await formRef.value?.validate();
 
     if (!valid) return;
@@ -273,24 +520,147 @@ const submit = async () => {
                                 Cuenta familiar
                             </div>
                             <p>
-                                <strong>Folio:</strong>
+                                <strong>No. cuenta:</strong>
                                 {{ props.account.membership_number || "-" }}
+                            </p>
+                            <p>
+                                <strong>Club de la cuenta:</strong>
+                                {{ props.account.account_club_code || "-" }} ·
+                                {{ props.account.account_club_name || "Sin club" }}
                             </p>
                             <p>
                                 <strong>Titular:</strong>
                                 {{ props.membership.holder_name }}
                             </p>
                             <p>
-                                <strong>Membresia:</strong>
+                                <strong>Membresía:</strong>
                                 {{ props.membership.membership_type_name }}
                             </p>
                         </v-card>
 
                         <v-alert type="info" variant="tonal" class="mb-4">
                             Este flujo agrega un integrante a la misma cuenta familiar.
-                            La documentacion puede quedar pendiente por ahora.
+                            La documentación puede quedar pendiente por ahora.
                         </v-alert>
 
+                        <!-- Toggle de modo solo si hay miembros disponibles en el grupo -->
+                        <v-btn-toggle
+                            v-if="props.availableGroupMembers.length > 0"
+                            v-model="mode"
+                            mandatory
+                            variant="outlined"
+                            class="mb-6 w-100"
+                        >
+                            <v-btn value="existing" class="flex-1-1">
+                                <v-icon start>mdi-account-group</v-icon>
+                                Del grupo familiar
+                            </v-btn>
+                            <v-btn value="new" class="flex-1-1">
+                                <v-icon start>mdi-account-plus</v-icon>
+                                Nuevo integrante
+                            </v-btn>
+                        </v-btn-toggle>
+
+                        <!-- MODO: Vincular existente del grupo -->
+                        <template v-if="mode === 'existing'">
+                            <v-form ref="existingFormRef">
+                                <v-card class="pa-4">
+                                    <div class="text-subtitle-1 font-weight-bold mb-4">
+                                        Integrantes disponibles del grupo
+                                    </div>
+
+                                    <p class="text-body-2 text-medium-emphasis mb-4">
+                                        Estos integrantes ya existen en la otra cuenta del titular
+                                        y pueden agregarse a esta cuenta sin crear un registro nuevo.
+                                    </p>
+
+                                    <v-row class="mb-4">
+                                        <v-col
+                                            v-for="member in props.availableGroupMembers"
+                                            :key="member.member_id"
+                                            cols="12"
+                                            md="6"
+                                        >
+                                            <v-card
+                                                :variant="selectedGroupMemberId === member.member_id ? 'tonal' : 'outlined'"
+                                                :color="selectedGroupMemberId === member.member_id ? 'primary' : undefined"
+                                                class="pa-4 cursor-pointer"
+                                                style="cursor: pointer;"
+                                                @click="selectedGroupMemberId = member.member_id"
+                                            >
+                                                <div class="d-flex align-center justify-space-between">
+                                                    <div>
+                                                        <div class="font-weight-medium">
+                                                            {{ member.full_name }}
+                                                        </div>
+                                                        <div class="text-caption text-medium-emphasis">
+                                                            {{ member.relationship_name || "Sin parentesco" }}
+                                                            · {{ member.club_code }} - {{ member.club_name }}
+                                                        </div>
+                                                        <div class="text-caption text-medium-emphasis">
+                                                            Edad: {{ member.age ?? "-" }}
+                                                        </div>
+                                                    </div>
+                                                    <v-icon
+                                                        v-if="selectedGroupMemberId === member.member_id"
+                                                        color="primary"
+                                                    >
+                                                        mdi-check-circle
+                                                    </v-icon>
+                                                </div>
+                                            </v-card>
+                                        </v-col>
+                                    </v-row>
+
+                                    <!-- Validación: requiere selección -->
+                                    <v-input
+                                        :model-value="selectedGroupMemberId"
+                                        :rules="[(v) => !!v || 'Debes seleccionar un integrante']"
+                                        class="mb-2"
+                                        style="display: none;"
+                                    />
+
+                                    <v-divider class="my-4" />
+
+                                    <div class="text-subtitle-2 font-weight-bold mb-3">
+                                        Parentesco en esta cuenta
+                                    </div>
+
+                                    <v-row>
+                                        <v-col cols="12" md="6">
+                                            <v-autocomplete
+                                                v-model="existingRelationshipId"
+                                                :items="relationshipOptions"
+                                                item-title="title"
+                                                item-value="value"
+                                                label="Parentesco"
+                                                :rules="[selectRequired]"
+                                                clearable
+                                            />
+                                        </v-col>
+                                    </v-row>
+
+                                    <div class="d-flex justify-end ga-2 mt-4">
+                                        <v-btn
+                                            variant="text"
+                                            @click="router.visit(route('members.manage.show', props.membership.id))"
+                                        >
+                                            Cancelar
+                                        </v-btn>
+                                        <v-btn
+                                            color="primary"
+                                            :disabled="!selectedGroupMemberId || !existingRelationshipId"
+                                            @click="submit"
+                                        >
+                                            Agregar a esta cuenta
+                                        </v-btn>
+                                    </div>
+                                </v-card>
+                            </v-form>
+                        </template>
+
+                        <!-- MODO: Crear nuevo integrante -->
+                        <template v-if="mode === 'new'">
                         <v-form ref="formRef" @submit.prevent="submit">
                             <v-card class="pa-4">
                                 <div class="text-subtitle-1 font-weight-bold mb-4">
@@ -356,26 +726,43 @@ const submit = async () => {
                                     </v-col>
 
                                     <v-col cols="12" md="4">
-                                        <v-text-field
-                                            v-model="form.birth_place"
-                                            label="Lugar de nacimiento"
-                                            :error-messages="form.errors.birth_place"
+                                        <v-autocomplete
+                                            v-model="form.birth_country_id"
+                                            :items="countryOptions"
+                                            item-title="title"
+                                            item-value="value"
+                                            label="País de nacimiento"
+                                            :error-messages="form.errors.birth_country_id"
+                                            clearable
+                                            @update:modelValue="onBirthCountryChange"
                                         />
                                     </v-col>
 
                                     <v-col cols="12" md="4">
-                                        <v-text-field
-                                            v-model="form.city"
-                                            label="Ciudad"
-                                            :error-messages="form.errors.city"
+                                        <v-autocomplete
+                                            v-model="form.birth_state_id"
+                                            :items="getStateOptions(form.birth_country_id)"
+                                            item-title="name"
+                                            item-value="id"
+                                            label="Estado de nacimiento"
+                                            :error-messages="form.errors.birth_state_id"
+                                            :disabled="!form.birth_country_id"
+                                            clearable
+                                            @update:modelValue="onBirthStateChange"
                                         />
                                     </v-col>
 
                                     <v-col cols="12" md="4">
-                                        <v-text-field
-                                            v-model="form.state"
-                                            label="Estado"
-                                            :error-messages="form.errors.state"
+                                        <v-autocomplete
+                                            v-model="form.birth_city_id"
+                                            :items="getCityOptions(form.birth_state_id)"
+                                            item-title="name"
+                                            item-value="id"
+                                            label="Ciudad de nacimiento"
+                                            :error-messages="form.errors.birth_city_id"
+                                            :disabled="!form.birth_state_id"
+                                            clearable
+                                            @update:modelValue="onBirthCityChange"
                                         />
                                     </v-col>
 
@@ -406,7 +793,7 @@ const submit = async () => {
                                     <v-col cols="12" md="4">
                                         <v-text-field
                                             v-model="form.phone"
-                                            label="Telefono"
+                                            label="Teléfono"
                                             :rules="[validatePhone]"
                                             :error-messages="form.errors.phone"
                                         />
@@ -424,7 +811,7 @@ const submit = async () => {
                                     <v-col cols="12" md="4">
                                         <v-text-field
                                             v-model="form.occupation"
-                                            label="Ocupacion"
+                                            label="Ocupación"
                                             :error-messages="form.errors.occupation"
                                         />
                                     </v-col>
@@ -464,32 +851,49 @@ const submit = async () => {
                                     <v-col cols="12" md="3">
                                         <v-text-field
                                             v-model="form.address.postal_code"
-                                            label="Codigo postal"
+                                            label="Código postal"
                                             :error-messages="form.errors['address.postal_code']"
                                         />
                                     </v-col>
 
                                     <v-col cols="12" md="3">
-                                        <v-text-field
-                                            v-model="form.address.city"
-                                            label="Ciudad"
-                                            :error-messages="form.errors['address.city']"
+                                        <v-autocomplete
+                                            v-model="form.address.country_id"
+                                            :items="countryOptions"
+                                            item-title="title"
+                                            item-value="value"
+                                            label="País"
+                                            :error-messages="form.errors['address.country_id']"
+                                            clearable
+                                            @update:modelValue="onAddressCountryChange"
                                         />
                                     </v-col>
 
                                     <v-col cols="12" md="3">
-                                        <v-text-field
-                                            v-model="form.address.state"
+                                        <v-autocomplete
+                                            v-model="form.address.state_id"
+                                            :items="getStateOptions(form.address.country_id)"
+                                            item-title="name"
+                                            item-value="id"
                                             label="Estado"
-                                            :error-messages="form.errors['address.state']"
+                                            :error-messages="form.errors['address.state_id']"
+                                            :disabled="!form.address.country_id"
+                                            clearable
+                                            @update:modelValue="onAddressStateChange"
                                         />
                                     </v-col>
 
                                     <v-col cols="12" md="3">
-                                        <v-text-field
-                                            v-model="form.address.country"
-                                            label="Pais"
-                                            :error-messages="form.errors['address.country']"
+                                        <v-autocomplete
+                                            v-model="form.address.city_id"
+                                            :items="getCityOptions(form.address.state_id)"
+                                            item-title="name"
+                                            item-value="id"
+                                            label="Ciudad"
+                                            :error-messages="form.errors['address.city_id']"
+                                            :disabled="!form.address.state_id"
+                                            clearable
+                                            @update:modelValue="onAddressCityChange"
                                         />
                                     </v-col>
                                 </v-row>
@@ -512,7 +916,7 @@ const submit = async () => {
                                     <v-col cols="12" md="4">
                                         <v-text-field
                                             v-model="form.employment.company_address"
-                                            label="Direccion empresa"
+                                            label="Dirección empresa"
                                             :error-messages="form.errors['employment.company_address']"
                                         />
                                     </v-col>
@@ -520,7 +924,7 @@ const submit = async () => {
                                     <v-col cols="12" md="4">
                                         <v-text-field
                                             v-model="form.employment.company_phone"
-                                            label="Telefono empresa"
+                                            label="Teléfono empresa"
                                             :rules="[validatePhone]"
                                             :error-messages="form.errors['employment.company_phone']"
                                         />
@@ -551,6 +955,7 @@ const submit = async () => {
                                 </div>
                             </v-card>
                         </v-form>
+                        </template>
                     </v-container>
                 </v-col>
             </v-row>

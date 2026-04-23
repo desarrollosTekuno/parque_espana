@@ -15,7 +15,6 @@ class PermissionSeeder extends Seeder
     public function run(): void
     {
         $permissions = array(
-            array('name' => 'dashboard', 'description' => 'Acceso al dashboard', 'contexts' => ['web']),
             array('name' => 'profile.show', 'description' => 'Ver perfil', 'contexts' => ['web']),
             array('name' => 'permissions.index', 'description' => 'Ver permisos', 'contexts' => ['web']),
             array('name' => 'permissions.store', 'description' => 'Crear permisos', 'contexts' => ['web']),
@@ -59,6 +58,14 @@ class PermissionSeeder extends Seeder
             array('name' => 'system-variables.store', 'description' => 'Crear variables de sistema', 'contexts' => ['web']),
             array('name' => 'system-variables.update', 'description' => 'Actualizar variables de sistema', 'contexts' => ['web']),
             array('name' => 'system-variables.destroy', 'description' => 'Eliminar variables de sistema', 'contexts' => ['web']),
+            array('name' => 'pricing-rules.index', 'description' => 'Ver reglas de precio', 'contexts' => ['web']),
+            array('name' => 'pricing-rules.store', 'description' => 'Crear reglas de precio', 'contexts' => ['web']),
+            array('name' => 'pricing-rules.update', 'description' => 'Actualizar reglas de precio', 'contexts' => ['web']),
+            array('name' => 'pricing-rules.destroy', 'description' => 'Eliminar reglas de precio', 'contexts' => ['web']),
+            array('name' => 'interclub-package-rules.index', 'description' => 'Ver paquetes interclub', 'contexts' => ['web']),
+            array('name' => 'interclub-package-rules.store', 'description' => 'Crear paquetes interclub', 'contexts' => ['web']),
+            array('name' => 'interclub-package-rules.update', 'description' => 'Actualizar paquetes interclub', 'contexts' => ['web']),
+            array('name' => 'interclub-package-rules.destroy', 'description' => 'Eliminar paquetes interclub', 'contexts' => ['web']),
 
             array('name'=> 'amenityResource.index', 'description'=> 'Ver recursos de la amenidad', 'contexts' => ['web']),
             array('name'=> 'amenityResource.store', 'description'=> 'Crear recursos de la amenidad', 'contexts' => ['web']),
@@ -74,13 +81,67 @@ class PermissionSeeder extends Seeder
             array('name' => 'members.destroy', 'description' => 'Eliminar socios del club', 'contexts' => ['web']),
             array('name' => 'billing.index', 'description' => 'Ver modulo de cobranza', 'contexts' => ['web']),
             array('name' => 'billing.store', 'description' => 'Registrar cobros', 'contexts' => ['web']),
+            array('name' => 'billing-concepts.index', 'description' => 'Ver conceptos de cobro', 'contexts' => ['web']),
+            array('name' => 'billing-concepts.store', 'description' => 'Crear conceptos de cobro', 'contexts' => ['web']),
+            array('name' => 'billing-concepts.update', 'description' => 'Actualizar conceptos de cobro', 'contexts' => ['web']),
+            array('name' => 'billing-concepts.destroy', 'description' => 'Eliminar conceptos de cobro', 'contexts' => ['web']),
 
+            // Business Ads permissions
+            array('name' => 'business-ads.index', 'description' => 'Ver publicidad de negocios', 'contexts' => ['web']),
+            array('name' => 'business-ads.approve', 'description' => 'Aprobar publicidad de negocios', 'contexts' => ['web']),
+            array('name' => 'business-ads.reject', 'description' => 'Rechazar publicidad de negocios', 'contexts' => ['web']),   
+            
+            // Business Categories permissions
+            array('name' => 'business-categories.index', 'description' => 'Ver categorías de negocios', 'contexts' => ['web']),
+            array('name' => 'business-categories.store', 'description' => 'Crear categorías de negocios', 'contexts' => ['web']),
+            array('name' => 'business-categories.update', 'description' => 'Actualizar categorías de negocios', 'contexts' => ['web']),
+            array('name' => 'business-categories.destroy', 'description' => 'Eliminar categorías de negocios', 'contexts' => ['web']),   
+            
+            // Surveys
+            array('name' => 'surveys.index', 'description' => 'Ver encuestas', 'contexts' => ['web']),
+            array('name' => 'surveys.store', 'description' => 'Crear encuestas', 'contexts' => ['web']),
+            array('name' => 'surveys.update', 'description' => 'Actualizar encuestas', 'contexts' => ['web']),
+            array('name' => 'surveys.destroy', 'description' => 'Eliminar encuestas', 'contexts' => ['web']),
+   
+            // 
+            
+            array('name' => 'member-access.index', 'description' => 'Ver acceso de miembros', 'contexts' => ['web']),
+            array('name' => 'member-access.store', 'description' => 'Asignar acceso a miembros', 'contexts' => ['web']),
+            array('name' => 'member-access.destroy', 'description' => 'Revocar acceso a miembros', 'contexts' => ['web']),
+         
+
+            // -------------------------------------------------------
+            // App Móvil - Permisos base (aplican a ambos clubs)
+            // -------------------------------------------------------
+
+            // Reservaciones
+            array('name' => 'mobile.reservations.index',         'description' => 'Ver mis reservaciones',          'contexts' => ['mobile_club_1', 'mobile_club_2']),
+            array('name' => 'mobile.reservations.store',         'description' => 'Crear reservación',              'contexts' => ['mobile_club_1', 'mobile_club_2']),
+            array('name' => 'mobile.reservations.cancel',        'description' => 'Cancelar mis reservaciones',     'contexts' => ['mobile_club_1', 'mobile_club_2']),
+            array('name' => 'mobile.reservations.guests.index',  'description' => 'Ver lista de invitados',         'contexts' => ['mobile_club_1', 'mobile_club_2']),
+            array('name' => 'mobile.reservations.guests.manage', 'description' => 'Gestionar lista de invitados',   'contexts' => ['mobile_club_1', 'mobile_club_2']),
+
+            // Amenidades
+            array('name' => 'mobile.amenities.index',     'description' => 'Ver amenidades disponibles',  'contexts' => ['mobile_club_1', 'mobile_club_2']),
+
+            // Membresía
+            array('name' => 'mobile.membership.show',     'description' => 'Ver mi membresía y vigencia', 'contexts' => ['mobile_club_1', 'mobile_club_2']),
+
+            // Estado de cuenta (solo titular)
+            array('name' => 'mobile.billing.show',        'description' => 'Ver estado de cuenta',        'contexts' => ['mobile_club_1', 'mobile_club_2']),
+
+            // Anuncios
+            array('name' => 'mobile.announcements.index', 'description' => 'Ver anuncios del club',       'contexts' => ['mobile_club_1', 'mobile_club_2']),
+
+            // Reglas del club
+            array('name' => 'mobile.rules.index',         'description' => 'Ver reglamento del club',     'contexts' => ['mobile_club_1', 'mobile_club_2']),
 
         );
         foreach ($permissions as $permission) {
-            $createPermission= Permission::updateOrCreate(['name' => $permission['name']], [
-                'description' => $permission['description'],
-            ]);
+            $createPermission = Permission::updateOrCreate(
+                ['name' => $permission['name']],
+                ['description' => $permission['description'], 'guard_name' => 'web']
+            );
             if (isset($permission['contexts'])) {
                 $createPermission->contexts()->sync(
                     array_map(function ($context) {

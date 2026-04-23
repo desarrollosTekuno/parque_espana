@@ -14,10 +14,11 @@ const search = ref('')
     <v-app-bar
             app
             height="56"
-            elevation="4"
+            elevation="0"
             class="text-white"
             :style="{
-            background: 'linear-gradient(90deg, #134556 0%, #1A2B2D 50%, #34495E 100%)',
+            background: '#0A2540',
+            borderBottom: '3px solid #F4B403',
         }"
     >
 

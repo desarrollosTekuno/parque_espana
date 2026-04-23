@@ -63,6 +63,8 @@ class PaymentRegistrationService
                 'status' => 'registered',
                 'metadata' => [
                     'session_club_id' => $sessionClubId,
+                    'settlement_channel' => $paymentMethod->affects_cash_cut ? 'cashier' : 'services',
+                    'affects_cash_cut' => (bool) $paymentMethod->affects_cash_cut,
                 ],
             ]);
 
@@ -159,7 +161,7 @@ class PaymentRegistrationService
         }
 
         if ($paymentMethod->requires_check_number && blank($checkNumber)) {
-            $errors['check_number'] = 'Debes capturar el numero de cheque.';
+            $errors['check_number'] = 'Debes capturar el número de cheque.';
         }
 
         if (!empty($errors)) {

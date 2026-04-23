@@ -4,6 +4,7 @@ interface Routing {
     icon: string;
     value: string;
     group: string | null;
+    showBadge?: boolean;
     groupItems?: Array<{
         name: string;
         title: string;
@@ -31,7 +32,7 @@ const routes: Routing[] = [
         // groupItems: null
     },
     {
-        name: ["members.index", "members.create", "members.edit", "members.additional-membership.create", "members.manage.show", "members.family-members.create"],
+        name: ["members.index", "members.create", "members.edit", "members.additional-membership.create", "members.manage.show", "members.family-members.create", "member-access.index"],
         title: "Socios",
         icon: "mdi-account-group-outline",
         value: "sociosMenu",
@@ -49,7 +50,14 @@ const routes: Routing[] = [
                 title: "Nuevo socio",
                 icon: "mdi-account-plus-outline",
                 value: "nuevo-socio",
-            }
+            },
+            // accesos app móvil
+            {
+                name: "member-access.index",
+                title: "Accesos App Móvil",
+                icon: "mdi-cellphone-key",
+                value: "accesos-app",
+            },
         ],
     },
     {
@@ -166,7 +174,37 @@ const routes: Routing[] = [
         group: null,
         // groupItems: null
     },
-    
+    // Publicidad de negocios
+    {
+        name: ["business-ads.index", "business-categories.index"],
+        title: "Publicidad",
+        icon: "mdi-storefront-outline",
+        value: "publicidad-negocios",
+        group: "Publicidad de negocios",
+        showBadge: true,
+        groupItems: [
+            {
+                name: "business-categories.index",
+                title: "Categorías de negocios",
+                icon: "mdi-shape-outline",
+                value: "categorias-negocios",
+            },
+            {
+                name: "business-ads.index",
+                title: "Publicaciones de negocios",
+                icon: "mdi-storefront-outline",
+                value: "anuncios-activos",
+            },
+        ]
+    },
+    // Encuestas
+    {
+        name: "surveys.index",
+        title: "Encuestas",
+        icon: "mdi-poll",
+        value: "surveys",
+        group: null
+    },
     // Variables de sistema
     {
         name: "system-variables.index",
@@ -176,7 +214,27 @@ const routes: Routing[] = [
         group: null,
         // groupItems: null
     },
-    
+    {
+        name: "pricing-rules.index",
+        title: "Reglas de precio",
+        icon: "mdi-currency-usd",
+        value: "reglas-precio",
+        group: null,
+    },
+    {
+        name: "billing-concepts.index",
+        title: "Conceptos de cobro",
+        icon: "mdi-receipt-text-outline",
+        value: "conceptos-cobro",
+        group: null,
+    },
+    {
+        name: "interclub-package-rules.index",
+        title: "Paquetes interclub",
+        icon: "mdi-swap-horizontal",
+        value: "paquetes-interclub",
+        group: null,
+    },
     /*
     {
         name: ["dashboard"],

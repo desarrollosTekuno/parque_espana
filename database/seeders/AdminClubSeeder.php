@@ -15,7 +15,6 @@ class AdminClubSeeder extends Seeder
     {
         //
         $adminClubPermissions = array(
-            'dashboard',
             'profile.show',
             'announcements.index',
             'announcements.store',
@@ -47,6 +46,34 @@ class AdminClubSeeder extends Seeder
             'blockedPeriods.store',
             'blockedPeriods.update',
             'blockedPeriods.destroy',
+            // pricing rules
+            'pricing-rules.index',
+            'pricing-rules.store',
+            'pricing-rules.update',
+            'pricing-rules.destroy',
+            // interclub package rules
+            'interclub-package-rules.index',
+            'interclub-package-rules.store',
+            'interclub-package-rules.update',
+            'interclub-package-rules.destroy',
+            // business ads
+            'business-ads.index',
+            'business-ads.approve',
+            'business-ads.reject',
+            'business-ads.confirm-payment',
+            'business-ads.publish',
+            'business-ads.update',
+            'business-ads.destroy',
+
+            'member-access.index',
+            'member-access.store',
+            'member-access.destroy',
+
+            'billing-concepts.index',
+            'billing-concepts.store',
+            'billing-concepts.update',
+            'billing-concepts.destroy',
+
         );
         $adminClubRole = Role::updateOrCreate([
             'name' => 'admin_club',

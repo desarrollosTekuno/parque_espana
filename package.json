@@ -33,6 +33,7 @@
         "@schedule-x/theme-default": "^3.2.0",
         "@schedule-x/translations": "^3.2.0",
         "@schedule-x/vue": "^3.1.1",
+        "@vueup/vue-quill": "^1.2.0",
         "date-fns": "^4.1.0",
         "lodash": "^4.17.21",
         "luxon": "^3.7.2",

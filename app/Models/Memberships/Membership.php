@@ -19,6 +19,14 @@ class Membership extends Model
     protected $casts = [
         'is_primary' => 'boolean',
         'is_billable' => 'boolean',
+        'monthly_fee' => 'float',
+        'monthly_fee_total' => 'float',
+        'monthly_fee_share' => 'float',
+    ];
+
+    protected $appends = [
+        'resolved_monthly_fee_total',
+        'resolved_monthly_fee_share',
     ];
 
     public function account()
@@ -44,5 +52,15 @@ class Membership extends Model
     public function charges()
     {
         return $this->hasMany(Charge::class, 'membership_id');
+    }
+
+    public function getResolvedMonthlyFeeTotalAttribute(): float
+    {
+        return round((float) ($this->monthly_fee_total ?? $this->monthly_fee ?? 0), 2);
+    }
+
+    public function getResolvedMonthlyFeeShareAttribute(): float
+    {
+        return round((float) ($this->monthly_fee_share ?? $this->monthly_fee ?? 0), 2);
     }
 }

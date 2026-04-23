@@ -13,11 +13,18 @@ class UserSeeder extends Seeder
      */
     public function run(): void
     {
-        User::factory()->superAdministrator()->create([
+        // $user = User::firstOrCreate([
+        //     'name' => 'Superadministrador',
+        //     'email' => 'superadmin@tekuno.mx',
+        //     'password' => bcrypt('Pa$$w0rd'),
+        // ]);
+        // $user->assignRole('superadmin');
+        $superAdmin = User::factory()->superAdministrator()->create([
             'name' => 'Superadministrador',
             'email' => 'superadmin@tekuno.mx',
             'password' => bcrypt('Pa$$w0rd'),
         ]);
+
         $adminClubs = User::factory()->administratorClub()->create([
             'name' => 'Administrador del Club',
             'email' => 'antoniotoxquisosa@hotmail.com',
@@ -25,6 +32,6 @@ class UserSeeder extends Seeder
         ]);
         // Assign clubs to the admin club user
         $adminClubs->clubs()->attach([1, 2]); // Assuming club IDs 1 and 2 exist
-        
+
     }
 }
