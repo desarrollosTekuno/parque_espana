@@ -3,6 +3,10 @@
 namespace Database\Seeders;
 
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+
+use FeedbackCategoriesSeeder;
+use FeedbackPrioritiesSeeder;
+use FeedbackStatusesSeeder;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
@@ -40,6 +44,11 @@ class DatabaseSeeder extends Seeder
             BillingConceptSeeder::class,
             PaymentMethodSeeder::class,
             ClubPaymentMethodSeeder::class,
+
+            FeedbackCategoriesSeeder::class,
+            FeedbackTicketTypesSeeder::class,
+            FeedbackStatusesSeeder::class,
+            FeedbackPrioritiesSeeder::class,
         ]);
     }
 }
