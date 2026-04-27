@@ -9,25 +9,15 @@ return new class extends Migration {
     {
         Schema::create('feedback.status_history', function (Blueprint $table) {
             $table->id();
-
-            $table->foreignId('ticket_id')
-                ->constrained('feedback.tickets')
-                ->cascadeOnDelete();
-
-            $table->foreignId('old_status_id')
-                ->nullable()
-                ->constrained('feedback.statuses')
-                ->nullOnDelete();
-
-            $table->foreignId('new_status_id')
-                ->constrained('feedback.statuses');
-
-            $table->foreignId('changed_by_user_id')
-                ->nullable()
-                ->constrained('users')
-                ->nullOnDelete();
-
             $table->text('change_reason')->nullable();
+
+            $table->foreignId('ticket_id')->constrained('feedback.tickets')->cascadeOnDelete();
+
+            $table->foreignId('old_status_id')->nullable()->constrained('feedback.statuses')->nullOnDelete();
+
+            $table->foreignId('new_status_id')->constrained('feedback.statuses');
+
+            $table->foreignId('changed_by_user_id')->nullable()->constrained('users')->nullOnDelete();
 
             $table->timestamp('created_at')->useCurrent();
         });

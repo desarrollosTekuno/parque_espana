@@ -1,5 +1,7 @@
 <?php
 
+namespace Database\Seeders;
+
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
@@ -7,7 +9,7 @@ class FeedbackCategoriesSeeder extends Seeder
 {
     public function run(): void
     {
-        DB::table('feedback.categories')->insert([
+        $data = [
             ['name' => 'INSTALACIONES', 'code' => 'facilities'],
             ['name' => 'SERVICIO', 'code' => 'service'],
             ['name' => 'AMENIDADES', 'code' => 'amenities'],
@@ -20,6 +22,18 @@ class FeedbackCategoriesSeeder extends Seeder
             ['name' => 'SUGERENCIA GENERAL', 'code' => 'general_suggestion'],
             ['name' => 'CAFETERÍA', 'code' => 'cafeteria'],
             ['name' => 'LIMPIEZA', 'code' => 'cleanliness'],
-        ]);
+        ];
+
+        foreach ($data as $item) {
+            DB::table('feedback.categories')->updateOrInsert(
+                ['code' => strtoupper($item['code'])],
+                [
+                    'name' => strtoupper($item['name']),
+                    'code' => strtoupper($item['code']),
+                    'updated_at' => now(),
+                    'created_at' => now(),
+                ]
+            );
+        }
     }
 }

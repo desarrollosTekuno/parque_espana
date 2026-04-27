@@ -3,10 +3,6 @@
 namespace Database\Seeders;
 
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-
-use FeedbackCategoriesSeeder;
-use FeedbackPrioritiesSeeder;
-use FeedbackStatusesSeeder;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder

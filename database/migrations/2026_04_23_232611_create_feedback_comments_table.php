@@ -10,17 +10,12 @@ return new class extends Migration {
         Schema::create('feedback.comments', function (Blueprint $table) {
             $table->id();
 
-            $table->foreignId('ticket_id')
-                ->constrained('feedback.tickets')
-                ->cascadeOnDelete();
-
-            $table->foreignId('user_id')
-                ->nullable()
-                ->constrained('users')
-                ->nullOnDelete();
-
             $table->text('comment');
             $table->boolean('is_internal')->default(false);
+
+            $table->foreignId('ticket_id')->constrained('feedback.tickets')->cascadeOnDelete();
+
+            $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
 
             $table->timestamps();
             $table->softDeletes();

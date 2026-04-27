@@ -113,6 +113,12 @@ class PermissionSeeder extends Seeder
             array('name' => 'member-access.store', 'description' => 'Asignar acceso a miembros', 'contexts' => ['web']),
             array('name' => 'member-access.destroy', 'description' => 'Revocar acceso a miembros', 'contexts' => ['web']),
 
+            // Feedback
+            array('name' => 'feedback.index', 'description' => 'Ver quejas y sugerencias', 'contexts' => ['web']),
+            array('name' => 'feedback.store', 'description' => 'Crear quejas y sugerencias', 'contexts' => ['web']),
+            array('name' => 'feedback.update', 'description' => 'Actualizar quejas y sugerencias', 'contexts' => ['web']),
+            array('name' => 'feedback.destroy', 'description' => 'Eliminar quejas y sugerencias', 'contexts' => ['web']),
+
 
             // -------------------------------------------------------
             // App Móvil - Permisos base (aplican a ambos clubs)
