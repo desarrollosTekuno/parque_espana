@@ -10,7 +10,7 @@ return new class extends Migration {
         Schema::create('feedback.tickets', function (Blueprint $table) {
             $table->id();
 
-            $table->string('ticket_number')->unique();
+            $table->string('ticket_number', 30)->unique();
 
             $table->foreignId('club_id')
                 ->constrained('clubs.clubs')
@@ -43,7 +43,7 @@ return new class extends Migration {
                 ->constrained('users')
                 ->nullOnDelete();
 
-            $table->string('title');
+            $table->string('title', 200);
             $table->text('description');
             $table->text('resolution_notes')->nullable();
 

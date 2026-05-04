@@ -9,12 +9,13 @@ return new class extends Migration {
     {
         Schema::create('feedback.statuses', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
-            $table->string('code')->unique();
-            $table->string('color')->nullable();
+            $table->string('name', 120);
+            $table->string('code', 60)->unique();
+            $table->string('color', 20)->nullable();
             $table->integer('sort_order')->default(0);
             $table->boolean('is_active')->default(true);
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

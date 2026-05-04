@@ -20,6 +20,7 @@ return new class extends Migration {
             $table->foreignId('changed_by_user_id')->nullable()->constrained('users')->nullOnDelete();
 
             $table->timestamp('created_at')->useCurrent();
+            $table->softDeletes();
         });
     }
 

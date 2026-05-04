@@ -9,11 +9,12 @@ return new class extends Migration {
     {
         Schema::create('feedback.priorities', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
-            $table->string('code')->unique();
+            $table->string('name', 80);
+            $table->string('code', 40)->unique();
             $table->integer('sort_order')->default(0);
             $table->boolean('is_active')->default(true);
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

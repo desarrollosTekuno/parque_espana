@@ -10,11 +10,11 @@ return new class extends Migration {
         Schema::create('feedback.attachments', function (Blueprint $table) {
             $table->id();
 
-            $table->string('file_name');
-            $table->string('file_path');
+            $table->string('file_name', 200);
+            $table->string('file_path', 500);
             $table->string('file_type', 100)->nullable();
             $table->integer('file_size')->nullable();
-            $table->string('storage_disk')->default('public');
+            $table->string('storage_disk', 40)->default('public');
 
             $table->foreignId('ticket_id')->constrained('feedback.tickets')->cascadeOnDelete();
 
