@@ -39,8 +39,7 @@ const form = useForm<FeedbackPriority>({
     is_active: true,
 });
 
-const codeRule = (v: string) =>
-    !v || /^[A-Za-z0-9_]+$/.test(v) || "Solo se permiten letras, numeros y guion bajo (_)";
+const codeRule = (v: string) => !v || /^[A-Za-z0-9_]+$/.test(v) || "Solo se permiten letras, numeros y guion bajo (_)";
 
 const integerRule = (v: number | string | null) => {
     if (v === null || v === "") return "El campo es requerido";
@@ -262,7 +261,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 <v-text-field
                                     v-model="form.name"
                                     label="Nombre"
-                                    :rules="[required, alphaNumeric, maxLength(80)]"
+                                    :rules="[required, alphaNumeric, maxLength(25)]"
                                     :error-messages="form.errors.name"
                                 />
                             </v-col>
@@ -271,7 +270,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 <v-text-field
                                     v-model="form.code"
                                     label="Codigo"
-                                    :rules="[required, codeRule, maxLength(40)]"
+                                    :rules="[required, codeRule, maxLength(25)]"
                                     :error-messages="form.errors.code"
                                 />
                             </v-col>

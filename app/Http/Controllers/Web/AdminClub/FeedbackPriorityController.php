@@ -58,13 +58,10 @@ class FeedbackPriorityController extends Controller {
 
     public function store(Request $request) {
         $request->validate([
-            'name' => ['required', 'string', 'max:80', 'regex:/^[A-Za-zÀ-ÿ0-9,\s]+$/u'],
-            'code' => ['required', 'string', 'max:40', 'regex:/^[A-Za-z0-9_]+$/', Rule::unique('feedback.priorities', 'code')],
+            'name' => ['required', 'string', 'max:25'],
+            'code' => ['required', 'string', 'max:25'],
             'sort_order' => 'required|integer|min:0',
             'is_active' => 'boolean',
-        ], [
-            'name.regex' => 'El nombre solo permite letras, numeros, comas y espacios.',
-            'code.regex' => 'El codigo solo permite letras, numeros y guion bajo (_).',
         ]);
 
         try {
@@ -89,13 +86,10 @@ class FeedbackPriorityController extends Controller {
 
     public function update(Request $request, $id) {
         $request->validate([
-            'name' => ['required', 'string', 'max:80', 'regex:/^[A-Za-zÀ-ÿ0-9,\s]+$/u'],
-            'code' => ['required', 'string', 'max:40', 'regex:/^[A-Za-z0-9_]+$/', Rule::unique('feedback.priorities', 'code')->ignore($id)],
+            'name' => 'required' | 'string' | 'max:25',
+            'code' => 'required' | 'string' | 'max:25',
             'sort_order' => 'required|integer|min:0',
             'is_active' => 'required|boolean',
-        ], [
-            'name.regex' => 'El nombre solo permite letras, numeros, comas y espacios.',
-            'code.regex' => 'El codigo solo permite letras, numeros y guion bajo (_).',
         ]);
 
         try {
