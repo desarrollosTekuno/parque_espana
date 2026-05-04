@@ -1,8 +1,18 @@
 <script setup lang="ts">
 import AppLayout from "@/Layouts/AppLayout.vue";
-import { Head, router, useForm } from "@inertiajs/vue3";
-import { ref, watch } from "vue";
-
+import {
+    required,
+    selectRequired,
+    validatePhone,
+    email,
+    minLength,
+    maxLength,
+    postalCode,
+} from "@/constants/validationRules";
+import { customToastSwal } from "@/utils/swal";
+import { Head, router, useForm, usePage } from "@inertiajs/vue3";
+import { computed, ref } from "vue";
+const page = usePage<any>();
 /* ─────────────────────────────
  * INTERFACES
  * ───────────────────────────── */
@@ -62,9 +72,21 @@ const props = defineProps<Props>();
 const countryName = (c: Country) =>
     (c.translations?.["es-MX"] ?? c.translations?.["es"] ?? c.name);
 
+const nationalityTitle = (c: Country) =>
+    c.demonym || c.translations?.["es-MX"] || c.translations?.["es"] || c.name;
+
+const normalizeText = (value: string | null | undefined) =>
+    (value ?? "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim();
+
 /* ─────────────────────────────
  * FORMULARIO
  * ───────────────────────────── */
+const formRef = ref();
+
 const form = useForm({
     first_name:        props.accountMember.first_name,
     last_name:         props.accountMember.last_name,
@@ -81,12 +103,12 @@ const form = useForm({
     school_name:       props.accountMember.school_name ?? "",
     relationship_id:   props.accountMember.relationship_id,
     address: {
-        street:       props.accountMember.address.street ?? "",
-        neighborhood: props.accountMember.address.neighborhood ?? "",
-        postal_code:  props.accountMember.address.postal_code ?? "",
-        country_id:   props.accountMember.address.country_id,
-        state_id:     props.accountMember.address.state_id,
-        city_id:      props.accountMember.address.city_id,
+        street:        props.accountMember.address.street ?? "",
+        neighborhood:  props.accountMember.address.neighborhood ?? "",
+        postal_code:   props.accountMember.address.postal_code ?? "",
+        country_id:    props.accountMember.address.country_id,
+        state_id:      props.accountMember.address.state_id,
+        city_id:       props.accountMember.address.city_id,
         years_in_city: props.accountMember.address.years_in_city,
     },
     employment: {
@@ -97,83 +119,157 @@ const form = useForm({
 });
 
 /* ─────────────────────────────
+ * RELACIÓN / VISIBILIDAD
+ * ───────────────────────────── */
+const isPrimaryHolder = computed(() => props.accountMember.is_primary_holder);
+
+const relationshipName = computed(() =>
+    props.relationships.find(r => r.id === form.relationship_id)?.name ?? ""
+);
+
+const isSpouseRelationship = computed(() =>
+    ["conyuge", "esposo", "esposa"].includes(normalizeText(relationshipName.value))
+);
+
+const isChildRelationship = computed(() =>
+    ["hijo(a)", "hijo", "hija"].includes(normalizeText(relationshipName.value))
+);
+
+/* ─────────────────────────────
+ * REGLA FECHA DE NACIMIENTO
+ * ───────────────────────────── */
+const parseDateInput = (value: string | null): Date | null => {
+    if (!value) return null;
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    if (!match) return null;
+    const [, year, month, day] = match;
+    const d = new Date(Number(year), Number(month) - 1, Number(day));
+    return d.getFullYear() === Number(year) &&
+           d.getMonth() === Number(month) - 1 &&
+           d.getDate() === Number(day) ? d : null;
+};
+
+const calculateAge = (birthdate: string | null): number | null => {
+    const birth = parseDateInput(birthdate);
+    if (!birth) return null;
+    const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+    return age;
+};
+
+const birthdateRule = (value: string | null) => {
+    if (!value) return "La fecha de nacimiento es requerida";
+    const age = calculateAge(value);
+    if (age === null || age < 0) return "La fecha de nacimiento no es válida";
+    if (isChildRelationship.value && age >= 24) return "Los hijos no pueden ser mayores de 24 años";
+    return true;
+};
+
+/* ─────────────────────────────
  * CATÁLOGOS CASCADING
  * ───────────────────────────── */
-// Lugar de nacimiento
-const birthStates = ref<Catalog[]>([]);
-const birthCities = ref<Catalog[]>([]);
-
-const loadBirthStates = async (countryId: number | null) => {
-    birthStates.value = [];
-    birthCities.value = [];
-    form.birth_state_id = null;
-    form.birth_city_id = null;
-    if (!countryId) return;
-    const res = await fetch(route("members.location-catalogs.states", { country_id: countryId }));
-    birthStates.value = await res.json();
-};
-
-const loadBirthCities = async (stateId: number | null) => {
-    birthCities.value = [];
-    form.birth_city_id = null;
-    if (!stateId) return;
-    const res = await fetch(route("members.location-catalogs.cities", { state_id: stateId }));
-    birthCities.value = await res.json();
-};
-
-// Domicilio
+const birthStates   = ref<Catalog[]>([]);
+const birthCities   = ref<Catalog[]>([]);
 const addressStates = ref<Catalog[]>([]);
 const addressCities = ref<Catalog[]>([]);
 
-const loadAddressStates = async (countryId: number | null) => {
-    addressStates.value = [];
-    addressCities.value = [];
-    form.address.state_id = null;
-    form.address.city_id = null;
-    if (!countryId) return;
+const fetchStates = async (countryId: number): Promise<Catalog[]> => {
     const res = await fetch(route("members.location-catalogs.states", { country_id: countryId }));
-    addressStates.value = await res.json();
+    return res.json();
 };
 
-const loadAddressCities = async (stateId: number | null) => {
-    addressCities.value = [];
-    form.address.city_id = null;
-    if (!stateId) return;
+const fetchCities = async (stateId: number): Promise<Catalog[]> => {
     const res = await fetch(route("members.location-catalogs.cities", { state_id: stateId }));
-    addressCities.value = await res.json();
+    return res.json();
 };
 
-// Carga inicial si ya hay valores
+// Carga inicial — solo rellena catálogos sin tocar los valores del form
 if (props.accountMember.birth_country_id) {
-    loadBirthStates(props.accountMember.birth_country_id).then(() => {
+    fetchStates(props.accountMember.birth_country_id).then(states => {
+        birthStates.value = states;
         if (props.accountMember.birth_state_id) {
-            loadBirthCities(props.accountMember.birth_state_id);
+            fetchCities(props.accountMember.birth_state_id).then(cities => {
+                birthCities.value = cities;
+            });
         }
     });
 }
 if (props.accountMember.address.country_id) {
-    loadAddressStates(props.accountMember.address.country_id).then(() => {
+    fetchStates(props.accountMember.address.country_id).then(states => {
+        addressStates.value = states;
         if (props.accountMember.address.state_id) {
-            loadAddressCities(props.accountMember.address.state_id);
+            fetchCities(props.accountMember.address.state_id).then(cities => {
+                addressCities.value = cities;
+            });
         }
     });
 }
 
-watch(() => form.birth_country_id, loadBirthStates);
-watch(() => form.birth_state_id,   loadBirthCities);
-watch(() => form.address.country_id, loadAddressStates);
-watch(() => form.address.state_id,   loadAddressCities);
+// Handlers de cambio de usuario — sí resetean los niveles inferiores
+const onBirthCountryChange = async (countryId: number | null) => {
+    form.birth_state_id = null;
+    form.birth_city_id  = null;
+    birthStates.value   = [];
+    birthCities.value   = [];
+    if (countryId) birthStates.value = await fetchStates(countryId);
+};
+
+const onBirthStateChange = async (stateId: number | null) => {
+    form.birth_city_id = null;
+    birthCities.value  = [];
+    if (stateId) birthCities.value = await fetchCities(stateId);
+};
+
+const onAddressCountryChange = async (countryId: number | null) => {
+    form.address.state_id = null;
+    form.address.city_id  = null;
+    addressStates.value   = [];
+    addressCities.value   = [];
+    if (countryId) addressStates.value = await fetchStates(countryId);
+};
+
+const onAddressStateChange = async (stateId: number | null) => {
+    form.address.city_id = null;
+    addressCities.value  = [];
+    if (stateId) addressCities.value = await fetchCities(stateId);
+};
 
 /* ─────────────────────────────
  * ACCIONES
  * ───────────────────────────── */
-const submit = () => {
+const submit = async () => {
+    const { valid } = await formRef.value?.validate();
+    if (!valid) {
+        customToastSwal({
+            text: "Revisa los datos del formulario. Hay campos requeridos o con formato incorrecto.",
+            icon: "warning",
+        });
+        return;
+    }
+
     form.put(
         route("members.member.update", {
             membership: props.membership.id,
             member: props.accountMember.member_id,
         }),
-        { preserveScroll: true }
+        {
+            preserveScroll: true,
+            onSuccess: () => {
+                customToastSwal({
+                    title: page.props.flash.success || "Integrante actualizado exitosamente",
+                    icon: "success",
+                });
+            },
+            onError: () => {
+                customToastSwal({
+                    title: `Error: ${form.errors.messageError || "No se pudo actualizar la información"}`,
+                    text: form.errors.exception || "",
+                    icon: "error",
+                });
+            },
+        }
     );
 };
 
@@ -188,268 +284,294 @@ const cancel = () => {
     <AppLayout>
         <template #header>Editar integrante</template>
 
-        <div class="d-flex flex-column ga-4">
+        <v-form ref="formRef">
+            <div class="d-flex flex-column ga-4">
 
-            <!-- Datos personales -->
-            <v-card class="pa-4">
-                <div class="text-subtitle-1 font-weight-bold mb-4">Datos personales</div>
-                <v-row>
-                    <v-col cols="12" md="4">
-                        <v-text-field
-                            v-model="form.first_name"
-                            label="Nombre(s)"
-                            :error-messages="form.errors.first_name"
-                        />
-                    </v-col>
-                    <v-col cols="12" md="4">
-                        <v-text-field
-                            v-model="form.last_name"
-                            label="Apellido paterno"
-                            :error-messages="form.errors.last_name"
-                        />
-                    </v-col>
-                    <v-col cols="12" md="4">
-                        <v-text-field
-                            v-model="form.second_last_name"
-                            label="Apellido materno"
-                            :error-messages="form.errors.second_last_name"
-                        />
-                    </v-col>
-                    <v-col cols="12" md="4">
-                        <v-text-field
-                            v-model="form.birthdate"
-                            label="Fecha de nacimiento"
-                            type="date"
-                            :error-messages="form.errors.birthdate"
-                        />
-                    </v-col>
-                    <v-col cols="12" md="4">
-                        <v-autocomplete
-                            v-model="form.marital_status_id"
-                            :items="props.maritalStatuses"
-                            item-title="name"
-                            item-value="id"
-                            label="Estado civil"
-                            clearable
-                            :error-messages="form.errors.marital_status_id"
-                        />
-                    </v-col>
-                    <v-col v-if="!props.accountMember.is_primary_holder" cols="12" md="4">
-                        <v-autocomplete
-                            v-model="form.relationship_id"
-                            :items="props.relationships"
-                            item-title="name"
-                            item-value="id"
-                            label="Parentesco"
-                            clearable
-                            :error-messages="form.errors.relationship_id"
-                        />
-                    </v-col>
-                </v-row>
-            </v-card>
+                <!-- Datos personales -->
+                <v-card class="pa-4">
+                    <div class="text-subtitle-1 font-weight-bold mb-4">Datos personales</div>
+                    <v-row>
+                        <v-col cols="12" md="4">
+                            <v-text-field
+                                v-model="form.first_name"
+                                label="Nombre(s)"
+                                :rules="[required, minLength(2), maxLength(75)]"
+                                :error-messages="form.errors.first_name"
+                            />
+                        </v-col>
+                        <v-col cols="12" md="4">
+                            <v-text-field
+                                v-model="form.last_name"
+                                label="Apellido paterno"
+                                :rules="[required, minLength(2), maxLength(50)]"
+                                :error-messages="form.errors.last_name"
+                            />
+                        </v-col>
+                        <v-col cols="12" md="4">
+                            <v-text-field
+                                v-model="form.second_last_name"
+                                label="Apellido materno"
+                                :rules="[minLength(2), maxLength(50)]"
+                                :error-messages="form.errors.second_last_name"
+                            />
+                        </v-col>
+                        <v-col cols="12" md="4">
+                            <v-text-field
+                                v-model="form.birthdate"
+                                label="Fecha de nacimiento"
+                                type="date"
+                                :rules="[birthdateRule]"
+                                :error-messages="form.errors.birthdate"
+                            />
+                        </v-col>
+                        <v-col v-if="isPrimaryHolder || isSpouseRelationship" cols="12" md="4">
+                            <v-autocomplete
+                                v-model="form.marital_status_id"
+                                :items="props.maritalStatuses"
+                                item-title="name"
+                                item-value="id"
+                                label="Estado civil"
+                                :rules="[selectRequired]"
+                                clearable
+                                :error-messages="form.errors.marital_status_id"
+                            />
+                        </v-col>
+                        <v-col v-if="!isPrimaryHolder" cols="12" md="4">
+                            <v-autocomplete
+                                v-model="form.relationship_id"
+                                :items="props.relationships"
+                                item-title="name"
+                                item-value="id"
+                                label="Parentesco"
+                                :rules="[selectRequired]"
+                                clearable
+                                :error-messages="form.errors.relationship_id"
+                            />
+                        </v-col>
+                    </v-row>
+                </v-card>
 
-            <!-- Contacto y ocupación -->
-            <v-card class="pa-4">
-                <div class="text-subtitle-1 font-weight-bold mb-4">Contacto</div>
-                <v-row>
-                    <v-col cols="12" md="6">
-                        <v-text-field
-                            v-model="form.phone"
-                            label="Teléfono"
-                            :error-messages="form.errors.phone"
-                        />
-                    </v-col>
-                    <v-col cols="12" md="6">
-                        <v-text-field
-                            v-model="form.email"
-                            label="Correo electrónico"
-                            type="email"
-                            :error-messages="form.errors.email"
-                        />
-                    </v-col>
-                    <v-col cols="12" md="6">
-                        <v-autocomplete
-                            v-model="form.nationality_id"
-                            :items="props.nationalities"
-                            :item-title="countryName"
-                            item-value="id"
-                            label="Nacionalidad"
-                            clearable
-                            :error-messages="form.errors.nationality_id"
-                        />
-                    </v-col>
-                    <v-col cols="12" md="6">
-                        <v-text-field
-                            v-model="form.occupation"
-                            label="Ocupación"
-                            :error-messages="form.errors.occupation"
-                        />
-                    </v-col>
-                    <v-col cols="12" md="6">
-                        <v-text-field
-                            v-model="form.school_name"
-                            label="Escuela (si aplica)"
-                            :error-messages="form.errors.school_name"
-                        />
-                    </v-col>
-                </v-row>
-            </v-card>
+                <!-- Contacto -->
+                <v-card class="pa-4">
+                    <div class="text-subtitle-1 font-weight-bold mb-4">Contacto</div>
+                    <v-row>
+                        <v-col v-if="isPrimaryHolder || isSpouseRelationship" cols="12" md="6">
+                            <v-text-field
+                                v-model="form.phone"
+                                label="Teléfono"
+                                :rules="isPrimaryHolder ? [required, validatePhone] : [validatePhone]"
+                                :error-messages="form.errors.phone"
+                            />
+                        </v-col>
+                        <v-col cols="12" md="6">
+                            <v-text-field
+                                v-model="form.email"
+                                label="Correo electrónico"
+                                type="email"
+                                :rules="isPrimaryHolder ? [required, email, maxLength(255)] : [email, maxLength(255)]"
+                                :error-messages="form.errors.email"
+                            />
+                        </v-col>
+                        <v-col v-if="isPrimaryHolder || isSpouseRelationship" cols="12" md="6">
+                            <v-autocomplete
+                                v-model="form.nationality_id"
+                                :items="props.nationalities"
+                                :item-title="nationalityTitle"
+                                item-value="id"
+                                label="Nacionalidad"
+                                :rules="[selectRequired]"
+                                clearable
+                                :error-messages="form.errors.nationality_id"
+                            />
+                        </v-col>
+                        <v-col v-if="isPrimaryHolder" cols="12" md="6">
+                            <v-text-field
+                                v-model="form.occupation"
+                                label="Ocupación"
+                                :rules="[required, minLength(2), maxLength(100)]"
+                                :error-messages="form.errors.occupation"
+                            />
+                        </v-col>
+                        <v-col v-if="isChildRelationship" cols="12" md="6">
+                            <v-text-field
+                                v-model="form.school_name"
+                                label="Colegio"
+                                :rules="[required, minLength(3), maxLength(150)]"
+                                :error-messages="form.errors.school_name"
+                            />
+                        </v-col>
+                    </v-row>
+                </v-card>
 
-            <!-- Lugar de nacimiento -->
-            <v-card class="pa-4">
-                <div class="text-subtitle-1 font-weight-bold mb-4">Lugar de nacimiento</div>
-                <v-row>
-                    <v-col cols="12" md="4">
-                        <v-autocomplete
-                            v-model="form.birth_country_id"
-                            :items="props.countries"
-                            :item-title="countryName"
-                            item-value="id"
-                            label="País"
-                            clearable
-                            :error-messages="form.errors.birth_country_id"
-                        />
-                    </v-col>
-                    <v-col cols="12" md="4">
-                        <v-autocomplete
-                            v-model="form.birth_state_id"
-                            :items="birthStates"
-                            item-title="name"
-                            item-value="id"
-                            label="Estado"
-                            clearable
-                            :disabled="!form.birth_country_id"
-                            :error-messages="form.errors.birth_state_id"
-                        />
-                    </v-col>
-                    <v-col cols="12" md="4">
-                        <v-autocomplete
-                            v-model="form.birth_city_id"
-                            :items="birthCities"
-                            item-title="name"
-                            item-value="id"
-                            label="Ciudad"
-                            clearable
-                            :disabled="!form.birth_state_id"
-                            :error-messages="form.errors.birth_city_id"
-                        />
-                    </v-col>
-                </v-row>
-            </v-card>
+                <!-- Lugar de nacimiento (titular y cónyuge) -->
+                <v-card v-if="isPrimaryHolder || isSpouseRelationship" class="pa-4">
+                    <div class="text-subtitle-1 font-weight-bold mb-4">Lugar de nacimiento</div>
+                    <v-row>
+                        <v-col cols="12" md="4">
+                            <v-autocomplete
+                                v-model="form.birth_country_id"
+                                :items="props.countries"
+                                :item-title="countryName"
+                                item-value="id"
+                                label="País de nacimiento"
+                                :rules="[selectRequired]"
+                                clearable
+                                :error-messages="form.errors.birth_country_id"
+                                @update:modelValue="onBirthCountryChange"
+                            />
+                        </v-col>
+                        <v-col cols="12" md="4">
+                            <v-autocomplete
+                                v-model="form.birth_state_id"
+                                :items="birthStates"
+                                item-title="name"
+                                item-value="id"
+                                label="Estado de nacimiento"
+                                :rules="[selectRequired]"
+                                clearable
+                                :disabled="!form.birth_country_id"
+                                :error-messages="form.errors.birth_state_id"
+                                @update:modelValue="onBirthStateChange"
+                            />
+                        </v-col>
+                        <v-col cols="12" md="4">
+                            <v-autocomplete
+                                v-model="form.birth_city_id"
+                                :items="birthCities"
+                                item-title="name"
+                                item-value="id"
+                                label="Ciudad de nacimiento"
+                                clearable
+                                :disabled="!form.birth_state_id"
+                                :error-messages="form.errors.birth_city_id"
+                            />
+                        </v-col>
+                    </v-row>
+                </v-card>
 
-            <!-- Domicilio -->
-            <v-card class="pa-4">
-                <div class="text-subtitle-1 font-weight-bold mb-4">Domicilio</div>
-                <v-row>
-                    <v-col cols="12" md="6">
-                        <v-text-field
-                            v-model="form.address.street"
-                            label="Calle y número"
-                            :error-messages="(form.errors as any)['address.street']"
-                        />
-                    </v-col>
-                    <v-col cols="12" md="6">
-                        <v-text-field
-                            v-model="form.address.neighborhood"
-                            label="Colonia"
-                            :error-messages="(form.errors as any)['address.neighborhood']"
-                        />
-                    </v-col>
-                    <v-col cols="12" md="4">
-                        <v-text-field
-                            v-model="form.address.postal_code"
-                            label="Código postal"
-                            :error-messages="(form.errors as any)['address.postal_code']"
-                        />
-                    </v-col>
-                    <v-col cols="12" md="4">
-                        <v-autocomplete
-                            v-model="form.address.country_id"
-                            :items="props.countries"
-                            :item-title="countryName"
-                            item-value="id"
-                            label="País"
-                            clearable
-                            :error-messages="(form.errors as any)['address.country_id']"
-                        />
-                    </v-col>
-                    <v-col cols="12" md="4">
-                        <v-autocomplete
-                            v-model="form.address.state_id"
-                            :items="addressStates"
-                            item-title="name"
-                            item-value="id"
-                            label="Estado"
-                            clearable
-                            :disabled="!form.address.country_id"
-                            :error-messages="(form.errors as any)['address.state_id']"
-                        />
-                    </v-col>
-                    <v-col cols="12" md="4">
-                        <v-autocomplete
-                            v-model="form.address.city_id"
-                            :items="addressCities"
-                            item-title="name"
-                            item-value="id"
-                            label="Ciudad"
-                            clearable
-                            :disabled="!form.address.state_id"
-                            :error-messages="(form.errors as any)['address.city_id']"
-                        />
-                    </v-col>
-                    <v-col cols="12" md="4">
-                        <v-text-field
-                            v-model.number="form.address.years_in_city"
-                            label="Años viviendo en la ciudad"
-                            type="number"
-                            min="0"
-                            :error-messages="(form.errors as any)['address.years_in_city']"
-                        />
-                    </v-col>
-                </v-row>
-            </v-card>
+                <!-- Domicilio (solo titular) -->
+                <v-card v-if="isPrimaryHolder" class="pa-4">
+                    <div class="text-subtitle-1 font-weight-bold mb-4">Domicilio</div>
+                    <v-row>
+                        <v-col cols="12" md="6">
+                            <v-text-field
+                                v-model="form.address.street"
+                                label="Calle y número"
+                                :rules="[required, minLength(3), maxLength(150)]"
+                                :error-messages="(form.errors as any)['address.street']"
+                            />
+                        </v-col>
+                        <v-col cols="12" md="6">
+                            <v-text-field
+                                v-model="form.address.neighborhood"
+                                label="Colonia"
+                                :rules="[required, minLength(3), maxLength(150)]"
+                                :error-messages="(form.errors as any)['address.neighborhood']"
+                            />
+                        </v-col>
+                        <v-col cols="12" md="4">
+                            <v-text-field
+                                v-model="form.address.postal_code"
+                                label="Código postal"
+                                :rules="[postalCode]"
+                                :error-messages="(form.errors as any)['address.postal_code']"
+                            />
+                        </v-col>
+                        <v-col cols="12" md="4">
+                            <v-autocomplete
+                                v-model="form.address.country_id"
+                                :items="props.countries"
+                                :item-title="countryName"
+                                item-value="id"
+                                label="País"
+                                :rules="[selectRequired]"
+                                clearable
+                                :error-messages="(form.errors as any)['address.country_id']"
+                                @update:modelValue="onAddressCountryChange"
+                            />
+                        </v-col>
+                        <v-col cols="12" md="4">
+                            <v-autocomplete
+                                v-model="form.address.state_id"
+                                :items="addressStates"
+                                item-title="name"
+                                item-value="id"
+                                label="Estado del domicilio"
+                                :rules="[selectRequired]"
+                                clearable
+                                :disabled="!form.address.country_id"
+                                :error-messages="(form.errors as any)['address.state_id']"
+                                @update:modelValue="onAddressStateChange"
+                            />
+                        </v-col>
+                        <v-col cols="12" md="4">
+                            <v-autocomplete
+                                v-model="form.address.city_id"
+                                :items="addressCities"
+                                item-title="name"
+                                item-value="id"
+                                label="Ciudad del domicilio"
+                                clearable
+                                :disabled="!form.address.state_id"
+                                :error-messages="(form.errors as any)['address.city_id']"
+                            />
+                        </v-col>
+                        <v-col cols="12" md="4">
+                            <v-number-input
+                                v-model="form.address.years_in_city"
+                                label="Años radicando en la ciudad"
+                                :rules="[required]"
+                                :error-messages="(form.errors as any)['address.years_in_city']"
+                            />
+                        </v-col>
+                    </v-row>
+                </v-card>
 
-            <!-- Empleo -->
-            <v-card class="pa-4">
-                <div class="text-subtitle-1 font-weight-bold mb-4">Información de empleo</div>
-                <v-row>
-                    <v-col cols="12" md="4">
-                        <v-text-field
-                            v-model="form.employment.company_name"
-                            label="Empresa"
-                            :error-messages="(form.errors as any)['employment.company_name']"
-                        />
-                    </v-col>
-                    <v-col cols="12" md="4">
-                        <v-text-field
-                            v-model="form.employment.company_address"
-                            label="Dirección de la empresa"
-                            :error-messages="(form.errors as any)['employment.company_address']"
-                        />
-                    </v-col>
-                    <v-col cols="12" md="4">
-                        <v-text-field
-                            v-model="form.employment.company_phone"
-                            label="Teléfono de la empresa"
-                            :error-messages="(form.errors as any)['employment.company_phone']"
-                        />
-                    </v-col>
-                </v-row>
-            </v-card>
+                <!-- Empleo (solo titular) -->
+                <v-card v-if="isPrimaryHolder" class="pa-4">
+                    <div class="text-subtitle-1 font-weight-bold mb-4">Información laboral</div>
+                    <v-row>
+                        <v-col cols="12" md="4">
+                            <v-text-field
+                                v-model="form.employment.company_name"
+                                label="Empresa"
+                                :rules="[required, minLength(2), maxLength(150)]"
+                                :error-messages="(form.errors as any)['employment.company_name']"
+                            />
+                        </v-col>
+                        <v-col cols="12" md="4">
+                            <v-text-field
+                                v-model="form.employment.company_address"
+                                label="Dirección de la empresa"
+                                :rules="[required, minLength(5), maxLength(255)]"
+                                :error-messages="(form.errors as any)['employment.company_address']"
+                            />
+                        </v-col>
+                        <v-col cols="12" md="4">
+                            <v-text-field
+                                v-model="form.employment.company_phone"
+                                label="Teléfono de la empresa"
+                                :rules="[required, validatePhone]"
+                                :error-messages="(form.errors as any)['employment.company_phone']"
+                            />
+                        </v-col>
+                    </v-row>
+                </v-card>
 
-            <!-- Acciones -->
-            <div class="d-flex justify-end ga-3 pb-4">
-                <v-btn variant="text" @click="cancel">Cancelar</v-btn>
-                <v-btn
-                    color="primary"
-                    variant="elevated"
-                    :loading="form.processing"
-                    @click="submit"
-                >
-                    Guardar cambios
-                </v-btn>
+                <!-- Acciones -->
+                <div class="d-flex justify-end ga-3 pb-4">
+                    <v-btn variant="text" @click="cancel">Cancelar</v-btn>
+                    <v-btn
+                        color="primary"
+                        variant="elevated"
+                        :loading="form.processing"
+                        @click="submit"
+                    >
+                        Guardar cambios
+                    </v-btn>
+                </div>
+
             </div>
-
-        </div>
+        </v-form>
     </AppLayout>
 </template>
