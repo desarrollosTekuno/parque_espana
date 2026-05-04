@@ -909,12 +909,12 @@ const selectType = (membershipType: MembershipType) => {
 
     const members: MemberForm[] = [createPrimaryHolder()];
 
-    if (membershipType.allows_multiple_members) {
+    /* if (membershipType.allows_multiple_members) {
         const spouse = createSpouseMember();
         if (spouse) {
             members.push(spouse);
         }
-    }
+    } */
 
     form.members = members;
     void initializeLocationCatalogsForMembers(members);
