@@ -18,6 +18,8 @@ class FeedbackTicketTypesSeeder extends Seeder {
                 [
                     'name' => strtoupper($item['name']),
                     'code' => strtoupper($item['code']),
+                    'description' => null,
+                    'is_active' => true,
                     'updated_at' => now(),
                     'created_at' => now(),
                 ]

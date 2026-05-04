@@ -17,6 +17,7 @@ use App\Http\Controllers\Web\AdminClub\PricingRuleController;
 use App\Http\Controllers\Web\AdminClub\AmenityResourceController;
 use App\Http\Controllers\Web\AdminClub\FeedbackCategoryController;
 use App\Http\Controllers\Web\AdminClub\FeedbackController;
+use App\Http\Controllers\Web\AdminClub\FeedbackTicketTypeController;
 use App\Http\Controllers\Web\AdminClub\ReservationGuestListController;
 use App\Http\Controllers\Web\AdminClub\LockerAssignmentController;
 use App\Http\Controllers\Web\AdminClub\LockerController;
@@ -78,6 +79,11 @@ Route::resource('/feedback-categories', FeedbackCategoryController::class)
 Route::resource('/feedback', FeedbackController::class)
     ->only(['index', 'store', 'update', 'destroy'])
     ->names('feedback');
+
+// feedback ticket types
+Route::resource('/feedback-ticket-types', FeedbackTicketTypeController::class)
+    ->only(['index', 'store', 'update', 'destroy'])
+    ->names('feedback-ticket-types');
 
 // members
 Route::get('/members/{membership}/additional-membership/create', [MemberController::class, 'createAdditionalMembership'])

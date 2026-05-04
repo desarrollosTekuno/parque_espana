@@ -120,6 +120,12 @@ class PermissionSeeder extends Seeder
             array('name' => 'feedback-categories.update', 'description' => 'Actualizar categorías de feedback', 'contexts' => ['web']),
             array('name' => 'feedback-categories.destroy', 'description' => 'Eliminar categorías de feedback', 'contexts' => ['web']),
 
+            // Feedback Ticket Types
+            array('name' => 'feedback-ticket-types.index', 'description' => 'Ver tipos de ticket de feedback', 'contexts' => ['web']),
+            array('name' => 'feedback-ticket-types.store', 'description' => 'Crear tipos de ticket de feedback', 'contexts' => ['web']),
+            array('name' => 'feedback-ticket-types.update', 'description' => 'Actualizar tipos de ticket de feedback', 'contexts' => ['web']),
+            array('name' => 'feedback-ticket-types.destroy', 'description' => 'Eliminar tipos de ticket de feedback', 'contexts' => ['web']),
+
             // Feedback
             array('name' => 'feedback.index', 'description' => 'Ver quejas y sugerencias', 'contexts' => ['web']),
             array('name' => 'feedback.store', 'description' => 'Crear quejas y sugerencias', 'contexts' => ['web']),
