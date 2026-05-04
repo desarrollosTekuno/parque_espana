@@ -22,7 +22,7 @@ const routes: Routing[] = [
         group: null,
         // groupItems: null
     },
-    
+
     {
         name: "dashboard",
         title: "Inicio",
@@ -163,6 +163,12 @@ const routes: Routing[] = [
                 icon: "mdi-account-group-outline",
                 value: "listas-invitados",
             },
+            {
+                name: "system-variables.index",
+                title: "Variables del Sistema",
+                icon: "mdi-cog",
+                value: "variables-sistema",
+            }
         ]
     },
     // Anuncios
@@ -204,15 +210,6 @@ const routes: Routing[] = [
         icon: "mdi-poll",
         value: "surveys",
         group: null
-    },
-    // Variables de sistema
-    {
-        name: "system-variables.index",
-        title: "Variables del Sistema",
-        icon: "mdi-cog",
-        value: "variables-sistema",
-        group: null,
-        // groupItems: null
     },
     {
         name: "pricing-rules.index",

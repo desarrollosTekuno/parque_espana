@@ -72,22 +72,23 @@ class ReservationGuestListController extends Controller {
             {
                 $discount = ($guestList->subtotal * $request->discount_percentage) / 100;
                 $total = $guestList->subtotal - $discount;
-
-                $guestList->update([
-                    'discount' => $discount,
-                    'total' => $total,
-                    'approved_at' => now(),
-                    'approved_by' => auth()->user()->id,
-                    'status' => ReservationGuestList::APPROVED,
-                ]);
+                $status = ReservationGuestList::APPROVED;
+                $comments = null;
             }else {
-                $guestList->update([
-                    'status' => ReservationGuestList::REJECTED,
-                    'approved_at' => now(),
-                    'approved_by' => auth()->user()->id,
-
-                ]);
+                $discount = null;
+                $total = null;
+                $status = ReservationGuestList::REJECTED;
+                $comments = $request->comments;
             }
+
+            $guestList->update([
+                'status' => $status,
+                'discount' => $discount,
+                'total' => $total,
+                'approved_at' => now(),
+                'approved_by' => auth()->user()->id,
+                'comments' => $comments
+            ]);
 
             return redirect()->back()->with('success', $action == 'approve' ? 'Lista de invitados aprobada correctamente' : 'Lista de invitados rechazada correctamente');
 
