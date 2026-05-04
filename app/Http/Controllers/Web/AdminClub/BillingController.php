@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Web\AdminClub;
 use App\Http\Controllers\Controller;
 use App\Models\Administrator\Club;
 use App\Models\Billing\Charge;
+use App\Models\Members\Locker;
 use App\Models\AdminClub\BusinessAd;
 use App\Models\Billing\PaymentMethod;
+use App\Models\Members\LockerAssignment;
 use App\Models\Memberships\MembershipAccount;
 use App\Rules\ExistsInSchema;
 use App\Services\Billing\PaymentRegistrationService;
@@ -327,6 +329,52 @@ class BillingController extends Controller
                     'expires_at' => now()->addMonth()
                 ]);
             
+            // Procesar casilleros pagados
+            $lockerCharges = $charges->filter(function ($charge) {
+                return isset($charge->metadata['locker_id']);
+            });
+
+            foreach ($lockerCharges as $charge) {
+
+                $lockerId = $charge->metadata['locker_id'];
+                $memberId = $charge->member_id;
+                $amount = $charge->amount;
+
+                DB::transaction(function () use ($lockerId, $memberId, $amount) {
+                    $locker = Locker::lockForUpdate()->find($lockerId);
+                    if (!$locker) {
+                        return;
+                    }
+                    // Validar que siga reservado
+                    if ($locker->status !== 'pago_pendiente') {
+                        return;
+                    }
+                    // Evitar duplicados
+                    $alreadyAssigned = LockerAssignment::where('member_id', $memberId)
+                        ->where('year', now()->year)
+                        ->exists();
+
+                    if ($alreadyAssigned) {
+                        return;
+                    }
+
+                    // Crear asignación
+                    LockerAssignment::create([
+                        'locker_id' => $locker->id,
+                        'member_id' => $memberId,
+                        'amount_paid' => $amount,
+                        'start_date' => now(),
+                        'end_date' => now()->endOfYear(),
+                        'year' => now()->year,
+                    ]);
+
+                    // Actualizar locker
+                    $locker->update([
+                        'status' => 'ocupado',
+                    ]);
+                });
+            }
+
             return redirect()->back()->with('success', sprintf(
                 'Cobro registrado correctamente por $%s.',
                 number_format((float) $payment->amount, 2)

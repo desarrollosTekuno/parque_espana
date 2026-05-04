@@ -89,6 +89,9 @@ const save = () => {
         customToastSwal({ title: page.props.flash.success, icon: "success"});
         showModal.value = false;
         fetchItems();
+      },
+      onError: () =>{
+        customToastSwal({ title: page.props.flash.messageError, icon: "error" });
       }
     });
   } else {
@@ -97,6 +100,9 @@ const save = () => {
         customToastSwal({ title: page.props.flash.success, icon: "success" });
         showModal.value = false;
         fetchItems();
+      },
+      onError: () =>{
+        customToastSwal({ title: page.props.flash.messageError, icon: "error" });
       }
     });
   }
@@ -110,6 +116,9 @@ const remove = (item:any) => {
           onSuccess: () => {
             items.value = items.value.filter(i => i.id !== item.id);
             customToastSwal({ title: page.props.flash.success, icon: "success" });
+          },
+          onError: () =>{
+            customToastSwal({ title: page.props.flash.messageError, icon: "error" });
           }
         });
       }

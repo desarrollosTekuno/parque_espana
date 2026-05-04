@@ -18,6 +18,8 @@ use App\Http\Controllers\Web\AdminClub\AmenityResourceController;
 use App\Http\Controllers\Web\AdminClub\FeedbackCategoryController;
 use App\Http\Controllers\Web\AdminClub\FeedbackController;
 use App\Http\Controllers\Web\AdminClub\ReservationGuestListController;
+use App\Http\Controllers\Web\AdminClub\LockerAssignmentController;
+use App\Http\Controllers\Web\AdminClub\LockerController;
 use Illuminate\Support\Facades\Route;
 
 // amenities
@@ -102,6 +104,13 @@ Route::put('/members/{membership}/member/{member}', [MemberController::class, 'u
     ->name('members.member.update');
 Route::resource('/members', MemberController::class)->only(['index', 'create', 'store', 'edit', 'update'])->names('members');
 
-// FEEDBACK
-Route::resource('/feedback-categories', FeedbackCategoryController::class)->only(['index', 'store', 'update', 'destroy'])->names('feedback-categories');
-Route::resource('/feedback', FeedbackController::class)->only(['index', 'store', 'update', 'destroy'])->names('feedback');
+
+// Lockers
+Route::get('/members/{accountId}/lockers/create', [LockerAssignmentController::class, 'create'])
+    ->name('members.lockers.create');
+Route::get('/lockers/assigned-by-account', [LockerController::class, 'assignedByAccount'])
+    ->name('lockers.assigned.by.account');
+Route::get('/lockers/available', [LockerController::class, 'available'])
+    ->name('lockers.available');
+Route::post('/lockers', [LockerAssignmentController::class, 'reserve'])
+        ->name('members.lockers.reserve');

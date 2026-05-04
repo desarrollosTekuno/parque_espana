@@ -3,6 +3,7 @@
 namespace App\Models\Memberships;
 
 use App\Models\Administrator\Club;
+use App\Models\Members\Member;
 use App\Models\Billing\Charge;
 use App\Models\Billing\Payment;
 use App\Traits\SerializesDates;
@@ -56,5 +57,15 @@ class MembershipAccount extends Model
     public function absencePermits()
     {
         return $this->hasMany(AbsencePermit::class, 'membership_account_id');
+    }
+
+    public function members()
+    {
+        return $this->belongsToMany(
+            Member::class,
+            'memberships.account_members',
+            'membership_account_id',
+            'member_id'
+        );
     }
 }

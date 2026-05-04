@@ -90,10 +90,6 @@ class PermissionSeeder extends Seeder
             array('name' => 'business-ads.index', 'description' => 'Ver publicidad de negocios', 'contexts' => ['web']),
             array('name' => 'business-ads.approve', 'description' => 'Aprobar publicidad de negocios', 'contexts' => ['web']),
             array('name' => 'business-ads.reject', 'description' => 'Rechazar publicidad de negocios', 'contexts' => ['web']),
-            array('name' => 'business-ads.confirm-payment', 'description' => 'Confirmar pago de publicidad de negocios', 'contexts' => ['web']),
-            array('name' => 'business-ads.publish', 'description' => 'Publicar publicidad de negocios', 'contexts' => ['web']),
-            array('name' => 'business-ads.update', 'description' => 'Actualizar publicidad de negocios', 'contexts' => ['web']),
-            array('name' => 'business-ads.destroy', 'description' => 'Eliminar publicidad de negocios', 'contexts' => ['web']),
 
             // Business Categories permissions
             array('name' => 'business-categories.index', 'description' => 'Ver categorías de negocios', 'contexts' => ['web']),
@@ -106,6 +102,10 @@ class PermissionSeeder extends Seeder
             array('name' => 'surveys.store', 'description' => 'Crear encuestas', 'contexts' => ['web']),
             array('name' => 'surveys.update', 'description' => 'Actualizar encuestas', 'contexts' => ['web']),
             array('name' => 'surveys.destroy', 'description' => 'Eliminar encuestas', 'contexts' => ['web']),
+
+            // Lockers
+            array('name' => 'members.lockers.create', 'description' => 'Crear asignación de casillero', 'contexts' => ['web']),
+            array('name' => 'members.lockers.store', 'description' => 'Guardar asignación de casillero', 'contexts' => ['web']),
 
             //
 
@@ -151,7 +151,7 @@ class PermissionSeeder extends Seeder
             array('name' => 'mobile.announcements.index', 'description' => 'Ver anuncios del club', 'contexts' => ['mobile_club_1', 'mobile_club_2']),
 
             // Reglas del club
-            array('name' => 'mobile.rules.index', 'description' => 'Ver reglamento del club', 'contexts' => ['mobile_club_1', 'mobile_club_2']),
+            array('name' => 'mobile.rules.index',         'description' => 'Ver reglamento del club',     'contexts' => ['mobile_club_1', 'mobile_club_2']),
 
         );
         foreach ($permissions as $permission) {
