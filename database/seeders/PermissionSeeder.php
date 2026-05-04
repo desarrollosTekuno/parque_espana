@@ -102,6 +102,10 @@ class PermissionSeeder extends Seeder
             array('name' => 'surveys.store', 'description' => 'Crear encuestas', 'contexts' => ['web']),
             array('name' => 'surveys.update', 'description' => 'Actualizar encuestas', 'contexts' => ['web']),
             array('name' => 'surveys.destroy', 'description' => 'Eliminar encuestas', 'contexts' => ['web']),
+
+            // Lockers
+            array('name' => 'members.lockers.create', 'description' => 'Crear asignación de casillero', 'contexts' => ['web']),
+            array('name' => 'members.lockers.store', 'description' => 'Guardar asignación de casillero', 'contexts' => ['web']),
    
             // 
             

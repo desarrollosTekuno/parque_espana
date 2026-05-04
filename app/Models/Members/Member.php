@@ -88,4 +88,11 @@ class Member extends Model
             ? Carbon::parse($this->birthdate)->age
             : null;
     }
+
+    public function lockerAssignment()
+    {
+        return $this->hasOne(LockerAssignment::class, 'member_id')
+            ->where('year', now()->year);;
+    }
+
 }

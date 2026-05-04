@@ -69,6 +69,9 @@ const shouldShowBadge = (ruta:any) => {
     }
     return ruta.name === 'business-ads.index';
 };
+const isInLockersFlow = computed(() => {
+    return route().current('members.lockers.create');
+});
 </script>
 
 ```html
@@ -116,6 +119,9 @@ const shouldShowBadge = (ruta:any) => {
                 color="#F4B403"
                 base-color="rgba(255,255,255,0.6)"
                 @update:modelValue="changeClub"
+                :disabled="isInLockersFlow"
+                :hint="isInLockersFlow ? 'No puedes cambiar de club durante la asignación de casilleros' : ''"
+                persistent-hint
             />
         </div>
 

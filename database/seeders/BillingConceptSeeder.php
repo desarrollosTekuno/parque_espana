@@ -40,6 +40,15 @@ class BillingConceptSeeder extends Seeder
                 'allows_partial_payments' => false,
                 'is_active' => true,
             ],
+            [
+                'code' => 'LOCKERS',
+                'name' => 'Renta de casilleros',
+                'description' => 'Cargo por renta de un casillero.',
+                'default_amount' => null,
+                'is_recurring' => false,
+                'allows_partial_payments' => false,
+                'is_active' => true,
+            ],
         ];
 
         foreach ($concepts as $concept) {

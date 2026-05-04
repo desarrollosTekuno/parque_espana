@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\AmenityController;
 use App\Http\Controllers\Api\V1\LoginController;
+use App\Http\Controllers\Api\V1\LockerApiController;
 use App\Http\Controllers\Api\V1\ReservationController;
 use App\Http\Controllers\Api\V1\BusinessAdController;
 use App\Http\Controllers\Api\V1\ReservationGuestController;
@@ -26,6 +27,11 @@ Route::prefix('v1')->group(function () {
 
     // Business Ads
     Route::post('/business-ads', [BusinessAdController::class, 'store'])->middleware('auth:sanctum');
+
+    // Lockers
+    Route::get('/lockers/index', [LockerApiController::class, 'index'])->middleware('auth:sanctum');
+    Route::get('/lockers/members', [LockerApiController::class, 'membersAvailable'])->middleware('auth:sanctum');
+    Route::post('/lockers/assign', [LockerApiController::class, 'assign'])->middleware('auth:sanctum');
 
 });
 
