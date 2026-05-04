@@ -70,20 +70,10 @@ Route::prefix('business-categories')->name('business-categories.')->group(functi
 // surveys
 Route::resource('/surveys', SurveyController::class)->names('surveys');
 
-// feedback categories
-Route::resource('/feedback-categories', FeedbackCategoryController::class)
-    ->only(['index', 'store', 'update', 'destroy'])
-    ->names('feedback-categories');
-
-// feedback tickets
-Route::resource('/feedback', FeedbackController::class)
-    ->only(['index', 'store', 'update', 'destroy'])
-    ->names('feedback');
-
-// feedback ticket types
-Route::resource('/feedback-ticket-types', FeedbackTicketTypeController::class)
-    ->only(['index', 'store', 'update', 'destroy'])
-    ->names('feedback-ticket-types');
+// =========== FEEDBACK ============
+Route::resource('/feedback-categories', FeedbackCategoryController::class)->only(['index', 'store', 'update', 'destroy'])->names('feedback-categories');
+Route::resource('/feedback', FeedbackController::class)->only(['index', 'store', 'update', 'destroy'])->names('feedback');
+Route::resource('/feedback-ticket-types', FeedbackTicketTypeController::class)->only(['index', 'store', 'update', 'destroy'])->names('feedback-ticket-types');
 
 // members
 Route::get('/members/{membership}/additional-membership/create', [MemberController::class, 'createAdditionalMembership'])

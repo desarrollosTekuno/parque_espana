@@ -57,8 +57,8 @@ class FeedbackTicketTypeController extends Controller {
 
     public function store(Request $request) {
         $request->validate([
-            'name' => 'required|string|max:120',
-            'code' => 'required|string|max:60|unique:feedback.ticket_types,code',
+            'name' => 'required|string|max:65',
+            'code' => 'required|string|max:30',
             'description' => 'nullable|string|max:500',
             'is_active' => 'boolean',
         ]);
@@ -85,8 +85,8 @@ class FeedbackTicketTypeController extends Controller {
 
     public function update(Request $request, $id) {
         $request->validate([
-            'name' => 'required|string|max:120',
-            'code' => 'required|string|max:60|unique:feedback.ticket_types,code,' . $id,
+            'name' => 'required|string|max:65',
+            'code' => 'required|string|max:60',
             'description' => 'nullable|string|max:500',
             'is_active' => 'required|boolean',
         ]);
