@@ -17,6 +17,7 @@ use App\Http\Controllers\Web\AdminClub\PricingRuleController;
 use App\Http\Controllers\Web\AdminClub\AmenityResourceController;
 use App\Http\Controllers\Web\AdminClub\FeedbackCategoryController;
 use App\Http\Controllers\Web\AdminClub\FeedbackController;
+use App\Http\Controllers\Web\AdminClub\FeedbackStatusController;
 use App\Http\Controllers\Web\AdminClub\FeedbackTicketTypeController;
 use App\Http\Controllers\Web\AdminClub\ReservationGuestListController;
 use App\Http\Controllers\Web\AdminClub\LockerAssignmentController;
@@ -74,6 +75,7 @@ Route::resource('/surveys', SurveyController::class)->names('surveys');
 Route::resource('/feedback-categories', FeedbackCategoryController::class)->only(['index', 'store', 'update', 'destroy'])->names('feedback-categories');
 Route::resource('/feedback', FeedbackController::class)->only(['index', 'store', 'update', 'destroy'])->names('feedback');
 Route::resource('/feedback-ticket-types', FeedbackTicketTypeController::class)->only(['index', 'store', 'update', 'destroy'])->names('feedback-ticket-types');
+Route::resource('/feedback-statuses', FeedbackStatusController::class)->only(['index', 'store', 'update', 'destroy'])->names('feedback-statuses');
 
 // members
 Route::get('/members/{membership}/additional-membership/create', [MemberController::class, 'createAdditionalMembership'])
