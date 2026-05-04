@@ -132,6 +132,12 @@ class PermissionSeeder extends Seeder
             array('name' => 'feedback-statuses.update', 'description' => 'Actualizar estatus de feedback', 'contexts' => ['web']),
             array('name' => 'feedback-statuses.destroy', 'description' => 'Eliminar estatus de feedback', 'contexts' => ['web']),
 
+            // Feedback Priorities
+            array('name' => 'feedback-priorities.index', 'description' => 'Ver prioridades de feedback', 'contexts' => ['web']),
+            array('name' => 'feedback-priorities.store', 'description' => 'Crear prioridades de feedback', 'contexts' => ['web']),
+            array('name' => 'feedback-priorities.update', 'description' => 'Actualizar prioridades de feedback', 'contexts' => ['web']),
+            array('name' => 'feedback-priorities.destroy', 'description' => 'Eliminar prioridades de feedback', 'contexts' => ['web']),
+
             // Feedback
             array('name' => 'feedback.index', 'description' => 'Ver quejas y sugerencias', 'contexts' => ['web']),
             array('name' => 'feedback.store', 'description' => 'Crear quejas y sugerencias', 'contexts' => ['web']),

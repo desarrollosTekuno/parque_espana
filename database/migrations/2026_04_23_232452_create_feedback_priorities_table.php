@@ -9,8 +9,8 @@ return new class extends Migration {
     {
         Schema::create('feedback.priorities', function (Blueprint $table) {
             $table->id();
-            $table->string('name', 80);
-            $table->string('code', 40)->unique();
+            $table->string('name', 25);
+            $table->string('code', 25)->unique();
             $table->integer('sort_order')->default(0);
             $table->boolean('is_active')->default(true);
             $table->timestamps();
