@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\AdminClub\Amenity;
 use App\Models\AdminClub\AmenityResource;
+use App\Models\AdminClub\BlockedPeriod;
 use App\Models\AdminClub\Reservation;
 use App\Models\AdminClub\ReservationStatus;
 use Carbon\Carbon;
@@ -43,26 +44,26 @@ class AmenityAvailabilityService
                 $slotEnd = $end;
 
                 // 🔴 Verificar bloqueos
-                // $isBlocked = AmenityBlock::where('amenity_id', $amenity->id)
-                //     ->where(function ($q) use ($slotStart, $slotEnd) {
-                //         $q->where('start_datetime', '<', $slotEnd)
-                //           ->where('end_datetime', '>', $slotStart);
-                //     })
-                //     ->exists();
+                $isBlocked = BlockedPeriod::where('resource_id', $amenityResource->id)
+                    ->where(function ($q) use ($slotStart, $slotEnd) {
+                        $q->where('start_datetime', '<', $slotEnd)
+                          ->where('end_datetime', '>', $slotStart);
+                    })
+                    ->exists();
 
-                // if ($isBlocked) {
-                //     $slots[] = [
-                //         'start' => $slotStart->toDateTimeString(),
-                //         'end' => $slotEnd->toDateTimeString(),
-                //         'capacity' => 0,
-                //         'reserved' => 0,
-                //         'available_spots' => 0,
-                //         'status' => 'blocked'
-                //     ];
+                if ($isBlocked) {
+                    $slots[] = [
+                        'start' => $slotStart->toDateTimeString(),
+                        'end' => $slotEnd->toDateTimeString(),
+                        'capacity' => 0,
+                        'reserved' => 0,
+                        'available_spots' => 0,
+                        'status' => 'blocked'
+                    ];
 
-                //     $start->addMinutes($amenity->slot_duration_minutes);
-                //     continue;
-                // }
+                    $start->addMinutes($amenityResource->slot_duration_minutes);
+                    continue;
+                }
 
                 // 🟢 Contar reservaciones activas
                 $reservationsCount = Reservation::where('amenity_resource_id', $amenityResource->id)
@@ -96,26 +97,26 @@ class AmenityAvailabilityService
                 $slotEnd = $start->copy()->addMinutes($amenityResource->slot_duration_minutes);
 
                 // 🔴 Verificar bloqueos
-                // $isBlocked = AmenityBlock::where('amenity_id', $amenity->id)
-                //     ->where(function ($q) use ($slotStart, $slotEnd) {
-                //         $q->where('start_datetime', '<', $slotEnd)
-                //           ->where('end_datetime', '>', $slotStart);
-                //     })
-                //     ->exists();
+                $isBlocked = BlockedPeriod::where('resource_id', $amenityResource->id)
+                    ->where(function ($q) use ($slotStart, $slotEnd) {
+                        $q->where('start_time', '<', $slotEnd)
+                          ->where('end_time', '>', $slotStart);
+                    })
+                    ->exists();
 
-                // if ($isBlocked) {
-                //     $slots[] = [
-                //         'start' => $slotStart->toDateTimeString(),
-                //         'end' => $slotEnd->toDateTimeString(),
-                //         'capacity' => 0,
-                //         'reserved' => 0,
-                //         'available_spots' => 0,
-                //         'status' => 'blocked'
-                //     ];
+                if ($isBlocked) {
+                    $slots[] = [
+                        'start' => $slotStart->toDateTimeString(),
+                        'end' => $slotEnd->toDateTimeString(),
+                        'capacity' => 0,
+                        'reserved' => 0,
+                        'available_spots' => 0,
+                        'status' => 'blocked'
+                    ];
 
-                //     $start->addMinutes($amenity->slot_duration_minutes);
-                //     continue;
-                // }
+                    $start->addMinutes($amenityResource->slot_duration_minutes);
+                    continue;
+                }
 
                 // 🟢 Contar reservaciones activas
                 $reservationsCount = Reservation::where('amenity_resource_id', $amenityResource->id)
