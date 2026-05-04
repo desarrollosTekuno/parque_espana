@@ -14,6 +14,7 @@ use App\Models\Feedback\Priority;
 use Illuminate\Support\Facades\Auth;
 
 class FeedbackController extends Controller {
+
     public function __construct() {
         $this->middleware('permission:feedback.index')->only('index');
         $this->middleware('permission:feedback.store')->only('store');

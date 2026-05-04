@@ -292,12 +292,26 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
 
         <v-dialog v-model="showModal" max-width="800" persistent>
             <v-form @submit.prevent="save" ref="formSendRef">
-                <v-card
-                    prepend-icon="mdi-message-alert-outline"
-                    :title="form.id ? 'Editar queja o sugerencia' : 'Crear queja o sugerencia'"
-                >
+                <v-card prepend-icon="mdi-message-alert-outline" :title="form.id ? 'Editar queja o sugerencia' : 'Crear queja o sugerencia'">
                     <v-card-text class="h-full overflow-y-auto">
                         <v-row>
+                            <v-col cols="12">
+                                <v-text-field
+                                    v-model="form.title"
+                                    label="Título"
+                                    :rules="[required]"
+                                />
+                            </v-col>
+
+                            <v-col cols="12">
+                                <v-textarea
+                                    v-model="form.description"
+                                    label="Descripción"
+                                    rows="4"
+                                    :rules="[required]"
+                                />
+                            </v-col>
+
                             <v-col cols="12" md="6">
                                 <v-select
                                     v-model="form.ticket_type_id"
@@ -338,23 +352,6 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                     item-title="name"
                                     item-value="id"
                                     label="Estatus"
-                                    :rules="[required]"
-                                />
-                            </v-col>
-
-                            <v-col cols="12">
-                                <v-text-field
-                                    v-model="form.title"
-                                    label="Título"
-                                    :rules="[required]"
-                                />
-                            </v-col>
-
-                            <v-col cols="12">
-                                <v-textarea
-                                    v-model="form.description"
-                                    label="Descripción"
-                                    rows="4"
                                     :rules="[required]"
                                 />
                             </v-col>

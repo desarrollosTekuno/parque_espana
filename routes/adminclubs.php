@@ -76,7 +76,7 @@ Route::resource('/surveys', SurveyController::class)->names('surveys');
 // =========== FEEDBACK ============
 Route::resource('/feedback-categories', FeedbackCategoryController::class)->only(['index', 'store', 'update', 'destroy'])->names('feedback-categories');
 Route::resource('/feedback', FeedbackController::class)->only(['index', 'store', 'update', 'destroy'])->names('feedback');
-Route::get('/feedback-tickets', [FeedbackTicketController::class, 'index'])->name('feedback-tickets.index');
+Route::resource('/feedback-tickets', FeedbackTicketController::class)->only(['index', 'store', 'update', 'destroy'])->names('feedback-tickets');
 Route::resource('/feedback-ticket-types', FeedbackTicketTypeController::class)->only(['index', 'store', 'update', 'destroy'])->names('feedback-ticket-types');
 Route::resource('/feedback-statuses', FeedbackStatusController::class)->only(['index', 'store', 'update', 'destroy'])->names('feedback-statuses');
 Route::resource('/feedback-priorities', FeedbackPriorityController::class)->only(['index', 'store', 'update', 'destroy'])->names('feedback-priorities');
