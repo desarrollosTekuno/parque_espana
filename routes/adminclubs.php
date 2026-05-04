@@ -15,6 +15,8 @@ use App\Http\Controllers\Web\AdminClub\BillingConceptController;
 use App\Http\Controllers\Web\AdminClub\InterclubPackageRuleController;
 use App\Http\Controllers\Web\AdminClub\PricingRuleController;
 use App\Http\Controllers\Web\AdminClub\AmenityResourceController;
+use App\Http\Controllers\Web\AdminClub\FeedbackCategoryController;
+use App\Http\Controllers\Web\AdminClub\FeedbackController;
 use App\Http\Controllers\Web\AdminClub\ReservationGuestListController;
 use Illuminate\Support\Facades\Route;
 
@@ -86,7 +88,7 @@ Route::get('/members/{membership}/change-holder', [MemberController::class, 'cre
     ->name('members.change-holder.create');
 Route::patch('/members/{membership}/change-holder', [MemberController::class, 'updatePrimaryHolder'])
     ->name('members.change-holder.update');
-Route::get('/members/{membership}/family-members/create', [MemberController::class, 'createFamilyMember']) 
+Route::get('/members/{membership}/family-members/create', [MemberController::class, 'createFamilyMember'])
     ->name('members.family-members.create');
 Route::post('/members/{membership}/family-members', [MemberController::class, 'storeFamilyMember'])
     ->name('members.family-members.store');
@@ -99,3 +101,7 @@ Route::get('/members/{membership}/member/{member}/edit', [MemberController::clas
 Route::put('/members/{membership}/member/{member}', [MemberController::class, 'updateMember'])
     ->name('members.member.update');
 Route::resource('/members', MemberController::class)->only(['index', 'create', 'store', 'edit', 'update'])->names('members');
+
+// FEEDBACK
+Route::resource('/feedback-categories', FeedbackCategoryController::class)->only(['index', 'store', 'update', 'destroy'])->names('feedback-categories');
+Route::resource('/feedback', FeedbackController::class)->only(['index', 'store', 'update', 'destroy'])->names('feedback');

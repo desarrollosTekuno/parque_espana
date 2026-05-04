@@ -4,7 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Context;
 use App\Models\Permission;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class PermissionSeeder extends Seeder
@@ -112,6 +112,13 @@ class PermissionSeeder extends Seeder
             array('name' => 'member-access.index', 'description' => 'Ver acceso de miembros', 'contexts' => ['web']),
             array('name' => 'member-access.store', 'description' => 'Asignar acceso a miembros', 'contexts' => ['web']),
             array('name' => 'member-access.destroy', 'description' => 'Revocar acceso a miembros', 'contexts' => ['web']),
+
+            // ============================== Feedback ==============================
+            // Feedback Categories
+            array('name' => 'feedback-categories.index', 'description' => 'Ver categorías de feedback', 'contexts' => ['web']),
+            array('name' => 'feedback-categories.store', 'description' => 'Crear categorías de feedback', 'contexts' => ['web']),
+            array('name' => 'feedback-categories.update', 'description' => 'Actualizar categorías de feedback', 'contexts' => ['web']),
+            array('name' => 'feedback-categories.destroy', 'description' => 'Eliminar categorías de feedback', 'contexts' => ['web']),
 
             // Feedback
             array('name' => 'feedback.index', 'description' => 'Ver quejas y sugerencias', 'contexts' => ['web']),

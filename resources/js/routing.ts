@@ -22,7 +22,7 @@ const routes: Routing[] = [
         group: null,
         // groupItems: null
     },
-    
+
     {
         name: "dashboard",
         title: "Inicio",
@@ -234,6 +234,28 @@ const routes: Routing[] = [
         icon: "mdi-swap-horizontal",
         value: "paquetes-interclub",
         group: null,
+    },
+
+    {
+        name: ["feedback.index", "feedback-categories.index"],
+        title: "Feedback",
+        icon: "mdi-message-alert-outline",
+        value: "feedbackMenu",
+        group: "Feedback",
+        groupItems: [
+            {
+                name: "feedback.index",
+                title: "Quejas y sugerencias",
+                icon: "mdi-message-text-outline",
+                value: "feedback",
+            },
+            {
+                name: "feedback-categories.index",
+                title: "Categorías",
+                icon: "mdi-tag-outline",
+                value: "feedback-categories",
+            },
+        ]
     },
     /*
     {

@@ -253,7 +253,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                     prepend-icon="mdi-account"
                     :title="`Form|${form.id ? 'Edit' : 'Create'}`"
                 >
-                    <v-card-text class="overflow-y-auto h-full">
+                    <v-card-text class="h-full overflow-y-auto">
                         <v-text-field
                             v-model="form.name"
                             label="Nombre"
