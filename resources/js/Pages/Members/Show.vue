@@ -331,6 +331,20 @@ const cancelAbsencePermit = (absencePermitId: number) => {
 
                                 <div class="d-flex flex-wrap ga-2">
                                     <v-btn
+                                        color="primary"
+                                        variant="tonal"
+                                        @click="
+                                            router.visit(
+                                                route(
+                                                    'members.lockers.create',
+                                                    props.account.id,
+                                                ),
+                                            )
+                                        "
+                                    >
+                                        Asignar casillero
+                                    </v-btn>
+                                    <v-btn
                                         v-if="props.canChangePrimaryHolder"
                                         color="primary"
                                         variant="tonal"

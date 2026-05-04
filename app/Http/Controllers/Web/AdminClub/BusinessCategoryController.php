@@ -11,6 +11,13 @@ use App\Models\AdminClub\BusinessCategory;
 
 class BusinessCategoryController extends Controller
 {
+    public function __construct(){
+        $this->middleware('permission:business-categories.index')->only('index');
+        $this->middleware('permission:business-categories.store')->only('store');
+        $this->middleware('permission:business-categories.update')->only('update');
+        $this->middleware('permission:business-categories.delete')->only('delete');
+    }
+
     public function index(Request $request)
     {
         try {

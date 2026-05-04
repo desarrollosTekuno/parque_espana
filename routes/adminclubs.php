@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Web\AdminClub\SurveyController;
 use App\Http\Controllers\Web\AdminClub\MemberController;
 use App\Http\Controllers\Web\AdminClub\BillingController;
 use App\Http\Controllers\Web\AdminClub\AmenityController;
@@ -15,8 +16,9 @@ use App\Http\Controllers\Web\AdminClub\InterclubPackageRuleController;
 use App\Http\Controllers\Web\AdminClub\PricingRuleController;
 use App\Http\Controllers\Web\AdminClub\AmenityResourceController;
 use App\Http\Controllers\Web\AdminClub\ReservationGuestListController;
-use App\Http\Controllers\Web\AdminClub\SurveyController;
 use App\Http\Controllers\Web\AdminClub\SurveyResultController;
+use App\Http\Controllers\Web\AdminClub\LockerAssignmentController;
+use App\Http\Controllers\Web\AdminClub\LockerController;
 use Illuminate\Support\Facades\Route;
 
 // amenities
@@ -71,6 +73,7 @@ Route::delete('/surveys/{survey}/questions/{question}', [SurveyController::class
 Route::post('/surveys/{survey}/questions/reorder', [SurveyController::class, 'reorderQuestions'])->name('surveys.questions.reorder');
 Route::get('/surveys/{survey}/results', [SurveyResultController::class, 'index'])->name('surveys.results');
 
+
 // members
 Route::get('/members/{membership}/additional-membership/create', [MemberController::class, 'createAdditionalMembership'])
     ->name('members.additional-membership.create');
@@ -105,3 +108,14 @@ Route::get('/members/{membership}/member/{member}/edit', [MemberController::clas
 Route::put('/members/{membership}/member/{member}', [MemberController::class, 'updateMember'])
     ->name('members.member.update');
 Route::resource('/members', MemberController::class)->only(['index', 'create', 'store', 'edit', 'update'])->names('members');
+
+
+// Lockers
+Route::get('/members/{accountId}/lockers/create', [LockerAssignmentController::class, 'create'])
+    ->name('members.lockers.create');
+Route::get('/lockers/assigned-by-account', [LockerController::class, 'assignedByAccount'])
+    ->name('lockers.assigned.by.account');
+Route::get('/lockers/available', [LockerController::class, 'available'])
+    ->name('lockers.available');
+Route::post('/lockers', [LockerAssignmentController::class, 'reserve'])
+        ->name('members.lockers.reserve');

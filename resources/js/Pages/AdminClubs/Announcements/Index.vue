@@ -20,8 +20,6 @@
 
     interface Props {
         announcements?: any;
-        amenities?: any;
-        resources?: any;
     }
     const props = withDefaults(
         defineProps<Props>(), {
@@ -38,7 +36,6 @@
         id: null,
         club_id: page.props.auth.currentClub,
         title: "",
-        summary: "",
         content: "",
         type: null,
         image: null,
@@ -50,7 +47,8 @@
         resource_id: null,
         capacity: null,
         starts_at: null,
-        ends_at: null
+        ends_at: null,
+        status: "draft"
     });
     const isSaveDisabled = computed(() => {
         return imageRef.value?.isValid === false;
@@ -75,9 +73,9 @@
         form.reset();
         form.id = item.id;
         form.title = item.title;
-        form.summary = item.summary;
         form.content = item.content;
         form.type = item.type;
+        form.status = item.status;
         form.publish_at = formatDateForInput(item.publish_at);
         form.expires_at = formatDateForInput(item.expires_at);
         form.is_active = item.is_active;
@@ -197,53 +195,62 @@
         const e = new Date(end);
         return s.toDateString() === e.toDateString();
 };
+const parseLocalDate = (dateStr: string) => {
+    if (!dateStr) return null;
 
+    const parts = dateStr.split(' ');
+    const date = parts[0];
+    const time = parts[1] ?? '00:00:00'; // 👈 fallback
+
+    const [year, month, day] = date.split('-').map(Number);
+    const [hour, minute, second] = time.split(':').map(Number);
+
+    return new Date(
+        year,
+        (month ?? 1) - 1,
+        day ?? 1,
+        hour ?? 0,
+        minute ?? 0,
+        second ?? 0
+    );
+};
 const formatEventDate = (start:string|null,end:string|null) => {
     if(!start) return "-";
-    const s = new Date(start.replace(" ","T"));
-    const datePart = s.toLocaleDateString(
-        "es-MX",
-        {
-            day:"2-digit",
-            month:"short",
-            year:"numeric"
-        }
-    );
 
-    const startTime = s.toLocaleTimeString(
-        "es-MX",
-        {
-            hour:"numeric",
-            minute:"2-digit",
-            hour12:true
-        }
-    );
+    const s = parseLocalDate(start);
+
+    const datePart = s.toLocaleDateString("es-MX", {
+        day:"2-digit",
+        month:"short",
+        year:"numeric"
+    });
+
+    const startTime = s.toLocaleTimeString("es-MX", {
+        hour:"numeric",
+        minute:"2-digit",
+        hour12:true
+    });
 
     if(!end) return `${datePart} · ${startTime}`;
 
-    const e = new Date(end.replace(" ","T"));
+    const e = parseLocalDate(end);
 
-    const endTime = e.toLocaleTimeString(
-        "es-MX",
-        {
-            hour:"numeric",
-            minute:"2-digit",
-            hour12:true
-        }
-    );
+    const endTime = e.toLocaleTimeString("es-MX", {
+        hour:"numeric",
+        minute:"2-digit",
+        hour12:true
+    });
 
     if(isSameDay(start,end)){
         return `${datePart} · ${startTime} - ${endTime}`;
     }
 
-    const endDatePart = e.toLocaleDateString(
-        "es-MX",
-        {
-            day:"2-digit",
-            month:"short",
-            year:"numeric"
-        }
-    );
+    const endDatePart = e.toLocaleDateString("es-MX", {
+        day:"2-digit",
+        month:"short",
+        year:"numeric"
+    });
+
     return `${datePart} ${startTime}
             → ${endDatePart} ${endTime}`;
 };
@@ -577,8 +584,8 @@ watch(
                     </template>
                     <template #item.event_date="{ item }">
                         {{ formatEventDate(
-                            item.publish_at,
-                            item.expires_at
+                            item.publish_at_formatted,
+                            item.expires_at_formatted
                         ) }}
                     </template>
                     <template #item.actions="{ item }">
@@ -608,9 +615,6 @@ watch(
                                 </v-col>
                                 <v-col cols="12">
                                     <FormName v-model="form.title" label="Título" :rules="[required, maxLength(150)]" />
-                                </v-col>
-                                <v-col cols="12">
-                                    <FormDescripcion v-model="form.summary" label="Resumen" rows="2" />
                                 </v-col>
                                 <v-col cols="12" style="margin-bottom:50px">
                                     <QuillEditor v-model:content="form.content" 
@@ -653,10 +657,18 @@ watch(
                                         :error-messages="form.errors.expires_at"
                                         :rules="[required, expiresAfterPublish]"/>
                                 </v-col>
-                                <!--<v-col cols="6" v-if="form.id">
-                                    <v-switch v-model="form.is_active" color="green"
-                                        :label="form.is_active ? 'Activo' : 'Inactivo'" inset />
-                                </v-col>-->
+                                <v-col cols="12">
+                                    <v-select
+                                        v-model="form.status"
+                                        label="Estado"
+                                        :items="[
+                                            { title: 'Borrador', value: 'draft' },
+                                            { title: 'Publicado', value: 'published' }
+                                        ]"
+                                        item-title="title"
+                                        item-value="value"
+                                    />
+                                </v-col>
                             </v-row>
                         </v-card-text>
                         <v-card-actions>

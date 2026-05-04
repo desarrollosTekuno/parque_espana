@@ -57,6 +57,21 @@ onMounted(() => {
         .filter((ruta) => ruta.groupItems?.find((groupItem) => route().current(groupItem.name)))
         ?.map((ruta) => ruta.group) ?? [];
 });
+const shouldShowBadge = (ruta:any) => {
+    if (!ruta.showBadge || pendingAds.value <= 0) return false;
+    if (ruta.groupItems) {
+        return ruta.groupItems.some((sub:any) =>
+            sub.name === 'business-ads.index'
+        );
+    }
+    if (Array.isArray(ruta.name)) {
+        return ruta.name.includes('business-ads.index');
+    }
+    return ruta.name === 'business-ads.index';
+};
+const isInLockersFlow = computed(() => {
+    return route().current('members.lockers.create');
+});
 </script>
 
 <template>
@@ -103,6 +118,9 @@ onMounted(() => {
                 color="#F4B403"
                 base-color="rgba(255,255,255,0.6)"
                 @update:modelValue="changeClub"
+                :disabled="isInLockersFlow"
+                :hint="isInLockersFlow ? 'No puedes cambiar de club durante la asignación de casilleros' : ''"
+                persistent-hint
             />
         </div>
 

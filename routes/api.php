@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\AmenityController;
 use App\Http\Controllers\Api\V1\LoginController;
+use App\Http\Controllers\Api\V1\LockerApiController;
 use App\Http\Controllers\Api\V1\ReservationController;
 use App\Http\Controllers\Api\V1\BusinessAdController;
 use App\Http\Controllers\Api\V1\ReservationGuestController;
@@ -34,6 +35,11 @@ Route::prefix('v1')->group(function () {
         Route::get('/surveys/{survey}', [SurveyController::class, 'show']);             // Detalle con preguntas
         Route::post('/surveys/{survey}/responses', [SurveyController::class, 'store']); // Enviar respuestas
     });
+
+    // Lockers
+    Route::get('/lockers/index', [LockerApiController::class, 'index'])->middleware('auth:sanctum');
+    Route::get('/lockers/members', [LockerApiController::class, 'membersAvailable'])->middleware('auth:sanctum');
+    Route::post('/lockers/assign', [LockerApiController::class, 'assign'])->middleware('auth:sanctum');
 
 });
 

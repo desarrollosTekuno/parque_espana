@@ -306,7 +306,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                     prepend-icon="mdi-key-outline"
                     :title="`${form.id ? 'Editar Permiso' : 'Nuevo Permiso'}`"
                 >
-                    <v-card-text>
+                    <v-card-text class="overflow-y-auto" style="max-height: 400px;">
                         <v-row>
                             <v-col cols="12">
                                 <v-text-field
