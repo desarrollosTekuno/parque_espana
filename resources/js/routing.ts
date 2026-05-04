@@ -227,6 +227,14 @@ const routes: Routing[] = [
         value: "paquetes-interclub",
         group: null,
     },
+    // Encuestas
+    {
+        name: "surveys.index",
+        title: "Encuestas",
+        icon: "mdi-clipboard-list-outline",
+        value: "encuestas",
+        group: null,
+    }
     
     /*
     {

@@ -74,6 +74,14 @@ class AdminClubSeeder extends Seeder
             'billing-concepts.update',
             'billing-concepts.destroy',
 
+            'surveys.index',
+            'surveys.store',
+            'surveys.create',
+            'surveys.edit',
+            'surveys.update',
+            'surveys.destroy',
+            'surveys.results',
+
         );
         $adminClubRole = Role::updateOrCreate([
             'name' => 'admin_club',

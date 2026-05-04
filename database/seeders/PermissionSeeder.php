@@ -86,6 +86,15 @@ class PermissionSeeder extends Seeder
             array('name' => 'billing-concepts.update', 'description' => 'Actualizar conceptos de cobro', 'contexts' => ['web']),
             array('name' => 'billing-concepts.destroy', 'description' => 'Eliminar conceptos de cobro', 'contexts' => ['web']),
 
+            // Encuestas
+            array('name' => 'surveys.index',          'description' => 'Ver encuestas',                          'contexts' => ['web']),
+            array('name' => 'surveys.create',         'description' => 'Crear encuestas',                        'contexts' => ['web']),
+            array('name' => 'surveys.store',          'description' => 'Guardar encuestas',                      'contexts' => ['web']),
+            array('name' => 'surveys.edit',           'description' => 'Editar encuestas',                       'contexts' => ['web']),
+            array('name' => 'surveys.update',         'description' => 'Actualizar encuestas',                   'contexts' => ['web']),
+            array('name' => 'surveys.destroy',        'description' => 'Eliminar encuestas',                     'contexts' => ['web']),
+            array('name' => 'surveys.results',        'description' => 'Ver resultados de encuesta',             'contexts' => ['web']),
+
             // Business Ads permissions
             array('name' => 'business-ads.index', 'description' => 'Ver publicidad de negocios', 'contexts' => ['web']),
             array('name' => 'business-ads.approve', 'description' => 'Aprobar publicidad de negocios', 'contexts' => ['web']),
