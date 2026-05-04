@@ -12,6 +12,21 @@ return new class extends Migration {
 
             $table->string('ticket_number', 30)->unique();
 
+            $table->timestamp('ticket_date');
+            $table->string('title', 200);
+            $table->text('description');
+            $table->text('resolution_notes')->nullable();
+
+            $table->timestamp('rejected_at')->nullable();
+            $table->text('rejection_reason')->nullable();
+
+            $table->boolean('is_anonymous')->default(false);
+
+            $table->timestamp('submitted_at')->useCurrent();
+            $table->timestamp('resolved_at')->nullable();
+            $table->timestamp('closed_at')->nullable();
+            $table->timestamp('due_at')->nullable();
+
             $table->foreignId('club_id')
                 ->constrained('clubs.clubs')
                 ->cascadeOnDelete();
@@ -42,16 +57,6 @@ return new class extends Migration {
                 ->nullable()
                 ->constrained('users')
                 ->nullOnDelete();
-
-            $table->string('title', 200);
-            $table->text('description');
-            $table->text('resolution_notes')->nullable();
-
-            $table->timestamp('submitted_at')->useCurrent();
-            $table->timestamp('resolved_at')->nullable();
-            $table->timestamp('closed_at')->nullable();
-
-            $table->boolean('is_anonymous')->default(false);
 
             $table->timestamps();
             $table->softDeletes();

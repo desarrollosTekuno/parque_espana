@@ -144,6 +144,12 @@ class PermissionSeeder extends Seeder
             array('name' => 'feedback.update', 'description' => 'Actualizar quejas y sugerencias', 'contexts' => ['web']),
             array('name' => 'feedback.destroy', 'description' => 'Eliminar quejas y sugerencias', 'contexts' => ['web']),
 
+            // Feedback Tickets
+            array('name' => 'feedback-tickets.index', 'description' => 'Ver tickets de feedback', 'contexts' => ['web']),
+            array('name' => 'feedback-tickets.store', 'description' => 'Crear tickets de feedback', 'contexts' => ['web']),
+            array('name' => 'feedback-tickets.update', 'description' => 'Actualizar tickets de feedback', 'contexts' => ['web']),
+            array('name' => 'feedback-tickets.destroy', 'description' => 'Eliminar tickets de feedback', 'contexts' => ['web']),
+
 
             // -------------------------------------------------------
             // App Móvil - Permisos base (aplican a ambos clubs)
