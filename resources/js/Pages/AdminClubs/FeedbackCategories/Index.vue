@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import AppLayout from "@/Layouts/AppLayout.vue";
 import BaseButton from "@/Components/BaseButton.vue";
-import { required } from "@/constants/validationRules";
+import { required, maxLength, alphaNumeric } from "@/constants/validationRules";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import { Head, router, useForm, usePage } from "@inertiajs/vue3";
 import { debounce } from "lodash";
@@ -272,7 +272,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 <v-text-field
                                     v-model="form.name"
                                     label="Nombre"
-                                    :rules="[required]"
+                                    :rules="[required, maxLength(120)]"
                                     :error-messages="form.errors.name"
                                 />
                             </v-col>
@@ -281,7 +281,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 <v-text-field
                                     v-model="form.code"
                                     label="Código"
-                                    :rules="[required]"
+                                    :rules="[required, alphaNumeric, maxLength(60)]"
                                     :error-messages="form.errors.code"
                                 />
                             </v-col>
@@ -291,6 +291,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                     v-model="form.description"
                                     label="Descripción"
                                     rows="3"
+                                    :rules="[maxLength(500)]"
                                     :error-messages="form.errors.description"
                                 />
                             </v-col>

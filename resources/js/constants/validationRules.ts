@@ -31,6 +31,11 @@ export const onlyLetters = (v: string) => {
     return /^[A-Za-zÀ-ÿ\s]+$/.test(v) || "Solo se permiten letras y espacios";
 };
 
+export const alphaNumeric = (v: string) => {
+    if (!v) return true;
+    return /^[A-Za-zÀ-ÿ0-9,\s]+$/.test(v) || "Solo se permiten letras, numeros, comas y espacios";
+};
+
 export const sanitizeLetters = (value: string) => {
     // Reemplaza cualquier cosa que no sea letra ni espacio
     return value.replace(/[^A-Za-zÀ-ÿ\s]/g, "");
