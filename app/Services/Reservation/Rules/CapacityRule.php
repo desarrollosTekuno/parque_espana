@@ -30,7 +30,7 @@ class CapacityRule implements ReservationRule
             throw new ReservationException('Ya no hay capacidad disponible para esta amenidad en este horario');
         }
 
-        if ($reservations >= $amenityResource->capacity)
+        if ($amenity->reservation_type != 'daily' && $reservations >= $amenityResource->capacity)
         {
             throw new ReservationException('Ya no hay capacidad disponible para esta amenidad en este horario');
         }

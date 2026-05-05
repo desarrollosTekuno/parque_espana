@@ -23,6 +23,7 @@ const routes: Routing[] = [
         // groupItems: null
     },
 
+
     {
         name: "dashboard",
         title: "Inicio",
@@ -163,6 +164,12 @@ const routes: Routing[] = [
                 icon: "mdi-account-group-outline",
                 value: "listas-invitados",
             },
+            {
+                name: "system-variables.index",
+                title: "Variables del Sistema",
+                icon: "mdi-cog",
+                value: "variables-sistema",
+            }
         ]
     },
     // Anuncios
@@ -196,6 +203,14 @@ const routes: Routing[] = [
                 value: "anuncios-activos",
             },
         ]
+    },
+    // Encuestas
+    {
+        name: "surveys.index",
+        title: "Encuestas",
+        icon: "mdi-poll",
+        value: "surveys",
+        group: null
     },
     // Variables de sistema
     {
@@ -234,7 +249,7 @@ const routes: Routing[] = [
         icon: "mdi-clipboard-list-outline",
         value: "encuestas",
         group: null,
-    }
+    },
 
 
     {

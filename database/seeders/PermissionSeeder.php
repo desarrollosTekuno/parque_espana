@@ -48,6 +48,9 @@ class PermissionSeeder extends Seeder
             // Reservaciones
             array('name' => 'reservations.index', 'description' => 'Ver reservaciones', 'contexts' => ['web']),
             array('name' => 'reservations.update', 'description' => 'Cancelar reservaciones', 'contexts' => ['web']),
+            array('name' => 'guest-lists.index', 'description' => 'Ver listas de invitados', 'contexts' => ['web']),
+            array('name' => 'guest-lists.update', 'description' => 'Actualizar estatus de lista de invitados', 'contexts' => ['web']),
+
             // Anuncios
             array('name' => 'announcements.index', 'description' => 'Ver anuncios', 'contexts' => ['web']),
             array('name' => 'announcements.store', 'description' => 'Crear anuncios', 'contexts' => ['web']),
@@ -99,6 +102,11 @@ class PermissionSeeder extends Seeder
             array('name' => 'business-ads.index', 'description' => 'Ver publicidad de negocios', 'contexts' => ['web']),
             array('name' => 'business-ads.approve', 'description' => 'Aprobar publicidad de negocios', 'contexts' => ['web']),
             array('name' => 'business-ads.reject', 'description' => 'Rechazar publicidad de negocios', 'contexts' => ['web']),
+            array('name' => 'business-ads.reject', 'description' => 'Rechazar publicidad de negocios', 'contexts' => ['web']),
+            array('name' => 'business-ads.confirm-payment', 'description' => 'Confirmar pago de publicidad de negocios', 'contexts' => ['web']),
+            array('name' => 'business-ads.publish', 'description' => 'Publicar publicidad de negocios', 'contexts' => ['web']),
+            array('name' => 'business-ads.update', 'description' => 'Actualizar publicidad de negocios', 'contexts' => ['web']),
+            array('name' => 'business-ads.destroy', 'description' => 'Eliminar publicidad de negocios', 'contexts' => ['web']),
             array('name' => 'business-ads.confirm-payment', 'description' => 'Confirmar pago de publicidad de negocios', 'contexts' => ['web']),
             array('name' => 'business-ads.publish', 'description' => 'Publicar publicidad de negocios', 'contexts' => ['web']),
             array('name' => 'business-ads.update', 'description' => 'Actualizar publicidad de negocios', 'contexts' => ['web']),
