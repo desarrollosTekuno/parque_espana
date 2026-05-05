@@ -40,6 +40,7 @@ class DatabaseSeeder extends Seeder
             BillingConceptSeeder::class,
             PaymentMethodSeeder::class,
             ClubPaymentMethodSeeder::class,
+            LockerSeeder::class
         ]);
     }
 }
