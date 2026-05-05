@@ -117,9 +117,9 @@ class PermissionSeeder extends Seeder
             array('name' => 'business-categories.index', 'description' => 'Ver categorías de negocios', 'contexts' => ['web']),
             array('name' => 'business-categories.store', 'description' => 'Crear categorías de negocios', 'contexts' => ['web']),
             array('name' => 'business-categories.update', 'description' => 'Actualizar categorías de negocios', 'contexts' => ['web']),
-<<<<<<<<< Temporary merge branch 1
+
             array('name' => 'business-categories.destroy', 'description' => 'Eliminar categorías de negocios', 'contexts' => ['web']),
-=========
+
             array('name' => 'business-categories.destroy', 'description' => 'Eliminar categorías de negocios', 'contexts' => ['web']),
 
             // Surveys
@@ -132,8 +132,7 @@ class PermissionSeeder extends Seeder
             array('name' => 'members.lockers.create', 'description' => 'Crear asignación de casillero', 'contexts' => ['web']),
             array('name' => 'members.lockers.store', 'description' => 'Guardar asignación de casillero', 'contexts' => ['web']),
 
->>>>>>>>> Temporary merge branch 2
-            //
+
 
             array('name' => 'member-access.index', 'description' => 'Ver acceso de miembros', 'contexts' => ['web']),
             array('name' => 'member-access.store', 'description' => 'Asignar acceso a miembros', 'contexts' => ['web']),
