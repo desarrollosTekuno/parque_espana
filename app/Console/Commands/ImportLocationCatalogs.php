@@ -29,6 +29,8 @@ class ImportLocationCatalogs extends Command
 
     public function handle(): int
     {
+        ini_set('memory_limit', '-1');
+
         if ($this->option('fresh')) {
             $this->warn('Fresh import: clearing catalogs.cities, catalogs.states, catalogs.countries.');
 
