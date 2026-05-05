@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Web\DashboardController;
+use App\Http\Controllers\Web\Survey\SurveyPublicController;
 use App\Services\Auth\PermissionLandingRouteResolver;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -33,3 +34,7 @@ Route::middleware(['auth', 'verified'])
 Route::middleware(['auth', 'verified'])
     ->prefix('admin')
     ->group(__DIR__ . '/adminclubs.php');
+
+// Encuestas públicas (sin autenticación, acceso por token de socio)
+Route::get('/encuesta/{slug}', [SurveyPublicController::class, 'show'])->name('survey.show');
+Route::post('/encuesta/{slug}', [SurveyPublicController::class, 'submit'])->name('survey.submit');

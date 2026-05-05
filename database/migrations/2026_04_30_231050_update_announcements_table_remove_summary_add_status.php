@@ -20,8 +20,9 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::table('announcements', function (Blueprint $table) {
-            $table->text('summary')->nullable();
+        Schema::table('announcements.announcements', function (Blueprint $table) {
+            // $table->text('summary')->nullable();
+            
             $table->dropColumn('status');
         });
     }

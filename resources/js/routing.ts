@@ -197,14 +197,6 @@ const routes: Routing[] = [
             },
         ]
     },
-    // Encuestas
-    {
-        name: "surveys.index",
-        title: "Encuestas",
-        icon: "mdi-poll",
-        value: "surveys",
-        group: null
-    },
     // Variables de sistema
     {
         name: "system-variables.index",
@@ -235,6 +227,15 @@ const routes: Routing[] = [
         value: "paquetes-interclub",
         group: null,
     },
+    // Encuestas
+    {
+        name: "surveys.index",
+        title: "Encuestas",
+        icon: "mdi-clipboard-list-outline",
+        value: "encuestas",
+        group: null,
+    }
+
 
     {
         name: ["feedback.index", "feedback-tickets.index", "feedback-categories.index", "feedback-ticket-types.index", "feedback-statuses.index", "feedback-priorities.index"],

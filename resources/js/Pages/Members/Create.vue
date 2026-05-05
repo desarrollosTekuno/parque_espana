@@ -17,7 +17,7 @@ import {
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { customToastSwal } from "@/utils/swal";
 import { Head, useForm, usePage } from "@inertiajs/vue3";
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 
 const page = usePage<any>();
 
@@ -270,17 +270,6 @@ const maritalStatusOptions = computed(() =>
     })),
 );
 
-const FAMILY_MARITAL_STATUS_CODES = ["married", "domestic_partnership"];
-
-const filteredMaritalStatusOptions = computed(() => {
-    const isFamilyMembership = form.membershipType?.allows_multiple_members === true;
-
-    return maritalStatusOptions.value.filter((option) =>
-        isFamilyMembership
-            ? FAMILY_MARITAL_STATUS_CODES.includes(option.code)
-            : !FAMILY_MARITAL_STATUS_CODES.includes(option.code),
-    );
-});
 
 const statesByCountry = ref<Record<number, StateCatalog[]>>({});
 const citiesByState = ref<Record<number, CityCatalog[]>>({});
@@ -602,20 +591,30 @@ const getDocumentsForMember = (member: MemberForm) => {
         .filter((doc) => shouldIncludeDocumentByAge(doc, member.age));
 };
 
+const isMatrimonioDocument = (doc: DocumentType) =>
+    doc.name.toLowerCase().includes("matrimon");
+
 const buildMemberDocuments = (member: MemberForm): MemberDocumentForm[] => {
-    return getDocumentsForMember(member).map((doc) => ({
-        document_type_id: doc.id,
-        name: doc.name,
-        allowed_extensions: doc.allowed_extensions
-            ? doc.allowed_extensions
-                  .split(",")
-                  .map((ext) => ext.trim().toLowerCase())
-            : [],
-        is_required: doc.pivot.is_required,
-        allow_multiple: doc.pivot.allow_multiple,
-        number_files: doc.pivot.number_files,
-        files: [],
-    }));
+    return getDocumentsForMember(member)
+        .filter((doc) => {
+            if (member.is_primary_holder && isMatrimonioDocument(doc)) {
+                return hasSpouse.value;
+            }
+            return true;
+        })
+        .map((doc) => ({
+            document_type_id: doc.id,
+            name: doc.name,
+            allowed_extensions: doc.allowed_extensions
+                ? doc.allowed_extensions
+                      .split(",")
+                      .map((ext) => ext.trim().toLowerCase())
+                : [],
+            is_required: doc.pivot.is_required,
+            allow_multiple: doc.pivot.allow_multiple,
+            number_files: doc.pivot.number_files,
+            files: [],
+        }));
 };
 
 const buildDocumentsForRelationship = (
@@ -797,6 +796,14 @@ const onRelationshipChange = (member: MemberForm) => {
     );
 
     member.relationship_name = relationship?.name ?? null;
+
+    if (member.relationship_name === "Cónyuge") {
+        const primaryHolder = getPrimaryMember();
+        if (primaryHolder) {
+            member.marital_status_id = primaryHolder.marital_status_id;
+        }
+    }
+
     member.documents = buildDocumentsForRelationship(
         member.relationship_id,
         member.age,
@@ -909,12 +916,12 @@ const selectType = (membershipType: MembershipType) => {
 
     const members: MemberForm[] = [createPrimaryHolder()];
 
-    if (membershipType.allows_multiple_members) {
+    /* if (membershipType.allows_multiple_members) {
         const spouse = createSpouseMember();
         if (spouse) {
             members.push(spouse);
         }
-    }
+    } */
 
     form.members = members;
     void initializeLocationCatalogsForMembers(members);
@@ -1020,6 +1027,29 @@ const isChildRelationship = (member: MemberForm) => {
 
 const isSpouseRelationship = (member: MemberForm) => {
     return member.relationship_name === "Cónyuge";
+};
+
+const hasSpouse = computed(() =>
+    form.members.some((m) => isSpouseRelationship(m)),
+);
+
+watch(hasSpouse, () => {
+    const primary = getPrimaryMember();
+    if (primary) {
+        primary.documents = buildMemberDocuments(primary);
+    }
+});
+
+const availableRelationships = (currentMember: MemberForm) => {
+    return props.relationships.filter((rel) => {
+        if (rel.id === TITULAR_RELATIONSHIP_ID) {
+            return false;
+        }
+        if (rel.name === "Cónyuge") {
+            return !hasSpouse.value || isSpouseRelationship(currentMember);
+        }
+        return true;
+    });
 };
 
 const onMaritalStatusChange = (member: MemberForm) => {
@@ -1863,7 +1893,7 @@ const memberLabel = (member: MemberForm) => {
                                                             member.relationship_id
                                                         "
                                                         :items="
-                                                            props.relationships
+                                                            availableRelationships(member)
                                                         "
                                                         item-title="name"
                                                         item-value="id"
@@ -2150,7 +2180,7 @@ const memberLabel = (member: MemberForm) => {
                                                             member.marital_status_id
                                                         "
                                                         :items="
-                                                            filteredMaritalStatusOptions
+                                                            maritalStatusOptions
                                                         "
                                                         item-title="title"
                                                         item-value="id"
@@ -2508,6 +2538,12 @@ const memberLabel = (member: MemberForm) => {
                                                 class="text-subtitle-1 font-weight-bold mb-4"
                                             >
                                                 {{ memberLabel(member) }}
+                                                <span
+                                                    v-if="member.first_name || member.last_name"
+                                                    class="font-weight-regular"
+                                                >
+                                                    — {{ [member.first_name, member.last_name, member.second_last_name].filter(Boolean).join(' ') }}
+                                                </span>
                                             </h4>
 
                                             <v-row>

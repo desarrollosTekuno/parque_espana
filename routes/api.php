@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\LockerApiController;
 use App\Http\Controllers\Api\V1\ReservationController;
 use App\Http\Controllers\Api\V1\BusinessAdController;
 use App\Http\Controllers\Api\V1\ReservationGuestController;
+use App\Http\Controllers\Api\V1\SurveyController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -27,6 +28,13 @@ Route::prefix('v1')->group(function () {
 
     // Business Ads
     Route::post('/business-ads', [BusinessAdController::class, 'store'])->middleware('auth:sanctum');
+
+    // Surveys (encuestas para socios — agrupadas por club)
+    Route::middleware('auth:sanctum')->prefix('clubs/{club}')->group(function () {
+        Route::get('/surveys', [SurveyController::class, 'index']);                     // Encuestas activas pendientes
+        Route::get('/surveys/{survey}', [SurveyController::class, 'show']);             // Detalle con preguntas
+        Route::post('/surveys/{survey}/responses', [SurveyController::class, 'store']); // Enviar respuestas
+    });
 
     // Lockers
     Route::get('/lockers/index', [LockerApiController::class, 'index'])->middleware('auth:sanctum');

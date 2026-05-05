@@ -22,6 +22,7 @@ use App\Http\Controllers\Web\AdminClub\FeedbackPriorityController;
 use App\Http\Controllers\Web\AdminClub\FeedbackStatusController;
 use App\Http\Controllers\Web\AdminClub\FeedbackTicketTypeController;
 use App\Http\Controllers\Web\AdminClub\ReservationGuestListController;
+use App\Http\Controllers\Web\AdminClub\SurveyResultController;
 use App\Http\Controllers\Web\AdminClub\LockerAssignmentController;
 use App\Http\Controllers\Web\AdminClub\LockerController;
 use Illuminate\Support\Facades\Route;
@@ -71,7 +72,13 @@ Route::prefix('business-categories')->name('business-categories.')->group(functi
 });
 
 // surveys
-Route::resource('/surveys', SurveyController::class)->names('surveys');
+Route::resource('/surveys', SurveyController::class)->only(['index', 'create', 'store', 'edit', 'update', 'destroy'])->names('surveys');
+Route::post('/surveys/{survey}/questions', [SurveyController::class, 'storeQuestion'])->name('surveys.questions.store');
+Route::put('/surveys/{survey}/questions/{question}', [SurveyController::class, 'updateQuestion'])->name('surveys.questions.update');
+Route::delete('/surveys/{survey}/questions/{question}', [SurveyController::class, 'destroyQuestion'])->name('surveys.questions.destroy');
+Route::post('/surveys/{survey}/questions/reorder', [SurveyController::class, 'reorderQuestions'])->name('surveys.questions.reorder');
+Route::get('/surveys/{survey}/results', [SurveyResultController::class, 'index'])->name('surveys.results');
+
 
 // =========== FEEDBACK ============
 Route::resource('/feedback-categories', FeedbackCategoryController::class)->only(['index', 'store', 'update', 'destroy'])->names('feedback-categories');
