@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Web\AdminClub\ActController;
 use App\Http\Controllers\Web\AdminClub\SurveyController;
 use App\Http\Controllers\Web\AdminClub\MemberController;
 use App\Http\Controllers\Web\AdminClub\BillingController;
@@ -112,3 +113,10 @@ Route::get('/lockers/available', [LockerController::class, 'available'])
     ->name('lockers.available');
 Route::post('/lockers', [LockerAssignmentController::class, 'reserve'])
         ->name('members.lockers.reserve');
+
+// Acts
+Route::prefix('acts')->group(function () {
+    Route::get('/', [ActController::class, 'index'])->name('acts.index');
+    Route::post('/store', [ActController::class, 'store'])->name('acts.store');
+    Route::get('/{act}/edit', [ActController::class, 'edit'])->name('acts.edit');
+});

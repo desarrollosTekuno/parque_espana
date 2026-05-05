@@ -7,6 +7,7 @@ use App\Models\Catalogs\City;
 use App\Models\Catalogs\Country;
 use App\Models\Catalogs\MaritalStatus;
 use App\Models\Catalogs\State;
+use App\Models\Memberships\MembershipAccount;
 use App\Models\Memberships\MembershipAccountMember;
 use App\Models\User;
 use App\Traits\SerializesDates;
@@ -31,6 +32,15 @@ class Member extends Model
     public function accountMemberships()
     {
         return $this->hasMany(MembershipAccountMember::class, 'member_id');
+    }
+
+    public function accounts()
+    {
+        return $this->belongsToMany(MembershipAccount::class,
+            'memberships.account_members',
+            'member_id',
+            'membership_account_id'
+        );
     }
 
     public function addresses()

@@ -68,4 +68,9 @@ class MembershipAccount extends Model
             'member_id'
         );
     }
+
+    public function membership()
+    {
+        return $this->belongsTo(Membership::class, 'membership_account_id');
+    }
 }
