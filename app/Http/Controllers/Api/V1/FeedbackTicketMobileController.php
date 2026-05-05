@@ -29,6 +29,45 @@ class FeedbackTicketMobileController extends Controller {
                 ->orderBy('id', 'desc')
                 ->get();
 
+            $tickets = $tickets->map(function ($ticket) {
+                return [
+                    'id' => $ticket->id,
+                    'ticket_number' => $ticket->ticket_number ?? '',
+                    'ticket_date' => $ticket->ticket_date ?? '',
+                    'title' => $ticket->title ?? '',
+                    'description' => $ticket->description ?? '',
+                    'resolution_notes' => $ticket->resolution_notes ?? '',
+                    'rejected_at' => $ticket->rejected_at ?? '',
+                    'rejection_reason' => $ticket->rejection_reason ?? '',
+                    'is_anonymous' => $ticket->is_anonymous,
+                    'submitted_at' => $ticket->submitted_at ?? '',
+                    'resolved_at' => $ticket->resolved_at ?? '',
+                    'closed_at' => $ticket->closed_at ?? '',
+                    'due_at' => $ticket->due_at ?? '',
+                    'ticket_type' => [
+                        'id' => $ticket->type->id ?? 0,
+                        'name' => $ticket->type->name ?? '',
+                        'code' => $ticket->type->code ?? '',
+                    ],
+                    'category' => [
+                        'id' => $ticket->category->id ?? 0,
+                        'name' => $ticket->category->name ?? '',
+                        'code' => $ticket->category->code ?? '',
+                    ],
+                    'status' => [
+                        'id' => $ticket->status->id ?? 0,
+                        'name' => $ticket->status->name ?? '',
+                        'code' => $ticket->status->code ?? '',
+                        'color' => $ticket->status->color ?? '',
+                    ],
+                    'priority' => [
+                        'id' => $ticket->priority->id ?? 0,
+                        'name' => $ticket->priority->name ?? '',
+                        'code' => $ticket->priority->code ?? '',
+                    ],
+                ];
+            })->values();
+
             return response()->json([
                 'success' => true,
                 'message' => 'Tickets obtenidos correctamente',
