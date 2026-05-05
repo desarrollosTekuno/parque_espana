@@ -94,6 +94,12 @@ class PermissionSeeder extends Seeder
             array('name' => 'surveys.update', 'description' => 'Actualizar encuestas', 'contexts' => ['web']),
             array('name' => 'surveys.destroy', 'description' => 'Eliminar encuestas', 'contexts' => ['web']),
             array('name' => 'surveys.results', 'description' => 'Ver resultados de encuesta', 'contexts' => ['web']),
+            // Preguntas de encuesta
+            array('name' => 'surveys.questions.store', 'description' => 'Crear preguntas de encuesta', 'contexts' => ['web']),
+            array('name' => 'surveys.questions.update', 'description' => 'Actualizar preguntas de encuesta', 'contexts' => ['web']),
+            array('name' => 'surveys.questions.destroy', 'description' => 'Eliminar preguntas de encuesta', 'contexts' => ['web']),
+            array('name' => 'surveys.questions.reorder', 'description' => 'Reordenar preguntas de encuesta', 'contexts' => ['web']),
+
 
             // Business Ads permissions
             array('name' => 'business-ads.index', 'description' => 'Ver publicidad de negocios', 'contexts' => ['web']),

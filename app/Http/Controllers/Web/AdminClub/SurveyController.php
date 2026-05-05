@@ -17,6 +17,24 @@ class SurveyController extends Controller
     // ─────────────────────────────────────────
     //  SURVEYS
     // ─────────────────────────────────────────
+    public function __construct()
+    {
+        $this->middleware('can:surveys.index')->only('index');
+        $this->middleware('can:surveys.create')->only('create');
+        $this->middleware('can:surveys.store')->only('store');
+        $this->middleware('can:surveys.edit')->only('edit');
+        $this->middleware('can:surveys.update')->only('update');
+        $this->middleware('can:surveys.destroy')->only('destroy');
+        $this->middleware('can:surveys.questions.store')->only('storeQuestion');
+        $this->middleware('can:surveys.questions.update')->only('updateQuestion');
+        $this->middleware('can:surveys.questions.destroy')->only('destroyQuestion');
+        $this->middleware('can:surveys.questions.reorder')->only('reorderQuestions');
+    }
+
+     /**
+     * Listado de encuestas del club.
+     * GET /admin/clubs/{club}/surveys
+     */
 
     public function index(Request $request)
     {

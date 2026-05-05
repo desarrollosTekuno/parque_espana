@@ -64,6 +64,14 @@ class AdminClubSeeder extends Seeder
             'business-ads.publish',
             'business-ads.update',
             'business-ads.destroy',
+            // business categories
+            'business-categories.index',
+            'business-categories.store',
+            'business-categories.update',
+            'business-categories.destroy',
+            // members lockers
+            'members.lockers.create',
+            'members.lockers.store',
 
             'member-access.index',
             'member-access.store',
@@ -81,6 +89,10 @@ class AdminClubSeeder extends Seeder
             'surveys.update',
             'surveys.destroy',
             'surveys.results',
+            'surveys.questions.store',
+            'surveys.questions.update',
+            'surveys.questions.destroy',
+            'surveys.questions.reorder',
 
         );
         $adminClubRole = Role::updateOrCreate([
