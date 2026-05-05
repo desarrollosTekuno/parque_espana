@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Web\AdminClub;
+namespace App\Http\Controllers\Web\AdminClub\Feedback;
 
 use App\Models\Feedback\Status;
 use Illuminate\Http\Request;

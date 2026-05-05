@@ -1,27 +1,28 @@
 <?php
 
-namespace App\Http\Controllers\Web\AdminClub;
+namespace App\Http\Controllers\Web\AdminClub\Feedback;
 
-use App\Models\Feedback\TicketType;
-use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use App\Models\Feedback\Category;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
-class FeedbackTicketTypeController extends Controller {
+class FeedbackCategoryController extends Controller {
 
     public function __construct() {
-        $this->middleware('permission:feedback-ticket-types.index')->only('index');
-        $this->middleware('permission:feedback-ticket-types.store')->only('store');
-        $this->middleware('permission:feedback-ticket-types.update')->only('update');
-        $this->middleware('permission:feedback-ticket-types.destroy')->only('destroy');
+        $this->middleware('permission:feedback-categories.index')->only('index');
+        $this->middleware('permission:feedback-categories.store')->only('store');
+        $this->middleware('permission:feedback-categories.update')->only('update');
+        $this->middleware('permission:feedback-categories.destroy')->only('destroy');
     }
 
     public function index(Request $request) {
         try {
             $driver = DB::getDriverName();
 
-            $query = TicketType::query();
+            $query = Category::query();
 
             if ($search = trim($request->input('search'))) {
                 $operator = $driver == 'pgsql' ? 'ilike' : 'like';
@@ -33,20 +34,20 @@ class FeedbackTicketTypeController extends Controller {
                 });
             }
 
-            $ticketTypes = $query
+            $categories = $query
                 ->orderBy('id', 'desc')
                 ->paginate($request->input('per_page', 10))
                 ->withQueryString();
 
-            return Inertia::render('AdminClubs/FeedbackTicketTypes/Index', [
-                'ticketTypes' => $ticketTypes,
+            return Inertia::render('AdminClubs/FeedbackCategories/Index', [
+                'categories' => $categories,
             ]);
 
         } catch (\Exception $e) {
             report($e);
 
-            return Inertia::render('AdminClubs/FeedbackTicketTypes/Index', [
-                'ticketTypes' => [
+            return Inertia::render('AdminClubs/FeedbackCategories/Index', [
+                'categories' => [
                     'data' => [],
                     'total' => 0,
                 ],
@@ -57,27 +58,29 @@ class FeedbackTicketTypeController extends Controller {
 
     public function store(Request $request) {
         $request->validate([
-            'name' => 'required|string|max:65',
-            'code' => 'required|string|max:30',
+            'name' => 'required|string|max:120',
+            'code' => ['required', 'string', 'max:60', 'regex:/^[A-Za-zÀ-ÿ0-9,\s]+$/u', Rule::unique('feedback.categories', 'code')],
             'description' => 'nullable|string|max:500',
             'is_active' => 'boolean',
+        ], [
+            'code.regex' => 'El codigo solo permite letras, numeros, comas y espacios.',
         ]);
 
         try {
-            TicketType::create([
+            Category::create([
                 'name' => $request->name,
                 'code' => $request->code,
                 'description' => $request->description,
                 'is_active' => $request->boolean('is_active', true),
             ]);
 
-            return back()->with('success', 'Tipo de ticket creado correctamente');
+            return back()->with('success', 'Categoría creada correctamente');
 
         } catch (\Exception $e) {
             report($e);
 
             return back()->withErrors([
-                'messageError' => 'Error al crear el tipo de ticket',
+                'messageError' => 'Error al crear la categoría',
                 'exception' => $e->getMessage(),
             ]);
         }
@@ -85,29 +88,31 @@ class FeedbackTicketTypeController extends Controller {
 
     public function update(Request $request, $id) {
         $request->validate([
-            'name' => 'required|string|max:65',
-            'code' => 'required|string|max:60',
+            'name' => 'required|string|max:120',
+            'code' => ['required', 'string', 'max:60', 'regex:/^[A-Za-zÀ-ÿ0-9,\s]+$/u', Rule::unique('feedback.categories', 'code')->ignore($id)],
             'description' => 'nullable|string|max:500',
             'is_active' => 'required|boolean',
+        ], [
+            'code.regex' => 'El codigo solo permite letras, numeros, comas y espacios.',
         ]);
 
         try {
-            $ticketType = TicketType::findOrFail($id);
+            $category = Category::findOrFail($id);
 
-            $ticketType->update([
+            $category->update([
                 'name' => $request->name,
                 'code' => $request->code,
                 'description' => $request->description,
                 'is_active' => $request->is_active,
             ]);
 
-            return back()->with('success', 'Tipo de ticket actualizado correctamente');
+            return back()->with('success', 'Categoría actualizada correctamente');
 
         } catch (\Exception $e) {
             report($e);
 
             return back()->withErrors([
-                'messageError' => 'Error al actualizar el tipo de ticket',
+                'messageError' => 'Error al actualizar la categoría',
                 'exception' => $e->getMessage(),
             ]);
         }
@@ -115,16 +120,16 @@ class FeedbackTicketTypeController extends Controller {
 
     public function destroy($id) {
         try {
-            $ticketType = TicketType::findOrFail($id);
-            $ticketType->delete();
+            $category = Category::findOrFail($id);
+            $category->delete();
 
-            return back()->with('success', 'Tipo de ticket eliminado correctamente');
+            return back()->with('success', 'Categoría eliminada correctamente');
 
         } catch (\Exception $e) {
             report($e);
 
             return back()->withErrors([
-                'messageError' => 'Error al eliminar el tipo de ticket',
+                'messageError' => 'Error al eliminar la categoría',
                 'exception' => $e->getMessage(),
             ]);
         }

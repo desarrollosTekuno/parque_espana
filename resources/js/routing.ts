@@ -253,7 +253,7 @@ const routes: Routing[] = [
 
 
     {
-        name: ["feedback.index", "feedback-categories.index", "feedback-ticket-types.index", "feedback-statuses.index", "feedback-priorities.index"],
+        name: ["feedback.index", "feedback-management.index", "feedback-categories.index", "feedback-ticket-types.index", "feedback-statuses.index", "feedback-priorities.index"],
         title: "Feedback",
         icon: "mdi-message-alert-outline",
         value: "feedbackMenu",
@@ -264,6 +264,12 @@ const routes: Routing[] = [
                 title: "Captura de tickets",
                 icon: "mdi-message-text-outline",
                 value: "feedback",
+            },
+            {
+                name: "feedback-management.index",
+                title: "Gestion de casos",
+                icon: "mdi-briefcase-edit-outline",
+                value: "feedback-management",
             },
             {
                 name: "feedback-categories.index",
