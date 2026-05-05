@@ -6,20 +6,22 @@ use Illuminate\Routing\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
-use App\Models\Feedback\Attachment;
 use App\Models\Feedback\Ticket;
 use App\Models\Feedback\Category;
 use App\Models\Feedback\TicketType;
 use App\Models\Feedback\Status;
 use App\Models\Feedback\Priority;
+use App\Traits\HandlesFeedbackTickets;
 use Illuminate\Support\Facades\Auth;
 
 class FeedbackController extends Controller {
+    use HandlesFeedbackTickets;
 
     public function __construct() {
         $this->middleware('permission:feedback.index')->only('index');
         $this->middleware('permission:feedback.store')->only('store');
         $this->middleware('permission:feedback.update')->only('update');
+        $this->middleware('permission:feedback.update')->only('cancel');
         $this->middleware('permission:feedback.destroy')->only('destroy');
     }
 
@@ -114,27 +116,6 @@ class FeedbackController extends Controller {
         }
     }
 
-    private function createTicketNumber(int $clubId, int $maxAttempts = 3): ?string {
-        $clubPrefix = 'C' . $clubId;
-        $year = now()->format('y');
-
-        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
-            $lastTicket = Ticket::where('club_id', $clubId)
-                ->whereYear('ticket_date', now()->year)
-                ->orderBy('id', 'desc')
-                ->first();
-
-            $nextNumber = $lastTicket ? ((int) substr($lastTicket->ticket_number, -5)) + 1 : 1;
-            $candidate = 'FB-' . $clubPrefix . '-' . $year . '-' . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
-
-            if (!Ticket::where('ticket_number', $candidate)->exists()) {
-                return $candidate;
-            }
-        }
-
-        return null;
-    }
-
     public function store(Request $request) {
         $request->validate([
             'ticket_type_id' => 'required',
@@ -188,19 +169,7 @@ class FeedbackController extends Controller {
             ]);
 
             if ($request->hasFile('attachments')) {
-                foreach ($request->file('attachments') as $file) {
-                    $path = $file->store('feedback/tickets', 'public');
-
-                    Attachment::create([
-                        'ticket_id' => $ticket->id,
-                        'file_name' => $file->getClientOriginalName(),
-                        'file_path' => $path,
-                        'file_type' => $file->getClientMimeType(),
-                        'file_size' => $file->getSize(),
-                        'storage_disk' => 'public',
-                        'uploaded_by_user_id' => Auth::id(),
-                    ]);
-                }
+                $this->storeTicketAttachments($ticket, $request->file('attachments'));
             }
 
             return back()->with('success', 'Queja o sugerencia creada correctamente');
@@ -216,33 +185,6 @@ class FeedbackController extends Controller {
     }
 
     public function update(Request $request, Ticket $feedback) {
-        if ($request->boolean('cancel_ticket')) {
-            try {
-                $submittedStatus = Status::where('code', 'SUBMITTED')->firstOrFail();
-                $cancelledStatus = Status::where('code', 'CANCELLED')->firstOrFail();
-
-                if ((int) $feedback->status_id !== (int) $submittedStatus->id) {
-                    return back()->withErrors([
-                        'messageError' => 'Solo se puede cancelar cuando el ticket esta ENVIADO.',
-                    ]);
-                }
-
-                $feedback->update([
-                    'status_id' => $cancelledStatus->id,
-                    'closed_at' => now(),
-                ]);
-
-                return back()->with('success', 'Ticket cancelado correctamente');
-            } catch (\Exception $e) {
-                report($e);
-
-                return back()->withErrors([
-                    'messageError' => 'Error al cancelar el ticket',
-                    'exception' => $e->getMessage(),
-                ]);
-            }
-        }
-
         $request->validate([
             'ticket_type_id' => 'required',
             'category_id' => 'required',
@@ -284,19 +226,7 @@ class FeedbackController extends Controller {
             $feedback->update($dataToUpdate);
 
             if ($request->hasFile('attachments')) {
-                foreach ($request->file('attachments') as $file) {
-                    $path = $file->store('feedback/tickets', 'public');
-
-                    Attachment::create([
-                        'ticket_id' => $feedback->id,
-                        'file_name' => $file->getClientOriginalName(),
-                        'file_path' => $path,
-                        'file_type' => $file->getClientMimeType(),
-                        'file_size' => $file->getSize(),
-                        'storage_disk' => 'public',
-                        'uploaded_by_user_id' => Auth::id(),
-                    ]);
-                }
+                $this->storeTicketAttachments($feedback, $request->file('attachments'));
             }
 
             return back()->with('success', 'Queja o sugerencia actualizada');
@@ -306,6 +236,33 @@ class FeedbackController extends Controller {
 
             return back()->withErrors([
                 'messageError' => 'Error al actualizar la queja o sugerencia',
+                'exception' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public function cancelTicket(Ticket $feedback) {
+        try {
+            $submittedStatus = Status::where('code', 'SUBMITTED')->firstOrFail();
+            $cancelledStatus = Status::where('code', 'CANCELLED')->firstOrFail();
+
+            if ((int) $feedback->status_id !== (int) $submittedStatus->id) {
+                return back()->withErrors([
+                    'messageError' => 'Solo se puede cancelar cuando el ticket esta ENVIADO.',
+                ]);
+            }
+
+            $feedback->update([
+                'status_id' => $cancelledStatus->id,
+                'closed_at' => now(),
+            ]);
+
+            return back()->with('success', 'Ticket cancelado correctamente');
+        } catch (\Exception $e) {
+            report($e);
+
+            return back()->withErrors([
+                'messageError' => 'Error al cancelar el ticket',
                 'exception' => $e->getMessage(),
             ]);
         }
