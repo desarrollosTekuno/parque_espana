@@ -152,4 +152,59 @@ class FeedbackTicketMobileController extends Controller {
             ], 500);
         }
     }
+
+    public function cancel(Request $request, Club $club, Ticket $ticket) {
+        try {
+            $member = Member::where('user_id', $request->user()->id)->first();
+
+            $ticketQuery = Ticket::where('id', $ticket->id)
+                ->where('club_id', $club->id)
+                ->where(function ($q) use ($request, $member) {
+                    $q->where('reported_by_user_id', $request->user()->id);
+
+                    if ($member) {
+                        $q->orWhere('member_id', $member->id);
+                    }
+                })
+                ->first();
+
+            if (!$ticketQuery) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ticket no encontrado para este usuario',
+                ], 404);
+            } else {
+                $submittedStatus = Status::where('code', 'SUBMITTED')->first();
+                $cancelledStatus = Status::where('code', 'CANCELLED')->first();
+
+                if (!$submittedStatus || !$cancelledStatus) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'No se encontraron estatus requeridos',
+                    ], 422);
+                } else if ((int) $ticketQuery->status_id !== (int) $submittedStatus->id) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Solo se puede cancelar cuando el ticket esta ENVIADO',
+                    ], 422);
+                } else {
+                    $ticketQuery->update([
+                        'status_id' => $cancelledStatus->id,
+                        'closed_at' => now(),
+                    ]);
+
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'Ticket cancelado correctamente',
+                    ], 200);
+                }
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al cancelar ticket',
+                'error_details' => $e->getMessage(),
+            ], 500);
+        }
+    }
 }

@@ -39,6 +39,7 @@ Route::prefix('v1')->group(function () {
         // Feedback (tickets de quejas y sugerencias de cada usuario)
         Route::get('/feedback/tickets', [FeedbackTicketMobileController::class, 'index']);
         Route::post('/feedback/tickets', [FeedbackTicketMobileController::class, 'store']);
+        Route::patch('/feedback/tickets/{ticket}/cancel', [FeedbackTicketMobileController::class, 'cancel']);
     });
 
     // Lockers

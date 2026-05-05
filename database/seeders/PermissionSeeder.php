@@ -192,6 +192,7 @@ class PermissionSeeder extends Seeder
             // Feedback movil
             array('name' => 'mobile.feedback.index', 'description' => 'Ver mis tickets de feedback', 'contexts' => ['mobile_club_1', 'mobile_club_2']),
             array('name' => 'mobile.feedback.store', 'description' => 'Crear ticket de feedback', 'contexts' => ['mobile_club_1', 'mobile_club_2']),
+            array('name' => 'mobile.feedback.cancel', 'description' => 'Cancelar ticket de feedback', 'contexts' => ['mobile_club_1', 'mobile_club_2']),
 
             // Anuncios
             array('name' => 'mobile.announcements.index', 'description' => 'Ver anuncios del club', 'contexts' => ['mobile_club_1', 'mobile_club_2']),
