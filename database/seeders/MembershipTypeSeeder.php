@@ -1190,7 +1190,7 @@ class MembershipTypeSeeder extends Seeder
                     [
                         'code' => 'PE2_SOL_PE1',
                         'name' => 'Solidaria (Paquete Parque España 1)',
-                        'description' => 'Membresía solidaria para socios provenientes del Parque España 1',
+                        'description' => 'Membresía solidaria para usuarios provenientes del Parque España 1',
                         'is_spanish_descent' => false,
                         'requires_origin_family' => true,
                         'show_in_listing' => false,
@@ -1200,7 +1200,7 @@ class MembershipTypeSeeder extends Seeder
                     [
                         'code' => 'PE2_IND_PE1',
                         'name' => 'Individual (Paquete Parque España 1)',
-                        'description' => 'Membresía individual para socios provenientes del Parque España 1',
+                        'description' => 'Membresía individual para usuarios provenientes del Parque España 1',
                         'is_spanish_descent' => false,
                         'requires_origin_family' => false,
                         'show_in_listing' => true,
@@ -1210,7 +1210,7 @@ class MembershipTypeSeeder extends Seeder
                     [
                         'code' => 'PE2_FAM_PE1',
                         'name' => 'Familiar (Paquete Parque España 1)',
-                        'description' => 'Membresía familiar para socios provenientes del Parque España 1',
+                        'description' => 'Membresía familiar para usuarios provenientes del Parque España 1',
                         'is_spanish_descent' => false,
                         'requires_origin_family' => false,
                         'show_in_listing' => true,

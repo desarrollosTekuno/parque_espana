@@ -55,7 +55,7 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        // Tokens por socio (un token único por socio por encuesta)
+        // Tokens por usuario (un token único por usuario por encuesta)
         Schema::create('surveys.survey_tokens', function (Blueprint $table) {
             $table->id();
             $table->foreignId('survey_id')->constrained('surveys.surveys')->cascadeOnDelete();
@@ -68,7 +68,7 @@ return new class extends Migration
             $table->unique(['survey_id', 'member_id']);
         });
 
-        // Respuestas (una por token/socio)
+        // Respuestas (una por token/usuario)
         Schema::create('surveys.survey_responses', function (Blueprint $table) {
             $table->id();
             $table->foreignId('survey_id')->constrained('surveys.surveys')->cascadeOnDelete();

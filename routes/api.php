@@ -29,7 +29,7 @@ Route::prefix('v1')->group(function () {
     // Business Ads
     Route::post('/business-ads', [BusinessAdController::class, 'store'])->middleware('auth:sanctum');
 
-    // Surveys (encuestas para socios — agrupadas por club)
+    // Surveys (encuestas para usuarios — agrupadas por club)
     Route::middleware('auth:sanctum')->prefix('clubs/{club}')->group(function () {
         Route::get('/surveys', [SurveyController::class, 'index']);                     // Encuestas activas pendientes
         Route::get('/surveys/{survey}', [SurveyController::class, 'show']);             // Detalle con preguntas

@@ -18,7 +18,7 @@ const enviarEnlace = () => {
 <template>
   <Head title="Recuperar contraseña" />
 
-  <v-container class="fill-height d-flex align-center justify-center">
+  <div class="min-h-screen flex items-center justify-center auth-bg fill-width fill-height">
     <v-card width="500" class="pa-6">
 
       <v-card-title class="text-h6 text-center">
@@ -74,5 +74,11 @@ const enviarEnlace = () => {
 
       </v-card-text>
     </v-card>
-  </v-container>
+  </div>
 </template>
+
+<style scoped>
+.auth-bg {
+    background: linear-gradient(180deg, #0B5A8C 0%, #031826 100%) !important;
+}
+</style>

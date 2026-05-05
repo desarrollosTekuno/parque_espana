@@ -118,7 +118,7 @@ const formatDate = (dateStr: string) => {
                 <v-col>
                     <h2 class="text-h5 font-weight-bold">Encuestas</h2>
                     <div class="text-body-2 text-medium-emphasis">
-                        Crea y administra encuestas para recopilar opiniones de los socios
+                        Crea y administra encuestas para recopilar opiniones de los usuarios
                     </div>
                 </v-col>
                 <v-col cols="auto">
