@@ -189,6 +189,10 @@ class PermissionSeeder extends Seeder
             // Estado de cuenta (solo titular)
             array('name' => 'mobile.billing.show', 'description' => 'Ver estado de cuenta', 'contexts' => ['mobile_club_1', 'mobile_club_2']),
 
+            // Feedback movil
+            array('name' => 'mobile.feedback.index', 'description' => 'Ver mis tickets de feedback', 'contexts' => ['mobile_club_1', 'mobile_club_2']),
+            array('name' => 'mobile.feedback.store', 'description' => 'Crear ticket de feedback', 'contexts' => ['mobile_club_1', 'mobile_club_2']),
+
             // Anuncios
             array('name' => 'mobile.announcements.index', 'description' => 'Ver anuncios del club', 'contexts' => ['mobile_club_1', 'mobile_club_2']),
 

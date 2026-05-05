@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AmenityController;
+use App\Http\Controllers\Api\V1\FeedbackTicketMobileController;
 use App\Http\Controllers\Api\V1\LoginController;
 use App\Http\Controllers\Api\V1\LockerApiController;
 use App\Http\Controllers\Api\V1\ReservationController;
@@ -34,6 +35,10 @@ Route::prefix('v1')->group(function () {
         Route::get('/surveys', [SurveyController::class, 'index']);                     // Encuestas activas pendientes
         Route::get('/surveys/{survey}', [SurveyController::class, 'show']);             // Detalle con preguntas
         Route::post('/surveys/{survey}/responses', [SurveyController::class, 'store']); // Enviar respuestas
+
+        // Feedback (tickets de quejas y sugerencias de cada usuario)
+        Route::get('/feedback/tickets', [FeedbackTicketMobileController::class, 'index']);
+        Route::post('/feedback/tickets', [FeedbackTicketMobileController::class, 'store']);
     });
 
     // Lockers
