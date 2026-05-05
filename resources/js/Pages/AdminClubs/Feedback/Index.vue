@@ -1,8 +1,15 @@
+<!-- Crud de quejas y sugerencias -->
 <script setup lang="ts">
 import BaseButton from "@/Components/BaseButton.vue";
-import { required } from "@/constants/validationRules";
+import {
+    required,
+    maxLength,
+    fileTypeRule,
+    fileMaxSizeRule,
+    fileMaxCountRule,
+} from "@/constants/validationRules";
 import AppLayout from "@/Layouts/AppLayout.vue";
-import { customConfirmSwal, customToastSwal } from "@/utils/swal";
+import { customToastSwal } from "@/utils/swal";
 import { Head, router, useForm, usePage } from "@inertiajs/vue3";
 import { debounce } from "lodash";
 import { ref, watch } from "vue";
@@ -32,12 +39,10 @@ interface FeedbackForm {
     category_id: number | null;
     status_id: number | null;
     priority_id: number | null;
-    member_id: number | null;
-    assigned_to_user_id: number | null;
     title: string;
     description: string;
-    resolution_notes: string;
     is_anonymous: boolean;
+    attachments: File[];
 }
 
 const showModal = ref(false);
@@ -49,12 +54,10 @@ const form = useForm<FeedbackForm>({
     category_id: null,
     status_id: null,
     priority_id: null,
-    member_id: null,
-    assigned_to_user_id: null,
     title: "",
     description: "",
-    resolution_notes: "",
     is_anonymous: false,
+    attachments: [],
 });
 
 const headers = [
@@ -64,7 +67,7 @@ const headers = [
     { title: "Categoría", key: "category.name" },
     { title: "Prioridad", key: "priority.name" },
     { title: "Estatus", key: "status.name" },
-    { title: "Fecha", key: "submitted_at" },
+    { title: "Fecha", key: "ticket_date" },
     { title: "Acciones", key: "actions", sortable: false },
 ];
 
@@ -115,92 +118,59 @@ const create = () => {
     showModal.value = true;
 };
 
-const edit = (data: any) => {
-    form.id = data.id;
-    form.ticket_type_id = data.ticket_type_id;
-    form.category_id = data.category_id;
-    form.status_id = data.status_id;
-    form.priority_id = data.priority_id;
-    form.member_id = data.member_id;
-    form.assigned_to_user_id = data.assigned_to_user_id;
-    form.title = data.title;
-    form.description = data.description;
-    form.resolution_notes = data.resolution_notes ?? "";
-    form.is_anonymous = Boolean(data.is_anonymous);
-
-    showModal.value = true;
-};
-
 const save = () => {
     formSendRef.value?.validate().then(({ valid: isValid }) => {
         if (!isValid) {
             return;
         }
 
-        if (form.id) {
-            form.put(route("feedback.update", form.id), {
-                onSuccess: () => {
-                    customToastSwal({
-                        title: page.props.flash.success || "",
-                        icon: "success",
-                    });
+        form.post(route("feedback.store"), {
+            onSuccess: () => {
+                customToastSwal({
+                    title: page.props.flash.success || "",
+                    icon: "success",
+                });
 
-                    close();
-                    fetchItems();
-                },
-                onError: () => {
-                    customToastSwal({
-                        title: `Error: ${form.errors.messageError ?? ""}`,
-                        text: `${form.errors.exception ?? ""}`,
-                        icon: "error",
-                    });
-                },
-            });
-        } else {
-            form.post(route("feedback.store"), {
-                onSuccess: () => {
-                    customToastSwal({
-                        title: page.props.flash.success || "",
-                        icon: "success",
-                    });
-
-                    close();
-                    fetchItems();
-                },
-                onError: () => {
-                    customToastSwal({
-                        title: `Error: ${form.errors.messageError ?? ""}`,
-                        text: `${form.errors.exception ?? ""}`,
-                        icon: "error",
-                    });
-                },
-            });
-        }
+                close();
+                fetchItems();
+            },
+            onError: () => {
+                customToastSwal({
+                    title: `Error: ${form.errors.messageError ?? ""}`,
+                    text: `${form.errors.exception ?? ""}`,
+                    icon: "error",
+                });
+            },
+        });
     });
 };
 
-const destroy = (data: any) => {
+const cancelTicket = (data: any) => {
     customConfirmSwal({
-        title: "¿Está segur@ que desea eliminar este registro?",
+        title: "Deseas cancelar este ticket?",
+        text: "Solo se puede cancelar cuando esta en estatus ENVIADO.",
     }).then((result) => {
         if (result.isConfirmed) {
-            form.delete(route("feedback.destroy", data.id), {
-                onSuccess: () => {
-                    customToastSwal({
-                        title: page.props.flash.success || "",
-                        icon: "success",
-                    });
+            router.put(
+                route("feedback.update", data.id),
+                { cancel_ticket: true },
+                {
+                    onSuccess: () => {
+                        customToastSwal({
+                            title: page.props.flash.success || "",
+                            icon: "success",
+                        });
 
-                    fetchItems();
+                        fetchItems();
+                    },
+                    onError: () => {
+                        customToastSwal({
+                            title: `Error: ${page.props.errors?.messageError ?? ""}`,
+                            icon: "error",
+                        });
+                    },
                 },
-                onError: () => {
-                    customToastSwal({
-                        title: `Error: ${form.errors.messageError ?? ""}`,
-                        text: `${form.errors.exception ?? ""}`,
-                        icon: "error",
-                    });
-                },
-            });
+            );
         }
     });
 };
@@ -268,21 +238,17 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                             <span v-else>-</span>
                         </template>
 
-                        <template #item.submitted_at="{ item }">
-                            {{ item.submitted_at ?? "-" }}
+                        <template #item.ticket_date="{ item }">
+                            {{ item.ticket_date ?? "-" }}
                         </template>
 
                         <template #item.actions="{ item }">
                             <BaseButton
-                                v-if="can.includes('feedback.update')"
-                                action="edit"
-                                @click="edit(item)"
-                            />
-
-                            <BaseButton
-                                v-if="can.includes('feedback.destroy')"
-                                action="delete"
-                                @click="destroy(item)"
+                                v-if="item.status?.code === 'SUBMITTED'"
+                                :icon-only="false"
+                                text="Cancelar"
+                                action="cancel"
+                                @click="cancelTicket(item)"
                             />
                         </template>
                     </v-data-table-server>
@@ -292,14 +258,14 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
 
         <v-dialog v-model="showModal" max-width="800" persistent>
             <v-form @submit.prevent="save" ref="formSendRef">
-                <v-card prepend-icon="mdi-message-alert-outline" :title="form.id ? 'Editar queja o sugerencia' : 'Crear queja o sugerencia'">
+                <v-card prepend-icon="mdi-message-alert-outline" title="Crear queja o sugerencia">
                     <v-card-text class="h-full overflow-y-auto">
                         <v-row>
                             <v-col cols="12">
                                 <v-text-field
                                     v-model="form.title"
                                     label="Título"
-                                    :rules="[required]"
+                                    :rules="[required, maxLength(200)]"
                                 />
                             </v-col>
 
@@ -312,7 +278,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 />
                             </v-col>
 
-                            <v-col cols="12" md="6">
+                            <v-col cols="12" md="4">
                                 <v-select
                                     v-model="form.ticket_type_id"
                                     :items="props.ticketTypes"
@@ -323,7 +289,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 />
                             </v-col>
 
-                            <v-col cols="12" md="6">
+                            <v-col cols="12" md="4">
                                 <v-select
                                     v-model="form.category_id"
                                     :items="props.categories"
@@ -334,7 +300,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 />
                             </v-col>
 
-                            <v-col cols="12" md="6">
+                            <v-col cols="12" md="4">
                                 <v-select
                                     v-model="form.priority_id"
                                     :items="props.priorities"
@@ -345,26 +311,23 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 />
                             </v-col>
 
-                            <v-col v-if="form.id" cols="12" md="6">
-                                <v-select
-                                    v-model="form.status_id"
-                                    :items="props.statuses"
-                                    item-title="name"
-                                    item-value="id"
-                                    label="Estatus"
-                                    :rules="[required]"
+                            <v-col cols="12" md="8">
+                                <v-file-input
+                                    v-model="form.attachments"
+                                    label="Adjuntos"
+                                    multiple
+                                    chips
+                                    show-size
+                                    prepend-icon="mdi-paperclip"
+                                    :rules="[
+                                        fileMaxCountRule(5),
+                                        fileTypeRule(['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx', 'xls', 'xlsx']),
+                                        fileMaxSizeRule(10),
+                                    ]"
                                 />
                             </v-col>
 
-                            <v-col v-if="form.id" cols="12">
-                                <v-textarea
-                                    v-model="form.resolution_notes"
-                                    label="Notas de resolución"
-                                    rows="3"
-                                />
-                            </v-col>
-
-                            <v-col cols="12">
+                            <v-col cols="4">
                                 <v-switch
                                     v-model="form.is_anonymous"
                                     label="Registro anónimo"
@@ -386,7 +349,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                         />
 
                         <BaseButton
-                            :text="form.id ? 'Actualizar' : 'Guardar'"
+                            text="Enviar"
                             variant="flat"
                             :icon-only="false"
                             type="submit"

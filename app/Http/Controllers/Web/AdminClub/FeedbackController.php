@@ -6,6 +6,7 @@ use Illuminate\Routing\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
+use App\Models\Feedback\Attachment;
 use App\Models\Feedback\Ticket;
 use App\Models\Feedback\Category;
 use App\Models\Feedback\TicketType;
@@ -37,6 +38,13 @@ class FeedbackController extends Controller {
                 'assignedTo',
             ])->where('club_id', $clubId);
 
+            $user = Auth::user();
+            $canViewAllTickets = $user && $user->hasAnyRole(['superadmin', 'admin_club']);
+
+            if (!$canViewAllTickets) {
+                $query->where('reported_by_user_id', Auth::id());
+            }
+
             if ($search = trim($request->input('search'))) {
                 $operator = $driver == 'pgsql' ? 'ilike' : 'like';
 
@@ -58,6 +66,7 @@ class FeedbackController extends Controller {
                         'description' => $item->description,
                         'resolution_notes' => $item->resolution_notes,
                         'is_anonymous' => $item->is_anonymous,
+                        'ticket_date' => $item->ticket_date,
                         'submitted_at' => $item->submitted_at,
                         'resolved_at' => $item->resolved_at,
                         'closed_at' => $item->closed_at,
@@ -105,14 +114,37 @@ class FeedbackController extends Controller {
         }
     }
 
+    private function createTicketNumber(int $clubId, int $maxAttempts = 3): ?string {
+        $clubPrefix = 'C' . $clubId;
+        $year = now()->format('y');
+
+        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+            $lastTicket = Ticket::where('club_id', $clubId)
+                ->whereYear('ticket_date', now()->year)
+                ->orderBy('id', 'desc')
+                ->first();
+
+            $nextNumber = $lastTicket ? ((int) substr($lastTicket->ticket_number, -5)) + 1 : 1;
+            $candidate = 'FB-' . $clubPrefix . '-' . $year . '-' . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
+
+            if (!Ticket::where('ticket_number', $candidate)->exists()) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
     public function store(Request $request) {
         $request->validate([
-            'ticket_type_id' => 'required|exists:feedback.ticket_types,id',
-            'category_id' => 'required|exists:feedback.categories,id',
-            'priority_id' => 'required|exists:feedback.priorities,id',
-            'title' => 'required|string|max:255',
+            'ticket_type_id' => 'required',
+            'category_id' => 'required',
+            'priority_id' => 'required',
+            'title' => 'required|string|max:200',
             'description' => 'required|string',
             'is_anonymous' => 'required|boolean',
+            'attachments' => 'nullable|array|max:5',
+            'attachments.*' => 'file|mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx|max:10240',
         ], [
             'ticket_type_id.required' => 'Debes seleccionar un tipo.',
             'category_id.required' => 'Debes seleccionar una categoría.',
@@ -122,23 +154,54 @@ class FeedbackController extends Controller {
         ]);
 
         try {
-            $status = Status::where('code', 'submitted')->firstOrFail();
+            $status = Status::where('code', 'SUBMITTED')->firstOrFail();
+            $clubId = (int) session('club_id');
+            $ticketNumber = $this->createTicketNumber($clubId);
 
-            Ticket::create([
-                'ticket_number' => $this->generateTicketNumber(),
-                'club_id' => session('club_id'),
+            if (!$ticketNumber) {
+                return back()->withErrors([
+                    'messageError' => 'No se pudo generar un folio unico para el ticket. Intenta nuevamente.',
+                ]);
+            }
+
+            $ticket = Ticket::create([
+                'ticket_number' => $ticketNumber,
+                'ticket_date' => now(),
+                'club_id' => $clubId,
                 'ticket_type_id' => $request->ticket_type_id,
                 'category_id' => $request->category_id,
                 'status_id' => $status->id,
                 'priority_id' => $request->priority_id,
-                'member_id' => $request->member_id,
+                'member_id' => null,
                 'reported_by_user_id' => $request->is_anonymous ? null : Auth::id(),
-                'assigned_to_user_id' => $request->assigned_to_user_id,
+                'assigned_to_user_id' => null,
                 'title' => $request->title,
                 'description' => $request->description,
+                'resolution_notes' => null,
+                'ticket_date' => now(),
+                'due_at' => null,
+                'rejected_at' => null,
+                'rejection_reason' => null,
+                'resolved_at' => null,
+                'closed_at' => null,
                 'is_anonymous' => $request->is_anonymous,
-                'submitted_at' => now(),
             ]);
+
+            if ($request->hasFile('attachments')) {
+                foreach ($request->file('attachments') as $file) {
+                    $path = $file->store('feedback/tickets', 'public');
+
+                    Attachment::create([
+                        'ticket_id' => $ticket->id,
+                        'file_name' => $file->getClientOriginalName(),
+                        'file_path' => $path,
+                        'file_type' => $file->getClientMimeType(),
+                        'file_size' => $file->getSize(),
+                        'storage_disk' => 'public',
+                        'uploaded_by_user_id' => Auth::id(),
+                    ]);
+                }
+            }
 
             return back()->with('success', 'Queja o sugerencia creada correctamente');
 
@@ -153,14 +216,43 @@ class FeedbackController extends Controller {
     }
 
     public function update(Request $request, Ticket $feedback) {
+        if ($request->boolean('cancel_ticket')) {
+            try {
+                $submittedStatus = Status::where('code', 'SUBMITTED')->firstOrFail();
+                $cancelledStatus = Status::where('code', 'CANCELLED')->firstOrFail();
+
+                if ((int) $feedback->status_id !== (int) $submittedStatus->id) {
+                    return back()->withErrors([
+                        'messageError' => 'Solo se puede cancelar cuando el ticket esta ENVIADO.',
+                    ]);
+                }
+
+                $feedback->update([
+                    'status_id' => $cancelledStatus->id,
+                    'closed_at' => now(),
+                ]);
+
+                return back()->with('success', 'Ticket cancelado correctamente');
+            } catch (\Exception $e) {
+                report($e);
+
+                return back()->withErrors([
+                    'messageError' => 'Error al cancelar el ticket',
+                    'exception' => $e->getMessage(),
+                ]);
+            }
+        }
+
         $request->validate([
-            'ticket_type_id' => 'required|exists:feedback.ticket_types,id',
-            'category_id' => 'required|exists:feedback.categories,id',
-            'status_id' => 'required|exists:feedback.statuses,id',
-            'priority_id' => 'required|exists:feedback.priorities,id',
-            'title' => 'required|string|max:255',
+            'ticket_type_id' => 'required',
+            'category_id' => 'required',
+            'status_id' => 'required',
+            'priority_id' => 'required',
+            'title' => 'required|string|max:200',
             'description' => 'required|string',
             'is_anonymous' => 'required|boolean',
+            'attachments' => 'nullable|array|max:5',
+            'attachments.*' => 'file|mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx|max:10240',
         ], [
             'ticket_type_id.required' => 'Debes seleccionar un tipo.',
             'category_id.required' => 'Debes seleccionar una categoría.',
@@ -171,18 +263,41 @@ class FeedbackController extends Controller {
         ]);
 
         try {
-            $feedback->update([
+            $dataToUpdate = [
                 'ticket_type_id' => $request->ticket_type_id,
                 'category_id' => $request->category_id,
                 'status_id' => $request->status_id,
                 'priority_id' => $request->priority_id,
-                'member_id' => $request->member_id,
-                'assigned_to_user_id' => $request->assigned_to_user_id,
+                'member_id' => $feedback->member_id,
+                'reported_by_user_id' => $feedback->reported_by_user_id,
+                'assigned_to_user_id' => $feedback->assigned_to_user_id,
                 'title' => $request->title,
                 'description' => $request->description,
-                'resolution_notes' => $request->resolution_notes,
+                'resolution_notes' => $feedback->resolution_notes,
                 'is_anonymous' => $request->is_anonymous,
-            ]);
+            ];
+
+            if ($request->has('resolution_notes')) {
+                $dataToUpdate['resolution_notes'] = $request->resolution_notes;
+            }
+
+            $feedback->update($dataToUpdate);
+
+            if ($request->hasFile('attachments')) {
+                foreach ($request->file('attachments') as $file) {
+                    $path = $file->store('feedback/tickets', 'public');
+
+                    Attachment::create([
+                        'ticket_id' => $feedback->id,
+                        'file_name' => $file->getClientOriginalName(),
+                        'file_path' => $path,
+                        'file_type' => $file->getClientMimeType(),
+                        'file_size' => $file->getSize(),
+                        'storage_disk' => 'public',
+                        'uploaded_by_user_id' => Auth::id(),
+                    ]);
+                }
+            }
 
             return back()->with('success', 'Queja o sugerencia actualizada');
 
@@ -210,18 +325,5 @@ class FeedbackController extends Controller {
                 'exception' => $e->getMessage(),
             ]);
         }
-    }
-
-    private function generateTicketNumber(): string
-    {
-        $year = now()->format('y');
-
-        $lastTicket = Ticket::whereYear('created_at', now()->year)
-            ->orderBy('id', 'desc')
-            ->first();
-
-        $nextNumber = $lastTicket ? ((int) substr($lastTicket->ticket_number, -6)) + 1 : 1;
-
-        return 'FB-' . $year . '-' . str_pad($nextNumber, 6, '0', STR_PAD_LEFT);
     }
 }

@@ -15,6 +15,7 @@ class FeedbackStatusesSeeder extends Seeder {
             ['name' => 'RESUELTO', 'code' => 'resolved', 'color' => '#10B981', 'sort_order' => 4],
             ['name' => 'RECHAZADO', 'code' => 'rejected', 'color' => '#EF4444', 'sort_order' => 5],
             ['name' => 'CERRADO', 'code' => 'closed', 'color' => '#111827', 'sort_order' => 6],
+            ['name' => 'CANCELADO', 'code' => 'cancelled', 'color' => '#9CA3AF', 'sort_order' => 7],
         ];
 
         foreach ($data as $item) {

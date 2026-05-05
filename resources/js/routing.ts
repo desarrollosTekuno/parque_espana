@@ -237,17 +237,23 @@ const routes: Routing[] = [
     },
 
     {
-        name: ["feedback-tickets.index", "feedback-categories.index", "feedback-ticket-types.index", "feedback-statuses.index", "feedback-priorities.index"],
-        title: "Quejas y sugerencias",
+        name: ["feedback.index", "feedback-tickets.index", "feedback-categories.index", "feedback-ticket-types.index", "feedback-statuses.index", "feedback-priorities.index"],
+        title: "Feedback",
         icon: "mdi-message-alert-outline",
         value: "feedbackMenu",
         group: "Feedback",
         groupItems: [
             {
-                name: "feedback-tickets.index",
-                title: "Retroalimentaciones",
+                name: "feedback.index",
+                title: "Captura de tickets",
                 icon: "mdi-message-text-outline",
                 value: "feedback",
+            },
+            {
+                name: "feedback-tickets.index",
+                title: "Seguimiento de tickets",
+                icon: "mdi-clipboard-text-search-outline",
+                value: "feedback-tickets",
             },
             {
                 name: "feedback-categories.index",
