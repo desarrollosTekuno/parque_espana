@@ -22,7 +22,7 @@ const routes: Routing[] = [
         group: null,
         // groupItems: null
     },
-    
+
     {
         name: "dashboard",
         title: "Inicio",
@@ -32,7 +32,15 @@ const routes: Routing[] = [
         // groupItems: null
     },
     {
-        name: ["members.index", "members.create", "members.edit", "members.additional-membership.create", "members.manage.show", "members.family-members.create", "member-access.index"],
+        name: [
+            "members.index",
+            "members.create",
+            "members.edit",
+            "members.additional-membership.create",
+            "members.manage.show",
+            "members.family-members.create",
+            "member-access.index",
+        ],
         title: "Membresías",
         icon: "mdi-account-group-outline",
         value: "membresiasMenu",
@@ -52,13 +60,21 @@ const routes: Routing[] = [
                 value: "nueva-membresia",
             },
             // accesos app móvil
-            {
-                name: "member-access.index",
-                title: "Accesos App Móvil",
-                icon: "mdi-cellphone-key",
-                value: "accesos-app",
-            },
         ],
+    },
+    {
+        name: "member-access.index",
+        title: "Accesos App Móvil",
+        icon: "mdi-cellphone-key",
+        value: "accesos-app",
+        group: null,
+    },
+        {
+        name: "billing-concepts.index",
+        title: "Conceptos de cobro",
+        icon: "mdi-receipt-text-outline",
+        value: "conceptos-cobro",
+        group: null,
     },
     {
         name: ["billing.index"],
@@ -75,7 +91,7 @@ const routes: Routing[] = [
             },
         ],
     },
-        // Clubs deportivos
+    // Clubs deportivos
     {
         name: "clubs.index",
         title: "Clubs deportivos",
@@ -94,7 +110,7 @@ const routes: Routing[] = [
         group: null,
         // groupItems: null
     },
-     // Roles
+    // Roles
     {
         name: "roles.index",
         title: "Roles",
@@ -141,7 +157,7 @@ const routes: Routing[] = [
                 icon: "mdi-calendar-clock-outline",
                 value: "bloqueos",
             },
-        ]
+        ],
     },
     // Reservaciones
     {
@@ -163,7 +179,15 @@ const routes: Routing[] = [
                 icon: "mdi-account-group-outline",
                 value: "listas-invitados",
             },
-        ]
+            // Variables de sistema
+            {
+                name: "system-variables.index",
+                title: "Configuración",
+                icon: "mdi-cog",
+                value: "variables-sistema",
+                // groupItems: null
+            },
+        ],
     },
     // Anuncios
     {
@@ -195,29 +219,22 @@ const routes: Routing[] = [
                 icon: "mdi-storefront-outline",
                 value: "anuncios-activos",
             },
-        ]
+        ],
     },
-    // Variables de sistema
+     // Encuestas
     {
-        name: "system-variables.index",
-        title: "Variables del Sistema",
-        icon: "mdi-cog",
-        value: "variables-sistema",
+        name: "surveys.index",
+        title: "Encuestas",
+        icon: "mdi-clipboard-list-outline",
+        value: "encuestas",
         group: null,
-        // groupItems: null
     },
+
     {
         name: "pricing-rules.index",
         title: "Reglas de precio",
         icon: "mdi-currency-usd",
         value: "reglas-precio",
-        group: null,
-    },
-    {
-        name: "billing-concepts.index",
-        title: "Conceptos de cobro",
-        icon: "mdi-receipt-text-outline",
-        value: "conceptos-cobro",
         group: null,
     },
     {
@@ -227,15 +244,8 @@ const routes: Routing[] = [
         value: "paquetes-interclub",
         group: null,
     },
-    // Encuestas
-    {
-        name: "surveys.index",
-        title: "Encuestas",
-        icon: "mdi-clipboard-list-outline",
-        value: "encuestas",
-        group: null,
-    }
-    
+   
+
     /*
     {
         name: ["dashboard"],
