@@ -17,7 +17,7 @@ class ContextSeeder extends Seeder
         $contexts = array(
             array('name' => 'Web', 'value' => 'web'),
             array('name' => 'Api', 'value' => 'api'),
-            // App móvil socios por club
+            // App móvil usuarios por club
             array('name' => "App Móvil - Parque España 1", 'value' => 'mobile_club_1'),
             array('name' => "App Móvil - Parque España 2", 'value' => 'mobile_club_2'),
         );

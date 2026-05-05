@@ -325,7 +325,7 @@ const hasOverdueCharges = (account: BillingAccountItem) =>
 
 const manageAccountTooltip = (account: BillingAccountItem) => {
     if (account.primary_membership_id) {
-        return "Abrir la cuenta del socio en el parque activo";
+        return "Abrir la cuenta del usuario en el parque activo";
     }
 
     return "Para gestionar esta cuenta, cambia la sesión al parque correspondiente.";
@@ -673,7 +673,7 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
             <v-alert type="info" variant="tonal">
                 Este módulo concentra los cargos pendientes de ambos parques.
                 Puedes filtrar por parque cuando lo necesites, pero la pantalla
-                siempre te muestra la cuenta completa del socio para evitar
+                siempre te muestra la cuenta completa del usuario para evitar
                 confusiones al cobrar.
             </v-alert>
 
@@ -1296,7 +1296,7 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                                                                     false
                                                                 "
                                                                 action="view"
-                                                                text="Abrir cuenta del socio"
+                                                                text="Abrir cuenta del usuario"
                                                                 :tooltip="
                                                                     manageAccountTooltip(
                                                                         item,

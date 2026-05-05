@@ -33,23 +33,23 @@ const routes: Routing[] = [
     },
     {
         name: ["members.index", "members.create", "members.edit", "members.additional-membership.create", "members.manage.show", "members.family-members.create", "member-access.index"],
-        title: "Socios",
+        title: "Membresías",
         icon: "mdi-account-group-outline",
-        value: "sociosMenu",
-        group: "Socios",
+        value: "membresiasMenu",
+        group: "Membresías",
         groupItems: [
             {
                 name: "members.index",
-                title: "Lista de socios",
+                title: "Membresías activas",
                 icon: "mdi-account-group-outline",
-                value: "lista-socios",
+                value: "membresias-activas",
             },
-            // nuevo socio
+            // nueva membresía
             {
                 name: "members.create",
-                title: "Nuevo socio",
+                title: "Nueva membresía",
                 icon: "mdi-account-plus-outline",
-                value: "nuevo-socio",
+                value: "nueva-membresia",
             },
             // accesos app móvil
             {
@@ -197,14 +197,6 @@ const routes: Routing[] = [
             },
         ]
     },
-    // Encuestas
-    {
-        name: "surveys.index",
-        title: "Encuestas",
-        icon: "mdi-poll",
-        value: "surveys",
-        group: null
-    },
     // Variables de sistema
     {
         name: "system-variables.index",
@@ -235,6 +227,15 @@ const routes: Routing[] = [
         value: "paquetes-interclub",
         group: null,
     },
+    // Encuestas
+    {
+        name: "surveys.index",
+        title: "Encuestas",
+        icon: "mdi-clipboard-list-outline",
+        value: "encuestas",
+        group: null,
+    }
+    
     /*
     {
         name: ["dashboard"],

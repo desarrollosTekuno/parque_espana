@@ -47,7 +47,7 @@ class BusinessAdController extends Controller {
             if (!$member) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'El socio no existe'
+                    'message' => 'El usuario no existe'
                 ], 422);
             }
 
@@ -69,7 +69,7 @@ class BusinessAdController extends Controller {
             if ($exists) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Ya existe un anuncio con este nombre para este socio en este club'
+                    'message' => 'Ya existe un anuncio con este nombre para este usuario en este club'
                 ], 422);
             }
 

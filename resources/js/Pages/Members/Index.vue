@@ -141,16 +141,16 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
 
 const emptyMessage = computed(() =>
     search.value
-        ? "No se encontraron socios titulares activos con ese criterio"
-        : "No hay socios titulares activos para mostrar",
+        ? "No se encontraron membresías activas con ese criterio"
+        : "No hay membresías activas para mostrar",
 );
 </script>
 
 <template>
-    <Head title="Socios" />
+    <Head title="Usuarios" />
 
     <AppLayout>
-        <template #header>Socios Titulares Activos</template>
+        <template #header>Membresías activas</template>
         <template #options>
             <BaseButton
                 variant="elevated"
@@ -185,7 +185,7 @@ const emptyMessage = computed(() =>
                                     variant="tonal"
                                     class="mx-4 mt-4 mb-2"
                                 >
-                                    No hay socios titulares activos para mostrar.
+                                    No hay membresías activas para mostrar.
                                     Actualmente existen
                                     {{ pendingMembersCount }}
                                     membresías pendientes.
@@ -193,7 +193,7 @@ const emptyMessage = computed(() =>
 
                                 <v-text-field
                                     v-model="search"
-                                    label="Buscar socios"
+                                    label="Buscar usuarios"
                                     class="mx-4 mt-2"
                                     clearable
                                 />

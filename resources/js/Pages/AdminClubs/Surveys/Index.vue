@@ -1,266 +1,208 @@
 <script setup lang="ts">
 import AppLayout from "@/Layouts/AppLayout.vue";
-import { Head, router, usePage } from "@inertiajs/vue3";
 import BaseButton from "@/Components/BaseButton.vue";
-import { ref, watch, computed } from "vue";
-import { debounce } from "lodash";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
+import { Head, router, usePage } from "@inertiajs/vue3";
+import { ref, watch } from "vue";
+import { debounce } from "lodash";
 
 const page = usePage();
+const can = page.props.auth?.permissions ?? [];
 
-const props = defineProps<{ surveys?: any }>();
+interface Survey {
+    id: number;
+    title: string;
+    description: string | null;
+    status: "draft" | "active";
+    slug: string;
+    questions_count: number;
+    responses_count: number;
+    created_at: string;
+}
 
-const items = ref([]);
-const total = ref(0);
-const loading = ref(false);
-const search = ref("");
-const formErrors = computed(() => page.props.errors || {});
-const options = ref({ page: 1, itemsPerPage: 10 });
+interface Props {
+    surveys?: any;
+    messageError?: string;
+}
 
-const showModal = ref(false);
-
-const form = ref<any>({
-  id: null, 
-  name: "",
-  link: "",
-  is_active: true
+const props = withDefaults(defineProps<Props>(), {
+    surveys: null,
 });
 
+const search = ref("");
+const options = ref({ page: 1, itemsPerPage: 10, sortBy: [] as any[] });
+const loading = ref(false);
+
+const statusColor: Record<string, string> = {
+    draft: "grey",
+    active: "green",
+};
+const statusLabel: Record<string, string> = {
+    draft: "Borrador",
+    active: "Activa",
+};
+
 const headers = [
-  { title: "Encuesta", key: "name" },
-  { title: "Enlace", key: "link", sortable: false },
-  { title: "Activo", key: "is_active", width: 120 },
-  { title: "", key: "actions", sortable: false, width: 120 }
+    { title: "Título", key: "title", sortable: true },
+    { title: "Estado", key: "status", sortable: true, width: "120px" },
+    { title: "Preguntas", key: "questions_count", sortable: false, align: "center" as const, width: "110px" },
+    { title: "Respuestas", key: "responses_count", sortable: false, align: "center" as const, width: "110px" },
+    { title: "Creada", key: "created_at", sortable: true, width: "140px" },
+    { title: "Acciones", key: "actions", sortable: false, align: "end" as const, width: "150px" },
 ];
 
-const fetchItems = () => {
-  loading.value = true;
-  router.get(route("surveys.index"), {
-    page: options.value.page,
-    per_page: options.value.itemsPerPage,
-    search: search.value || null
-  }, {
-    preserveState: true,
-    replace: true,
-    only: ["surveys"]
-  });
+const loadData = () => {
+    loading.value = true;
+    const sort   = options.value.sortBy[0];
+    router.get(
+        route("surveys.index"),
+        {
+            surveys_search:   search.value || undefined,
+            surveys_page:     options.value.page,
+            surveys_per_page: options.value.itemsPerPage,
+            surveys_sort:     sort?.key || "id",
+            surveys_order:    sort?.order || "desc",
+        },
+        {
+            preserveState: true,
+            preserveScroll: true,
+            onFinish: () => { loading.value = false; },
+        }
+    );
 };
 
-watch(() => props.surveys, (val) => {
-  items.value = val?.data ?? [];
-  total.value = val?.total ?? 0;
-  loading.value = false;
-}, { immediate: true });
+watch(search, debounce(() => { options.value.page = 1; loadData(); }, 400));
+watch(options, loadData, { deep: true });
 
-watch(search, debounce(() => {
-  options.value.page = 1;
-  fetchItems();
-}, 400));
+const create = () => router.visit(route("surveys.create"));
+const edit   = (item: Survey) => router.visit(route("surveys.edit", item.id));
+const results = (item: Survey) => router.visit(route("surveys.results", item.id));
 
-watch(options, debounce(fetchItems, 400), { deep: true });
-
-const openCreate = () => {
-  form.value = { id: null, name: "", link: "", is_active: true };
-  showModal.value = true;
+const destroy = async (item: Survey) => {
+    const result = await customConfirmSwal({
+        title: "¿Eliminar encuesta?",
+        text: `Se eliminará "${item.title}" y todas sus preguntas. Esta acción no se puede deshacer.`,
+        icon: "warning",
+    });
+    if (!result.isConfirmed) return;
+    router.delete(route("surveys.destroy", item.id), {
+        preserveScroll: true,
+        onSuccess: () => customToastSwal({ title: "Encuesta eliminada", icon: "success" }),
+        onError: (err: any) => customToastSwal({ title: err?.messageError || "Error al eliminar", icon: "error" }),
+    });
 };
 
-const edit = (item:any) => {
-  form.value = { ...item };
-  showModal.value = true;
-};
-
-const toggleStatus = (item:any, value:boolean) => {
-  router.post(route("surveys.update", item.id), {
-    _method: 'PUT',
-    ...item,
-    is_active: value
-  }, {
-    preserveState: true,
-    onSuccess: () => {
-      item.is_active = value;
+const copyLink = (item: Survey) => {
+    if (item.status !== "active") {
+        customToastSwal({ title: "La encuesta debe estar activa para compartir el enlace", icon: "warning" });
+        return;
     }
-  });
-};
-
-const save = () => {
-  if (form.value.id) {
-    router.put(route("surveys.update", form.value.id), form.value, {
-      onSuccess: () => {
-        customToastSwal({ title: page.props.flash.success, icon: "success"});
-        showModal.value = false;
-        fetchItems();
-      },
-      onError: () =>{
-        customToastSwal({ title: page.props.flash.messageError, icon: "error" });
-      }
-    });
-  } else {
-    router.post(route("surveys.store"), form.value, {
-      onSuccess: () => {
-        customToastSwal({ title: page.props.flash.success, icon: "success" });
-        showModal.value = false;
-        fetchItems();
-      },
-      onError: () =>{
-        customToastSwal({ title: page.props.flash.messageError, icon: "error" });
-      }
-    });
-  }
-};
-
-const remove = (item:any) => {
-  customConfirmSwal({ title: "Eliminar encuesta", confirmText: "Eliminar" })
-    .then(r => {
-      if (r.isConfirmed) {
-        router.delete(route("surveys.destroy", item.id), {
-          onSuccess: () => {
-            items.value = items.value.filter(i => i.id !== item.id);
-            customToastSwal({ title: page.props.flash.success, icon: "success" });
-          },
-          onError: () =>{
-            customToastSwal({ title: page.props.flash.messageError, icon: "error" });
-          }
-        });
-      }
+    const url = `${window.location.origin}/encuesta/${item.slug}`;
+    navigator.clipboard.writeText(url).then(() => {
+        customToastSwal({ title: "URL copiada al portapapeles", icon: "success" });
     });
 };
-const openLink = (url: string) => {
-  if (!url) return;
 
-  // asegura que tenga protocolo
-  const finalUrl = url.startsWith('http') ? url : `https://${url}`;
-  window.open(finalUrl, '_blank');
+const formatDate = (dateStr: string) => {
+    if (!dateStr) return "—";
+    return new Date(dateStr).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
 };
 </script>
+
 <template>
-<Head title="Encuestas" />
+    <AppLayout title="Encuestas">
+        <Head title="Encuestas" />
 
-<AppLayout>
+        <div class="pa-4">
+            <v-row align="center" class="mb-4">
+                <v-col>
+                    <h2 class="text-h5 font-weight-bold">Encuestas</h2>
+                    <div class="text-body-2 text-medium-emphasis">
+                        Crea y administra encuestas para recopilar opiniones de los usuarios
+                    </div>
+                </v-col>
+                <v-col cols="auto">
+                    <BaseButton
+                        text="Nueva encuesta"
+                        icon="mdi-plus"
+                        action="save"
+                        variant="flat"
+                        :icon-only="false"
+                        @click="create"
+                    />
+                </v-col>
+            </v-row>
 
-<!-- HEADER -->
-<div class="d-flex justify-space-between align-center mb-6">
-  <div>
-    <h2 class="text-h5 font-weight-bold d-flex align-center gap-2">
-      <v-icon>mdi-poll</v-icon>
-      Encuestas
-    </h2>
-    <span class="text-grey">Administra las encuestas</span>
-  </div>
+            <v-alert v-if="props.messageError" type="error" variant="tonal" class="mb-4">
+                {{ props.messageError }}
+            </v-alert>
 
-  <BaseButton
-    text="Nueva encuesta"
-    action="add"
-    @click="openCreate"
-    :icon-only="false"
-    variant="elevated"
-  />
-</div>
+            <v-card elevation="1">
+                <v-data-table-server
+                    :headers="headers"
+                    :items="props.surveys?.data ?? []"
+                    :items-length="props.surveys?.total ?? 0"
+                    :loading="loading"
+                    v-model:options="options"
+                    loading-text="Cargando encuestas..."
+                    no-data-text="No hay encuestas registradas"
+                    :items-per-page-options="[10, 25, 50]"
+                    items-per-page-text="Mostrar"
+                >
+                    <template #top>
+                        <v-text-field
+                            v-model="search"
+                            label="Buscar encuesta..."
+                            prepend-inner-icon="mdi-magnify"
+                            variant="outlined"
+                            density="comfortable"
+                            class="mx-4 mt-4"
+                            clearable
+                        />
+                    </template>
 
-<!-- TABLE -->
-<v-card rounded="xl" elevation="2">
-  <v-card-text>
+                    <template #item.status="{ item }">
+                        <v-chip
+                            size="small"
+                            variant="tonal"
+                            :color="statusColor[item.status]"
+                        >
+                            {{ statusLabel[item.status] }}
+                        </v-chip>
+                    </template>
 
-    <v-text-field
-      v-model="search"
-      placeholder="Buscar..."
-      prepend-inner-icon="mdi-magnify"
-      variant="outlined"
-      hide-details
-      style="max-width: 300px"
-      class="mb-4"
-    />
+                    <template #item.questions_count="{ item }">
+                        <v-chip size="small" variant="tonal" color="blue">
+                            {{ item.questions_count }}
+                        </v-chip>
+                    </template>
 
-    <v-data-table-server
-      :headers="headers"
-      :items="items"
-      :items-length="total"
-      :loading="loading"
-      v-model:options="options"
-    >
+                    <template #item.responses_count="{ item }">
+                        <v-chip size="small" variant="tonal" color="purple">
+                            {{ item.responses_count }}
+                        </v-chip>
+                    </template>
 
-      <!-- LINK -->
-      <template #item.link="{ item }">
-        <v-btn
-          icon="mdi-open-in-new"
-          variant="text"
-          color="primary"
-          @click="openLink(item.link)"
-        />
-      </template>
+                    <template #item.created_at="{ item }">
+                        {{ formatDate(item.created_at) }}
+                    </template>
 
-      <!-- TOGGLE -->
-      <template #item.is_active="{ item }">
-        <v-switch
-          :model-value="item.is_active"
-          color="green"
-          hide-details
-          @update:model-value="val => toggleStatus(item, val)"
-        />
-      </template>
-
-      <!-- ACTIONS -->
-      <template #item.actions="{ item }">
-        <div class="d-flex gap-1">
-          <BaseButton action="edit" @click="edit(item)" />
-          <BaseButton action="delete" @click="remove(item)" />
+                    <template #item.actions="{ item }">
+                        <v-tooltip text="Ver resultados">
+                            <template #activator="{ props: tp }">
+                                <BaseButton v-bind="tp" icon="mdi-chart-bar" color="purple" @click="results(item)" />
+                            </template>
+                        </v-tooltip>
+                        <v-tooltip text="Copiar URL pública">
+                            <template #activator="{ props: tp }">
+                                <BaseButton v-bind="tp" icon="mdi-link-variant" color="teal" @click="copyLink(item)" />
+                            </template>
+                        </v-tooltip>
+                        <BaseButton action="edit" @click="edit(item)" />
+                        <BaseButton action="delete" @click="destroy(item)" />
+                    </template>
+                </v-data-table-server>
+            </v-card>
         </div>
-      </template>
-
-    </v-data-table-server>
-  </v-card-text>
-</v-card>
-
-<!-- MODAL -->
-<v-dialog v-model="showModal" max-width="500">
-  <v-card rounded="xl">
-
-    <v-card-title>
-      {{ form.id ? 'Editar' : 'Nueva' }} encuesta
-    </v-card-title>
-
-    <v-card-text>
-      <v-text-field
-        v-model="form.name"
-        label="Nombre"
-        :error="!!formErrors.name"
-        :error-messages="formErrors.name"
-      />
-
-      <v-text-field
-        v-model="form.link"
-        label="Enlace"
-        :error="!!formErrors.link"
-        :error-messages="formErrors.link"
-      />
-
-      <v-switch
-        v-model="form.is_active"
-        label="Activa"
-        color="green"
-        inset
-      />
-    </v-card-text>
-
-    <v-card-actions>
-      <v-spacer></v-spacer>
-
-      <BaseButton
-        text="Cancelar"
-        action="cancel"
-        @click="showModal = false"
-        :icon-only="false"
-      />
-
-      <BaseButton
-        :text="form.id ? 'Actualizar' : 'Guardar'"
-        action="save"
-        @click="save"
-        :icon-only="false"
-      />
-    </v-card-actions>
-
-  </v-card>
-</v-dialog>
-
-</AppLayout>
+    </AppLayout>
 </template>

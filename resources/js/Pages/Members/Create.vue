@@ -9,11 +9,15 @@ import {
     fileTypeRule,
     requiredFileRule,
     fileExactCountRule,
+    minLength,
+    maxLength,
+    postalCode,
+    fileMaxSizeRule,
 } from "@/constants/validationRules";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { customToastSwal } from "@/utils/swal";
 import { Head, useForm, usePage } from "@inertiajs/vue3";
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 
 const page = usePage<any>();
 
@@ -266,17 +270,6 @@ const maritalStatusOptions = computed(() =>
     })),
 );
 
-const FAMILY_MARITAL_STATUS_CODES = ["married", "domestic_partnership"];
-
-const filteredMaritalStatusOptions = computed(() => {
-    const isFamilyMembership = form.membershipType?.allows_multiple_members === true;
-
-    return maritalStatusOptions.value.filter((option) =>
-        isFamilyMembership
-            ? FAMILY_MARITAL_STATUS_CODES.includes(option.code)
-            : !FAMILY_MARITAL_STATUS_CODES.includes(option.code),
-    );
-});
 
 const statesByCountry = ref<Record<number, StateCatalog[]>>({});
 const citiesByState = ref<Record<number, CityCatalog[]>>({});
@@ -383,7 +376,7 @@ const pageTitle = computed(() =>
         ? "Solicitud Otro Parque"
         : props.isMembershipTransition
           ? "Cambio de Membresía"
-          : "Alta de Socios",
+          : "Alta de Usuarios",
 );
 
 const pageHeader = computed(() =>
@@ -391,7 +384,7 @@ const pageHeader = computed(() =>
         ? "Solicitud para el Otro Parque"
         : props.isMembershipTransition
           ? "Cambio de Membresía"
-          : "Alta de Socios",
+          : "Alta de Usuarios",
 );
 
 const usesSourceMembership = computed(
@@ -598,20 +591,30 @@ const getDocumentsForMember = (member: MemberForm) => {
         .filter((doc) => shouldIncludeDocumentByAge(doc, member.age));
 };
 
+const isMatrimonioDocument = (doc: DocumentType) =>
+    doc.name.toLowerCase().includes("matrimon");
+
 const buildMemberDocuments = (member: MemberForm): MemberDocumentForm[] => {
-    return getDocumentsForMember(member).map((doc) => ({
-        document_type_id: doc.id,
-        name: doc.name,
-        allowed_extensions: doc.allowed_extensions
-            ? doc.allowed_extensions
-                  .split(",")
-                  .map((ext) => ext.trim().toLowerCase())
-            : [],
-        is_required: doc.pivot.is_required,
-        allow_multiple: doc.pivot.allow_multiple,
-        number_files: doc.pivot.number_files,
-        files: [],
-    }));
+    return getDocumentsForMember(member)
+        .filter((doc) => {
+            if (member.is_primary_holder && isMatrimonioDocument(doc)) {
+                return hasSpouse.value;
+            }
+            return true;
+        })
+        .map((doc) => ({
+            document_type_id: doc.id,
+            name: doc.name,
+            allowed_extensions: doc.allowed_extensions
+                ? doc.allowed_extensions
+                      .split(",")
+                      .map((ext) => ext.trim().toLowerCase())
+                : [],
+            is_required: doc.pivot.is_required,
+            allow_multiple: doc.pivot.allow_multiple,
+            number_files: doc.pivot.number_files,
+            files: [],
+        }));
 };
 
 const buildDocumentsForRelationship = (
@@ -793,6 +796,14 @@ const onRelationshipChange = (member: MemberForm) => {
     );
 
     member.relationship_name = relationship?.name ?? null;
+
+    if (member.relationship_name === "Cónyuge") {
+        const primaryHolder = getPrimaryMember();
+        if (primaryHolder) {
+            member.marital_status_id = primaryHolder.marital_status_id;
+        }
+    }
+
     member.documents = buildDocumentsForRelationship(
         member.relationship_id,
         member.age,
@@ -905,12 +916,12 @@ const selectType = (membershipType: MembershipType) => {
 
     const members: MemberForm[] = [createPrimaryHolder()];
 
-    if (membershipType.allows_multiple_members) {
+    /* if (membershipType.allows_multiple_members) {
         const spouse = createSpouseMember();
         if (spouse) {
             members.push(spouse);
         }
-    }
+    } */
 
     form.members = members;
     void initializeLocationCatalogsForMembers(members);
@@ -1016,6 +1027,29 @@ const isChildRelationship = (member: MemberForm) => {
 
 const isSpouseRelationship = (member: MemberForm) => {
     return member.relationship_name === "Cónyuge";
+};
+
+const hasSpouse = computed(() =>
+    form.members.some((m) => isSpouseRelationship(m)),
+);
+
+watch(hasSpouse, () => {
+    const primary = getPrimaryMember();
+    if (primary) {
+        primary.documents = buildMemberDocuments(primary);
+    }
+});
+
+const availableRelationships = (currentMember: MemberForm) => {
+    return props.relationships.filter((rel) => {
+        if (rel.id === TITULAR_RELATIONSHIP_ID) {
+            return false;
+        }
+        if (rel.name === "Cónyuge") {
+            return !hasSpouse.value || isSpouseRelationship(currentMember);
+        }
+        return true;
+    });
 };
 
 const onMaritalStatusChange = (member: MemberForm) => {
@@ -1160,6 +1194,10 @@ const submit = () => {
                 city_id: member.address.city_id,
             },
             employment: member.employment,
+            documents: member.documents.map((doc) => ({
+                document_type_id: doc.document_type_id,
+                files: doc.files ?? [],
+            })),
         })),
     }));
 
@@ -1855,7 +1893,7 @@ const memberLabel = (member: MemberForm) => {
                                                             member.relationship_id
                                                         "
                                                         :items="
-                                                            props.relationships
+                                                            availableRelationships(member)
                                                         "
                                                         item-title="name"
                                                         item-value="id"
@@ -1883,7 +1921,7 @@ const memberLabel = (member: MemberForm) => {
                                                             member.first_name
                                                         "
                                                         label="Nombre(s)"
-                                                        :rules="[required]"
+                                                        :rules="[required,minLength(2), maxLength(75)]"
                                                         :disabled="
                                                             isIdentityLocked(
                                                                 member,
@@ -1898,7 +1936,7 @@ const memberLabel = (member: MemberForm) => {
                                                             member.last_name
                                                         "
                                                         label="Apellido paterno"
-                                                        :rules="[required]"
+                                                        :rules="[required,minLength(2), maxLength(50)]"
                                                         :disabled="
                                                             isIdentityLocked(
                                                                 member,
@@ -1918,6 +1956,8 @@ const memberLabel = (member: MemberForm) => {
                                                                 member,
                                                             )
                                                         "
+                                                        :rules="[minLength(2), maxLength(50)]"
+
                                                     />
                                                 </v-col>
 
@@ -1997,6 +2037,7 @@ const memberLabel = (member: MemberForm) => {
                                                                 $event,
                                                             )
                                                         "
+                                                        :rules="[selectRequired]"
                                                     />
                                                 </v-col>
 
@@ -2041,6 +2082,9 @@ const memberLabel = (member: MemberForm) => {
                                                                 $event,
                                                             )
                                                         "
+                                                        :rules="[
+                                                            selectRequired,
+                                                        ]"
                                                     />
                                                 </v-col>
 
@@ -2115,6 +2159,9 @@ const memberLabel = (member: MemberForm) => {
                                                         "
                                                         clearable
                                                         auto-select-first
+                                                        :rules="[
+                                                            selectRequired,
+                                                        ]"
                                                     />
                                                 </v-col>
 
@@ -2133,7 +2180,7 @@ const memberLabel = (member: MemberForm) => {
                                                             member.marital_status_id
                                                         "
                                                         :items="
-                                                            filteredMaritalStatusOptions
+                                                            maritalStatusOptions
                                                         "
                                                         item-title="title"
                                                         item-value="id"
@@ -2150,6 +2197,9 @@ const memberLabel = (member: MemberForm) => {
                                                                 member,
                                                             )
                                                         "
+                                                        :rules="[
+                                                            selectRequired,
+                                                        ]"
                                                     />
                                                 </v-col>
 
@@ -2172,7 +2222,9 @@ const memberLabel = (member: MemberForm) => {
                                                                       required,
                                                                       validatePhone,
                                                                   ]
-                                                                : []
+                                                                : [
+                                                                        validatePhone,
+                                                                ]
                                                         "
                                                     />
                                                 </v-col>
@@ -2186,8 +2238,9 @@ const memberLabel = (member: MemberForm) => {
                                                                 ? [
                                                                       required,
                                                                       email,
+                                                                      maxLength(255)
                                                                   ]
-                                                                : [email]
+                                                                : [email, maxLength(255)]
                                                         "
                                                     />
                                                 </v-col>
@@ -2204,6 +2257,7 @@ const memberLabel = (member: MemberForm) => {
                                                             member.occupation
                                                         "
                                                         label="Ocupación"
+                                                        :rules="[required, minLength(2), maxLength(100)]"
                                                     />
                                                 </v-col>
 
@@ -2221,6 +2275,7 @@ const memberLabel = (member: MemberForm) => {
                                                             member.school_name
                                                         "
                                                         label="Colegio"
+                                                        :rules="[required, minLength(3), maxLength(150)]"
                                                     />
                                                 </v-col>
                                             </v-row>
@@ -2245,6 +2300,7 @@ const memberLabel = (member: MemberForm) => {
                                                                 .street
                                                         "
                                                         label="Calle"
+                                                        :rules="[required, minLength(3), maxLength(150)]"
                                                     />
                                                 </v-col>
 
@@ -2255,6 +2311,7 @@ const memberLabel = (member: MemberForm) => {
                                                                 .neighborhood
                                                         "
                                                         label="Colonia"
+                                                        :rules="[required, minLength(3), maxLength(150)]"
                                                     />
                                                 </v-col>
 
@@ -2265,6 +2322,7 @@ const memberLabel = (member: MemberForm) => {
                                                                 .postal_code
                                                         "
                                                         label="Código postal"
+                                                        :rules="[postalCode]"
                                                     />
                                                 </v-col>
 
@@ -2291,6 +2349,7 @@ const memberLabel = (member: MemberForm) => {
                                                                 $event,
                                                             )
                                                         "
+                                                        :rules="[selectRequired]"
                                                     />
                                                 </v-col>
 
@@ -2326,6 +2385,9 @@ const memberLabel = (member: MemberForm) => {
                                                                 $event,
                                                             )
                                                         "
+                                                        :rules="[
+                                                            selectRequired,
+                                                        ]"
                                                     />
                                                 </v-col>
 
@@ -2365,13 +2427,13 @@ const memberLabel = (member: MemberForm) => {
                                                 </v-col>
 
                                                 <v-col cols="12" md="4">
-                                                    <v-text-field
+                                                    <v-number-input
                                                         v-model="
                                                             member.address
                                                                 .years_in_city
                                                         "
-                                                        type="number"
                                                         label="Años radicando en la ciudad"
+                                                        :rules="[required]"
                                                     />
                                                 </v-col>
                                             </v-row>
@@ -2396,6 +2458,7 @@ const memberLabel = (member: MemberForm) => {
                                                                 .company_name
                                                         "
                                                         label="Empresa"
+                                                        :rules="[required, minLength(2), maxLength(150)]"
                                                     />
                                                 </v-col>
 
@@ -2406,6 +2469,7 @@ const memberLabel = (member: MemberForm) => {
                                                                 .company_address
                                                         "
                                                         label="Dirección de la empresa"
+                                                            :rules="[required, minLength(5), maxLength(255)]"
                                                     />
                                                 </v-col>
 
@@ -2416,6 +2480,7 @@ const memberLabel = (member: MemberForm) => {
                                                                 .company_phone
                                                         "
                                                         label="Teléfono de la empresa"
+                                                        :rules="[required, validatePhone]"
                                                     />
                                                 </v-col>
                                             </v-row>
@@ -2473,6 +2538,12 @@ const memberLabel = (member: MemberForm) => {
                                                 class="text-subtitle-1 font-weight-bold mb-4"
                                             >
                                                 {{ memberLabel(member) }}
+                                                <span
+                                                    v-if="member.first_name || member.last_name"
+                                                    class="font-weight-regular"
+                                                >
+                                                    — {{ [member.first_name, member.last_name, member.second_last_name].filter(Boolean).join(' ') }}
+                                                </span>
                                             </h4>
 
                                             <v-row>
@@ -2515,13 +2586,13 @@ const memberLabel = (member: MemberForm) => {
                                                             doc.allow_multiple
                                                         "
                                                         :rules="[
-                                                            fileExactCountRule(
-                                                                doc.number_files,
-                                                            ),
-                                                            requiredFileRule,
+                                                            ...(doc.is_required
+                                                                ? [requiredFileRule, fileExactCountRule(doc.number_files)]
+                                                                : []),
                                                             fileTypeRule(
                                                                 doc.allowed_extensions,
                                                             ),
+                                                            fileMaxSizeRule(2)
                                                         ]"
                                                         clearable
                                                     />

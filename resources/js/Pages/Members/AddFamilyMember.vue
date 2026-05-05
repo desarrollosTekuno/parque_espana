@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import BaseButton from "@/Components/BaseButton.vue";
-import { required, selectRequired, validatePhone, email } from "@/constants/validationRules";
+import { required, selectRequired, validatePhone, email, minLength, maxLength } from "@/constants/validationRules";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { customToastSwal } from "@/utils/swal";
 import { Head, router, useForm, usePage } from "@inertiajs/vue3";
@@ -425,6 +425,10 @@ const isChildRelationship = computed(() =>
     ["hijo(a)", "hijo", "hija"].includes(normalizeText(relationshipName.value)),
 );
 
+const isSpouseRelationship = computed(() =>
+    ["conyuge", "esposo", "esposa"].includes(normalizeText(relationshipName.value)),
+);
+
 const birthdateRule = (value: string | null) => {
     if (!value) return "La fecha de nacimiento es requerida";
 
@@ -686,7 +690,7 @@ const submit = async () => {
                                             v-model="form.birthdate"
                                             label="Fecha de nacimiento"
                                             type="date"
-                                            :rules="[birthdateRule]"
+                                            :rules="[required, birthdateRule]"
                                             :error-messages="form.errors.birthdate"
                                         />
                                     </v-col>
@@ -695,7 +699,7 @@ const submit = async () => {
                                         <v-text-field
                                             v-model="form.first_name"
                                             label="Nombre(s)"
-                                            :rules="[required]"
+                                            :rules="[required, minLength(2), maxLength(75)]"
                                             :error-messages="form.errors.first_name"
                                         />
                                     </v-col>
@@ -704,7 +708,7 @@ const submit = async () => {
                                         <v-text-field
                                             v-model="form.last_name"
                                             label="Apellido paterno"
-                                            :rules="[required]"
+                                            :rules="[required, minLength(2), maxLength(50)]"
                                             :error-messages="form.errors.last_name"
                                         />
                                     </v-col>
@@ -713,6 +717,7 @@ const submit = async () => {
                                         <v-text-field
                                             v-model="form.second_last_name"
                                             label="Apellido materno"
+                                            :rules="[minLength(2), maxLength(50)]"
                                             :error-messages="form.errors.second_last_name"
                                         />
                                     </v-col>
@@ -725,26 +730,28 @@ const submit = async () => {
                                         />
                                     </v-col>
 
-                                    <v-col cols="12" md="4">
+                                    <v-col v-if="isSpouseRelationship" cols="12" md="4">
                                         <v-autocomplete
                                             v-model="form.birth_country_id"
                                             :items="countryOptions"
                                             item-title="title"
                                             item-value="value"
                                             label="País de nacimiento"
+                                            :rules="[selectRequired]"
                                             :error-messages="form.errors.birth_country_id"
                                             clearable
                                             @update:modelValue="onBirthCountryChange"
                                         />
                                     </v-col>
 
-                                    <v-col cols="12" md="4">
+                                    <v-col v-if="isSpouseRelationship" cols="12" md="4">
                                         <v-autocomplete
                                             v-model="form.birth_state_id"
                                             :items="getStateOptions(form.birth_country_id)"
                                             item-title="name"
                                             item-value="id"
                                             label="Estado de nacimiento"
+                                            :rules="[selectRequired]"
                                             :error-messages="form.errors.birth_state_id"
                                             :disabled="!form.birth_country_id"
                                             clearable
@@ -752,7 +759,7 @@ const submit = async () => {
                                         />
                                     </v-col>
 
-                                    <v-col cols="12" md="4">
+                                    <v-col v-if="isSpouseRelationship" cols="12" md="4">
                                         <v-autocomplete
                                             v-model="form.birth_city_id"
                                             :items="getCityOptions(form.birth_state_id)"
@@ -766,31 +773,33 @@ const submit = async () => {
                                         />
                                     </v-col>
 
-                                    <v-col cols="12" md="4">
+                                    <v-col v-if="isSpouseRelationship" cols="12" md="4">
                                         <v-autocomplete
                                             v-model="form.nationality_id"
                                             :items="nationalityOptions"
                                             item-title="title"
                                             item-value="value"
                                             label="Nacionalidad"
+                                            :rules="[selectRequired]"
                                             :error-messages="form.errors.nationality_id"
                                             clearable
                                         />
                                     </v-col>
 
-                                    <v-col cols="12" md="4">
+                                    <v-col v-if="isSpouseRelationship" cols="12" md="4">
                                         <v-autocomplete
                                             v-model="form.marital_status_id"
                                             :items="maritalStatusOptions"
                                             item-title="title"
                                             item-value="value"
                                             label="Estado civil"
+                                            :rules="[selectRequired]"
                                             :error-messages="form.errors.marital_status_id"
                                             clearable
                                         />
                                     </v-col>
 
-                                    <v-col cols="12" md="4">
+                                    <v-col v-if="isSpouseRelationship" cols="12" md="4">
                                         <v-text-field
                                             v-model="form.phone"
                                             label="Teléfono"
@@ -803,130 +812,17 @@ const submit = async () => {
                                         <v-text-field
                                             v-model="form.email"
                                             label="Correo"
-                                            :rules="[email]"
+                                            :rules="[email, maxLength(255)]"
                                             :error-messages="form.errors.email"
                                         />
                                     </v-col>
 
-                                    <v-col cols="12" md="4">
-                                        <v-text-field
-                                            v-model="form.occupation"
-                                            label="Ocupación"
-                                            :error-messages="form.errors.occupation"
-                                        />
-                                    </v-col>
-
-                                    <v-col cols="12" md="4">
+                                    <v-col v-if="isChildRelationship" cols="12" md="4">
                                         <v-text-field
                                             v-model="form.school_name"
-                                            label="Escuela"
+                                            label="Colegio"
+                                            :rules="[required, minLength(3), maxLength(150)]"
                                             :error-messages="form.errors.school_name"
-                                        />
-                                    </v-col>
-                                </v-row>
-
-                                <v-divider class="my-6" />
-
-                                <div class="text-subtitle-1 font-weight-bold mb-4">
-                                    Domicilio
-                                </div>
-
-                                <v-row>
-                                    <v-col cols="12" md="6">
-                                        <v-text-field
-                                            v-model="form.address.street"
-                                            label="Calle"
-                                            :error-messages="form.errors['address.street']"
-                                        />
-                                    </v-col>
-
-                                    <v-col cols="12" md="6">
-                                        <v-text-field
-                                            v-model="form.address.neighborhood"
-                                            label="Colonia"
-                                            :error-messages="form.errors['address.neighborhood']"
-                                        />
-                                    </v-col>
-
-                                    <v-col cols="12" md="3">
-                                        <v-text-field
-                                            v-model="form.address.postal_code"
-                                            label="Código postal"
-                                            :error-messages="form.errors['address.postal_code']"
-                                        />
-                                    </v-col>
-
-                                    <v-col cols="12" md="3">
-                                        <v-autocomplete
-                                            v-model="form.address.country_id"
-                                            :items="countryOptions"
-                                            item-title="title"
-                                            item-value="value"
-                                            label="País"
-                                            :error-messages="form.errors['address.country_id']"
-                                            clearable
-                                            @update:modelValue="onAddressCountryChange"
-                                        />
-                                    </v-col>
-
-                                    <v-col cols="12" md="3">
-                                        <v-autocomplete
-                                            v-model="form.address.state_id"
-                                            :items="getStateOptions(form.address.country_id)"
-                                            item-title="name"
-                                            item-value="id"
-                                            label="Estado"
-                                            :error-messages="form.errors['address.state_id']"
-                                            :disabled="!form.address.country_id"
-                                            clearable
-                                            @update:modelValue="onAddressStateChange"
-                                        />
-                                    </v-col>
-
-                                    <v-col cols="12" md="3">
-                                        <v-autocomplete
-                                            v-model="form.address.city_id"
-                                            :items="getCityOptions(form.address.state_id)"
-                                            item-title="name"
-                                            item-value="id"
-                                            label="Ciudad"
-                                            :error-messages="form.errors['address.city_id']"
-                                            :disabled="!form.address.state_id"
-                                            clearable
-                                            @update:modelValue="onAddressCityChange"
-                                        />
-                                    </v-col>
-                                </v-row>
-
-                                <v-divider class="my-6" />
-
-                                <div class="text-subtitle-1 font-weight-bold mb-4">
-                                    Trabajo
-                                </div>
-
-                                <v-row>
-                                    <v-col cols="12" md="4">
-                                        <v-text-field
-                                            v-model="form.employment.company_name"
-                                            label="Empresa"
-                                            :error-messages="form.errors['employment.company_name']"
-                                        />
-                                    </v-col>
-
-                                    <v-col cols="12" md="4">
-                                        <v-text-field
-                                            v-model="form.employment.company_address"
-                                            label="Dirección empresa"
-                                            :error-messages="form.errors['employment.company_address']"
-                                        />
-                                    </v-col>
-
-                                    <v-col cols="12" md="4">
-                                        <v-text-field
-                                            v-model="form.employment.company_phone"
-                                            label="Teléfono empresa"
-                                            :rules="[validatePhone]"
-                                            :error-messages="form.errors['employment.company_phone']"
                                         />
                                     </v-col>
                                 </v-row>
