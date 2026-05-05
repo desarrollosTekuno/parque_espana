@@ -22,24 +22,34 @@ class FeedbackManagementController extends Controller {
         $driver = DB::getDriverName();
 
         $query = Ticket::with([
-            'category',
-            'status',
-            'priority',
-            'assignedTo',
-            'attachments',
-            'comments.user',
-            'statusHistory.oldStatus',
-            'statusHistory.newStatus',
-            'statusHistory.changedBy',
+            'category:id,name',
+            'status:id,name,code,color',
+            'priority:id,name,code',
+            'assignedTo:id,name',
+
+            // adjuntos con usuario y ordenados
+            'attachments' => fn($q) => $q->latest(),
+            'attachments.uploadedBy:id,name',
+
+            // comentarios ordenados con usuario
+            'comments' => fn($q) => $q->latest(),
+            'comments.user:id,name',
+
+            // historial ordenado
+            'statusHistory' => fn($q) => $q->latest(),
+            'statusHistory.oldStatus:id,name',
+            'statusHistory.newStatus:id,name',
+            'statusHistory.changedBy:id,name',
         ])
-            ->where('club_id', $clubId);
+        ->where('club_id', $clubId);
 
         if ($search = trim((string) $request->input('search'))) {
             $operator = $driver === 'pgsql' ? 'ilike' : 'like';
+
             $query->where(function ($q) use ($search, $operator) {
                 $q->where('ticket_number', $operator, "%{$search}%")
-                    ->orWhere('title', $operator, "%{$search}%")
-                    ->orWhere('description', $operator, "%{$search}%");
+                ->orWhere('title', $operator, "%{$search}%")
+                ->orWhere('description', $operator, "%{$search}%");
             });
         }
 
@@ -58,8 +68,14 @@ class FeedbackManagementController extends Controller {
 
         return Inertia::render('AdminClubs/FeedbackManagement/Index', [
             'tickets' => $tickets,
-            'statuses' => Status::where('is_active', true)->orderBy('sort_order')->get(['id', 'name', 'code', 'color']),
-            'priorities' => Priority::where('is_active', true)->orderBy('sort_order')->get(['id', 'name', 'code']),
+            'statuses' => Status::where('is_active', true)
+                ->orderBy('sort_order')
+                ->get(['id', 'name', 'code', 'color']),
+
+            'priorities' => Priority::where('is_active', true)
+                ->orderBy('sort_order')
+                ->get(['id', 'name', 'code']),
+
             'filters' => [
                 'search' => $request->input('search', ''),
                 'status_id' => $request->input('status_id'),
