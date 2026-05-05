@@ -9,7 +9,7 @@ import {
     fileMaxCountRule,
 } from "@/constants/validationRules";
 import AppLayout from "@/Layouts/AppLayout.vue";
-import { customToastSwal } from "@/utils/swal";
+import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import { Head, router, useForm, usePage } from "@inertiajs/vue3";
 import { debounce } from "lodash";
 import { ref, watch } from "vue";
