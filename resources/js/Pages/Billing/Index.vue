@@ -10,6 +10,7 @@ import {
     required,
     selectRequired,
 } from "@/constants/validationRules";
+import { nowAsLocalInput } from "@/constants/formatDates";
 
 interface ClubItem {
     id: number;
@@ -208,7 +209,7 @@ const paymentForm = useForm<PaymentFormData>({
     membership_account_id: null,
     club_id: null,
     payment_method_id: null,
-    paid_at: new Date().toISOString().slice(0, 16),
+    paid_at: nowAsLocalInput(),
     reference: "",
     bank_name: "",
     check_number: "",
@@ -325,7 +326,7 @@ const hasOverdueCharges = (account: BillingAccountItem) =>
 
 const manageAccountTooltip = (account: BillingAccountItem) => {
     if (account.primary_membership_id) {
-        return "Abrir la cuenta del socio en el parque activo";
+        return "Abrir la cuenta del usuario en el parque activo";
     }
 
     return "Para gestionar esta cuenta, cambia la sesión al parque correspondiente.";
@@ -494,7 +495,7 @@ const openPaymentModal = (account: BillingAccountItem) => {
     paymentFormRef.value?.resetValidation?.();
     paymentForm.membership_account_id = account.id;
     paymentForm.club_id = selectedPaymentClubId.value;
-    paymentForm.paid_at = new Date().toISOString().slice(0, 16);
+    paymentForm.paid_at = nowAsLocalInput();
     buildPaymentDrafts(selectedPaymentClubId.value);
     showPaymentModal.value = true;
 };
@@ -673,7 +674,7 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
             <v-alert type="info" variant="tonal">
                 Este módulo concentra los cargos pendientes de ambos parques.
                 Puedes filtrar por parque cuando lo necesites, pero la pantalla
-                siempre te muestra la cuenta completa del socio para evitar
+                siempre te muestra la cuenta completa del usuario para evitar
                 confusiones al cobrar.
             </v-alert>
 
@@ -1296,7 +1297,7 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                                                                     false
                                                                 "
                                                                 action="view"
-                                                                text="Abrir cuenta del socio"
+                                                                text="Abrir cuenta del usuario"
                                                                 :tooltip="
                                                                     manageAccountTooltip(
                                                                         item,
@@ -1367,12 +1368,7 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
             </v-row>
         </div>
 
-        <v-dialog v-model="showPaymentModal" max-width="1100" persistent>
-            <v-form
-                ref="paymentFormRef"
-                validate-on="input"
-                @submit.prevent="submitPayment"
-            >
+        <v-dialog v-model="showPaymentModal" max-width="1100" persistent scrollable>
                 <v-card>
                     <v-card-title>Registrar cobro</v-card-title>
                     <v-card-subtitle>
@@ -1381,6 +1377,11 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                     </v-card-subtitle>
 
                     <v-card-text class="d-flex flex-column ga-4">
+                    <v-form
+                        ref="paymentFormRef"
+                        validate-on="input"
+                        @submit.prevent="submitPayment"
+                    >
                         <v-row v-if="selectedPaymentAccount">
                             <v-col cols="12" md="4">
                                 <v-card variant="tonal" color="primary">
@@ -1828,6 +1829,7 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                                 seleccionado.
                             </v-alert>
                         </div>
+                    </v-form>
                     </v-card-text>
 
                     <v-card-actions>
@@ -1843,11 +1845,10 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                             action="save"
                             text="Guardar cobro"
                             :loading="paymentForm.processing"
-                            type="submit"
+                            @click="submitPayment"
                         />
                     </v-card-actions>
                 </v-card>
-            </v-form>
         </v-dialog>
     </AppLayout>
 </template>

@@ -38,7 +38,7 @@ const enviar = async () => {
 <template>
   <Head title="Confirmación en dos factores" />
 
-  <v-container class="fill-height d-flex align-center justify-center">
+  <div class="min-h-screen flex items-center justify-center auth-bg">
     <v-card width="500" class="pa-6">
 
       <v-card-title class="text-h6 text-center">
@@ -119,5 +119,10 @@ const enviar = async () => {
 
       </v-card-text>
     </v-card>
-  </v-container>
+  </div>
 </template>
+<style scoped>
+.auth-bg {
+    background: linear-gradient(180deg, #0B5A8C 0%, #031826 100%) !important;
+}
+</style>

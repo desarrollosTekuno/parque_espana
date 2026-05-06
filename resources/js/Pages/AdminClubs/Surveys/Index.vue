@@ -118,7 +118,7 @@ const formatDate = (dateStr: string) => {
                 <v-col>
                     <h2 class="text-h5 font-weight-bold">Encuestas</h2>
                     <div class="text-body-2 text-medium-emphasis">
-                        Crea y administra encuestas para recopilar opiniones de los socios
+                        Crea y administra encuestas para recopilar opiniones de los usuarios
                     </div>
                 </v-col>
                 <v-col cols="auto">
@@ -129,6 +129,7 @@ const formatDate = (dateStr: string) => {
                         variant="flat"
                         :icon-only="false"
                         @click="create"
+                        v-if="can.includes('surveys.create')"
                     />
                 </v-col>
             </v-row>
@@ -190,16 +191,16 @@ const formatDate = (dateStr: string) => {
                     <template #item.actions="{ item }">
                         <v-tooltip text="Ver resultados">
                             <template #activator="{ props: tp }">
-                                <BaseButton v-bind="tp" icon="mdi-chart-bar" color="purple" @click="results(item)" />
+                                <BaseButton v-bind="tp" icon="mdi-chart-bar" color="purple" @click="results(item)" v-if="can.includes('surveys.results')" />
                             </template>
                         </v-tooltip>
-                        <v-tooltip text="Copiar URL pública">
+                        <!-- <v-tooltip text="Copiar URL pública">
                             <template #activator="{ props: tp }">
                                 <BaseButton v-bind="tp" icon="mdi-link-variant" color="teal" @click="copyLink(item)" />
                             </template>
-                        </v-tooltip>
-                        <BaseButton action="edit" @click="edit(item)" />
-                        <BaseButton action="delete" @click="destroy(item)" />
+                        </v-tooltip> -->
+                        <BaseButton action="edit" @click="edit(item)" v-if="can.includes('surveys.edit')" />
+                        <BaseButton action="delete" @click="destroy(item)" v-if="can.includes('surveys.destroy')" />
                     </template>
                 </v-data-table-server>
             </v-card>

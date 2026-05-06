@@ -18,7 +18,7 @@ class RoleSeeder extends Seeder
     {
         $mobileContexts = ['mobile_club_1', 'mobile_club_2'];
 
-        // Permisos que recibe el socio titular
+        // Permisos que recibe el usuario titular
         $titularPermissions = [
             'mobile.reservations.index',
             'mobile.reservations.store',
@@ -32,7 +32,7 @@ class RoleSeeder extends Seeder
             'mobile.rules.index',
         ];
 
-        // Permisos que recibe el socio dependiente
+        // Permisos que recibe el usuario dependiente
         $dependientePermissions = [
             'mobile.reservations.index',
             'mobile.reservations.store',

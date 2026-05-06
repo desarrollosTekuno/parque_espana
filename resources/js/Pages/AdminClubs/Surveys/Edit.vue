@@ -2,13 +2,17 @@
 import AppLayout from "@/Layouts/AppLayout.vue";
 import BaseButton from "@/Components/BaseButton.vue";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
-import { Head, router, useForm } from "@inertiajs/vue3";
+import { Head, router, useForm, usePage } from "@inertiajs/vue3";
 import { ref, computed, watch } from "vue";
 
 // ─────────────────────────────────────────
 //  Props
 // ─────────────────────────────────────────
-interface QuestionOption { id?: number; option_text: string; order?: number; }
+interface QuestionOption {
+    id?: number;
+    option_text: string;
+    order?: number;
+}
 interface Question {
     id?: number;
     question_text: string;
@@ -34,15 +38,16 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
     survey: null,
 });
+const can = usePage().props.auth.permissions;
 
 // ─────────────────────────────────────────
 //  Survey form
 // ─────────────────────────────────────────
 const surveyFormRef = ref<any>(null);
 const form = useForm({
-    title:       props.survey?.title ?? "",
+    title: props.survey?.title ?? "",
     description: props.survey?.description ?? "",
-    status:      props.survey?.status ?? "draft",
+    status: props.survey?.status ?? "draft",
 });
 
 const saveSurvey = () => {
@@ -51,12 +56,24 @@ const saveSurvey = () => {
         if (props.survey?.id) {
             form.put(route("surveys.update", props.survey.id), {
                 preserveScroll: true,
-                onSuccess: () => customToastSwal({ title: "Encuesta actualizada", icon: "success" }),
-                onError: (err: any) => customToastSwal({ title: err?.messageError || "Error al guardar", icon: "error" }),
+                onSuccess: () =>
+                    customToastSwal({
+                        title: "Encuesta actualizada",
+                        icon: "success",
+                    }),
+                onError: (err: any) =>
+                    customToastSwal({
+                        title: err?.messageError || "Error al guardar",
+                        icon: "error",
+                    }),
             });
         } else {
             form.post(route("surveys.store"), {
-                onError: (err: any) => customToastSwal({ title: err?.messageError || "Error al guardar", icon: "error" }),
+                onError: (err: any) =>
+                    customToastSwal({
+                        title: err?.messageError || "Error al guardar",
+                        icon: "error",
+                    }),
             });
         }
     });
@@ -66,54 +83,77 @@ const saveSurvey = () => {
 //  Questions list
 // ─────────────────────────────────────────
 const questions = ref<Question[]>(
-    (props.survey?.questions ?? []).map((q) => ({ ...q, options: q.options ?? [] }))
+    (props.survey?.questions ?? []).map((q) => ({
+        ...q,
+        options: q.options ?? [],
+    })),
 );
 
 // ─────────────────────────────────────────
 //  Question modal
 // ─────────────────────────────────────────
-const showModal    = ref(false);
+const showModal = ref(false);
 const questionFormRef = ref<any>(null);
 const editingQuestion = ref<Question | null>(null);
 
 const questionTypes = [
-    { title: "Opción múltiple (una respuesta)",     value: "single_choice",   icon: "mdi-radiobox-marked" },
-    { title: "Casillas (varias respuestas)",          value: "multiple_choice", icon: "mdi-checkbox-marked" },
-    { title: "Texto abierto",                         value: "open_text",       icon: "mdi-text" },
-    { title: "Escala de valoración",                  value: "rating",          icon: "mdi-star" },
+    {
+        title: "Opción múltiple (una respuesta)",
+        value: "single_choice",
+        icon: "mdi-radiobox-marked",
+    },
+    {
+        title: "Casillas (varias respuestas)",
+        value: "multiple_choice",
+        icon: "mdi-checkbox-marked",
+    },
+    { title: "Texto abierto", value: "open_text", icon: "mdi-text" },
+    { title: "Escala de valoración", value: "rating", icon: "mdi-star" },
 ];
 
 const qForm = useForm({
     question_text: "",
-    type:          "open_text",
-    is_required:   true,
-    config:        { min: 1, max: 5, label_min: "Muy malo", label_max: "Excelente" } as any,
-    options:       [] as QuestionOption[],
+    type: "open_text",
+    is_required: true,
+    config: {
+        min: 1,
+        max: 5,
+        label_min: "Muy malo",
+        label_max: "Excelente",
+    } as any,
+    options: [] as QuestionOption[],
 });
 
 const needsOptions = computed(() =>
-    ["single_choice", "multiple_choice"].includes(qForm.type)
+    ["single_choice", "multiple_choice"].includes(qForm.type),
 );
 const isRating = computed(() => qForm.type === "rating");
 
 const openCreateQuestion = () => {
     editingQuestion.value = null;
     qForm.reset();
-    qForm.type        = "open_text";
+    qForm.type = "open_text";
     qForm.is_required = true;
-    qForm.config      = { min: 1, max: 5, label_min: "Muy malo", label_max: "Excelente" };
-    qForm.options     = [];
-    showModal.value   = true;
+    qForm.config = {
+        min: 1,
+        max: 5,
+        label_min: "Muy malo",
+        label_max: "Excelente",
+    };
+    qForm.options = [];
+    showModal.value = true;
 };
 
 const openEditQuestion = (q: Question) => {
     editingQuestion.value = q;
     qForm.question_text = q.question_text;
-    qForm.type          = q.type;
-    qForm.is_required   = q.is_required;
-    qForm.config        = q.config ? { ...q.config } : { min: 1, max: 5, label_min: "Muy malo", label_max: "Excelente" };
-    qForm.options       = (q.options ?? []).map((o) => ({ ...o }));
-    showModal.value     = true;
+    qForm.type = q.type;
+    qForm.is_required = q.is_required;
+    qForm.config = q.config
+        ? { ...q.config }
+        : { min: 1, max: 5, label_min: "Muy malo", label_max: "Excelente" };
+    qForm.options = (q.options ?? []).map((o) => ({ ...o }));
+    showModal.value = true;
 };
 
 const addOption = () => {
@@ -127,106 +167,154 @@ const saveQuestion = () => {
     questionFormRef.value?.validate().then(({ valid }: { valid: boolean }) => {
         if (!valid) return;
         if (!props.survey?.id) {
-            customToastSwal({ title: "Guarda la encuesta primero antes de agregar preguntas", icon: "warning" });
+            customToastSwal({
+                title: "Guarda la encuesta primero antes de agregar preguntas",
+                icon: "warning",
+            });
             return;
         }
 
         const payload = {
             question_text: qForm.question_text,
-            type:          qForm.type,
-            is_required:   qForm.is_required,
-            config:        isRating.value ? qForm.config : null,
-            options:       needsOptions.value ? qForm.options : [],
+            type: qForm.type,
+            is_required: qForm.is_required,
+            config: isRating.value ? qForm.config : null,
+            options: needsOptions.value ? qForm.options : [],
         };
 
         if (editingQuestion.value?.id) {
-            qForm.put(route("surveys.questions.update", {
-                survey:   props.survey!.id,
-                question: editingQuestion.value.id,
-            }), {
-                data: payload,
-                preserveScroll: true,
-                onSuccess: () => { showModal.value = false; customToastSwal({ title: "Pregunta actualizada", icon: "success" }); },
-                onError: (err: any) => customToastSwal({ title: err?.messageError || "Error", icon: "error" }),
-            });
+            qForm.put(
+                route("surveys.questions.update", {
+                    survey: props.survey!.id,
+                    question: editingQuestion.value.id,
+                }),
+                {
+                    data: payload,
+                    preserveScroll: true,
+                    onSuccess: () => {
+                        showModal.value = false;
+                        customToastSwal({
+                            title: "Pregunta actualizada",
+                            icon: "success",
+                        });
+                    },
+                    onError: (err: any) =>
+                        customToastSwal({
+                            title: err?.messageError || "Error",
+                            icon: "error",
+                        }),
+                },
+            );
         } else {
             qForm.post(route("surveys.questions.store", props.survey!.id), {
                 data: payload,
                 preserveScroll: true,
-                onSuccess: () => { showModal.value = false; customToastSwal({ title: "Pregunta agregada", icon: "success" }); },
-                onError: (err: any) => customToastSwal({ title: err?.messageError || "Error", icon: "error" }),
+                onSuccess: () => {
+                    showModal.value = false;
+                    customToastSwal({
+                        title: "Pregunta agregada",
+                        icon: "success",
+                    });
+                },
+                onError: (err: any) =>
+                    customToastSwal({
+                        title: err?.messageError || "Error",
+                        icon: "error",
+                    }),
             });
         }
     });
 };
 
 const destroyQuestion = async (q: Question) => {
-    const res = await customConfirmSwal({ title: "¿Eliminar pregunta?", icon: "warning" });
-    if (!res.isConfirmed) return;
-    router.delete(route("surveys.questions.destroy", {
-        survey:   props.survey!.id,
-        question: q.id,
-    }), {
-        preserveScroll: true,
-        onSuccess: () => customToastSwal({ title: "Pregunta eliminada", icon: "success" }),
-        onError: (err: any) => customToastSwal({ title: err?.messageError || "Error", icon: "error" }),
+    const res = await customConfirmSwal({
+        title: "¿Eliminar pregunta?",
+        icon: "warning",
     });
+    if (!res.isConfirmed) return;
+    router.delete(
+        route("surveys.questions.destroy", {
+            survey: props.survey!.id,
+            question: q.id,
+        }),
+        {
+            preserveScroll: true,
+            onSuccess: () =>
+                customToastSwal({
+                    title: "Pregunta eliminada",
+                    icon: "success",
+                }),
+            onError: (err: any) =>
+                customToastSwal({
+                    title: err?.messageError || "Error",
+                    icon: "error",
+                }),
+        },
+    );
 };
 
 // Drag & drop reorder
 const draggingIdx = ref<number | null>(null);
 
-const onDragStart = (idx: number) => { draggingIdx.value = idx; };
+const onDragStart = (idx: number) => {
+    draggingIdx.value = idx;
+};
 const onDrop = (targetIdx: number) => {
     if (draggingIdx.value === null || draggingIdx.value === targetIdx) return;
     const list = [...questions.value];
     const [item] = list.splice(draggingIdx.value, 1);
     list.splice(targetIdx, 0, item);
-    questions.value    = list;
-    draggingIdx.value  = null;
+    questions.value = list;
+    draggingIdx.value = null;
 
     router.post(
         route("surveys.questions.reorder", props.survey!.id),
         { questions: list.map((q) => q.id!) },
-        { preserveScroll: true }
+        { preserveScroll: true },
     );
 };
 
 // sync cuando cambia la prop (tras guardar)
 watch(
     () => props.survey?.questions,
-    (val) => { questions.value = (val ?? []).map((q) => ({ ...q, options: q.options ?? [] })); },
-    { deep: true }
+    (val) => {
+        questions.value = (val ?? []).map((q) => ({
+            ...q,
+            options: q.options ?? [],
+        }));
+    },
+    { deep: true },
 );
 
 const typeLabel: Record<string, string> = {
-    single_choice:   "Opción múltiple",
+    single_choice: "Opción múltiple",
     multiple_choice: "Casillas",
-    open_text:       "Texto abierto",
-    rating:          "Valoración",
+    open_text: "Texto abierto",
+    rating: "Valoración",
 };
 const typeIcon: Record<string, string> = {
-    single_choice:   "mdi-radiobox-marked",
+    single_choice: "mdi-radiobox-marked",
     multiple_choice: "mdi-checkbox-marked",
-    open_text:       "mdi-text",
-    rating:          "mdi-star",
+    open_text: "mdi-text",
+    rating: "mdi-star",
 };
 const typeColor: Record<string, string> = {
-    single_choice:   "blue",
+    single_choice: "blue",
     multiple_choice: "indigo",
-    open_text:       "teal",
-    rating:          "amber",
+    open_text: "teal",
+    rating: "amber",
 };
 
 const required = (v: any) => !!v || "Campo requerido";
 const minOptions = (v: QuestionOption[]) =>
-    (needsOptions.value && v.length < 2) ? "Agrega al menos 2 opciones" : true;
-
+    needsOptions.value && v.length < 2 ? "Agrega al menos 2 opciones" : true;
 </script>
 
 <template>
     <AppLayout :title="props.survey?.id ? 'Editar encuesta' : 'Nueva encuesta'">
-        <Head :title="props.survey?.id ? 'Editar encuesta' : 'Nueva encuesta'" />
+        <Head
+            :title="props.survey?.id ? 'Editar encuesta' : 'Nueva encuesta'"
+        />
 
         <div class="pa-4">
             <!-- Breadcrumb -->
@@ -238,7 +326,9 @@ const minOptions = (v: QuestionOption[]) =>
                     :icon-only="true"
                 />
                 <h2 class="text-h5 font-weight-bold">
-                    {{ props.survey?.id ? "Editar encuesta" : "Nueva encuesta" }}
+                    {{
+                        props.survey?.id ? "Editar encuesta" : "Nueva encuesta"
+                    }}
                 </h2>
             </div>
 
@@ -251,7 +341,10 @@ const minOptions = (v: QuestionOption[]) =>
                             Datos de la encuesta
                         </div>
 
-                        <v-form ref="surveyFormRef" @submit.prevent="saveSurvey">
+                        <v-form
+                            ref="surveyFormRef"
+                            @submit.prevent="saveSurvey"
+                        >
                             <v-text-field
                                 v-model="form.title"
                                 label="Título"
@@ -296,7 +389,11 @@ const minOptions = (v: QuestionOption[]) =>
                                 :loading="form.processing"
                                 prepend-icon="mdi-content-save"
                             >
-                                {{ props.survey?.id ? "Actualizar" : "Crear encuesta" }}
+                                {{
+                                    props.survey?.id
+                                        ? "Actualizar"
+                                        : "Crear encuesta"
+                                }}
                             </v-btn>
                         </v-form>
 
@@ -308,7 +405,8 @@ const minOptions = (v: QuestionOption[]) =>
                             class="mt-4"
                             icon="mdi-information-outline"
                         >
-                            Crea la encuesta primero para luego agregar preguntas.
+                            Crea la encuesta primero para luego agregar
+                            preguntas.
                         </v-alert>
                     </v-card>
                 </v-col>
@@ -316,16 +414,26 @@ const minOptions = (v: QuestionOption[]) =>
                 <!-- ── Columna derecha: preguntas ── -->
                 <v-col cols="12" md="8">
                     <v-card elevation="1">
-                        <v-card-title class="d-flex align-center justify-space-between pa-4">
+                        <v-card-title
+                            class="d-flex align-center justify-space-between pa-4"
+                        >
                             <span>
                                 <v-icon start>mdi-help-circle</v-icon>
                                 Preguntas
-                                <v-chip size="small" class="ml-2" color="blue" variant="tonal">
+                                <v-chip
+                                    size="small"
+                                    class="ml-2"
+                                    color="blue"
+                                    variant="tonal"
+                                >
                                     {{ questions.length }}
                                 </v-chip>
                             </span>
                             <BaseButton
-                                v-if="props.survey?.id"
+                                v-if="
+                                    props.survey?.id &&
+                                    can.includes('surveys.questions.store')
+                                "
                                 text="Agregar pregunta"
                                 icon="mdi-plus"
                                 action="save"
@@ -337,9 +445,16 @@ const minOptions = (v: QuestionOption[]) =>
 
                         <v-divider />
 
-                        <div v-if="questions.length === 0" class="pa-8 text-center text-medium-emphasis">
-                            <v-icon size="48" color="grey-lighten-1">mdi-help-circle-outline</v-icon>
-                            <div class="mt-2">Aún no hay preguntas. Agrega la primera.</div>
+                        <div
+                            v-if="questions.length === 0"
+                            class="pa-8 text-center text-medium-emphasis"
+                        >
+                            <v-icon size="48" color="grey-lighten-1"
+                                >mdi-help-circle-outline</v-icon
+                            >
+                            <div class="mt-2">
+                                Aún no hay preguntas. Agrega la primera.
+                            </div>
                         </div>
 
                         <!-- Lista de preguntas (drag & drop) -->
@@ -348,22 +463,31 @@ const minOptions = (v: QuestionOption[]) =>
                                 v-for="(q, idx) in questions"
                                 :key="q.id ?? idx"
                                 class="mb-2 rounded"
-                                :class="{ 'bg-blue-lighten-5': draggingIdx === idx }"
-                                draggable="true"
+                                :class="{
+                                    'bg-blue-lighten-5': draggingIdx === idx,
+                                }"
+                                :draggable="can.includes('surveys.questions.reorder')"
                                 @dragstart="onDragStart(idx)"
                                 @dragover.prevent
                                 @drop="onDrop(idx)"
-                                style="border: 1px solid rgba(0,0,0,0.08); cursor: grab;"
+                                style="
+                                    border: 1px solid rgba(0, 0, 0, 0.08);
+                                    cursor: grab;
+                                "
                             >
                                 <template #prepend>
                                     <div class="d-flex align-center gap-2">
-                                        <v-icon color="grey" size="18">mdi-drag</v-icon>
+                                        <v-icon color="grey" size="18"
+                                            >mdi-drag</v-icon
+                                        >
                                         <v-chip
                                             size="x-small"
                                             variant="flat"
                                             :color="typeColor[q.type]"
                                         >
-                                            <v-icon start size="12">{{ typeIcon[q.type] }}</v-icon>
+                                            <v-icon start size="12">{{
+                                                typeIcon[q.type]
+                                            }}</v-icon>
                                             {{ typeLabel[q.type] }}
                                         </v-chip>
                                     </div>
@@ -383,18 +507,42 @@ const minOptions = (v: QuestionOption[]) =>
                                 </v-list-item-title>
 
                                 <v-list-item-subtitle v-if="q.options?.length">
-                                    {{ q.options.map(o => o.option_text).join(" · ") }}
+                                    {{
+                                        q.options
+                                            .map((o) => o.option_text)
+                                            .join(" · ")
+                                    }}
                                 </v-list-item-subtitle>
-                                <v-list-item-subtitle v-else-if="q.type === 'rating' && q.config">
-                                    Escala {{ q.config.min }} – {{ q.config.max }}
+                                <v-list-item-subtitle
+                                    v-else-if="q.type === 'rating' && q.config"
+                                >
+                                    Escala {{ q.config.min }} –
+                                    {{ q.config.max }}
                                     <template v-if="q.config.label_min">
-                                        ({{ q.config.label_min }} → {{ q.config.label_max }})
+                                        ({{ q.config.label_min }} →
+                                        {{ q.config.label_max }})
                                     </template>
                                 </v-list-item-subtitle>
 
                                 <template #append>
-                                    <BaseButton action="edit" @click="openEditQuestion(q)" />
-                                    <BaseButton action="delete" @click="destroyQuestion(q)" />
+                                    <BaseButton
+                                        action="edit"
+                                        @click="openEditQuestion(q)"
+                                        v-if="
+                                            can.includes(
+                                                'surveys.questions.update',
+                                            )
+                                        "
+                                    />
+                                    <BaseButton
+                                        action="delete"
+                                        @click="destroyQuestion(q)"
+                                        v-if="
+                                            can.includes(
+                                                'surveys.questions.destroy',
+                                            )
+                                        "
+                                    />
                                 </template>
                             </v-list-item>
                         </v-list>
@@ -406,8 +554,12 @@ const minOptions = (v: QuestionOption[]) =>
         <!-- ── Modal de pregunta ── -->
         <v-dialog v-model="showModal" max-width="600" persistent>
             <v-form ref="questionFormRef" @submit.prevent="saveQuestion">
-                <v-card :title="editingQuestion ? 'Editar pregunta' : 'Nueva pregunta'">
-                    <v-card-text style="max-height: 70vh; overflow: auto;">
+                <v-card
+                    :title="
+                        editingQuestion ? 'Editar pregunta' : 'Nueva pregunta'
+                    "
+                >
+                    <v-card-text style="max-height: 70vh; overflow: auto">
                         <v-row>
                             <v-col cols="12">
                                 <v-select
@@ -444,7 +596,11 @@ const minOptions = (v: QuestionOption[]) =>
 
                             <!-- Opciones para single_choice / multiple_choice -->
                             <v-col v-if="needsOptions" cols="12">
-                                <div class="text-subtitle-2 mb-2 font-weight-bold">Opciones de respuesta</div>
+                                <div
+                                    class="text-subtitle-2 mb-2 font-weight-bold"
+                                >
+                                    Opciones de respuesta
+                                </div>
                                 <v-row
                                     v-for="(opt, idx) in qForm.options"
                                     :key="idx"
@@ -480,7 +636,10 @@ const minOptions = (v: QuestionOption[]) =>
                                 >
                                     Agregar opción
                                 </v-btn>
-                                <div v-if="qForm.options.length < 2" class="text-caption text-error mt-1">
+                                <div
+                                    v-if="qForm.options.length < 2"
+                                    class="text-caption text-error mt-1"
+                                >
                                     Agrega al menos 2 opciones
                                 </div>
                             </v-col>

@@ -15,7 +15,7 @@ use App\Rules\ExistsInSchema;
 class SurveyController extends Controller
 {
     /**
-     * Encuestas activas del club que el socio autenticado aún no ha respondido.
+     * Encuestas activas del club que el usuario autenticado aún no ha respondido.
      * GET /api/v1/clubs/{club}/surveys
      */
     public function index(Request $request, Club $club)
@@ -110,7 +110,7 @@ class SurveyController extends Controller
     }
 
     /**
-     * Enviar respuestas del socio autenticado.
+     * Enviar respuestas del usuario autenticado.
      * POST /api/v1/clubs/{club}/surveys/{survey}/responses
      *
      * Body:

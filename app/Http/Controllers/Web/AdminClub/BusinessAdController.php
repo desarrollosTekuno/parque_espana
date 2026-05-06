@@ -81,7 +81,7 @@ class BusinessAdController extends Controller {
 
             $accountMembership = $ad->member->accountMemberships()->first();
             if (!$accountMembership) {
-                throw new \Exception('El socio no tiene cuenta de membresía');
+                throw new \Exception('El usuario no tiene cuenta de membresía');
             }
             $membership = $accountMembership->membershipAccount->memberships->first();
             if (!$membership) {

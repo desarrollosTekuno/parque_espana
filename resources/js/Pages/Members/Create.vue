@@ -376,7 +376,7 @@ const pageTitle = computed(() =>
         ? "Solicitud Otro Parque"
         : props.isMembershipTransition
           ? "Cambio de Membresía"
-          : "Alta de Socios",
+          : "Alta de Usuarios",
 );
 
 const pageHeader = computed(() =>
@@ -384,7 +384,7 @@ const pageHeader = computed(() =>
         ? "Solicitud para el Otro Parque"
         : props.isMembershipTransition
           ? "Cambio de Membresía"
-          : "Alta de Socios",
+          : "Alta de Usuarios",
 );
 
 const usesSourceMembership = computed(
