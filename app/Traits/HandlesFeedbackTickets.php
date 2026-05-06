@@ -4,6 +4,7 @@ namespace App\Traits;
 
 use App\Models\Feedback\Attachment;
 use App\Models\Feedback\Ticket;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 
 trait HandlesFeedbackTickets {
@@ -33,6 +34,10 @@ trait HandlesFeedbackTickets {
         $ticketFolder = 'Feedback/Tickets/' . $ticket->ticket_number;
 
         foreach ($files as $file) {
+            if (!$file instanceof UploadedFile) {
+                continue;
+            }
+
             $path = $file->store($ticketFolder, 'public');
 
             Attachment::create([

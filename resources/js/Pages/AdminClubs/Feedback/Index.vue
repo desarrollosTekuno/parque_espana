@@ -176,24 +176,35 @@ const save = () => {
             return;
         }
 
-        form.post(route("feedback.store"), {
-            onSuccess: () => {
-                customToastSwal({
-                    title: page.props.flash.success || "",
-                    icon: "success",
-                });
+        const attachments = Array.isArray(form.attachments)
+            ? form.attachments.filter(Boolean)
+            : [];
 
-                close();
-                fetchItems();
-            },
-            onError: () => {
-                customToastSwal({
-                    title: `Error: ${form.errors.messageError ?? ""}`,
-                    text: `${form.errors.exception ?? ""}`,
-                    icon: "error",
-                });
-            },
-        });
+        form
+            .transform((data) => ({
+                ...data,
+                attachments,
+            }))
+            .post(route("feedback.store"), {
+                forceFormData: true,
+                preserveScroll: true,
+                onSuccess: () => {
+                    customToastSwal({
+                        title: page.props.flash.success || "",
+                        icon: "success",
+                    });
+
+                    close();
+                    fetchItems();
+                },
+                onError: () => {
+                    customToastSwal({
+                        title: `Error: ${form.errors.messageError ?? ""}`,
+                        text: `${form.errors.exception ?? ""}`,
+                        icon: "error",
+                    });
+                },
+            });
     });
 };
 
@@ -390,11 +401,17 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                             <v-col cols="12" md="8">
                                 <v-file-input
                                     v-model="form.attachments"
-                                    label="Adjuntos"
+                                    name="attachments[]"
+                                    label="Adjuntos (puedes subir varios)"
                                     multiple
                                     chips
                                     show-size
+                                    counter
+                                    clearable
+                                    hint="Puedes seleccionar varios archivos a la vez (Ctrl + clic en Windows o Cmd + clic en Mac). También puedes arrastrar y soltar varios archivos aquí."
+                                    persistent-hint
                                     prepend-icon="mdi-paperclip"
+                                    accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx"
                                     :rules="[
                                         fileMaxCountRule(5),
                                         fileTypeRule(['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx', 'xls', 'xlsx']),

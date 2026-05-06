@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\AdminClub\Feedback;
 
 use Illuminate\Routing\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use App\Models\Feedback\Ticket;
@@ -125,13 +126,18 @@ class FeedbackController extends Controller {
             'description' => 'required|string',
             'is_anonymous' => 'required|boolean',
             'attachments' => 'nullable|array|max:5',
-            'attachments.*' => 'file|mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx|max:10240',
+            'attachments.*' => 'nullable|file|mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx|max:10240',
         ], [
             'ticket_type_id.required' => 'Debes seleccionar un tipo.',
             'category_id.required' => 'Debes seleccionar una categoría.',
             'priority_id.required' => 'Debes seleccionar una prioridad.',
             'title.required' => 'Debes ingresar un título.',
             'description.required' => 'Debes ingresar una descripción.',
+            'attachments.array' => 'Los adjuntos deben enviarse como una lista de archivos.',
+            'attachments.max' => 'Solo puedes subir hasta 5 archivos por ticket.',
+            'attachments.*.file' => 'Cada adjunto debe ser un archivo válido.',
+            'attachments.*.mimes' => 'Formato no permitido. Usa: jpg, jpeg, png, pdf, doc, docx, xls o xlsx.',
+            'attachments.*.max' => 'Cada archivo puede pesar máximo 10 MB.',
         ]);
 
         try {
@@ -168,8 +174,10 @@ class FeedbackController extends Controller {
                 'is_anonymous' => $request->is_anonymous,
             ]);
 
-            if ($request->hasFile('attachments')) {
-                $this->storeTicketAttachments($ticket, $request->file('attachments'));
+            $attachments = $this->getAttachmentFiles($request);
+
+            if (!empty($attachments)) {
+                $this->storeTicketAttachments($ticket, $attachments);
             }
 
             return back()->with('success', 'Queja o sugerencia creada correctamente');
@@ -194,7 +202,7 @@ class FeedbackController extends Controller {
             'description' => 'required|string',
             'is_anonymous' => 'required|boolean',
             'attachments' => 'nullable|array|max:5',
-            'attachments.*' => 'file|mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx|max:10240',
+            'attachments.*' => 'nullable|file|mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx|max:10240',
         ], [
             'ticket_type_id.required' => 'Debes seleccionar un tipo.',
             'category_id.required' => 'Debes seleccionar una categoría.',
@@ -202,6 +210,11 @@ class FeedbackController extends Controller {
             'priority_id.required' => 'Debes seleccionar una prioridad.',
             'title.required' => 'Debes ingresar un título.',
             'description.required' => 'Debes ingresar una descripción.',
+            'attachments.array' => 'Los adjuntos deben enviarse como una lista de archivos.',
+            'attachments.max' => 'Solo puedes subir hasta 5 archivos por ticket.',
+            'attachments.*.file' => 'Cada adjunto debe ser un archivo válido.',
+            'attachments.*.mimes' => 'Formato no permitido. Usa: jpg, jpeg, png, pdf, doc, docx, xls o xlsx.',
+            'attachments.*.max' => 'Cada archivo puede pesar máximo 10 MB.',
         ]);
 
         try {
@@ -225,8 +238,10 @@ class FeedbackController extends Controller {
 
             $feedback->update($dataToUpdate);
 
-            if ($request->hasFile('attachments')) {
-                $this->storeTicketAttachments($feedback, $request->file('attachments'));
+            $attachments = $this->getAttachmentFiles($request);
+
+            if (!empty($attachments)) {
+                $this->storeTicketAttachments($feedback, $attachments);
             }
 
             return back()->with('success', 'Queja o sugerencia actualizada');
@@ -282,5 +297,23 @@ class FeedbackController extends Controller {
                 'exception' => $e->getMessage(),
             ]);
         }
+    }
+
+    private function getAttachmentFiles(Request $request): array {
+        $files = $request->file('attachments', []);
+
+        if ($files === null) {
+            return [];
+        }
+
+        if ($files instanceof UploadedFile) {
+            return [$files];
+        }
+
+        if (!is_array($files)) {
+            return [];
+        }
+
+        return array_values(array_filter($files, fn ($file) => $file instanceof UploadedFile));
     }
 }
