@@ -4,6 +4,7 @@ namespace App\Traits;
 
 use App\Models\Feedback\Attachment;
 use App\Models\Feedback\Ticket;
+use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 
@@ -50,5 +51,23 @@ trait HandlesFeedbackTickets {
                 'uploaded_by_user_id' => Auth::id(),
             ]);
         }
+    }
+
+    protected function getAttachmentFiles(Request $request): array {
+        $files = $request->file('attachments', []);
+
+        if ($files === null) {
+            return [];
+        }
+
+        if ($files instanceof UploadedFile) {
+            return [$files];
+        }
+
+        if (!is_array($files)) {
+            return [];
+        }
+
+        return array_values(array_filter($files, fn ($file) => $file instanceof UploadedFile));
     }
 }

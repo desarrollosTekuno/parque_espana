@@ -92,7 +92,7 @@ class FeedbackTicketMobileController extends Controller {
             'description' => 'required|string',
             'is_anonymous' => 'nullable|boolean',
             'attachments' => 'nullable|array|max:5',
-            'attachments.*' => 'file|mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx|max:10240',
+            'attachments.*' => 'nullable|file|mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx|max:10240',
         ]);
 
         try {
@@ -134,8 +134,10 @@ class FeedbackTicketMobileController extends Controller {
                     'submitted_at' => now(),
                 ]);
 
-                if ($request->hasFile('attachments')) {
-                    $this->storeTicketAttachments($ticket, $request->file('attachments'));
+                $attachments = $this->getAttachmentFiles($request);
+
+                if (!empty($attachments)) {
+                    $this->storeTicketAttachments($ticket, $attachments);
                 }
 
                 return response()->json([

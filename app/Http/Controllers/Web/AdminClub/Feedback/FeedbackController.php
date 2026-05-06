@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Web\AdminClub\Feedback;
 
 use Illuminate\Routing\Controller;
 use Illuminate\Http\Request;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use App\Models\Feedback\Ticket;
@@ -309,21 +308,4 @@ class FeedbackController extends Controller {
         }
     }
 
-    private function getAttachmentFiles(Request $request): array {
-        $files = $request->file('attachments', []);
-
-        if ($files === null) {
-            return [];
-        }
-
-        if ($files instanceof UploadedFile) {
-            return [$files];
-        }
-
-        if (!is_array($files)) {
-            return [];
-        }
-
-        return array_values(array_filter($files, fn ($file) => $file instanceof UploadedFile));
-    }
 }
