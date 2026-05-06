@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreFeedbackTicketRequest;
 use App\Models\Administrator\Club;
 use App\Models\Feedback\Status;
 use App\Models\Feedback\Ticket;
@@ -83,18 +84,7 @@ class FeedbackTicketMobileController extends Controller {
         }
     }
 
-    public function store(Request $request, Club $club) {
-        $request->validate([
-            'ticket_type_id' => 'required',
-            'category_id' => 'required',
-            'priority_id' => 'required',
-            'title' => 'required|string|max:200',
-            'description' => 'required|string',
-            'is_anonymous' => 'nullable|boolean',
-            'attachments' => 'nullable|array|max:5',
-            'attachments.*' => 'nullable|file|mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx|max:10240',
-        ]);
-
+    public function store(StoreFeedbackTicketRequest $request, Club $club) {
         try {
             $status = Status::where('code', 'SUBMITTED')->first();
             $member = Member::where('user_id', $request->user()->id)->first();
