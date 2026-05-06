@@ -2817,7 +2817,7 @@ class MemberController extends Controller
 
         if (!$sourceClub || $sourceClub->code !== 'PE1') {
             throw ValidationException::withMessages([
-                'source_club_id' => 'El paquete Parque España 1 solo aplica para socios provenientes de PE1.',
+                'source_club_id' => 'El paquete Parque España 1 solo aplica para usuarios provenientes de PE1.',
             ]);
         }
 

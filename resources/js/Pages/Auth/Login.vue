@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { email as emailRule } from "@/constants/validationRules";
+import { email as emailRule, required } from "@/constants/validationRules";
 import AuthenticationCard from "@/Components/AuthenticationCard.vue";
 import AuthenticationCardLogo from "@/Components/AuthenticationCardLogo.vue";
 import Checkbox from "@/Components/Checkbox.vue";
@@ -54,7 +54,11 @@ const submit = () => {
             {{ status }}
         </div>
 
-        <v-form @submit.prevent="submit" ref="formLoginSendRef">
+        <v-form
+            @submit.prevent="submit"
+            ref="formLoginSendRef"
+            class="w-full flex flex-col"
+        >
             <div>
                 <!-- <InputLabel for="email" value="Email" /> -->
                 <v-text-field
@@ -64,7 +68,7 @@ const submit = () => {
                     label="Correo electrónico"
                     variant="outlined"
                     type="email"
-                    :rules="[emailRule]"
+                    :rules="[required, emailRule]"
                 ></v-text-field>
 
                 <!-- <TextInput
@@ -101,23 +105,25 @@ const submit = () => {
                 <InputError class="mt-2" :message="form.errors.password" />
             </div>
 
-            <div class="block mt-4">
-                <label class="flex items-center">
-                    <Checkbox v-model:checked="form.remember" name="remember" />
+            <v-checkbox
+                v-model="form.remember"
+                color="indigo"
+                label="Recuérdame"
+                hide-details
+            ></v-checkbox>
+            <!-- <Checkbox v-model:checked="form.remember" name="remember" />
                     <span class="ms-2 text-sm text-gray-600 dark:text-gray-400"
-                        >Remember me</span
-                    >
-                </label>
-            </div>
-
-            <div class="flex items-center justify-end mt-4">
+                        >Recuérdame</span
+                    > -->
                 <Link
                     v-if="canResetPassword"
                     :href="route('password.request')"
-                    class="underline text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800"
+                    class="underline text-sm text-blue-600  hover:text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800"
                 >
-                    Forgot your password?
+                    ¿Olvidaste tu contraseña?
                 </Link>
+
+            <div class="flex flex-col items-center justify-end mt-4">
 
                 <!-- <PrimaryButton
                     class="ms-4"
@@ -126,7 +132,8 @@ const submit = () => {
                 >
                     Log in
                 </PrimaryButton> -->
-                <v-btn type="submit" prepend-icon="mdi-login"> Ingresar </v-btn>
+                <v-btn color="primary" type="submit" prepend-icon="mdi-login"> Ingresar </v-btn>
+                
             </div>
         </v-form>
         <Loader :overlay="isLoading" />

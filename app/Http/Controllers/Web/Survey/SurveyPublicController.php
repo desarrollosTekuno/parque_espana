@@ -14,7 +14,7 @@ use App\Models\AdminClub\SurveyAnswer;
 class SurveyPublicController extends Controller
 {
     /**
-     * Mostrar la encuesta pública usando el slug + token del socio.
+     * Mostrar la encuesta pública usando el slug + token del usuario.
      * URL: /encuesta/{slug}?t={token}
      */
     public function show(Request $request, string $slug)
@@ -55,7 +55,7 @@ class SurveyPublicController extends Controller
     }
 
     /**
-     * Guardar las respuestas del socio.
+     * Guardar las respuestas del usuario.
      * POST /encuesta/{slug}
      */
     public function submit(Request $request, string $slug)

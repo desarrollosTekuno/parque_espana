@@ -76,12 +76,12 @@ class PermissionSeeder extends Seeder
             array('name' => 'amenityResource.destroy', 'description' => 'Eliminar recursos de la amenidad', 'contexts' => ['web']),
             // store, update and destroy to amenityResource
             // members permissions
-            array('name' => 'members.index', 'description' => 'Ver socios del club', 'contexts' => ['web']),
-            array('name' => 'members.create', 'description' => 'Crear socios del club', 'contexts' => ['web']),
-            array('name' => 'members.store', 'description' => 'Guardar socios del club', 'contexts' => ['web']),
-            array('name' => 'members.edit', 'description' => 'Editar socios del club', 'contexts' => ['web']),
-            array('name' => 'members.update', 'description' => 'Actualizar socios del club', 'contexts' => ['web']),
-            array('name' => 'members.destroy', 'description' => 'Eliminar socios del club', 'contexts' => ['web']),
+            array('name' => 'members.index', 'description' => 'Ver usuarios del club', 'contexts' => ['web']),
+            array('name' => 'members.create', 'description' => 'Crear usuarios del club', 'contexts' => ['web']),
+            array('name' => 'members.store', 'description' => 'Guardar usuarios del club', 'contexts' => ['web']),
+            array('name' => 'members.edit', 'description' => 'Editar usuarios del club', 'contexts' => ['web']),
+            array('name' => 'members.update', 'description' => 'Actualizar usuarios del club', 'contexts' => ['web']),
+            array('name' => 'members.destroy', 'description' => 'Eliminar usuarios del club', 'contexts' => ['web']),
             array('name' => 'billing.index', 'description' => 'Ver modulo de cobranza', 'contexts' => ['web']),
             array('name' => 'billing.store', 'description' => 'Registrar cobros', 'contexts' => ['web']),
             array('name' => 'billing-concepts.index', 'description' => 'Ver conceptos de cobro', 'contexts' => ['web']),

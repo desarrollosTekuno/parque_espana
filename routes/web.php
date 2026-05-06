@@ -35,6 +35,6 @@ Route::middleware(['auth', 'verified'])
     ->prefix('admin')
     ->group(__DIR__ . '/adminclubs.php');
 
-// Encuestas públicas (sin autenticación, acceso por token de socio)
+// Encuestas públicas (sin autenticación, acceso por token de usuario)
 Route::get('/encuesta/{slug}', [SurveyPublicController::class, 'show'])->name('survey.show');
 Route::post('/encuesta/{slug}', [SurveyPublicController::class, 'submit'])->name('survey.submit');
