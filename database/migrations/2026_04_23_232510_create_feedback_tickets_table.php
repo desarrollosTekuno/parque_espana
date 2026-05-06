@@ -13,7 +13,7 @@ return new class extends Migration {
             $table->string('ticket_number', 30)->unique();
 
             $table->date('ticket_date');
-            $table->string('title', 200);
+            $table->string('title', 85);
             $table->text('description');
             $table->text('resolution_notes')->nullable();
 

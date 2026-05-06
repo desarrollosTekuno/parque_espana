@@ -395,7 +395,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 <v-text-field
                                     v-model="form.title"
                                     label="Título"
-                                    :rules="[required, maxLength(200)]"
+                                    :rules="[required, maxLength(85)]"
                                 />
                             </v-col>
 
