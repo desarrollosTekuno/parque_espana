@@ -117,23 +117,23 @@ const priorityChipColor = (priority: any): string => {
 const statusToneClass = (status: any): string => {
     const code = String(status?.code ?? "").toUpperCase();
 
-    if (code === "SUBMITTED") return "badge badge--status badge--info";
-    if (code === "IN_PROGRESS") return "badge badge--status badge--warn";
-    if (code === "RESOLVED") return "badge badge--status badge--ok";
-    if (code === "CANCELLED") return "badge badge--status badge--muted";
-    if (code === "REJECTED") return "badge badge--status badge--danger";
+    if (code === "SUBMITTED") return "fb-badge fb-badge--status fb-badge--info";
+    if (code === "IN_PROGRESS") return "fb-badge fb-badge--status fb-badge--warn";
+    if (code === "RESOLVED") return "fb-badge fb-badge--status fb-badge--ok";
+    if (code === "CANCELLED") return "fb-badge fb-badge--status fb-badge--muted";
+    if (code === "REJECTED") return "fb-badge fb-badge--status fb-badge--danger";
 
-    return "badge badge--status badge--default";
+    return "fb-badge fb-badge--status fb-badge--default";
 };
 
 const priorityToneClass = (priority: any): string => {
     const code = String(priority?.code ?? priority?.name ?? "").toUpperCase();
 
-    if (code.includes("ALTA") || code === "HIGH") return "badge badge--priority badge--danger";
-    if (code.includes("MEDIA") || code === "MEDIUM") return "badge badge--priority badge--warn";
-    if (code.includes("BAJA") || code === "LOW") return "badge badge--priority badge--ok";
+    if (code.includes("ALTA") || code === "HIGH") return "fb-badge fb-badge--priority fb-badge--danger";
+    if (code.includes("MEDIA") || code === "MEDIUM") return "fb-badge fb-badge--priority fb-badge--warn";
+    if (code.includes("BAJA") || code === "LOW") return "fb-badge fb-badge--priority fb-badge--ok";
 
-    return "badge badge--priority badge--default";
+    return "fb-badge fb-badge--priority fb-badge--default";
 };
 
 const fetchItems = async () => {
@@ -453,59 +453,3 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
         </v-dialog>
     </AppLayout>
 </template>
-
-<style scoped>
-.badge {
-    border: 1px solid transparent;
-    border-radius: 999px;
-    font-weight: 600;
-    letter-spacing: 0.2px;
-    backdrop-filter: blur(3px);
-    transition: transform 0.16s ease, box-shadow 0.2s ease;
-}
-
-.badge:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.12);
-}
-
-.badge--status {
-    min-width: 118px;
-    justify-content: center;
-}
-
-.badge--priority {
-    min-width: 98px;
-    justify-content: center;
-}
-
-.badge--ok {
-    background: linear-gradient(135deg, rgba(22, 163, 74, 0.2), rgba(22, 163, 74, 0.1));
-    border-color: rgba(22, 163, 74, 0.35);
-}
-
-.badge--warn {
-    background: linear-gradient(135deg, rgba(217, 119, 6, 0.2), rgba(217, 119, 6, 0.1));
-    border-color: rgba(217, 119, 6, 0.35);
-}
-
-.badge--danger {
-    background: linear-gradient(135deg, rgba(220, 38, 38, 0.2), rgba(220, 38, 38, 0.1));
-    border-color: rgba(220, 38, 38, 0.35);
-}
-
-.badge--info {
-    background: linear-gradient(135deg, rgba(2, 132, 199, 0.2), rgba(2, 132, 199, 0.1));
-    border-color: rgba(2, 132, 199, 0.35);
-}
-
-.badge--muted {
-    background: linear-gradient(135deg, rgba(100, 116, 139, 0.2), rgba(100, 116, 139, 0.1));
-    border-color: rgba(100, 116, 139, 0.35);
-}
-
-.badge--default {
-    background: linear-gradient(135deg, rgba(71, 85, 105, 0.2), rgba(71, 85, 105, 0.1));
-    border-color: rgba(71, 85, 105, 0.35);
-}
-</style>
