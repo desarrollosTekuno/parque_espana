@@ -10,6 +10,7 @@ import {
     required,
     selectRequired,
 } from "@/constants/validationRules";
+import { nowAsLocalInput } from "@/constants/formatDates";
 
 interface ClubItem {
     id: number;
@@ -208,7 +209,7 @@ const paymentForm = useForm<PaymentFormData>({
     membership_account_id: null,
     club_id: null,
     payment_method_id: null,
-    paid_at: new Date().toISOString().slice(0, 16),
+    paid_at: nowAsLocalInput(),
     reference: "",
     bank_name: "",
     check_number: "",
@@ -494,7 +495,7 @@ const openPaymentModal = (account: BillingAccountItem) => {
     paymentFormRef.value?.resetValidation?.();
     paymentForm.membership_account_id = account.id;
     paymentForm.club_id = selectedPaymentClubId.value;
-    paymentForm.paid_at = new Date().toISOString().slice(0, 16);
+    paymentForm.paid_at = nowAsLocalInput();
     buildPaymentDrafts(selectedPaymentClubId.value);
     showPaymentModal.value = true;
 };

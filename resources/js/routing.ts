@@ -73,7 +73,7 @@ const routes: Routing[] = [
         group: null,
     },
     {
-        name: ["billing.index"],
+        name: ["billing.index", "cash-cuts.index", "cash-cuts.show", "global-cash-cuts.index", "global-cash-cuts.show"],
         title: "Cobranza",
         icon: "mdi-cash-multiple",
         value: "cobranzaMenu",
@@ -84,6 +84,18 @@ const routes: Routing[] = [
                 title: "Cargos pendientes",
                 icon: "mdi-receipt-text-outline",
                 value: "cargos-pendientes",
+            },
+            {
+                name: "cash-cuts.index",
+                title: "Mis cortes de caja",
+                icon: "mdi-cash-register",
+                value: "cortes-caja",
+            },
+            {
+                name: "global-cash-cuts.index",
+                title: "Cortes globales",
+                icon: "mdi-calculator-variant-outline",
+                value: "cortes-globales",
             },
         ],
     },

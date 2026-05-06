@@ -19,6 +19,8 @@ use App\Http\Controllers\Web\AdminClub\ReservationGuestListController;
 use App\Http\Controllers\Web\AdminClub\SurveyResultController;
 use App\Http\Controllers\Web\AdminClub\LockerAssignmentController;
 use App\Http\Controllers\Web\AdminClub\LockerController;
+use App\Http\Controllers\Web\AdminClub\CashCutController;
+use App\Http\Controllers\Web\AdminClub\GlobalCashCutController;
 use Illuminate\Support\Facades\Route;
 
 // amenities
@@ -33,6 +35,20 @@ Route::resource('/system-variables', SystemVariableController::class)->only(['in
 Route::resource('/guest-lists', ReservationGuestListController::class)->only(['index', 'update'])->names('guest-lists');
 Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
 Route::post('/billing/payments', [BillingController::class, 'storePayment'])->name('billing.payments.store');
+
+// cash cuts
+Route::get('/cash-cuts', [CashCutController::class, 'index'])->name('cash-cuts.index');
+Route::post('/cash-cuts', [CashCutController::class, 'store'])->name('cash-cuts.store');
+Route::get('/cash-cuts/{cashCut}', [CashCutController::class, 'show'])->name('cash-cuts.show');
+Route::post('/cash-cuts/{cashCut}/close', [CashCutController::class, 'close'])->name('cash-cuts.close');
+Route::get('/cash-cuts/{cashCut}/export', [CashCutController::class, 'export'])->name('cash-cuts.export');
+
+// global cash cuts
+Route::get('/global-cash-cuts', [GlobalCashCutController::class, 'index'])->name('global-cash-cuts.index');
+Route::post('/global-cash-cuts', [GlobalCashCutController::class, 'store'])->name('global-cash-cuts.store');
+Route::get('/global-cash-cuts/{globalCashCut}', [GlobalCashCutController::class, 'show'])->name('global-cash-cuts.show');
+Route::post('/global-cash-cuts/{globalCashCut}/close', [GlobalCashCutController::class, 'close'])->name('global-cash-cuts.close');
+Route::get('/global-cash-cuts/{globalCashCut}/export', [GlobalCashCutController::class, 'export'])->name('global-cash-cuts.export');
 Route::resource('/billing-concepts', BillingConceptController::class)
     ->only(['index', 'store', 'update', 'destroy'])
     ->names('billing-concepts');

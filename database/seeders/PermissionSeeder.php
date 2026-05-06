@@ -85,12 +85,23 @@ class PermissionSeeder extends Seeder
             ['module' => 'Membresías', 'name' => 'member-access.destroy', 'description' => 'Revocar acceso a miembros',        'contexts' => ['web']],
 
             // Cobranza
-            ['module' => 'Cobranza', 'name' => 'billing.index',            'description' => 'Ver módulo de cobranza',        'contexts' => ['web']],
-            ['module' => 'Cobranza', 'name' => 'billing.store',            'description' => 'Registrar cobros',              'contexts' => ['web']],
-            ['module' => 'Cobranza', 'name' => 'billing-concepts.index',   'description' => 'Ver conceptos de cobro',        'contexts' => ['web']],
-            ['module' => 'Cobranza', 'name' => 'billing-concepts.store',   'description' => 'Crear conceptos de cobro',      'contexts' => ['web']],
-            ['module' => 'Cobranza', 'name' => 'billing-concepts.update',  'description' => 'Actualizar conceptos de cobro', 'contexts' => ['web']],
-            ['module' => 'Cobranza', 'name' => 'billing-concepts.destroy', 'description' => 'Eliminar conceptos de cobro',   'contexts' => ['web']],
+            ['module' => 'Cobranza', 'name' => 'billing.index',              'description' => 'Ver módulo de cobranza',          'contexts' => ['web']],
+            ['module' => 'Cobranza', 'name' => 'billing.store',              'description' => 'Registrar cobros',                'contexts' => ['web']],
+            ['module' => 'Cobranza', 'name' => 'billing-concepts.index',     'description' => 'Ver conceptos de cobro',          'contexts' => ['web']],
+            ['module' => 'Cobranza', 'name' => 'billing-concepts.store',     'description' => 'Crear conceptos de cobro',        'contexts' => ['web']],
+            ['module' => 'Cobranza', 'name' => 'billing-concepts.update',    'description' => 'Actualizar conceptos de cobro',   'contexts' => ['web']],
+            ['module' => 'Cobranza', 'name' => 'billing-concepts.destroy',   'description' => 'Eliminar conceptos de cobro',     'contexts' => ['web']],
+
+            // Cortes de caja
+            ['module' => 'Cortes de caja', 'name' => 'cash-cuts.index',      'description' => 'Ver mis cortes de caja',          'contexts' => ['web']],
+            ['module' => 'Cortes de caja', 'name' => 'cash-cuts.store',      'description' => 'Abrir corte de caja',             'contexts' => ['web']],
+            ['module' => 'Cortes de caja', 'name' => 'cash-cuts.show',       'description' => 'Ver detalle de corte de caja',    'contexts' => ['web']],
+            ['module' => 'Cortes de caja', 'name' => 'cash-cuts.close',      'description' => 'Cerrar corte de caja',            'contexts' => ['web']],
+            ['module' => 'Cortes de caja', 'name' => 'cash-cuts.view-all',   'description' => 'Ver cortes de todos los cajeros', 'contexts' => ['web']],
+            ['module' => 'Cortes de caja', 'name' => 'global-cash-cuts.index', 'description' => 'Ver cortes globales',           'contexts' => ['web']],
+            ['module' => 'Cortes de caja', 'name' => 'global-cash-cuts.store', 'description' => 'Crear corte global',            'contexts' => ['web']],
+            ['module' => 'Cortes de caja', 'name' => 'global-cash-cuts.show',  'description' => 'Ver detalle de corte global',   'contexts' => ['web']],
+            ['module' => 'Cortes de caja', 'name' => 'global-cash-cuts.close', 'description' => 'Cerrar corte global',           'contexts' => ['web']],
 
             // Encuestas
             ['module' => 'Encuestas', 'name' => 'surveys.index',             'description' => 'Ver encuestas',                   'contexts' => ['web']],
