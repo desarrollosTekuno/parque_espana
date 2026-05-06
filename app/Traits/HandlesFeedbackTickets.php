@@ -4,7 +4,7 @@ namespace App\Traits;
 
 use App\Models\Feedback\Attachment;
 use App\Models\Feedback\Ticket;
-use App\Models\Club;
+use App\Models\Administrator\Club;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;

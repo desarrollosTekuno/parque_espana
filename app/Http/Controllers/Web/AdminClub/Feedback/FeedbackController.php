@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web\AdminClub\Feedback;
 
 use Illuminate\Routing\Controller;
+use App\Http\Requests\StoreFeedbackTicketRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -147,29 +148,7 @@ class FeedbackController extends Controller {
         }
     }
 
-    public function store(Request $request) {
-        $request->validate([
-            'ticket_type_id' => 'required',
-            'category_id' => 'required',
-            'priority_id' => 'required',
-            'title' => 'required|string|max:200',
-            'description' => 'required|string',
-            'is_anonymous' => 'required|boolean',
-            'attachments' => 'nullable|array|max:5',
-            'attachments.*' => 'nullable|file|mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx|max:10240',
-        ], [
-            'ticket_type_id.required' => 'Debes seleccionar un tipo.',
-            'category_id.required' => 'Debes seleccionar una categoría.',
-            'priority_id.required' => 'Debes seleccionar una prioridad.',
-            'title.required' => 'Debes ingresar un título.',
-            'description.required' => 'Debes ingresar una descripción.',
-            'attachments.array' => 'Los adjuntos deben enviarse como una lista de archivos.',
-            'attachments.max' => 'Solo puedes subir hasta 5 archivos por ticket.',
-            'attachments.*.file' => 'Cada adjunto debe ser un archivo válido.',
-            'attachments.*.mimes' => 'Formato no permitido. Usa: jpg, jpeg, png, pdf, doc, docx, xls o xlsx.',
-            'attachments.*.max' => 'Cada archivo puede pesar máximo 10 MB.',
-        ]);
-
+    public function store(StoreFeedbackTicketRequest $request) {
         try {
             $status = Status::where('code', 'SUBMITTED')->firstOrFail();
             $clubId = (int) session('club_id');
