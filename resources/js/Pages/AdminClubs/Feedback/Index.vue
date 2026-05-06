@@ -332,9 +332,8 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                         <template #item.actions="{ item }">
                             <BaseButton
                                 v-if="can.includes('feedback.update') && item.status?.code === 'SUBMITTED'"
-                                :icon-only="false"
-                                text="Cancelar"
                                 action="cancel"
+                                tooltip="Cancelar ticket"
                                 @click="cancelTicket(item)"
                             />
                         </template>
