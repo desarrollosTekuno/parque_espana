@@ -30,7 +30,6 @@ const headers = [
     { title: "Categoria", key: "category.name" },
     { title: "Prioridad", key: "priority.name" },
     { title: "Estatus", key: "status.name" },
-    { title: "Asignado a", key: "assigned_to.name" },
     { title: "Acciones", key: "actions", sortable: false },
 ];
 
@@ -60,6 +59,38 @@ const statusChipColor = (status: any): string => {
     if (code === "CANCELLED") return "grey";
     if (code === "REJECTED") return "error";
     return "primary";
+};
+
+const priorityChipColor = (priority: any): string => {
+    const code = String(priority?.code ?? priority?.name ?? "").toUpperCase();
+
+    if (code.includes("URGENTE") || code.includes("ALTA") || code === "URGENT" || code === "HIGH") return "error";
+    if (code.includes("MEDIA") || code === "MEDIUM") return "warning";
+    if (code.includes("BAJA") || code === "LOW") return "success";
+
+    return "primary";
+};
+
+const statusToneClass = (status: any): string => {
+    const code = String(status?.code ?? "").toUpperCase();
+
+    if (code === "SUBMITTED") return "fb-badge fb-badge--status fb-badge--info";
+    if (code === "IN_PROGRESS") return "fb-badge fb-badge--status fb-badge--warn";
+    if (code === "RESOLVED") return "fb-badge fb-badge--status fb-badge--ok";
+    if (code === "CANCELLED") return "fb-badge fb-badge--status fb-badge--muted";
+    if (code === "REJECTED") return "fb-badge fb-badge--status fb-badge--danger";
+
+    return "fb-badge fb-badge--status fb-badge--default";
+};
+
+const priorityToneClass = (priority: any): string => {
+    const code = String(priority?.code ?? priority?.name ?? "").toUpperCase();
+
+    if (code.includes("URGENTE") || code.includes("ALTA") || code === "URGENT" || code === "HIGH") return "fb-badge fb-badge--priority fb-badge--danger";
+    if (code.includes("MEDIA") || code === "MEDIUM") return "fb-badge fb-badge--priority fb-badge--warn";
+    if (code.includes("BAJA") || code === "LOW") return "fb-badge fb-badge--priority fb-badge--ok";
+
+    return "fb-badge fb-badge--priority fb-badge--default";
 };
 
 const fetchItems = async () => {
@@ -157,8 +188,29 @@ watch([options, search, statusFilter, priorityFilter], debounce(fetchItems, 400)
                         </template>
 
                         <template #item.status.name="{ item }">
-                            <v-chip v-if="item.status" :color="statusChipColor(item.status)" size="small" variant="tonal">
+                            <v-chip
+                                v-if="item.status"
+                                :class="statusToneClass(item.status)"
+                                :color="statusChipColor(item.status)"
+                                size="small"
+                                variant="tonal"
+                                prepend-icon="mdi-circle-medium"
+                            >
                                 {{ item.status.name }}
+                            </v-chip>
+                            <span v-else>-</span>
+                        </template>
+
+                        <template #item.priority.name="{ item }">
+                            <v-chip
+                                v-if="item.priority"
+                                :class="priorityToneClass(item.priority)"
+                                :color="priorityChipColor(item.priority)"
+                                size="small"
+                                variant="tonal"
+                                prepend-icon="mdi-flag-variant"
+                            >
+                                {{ item.priority.name }}
                             </v-chip>
                             <span v-else>-</span>
                         </template>
@@ -168,113 +220,365 @@ watch([options, search, statusFilter, priorityFilter], debounce(fetchItems, 400)
                         </template>
 
                         <template #item.actions="{ item }">
-                            <BaseButton
-                                icon="mdi-eye"
-                                color="primary"
-                                @click="openDetail(item)"
-                            />
+                            <BaseButton action="view" tooltip="Ver detalle" @click="openDetail(item)" />
                         </template>
                     </v-data-table-server>
                 </v-col>
             </v-row>
         </div>
 
-        <v-dialog v-model="showDetailModal" max-width="1100">
-            <v-card v-if="selectedTicket">
-                <v-card-title class="d-flex align-center justify-space-between">
-                    <span>Detalle del caso {{ selectedTicket.ticket_number }}</span>
-                    <v-btn icon="mdi-close" variant="text" @click="closeDetail" />
-                </v-card-title>
+        <v-dialog v-model="showDetailModal" max-width="1280" scrollable>
+            <v-card v-if="selectedTicket" rounded="xl" elevation="12" class="overflow-hidden">
+                <div class="px-6 py-5 bg-white">
+                    <div class="d-flex align-start justify-space-between ga-4">
+                        <div>
+                            <div class="flex-wrap d-flex align-center ga-3">
+                                <h2 class="mb-0 text-h5 font-weight-bold text-grey-darken-4">
+                                    {{ selectedTicket.title }}
+                                </h2>
+
+                                <v-chip
+                                    v-if="selectedTicket.status"
+                                    :class="statusToneClass(selectedTicket.status)"
+                                    :color="statusChipColor(selectedTicket.status)"
+                                    size="small"
+                                    variant="tonal"
+                                    prepend-icon="mdi-circle-medium"
+                                >
+                                    {{ selectedTicket.status.name }}
+                                </v-chip>
+
+                                <v-chip
+                                    v-if="selectedTicket.priority"
+                                    :class="priorityToneClass(selectedTicket.priority)"
+                                    :color="priorityChipColor(selectedTicket.priority)"
+                                    size="small"
+                                    variant="tonal"
+                                    prepend-icon="mdi-flag-variant"
+                                >
+                                    {{ selectedTicket.priority.name }}
+                                </v-chip>
+                            </div>
+
+                            <div class="flex-wrap mt-3 text-body-2 text-grey-darken-1 d-flex align-center ga-4">
+                                <span class="d-flex align-center ga-1">
+                                    <v-icon size="17">mdi-pound</v-icon>
+                                    {{ selectedTicket.ticket_number }}
+                                </span>
+
+                                <span class="d-flex align-center ga-1">
+                                    <v-icon size="17">mdi-calendar-outline</v-icon>
+                                    {{ selectedTicket.ticket_date ?? 'Sin fecha' }}
+                                </span>
+
+                                <span class="d-flex align-center ga-1">
+                                    <v-icon size="17">mdi-shape-outline</v-icon>
+                                    {{ selectedTicket.category?.name ?? 'Sin categoría' }}
+                                </span>
+
+                                <span class="d-flex align-center ga-1">
+                                    <v-icon size="17">mdi-forum-outline</v-icon>
+                                    {{ selectedTicket.type?.name ?? 'Sin tipo' }}
+                                </span>
+                            </div>
+                        </div>
+
+                        <BaseButton action="close" tooltip="Cerrar" @click="closeDetail" />
+                    </div>
+                </div>
 
                 <v-divider />
 
-                <v-card-text style="max-height: 75vh; overflow-y: auto;">
-                    <pre>
-                        {{ selectedTicket }}
-                    </pre>
-                    <v-row>
-                        <v-col cols="12" md="8">
-                            <v-alert type="info" variant="tonal">
-                                <div><strong>Titulo:</strong> {{ selectedTicket.title }}</div>
-                                <div class="mt-2"><strong>Descripcion:</strong> {{ selectedTicket.description }}</div>
-                            </v-alert>
-                        </v-col>
+                <v-card-text class="pa-0">
+                    <v-row no-gutters>
+                        <v-col cols="12" md="8" class="pa-6 bg-grey-lighten-5">
+                            <v-card rounded="xl" elevation="0" class="mb-5 border">
+                                <v-card-title class="px-5 py-4 d-flex align-center ga-3">
+                                    <v-avatar color="primary" variant="tonal" size="38">
+                                        <v-icon size="22">mdi-text-box-outline</v-icon>
+                                    </v-avatar>
 
-                        <v-col cols="12" md="4">
-                            <v-list density="compact">
-                                <v-list-item title="Estatus" :subtitle="selectedTicket.status?.name ?? '-'" />
-                                <v-list-item title="Prioridad" :subtitle="selectedTicket.priority?.name ?? '-'" />
-                                <v-list-item title="Asignado a" :subtitle="selectedTicket.assigned_to?.name ?? 'Sin asignar'" />
-                                <v-list-item title="Fecha" :subtitle="selectedTicket.ticket_date ?? '-'" />
-                            </v-list>
-                        </v-col>
+                                    <div>
+                                        <div class="text-subtitle-1 font-weight-bold">
+                                            Descripción del ticket
+                                        </div>
+                                        <div class="whitespace-pre-line text-body-1 text-grey-darken-3">
+                                            {{ selectedTicket.description }}
+                                        </div>
+                                    </div>
+                                </v-card-title>
 
-                        <v-col cols="12" md="6">
-                            <v-card variant="outlined">
-                                <v-card-title>Evidencia adjunta</v-card-title>
                                 <v-divider />
-                                <v-list density="compact">
+                            </v-card>
+
+                            <v-card rounded="xl" elevation="0" class="mb-5 border">
+                                <v-card-title class="px-5 py-4 d-flex align-center justify-space-between">
+                                    <div class="d-flex align-center ga-3">
+                                        <v-avatar color="primary" variant="tonal" size="38">
+                                            <v-icon size="22">mdi-paperclip</v-icon>
+                                        </v-avatar>
+
+                                        <div>
+                                            <div class="text-subtitle-1 font-weight-bold">
+                                                Evidencia adjunta
+                                            </div>
+                                            <div class="text-caption text-grey-darken-1">
+                                                Haz clic en un archivo para visualizarlo
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <v-chip size="small" color="primary" variant="tonal">
+                                        {{ selectedTicket.attachments?.length ?? 0 }}
+                                    </v-chip>
+                                </v-card-title>
+
+                                <v-divider />
+
+                                <v-list density="comfortable" class="pa-3">
                                     <v-list-item
                                         v-for="file in selectedTicket.attachments ?? []"
                                         :key="file.id"
+                                        :href="`/storage/${file.file_path}`"
+                                        target="_blank"
+                                        rel="noopener"
+                                        rounded="lg"
+                                        class="mb-2 transition-all bg-white border border-gray-200 cursor-pointer hover:bg-primary/5 hover:border-primary"
                                     >
-                                        <template #title>
-                                            <a
-                                                :href="`/storage/${file.file_path}`"
-                                                target="_blank"
-                                                rel="noopener"
-                                            >
-                                                {{ file.file_name }}
-                                            </a>
+                                        <template #prepend>
+                                            <v-avatar color="primary" variant="tonal" size="44">
+                                                <v-icon size="23">mdi-file-eye-outline</v-icon>
+                                            </v-avatar>
                                         </template>
+
+                                        <template #title>
+                                            <div class="flex items-center gap-2">
+                                                <span class="font-medium text-primary">
+                                                    {{ file.file_name }}
+                                                </span>
+
+                                                <v-chip size="x-small" color="primary" variant="tonal">
+                                                    Ver archivo
+                                                </v-chip>
+                                            </div>
+                                        </template>
+
                                         <template #subtitle>
-                                            {{ file.file_type ?? 'archivo' }}
+                                            <div class="flex flex-wrap items-center gap-2 mt-1">
+                                                <span>{{ file.file_type ?? 'archivo' }}</span>
+
+                                                <span v-if="file.uploaded_by?.name">
+                                                    · {{ file.uploaded_by.name }}
+                                                </span>
+                                            </div>
+                                        </template>
+
+                                        <template #append>
+                                            <v-btn
+                                                icon="mdi-open-in-new"
+                                                variant="text"
+                                                color="primary"
+                                                size="small"
+                                            />
                                         </template>
                                     </v-list-item>
-                                    <v-list-item v-if="!(selectedTicket.attachments ?? []).length" title="Sin adjuntos" />
-                                </v-list>
-                            </v-card>
-                        </v-col>
 
-                        <v-col cols="12" md="6">
-                            <v-card variant="outlined">
-                                <v-card-title>Historial de estatus</v-card-title>
-                                <v-divider />
-                                <v-list density="compact" lines="two">
                                     <v-list-item
-                                        v-for="history in selectedTicket.status_history ?? []"
-                                        :key="history.id"
+                                        v-if="!(selectedTicket.attachments ?? []).length"
+                                        title="Sin archivos adjuntos"
+                                        subtitle="Este ticket no tiene evidencia cargada."
+                                        rounded="lg"
+                                        class="bg-white border border-gray-200"
                                     >
-                                        <template #title>
-                                            {{ history.old_status?.name ?? 'Sin estatus' }} -> {{ history.new_status?.name ?? 'Sin estatus' }}
-                                        </template>
-                                        <template #subtitle>
-                                            {{ history.change_reason ?? 'Sin motivo' }}
+                                        <template #prepend>
+                                            <v-avatar color="grey-lighten-3" size="40">
+                                                <v-icon>mdi-file-hidden</v-icon>
+                                            </v-avatar>
                                         </template>
                                     </v-list-item>
-                                    <v-list-item v-if="!(selectedTicket.status_history ?? []).length" title="Sin historial" />
                                 </v-list>
                             </v-card>
-                        </v-col>
 
-                        <v-col cols="12">
-                            <v-card variant="outlined">
-                                <v-card-title>Seguimiento / comentarios</v-card-title>
+                            <v-card rounded="xl" elevation="0" class="border">
+                                <v-card-title class="px-5 py-4 d-flex align-center justify-space-between">
+                                    <div class="d-flex align-center ga-3">
+                                        <v-avatar color="primary" variant="tonal" size="38">
+                                            <v-icon size="22">mdi-message-processing-outline</v-icon>
+                                        </v-avatar>
+
+                                        <div>
+                                            <div class="text-subtitle-1 font-weight-bold">
+                                                Seguimiento / comentarios
+                                            </div>
+                                            <div class="text-caption text-grey-darken-1">
+                                                Comunicación y seguimiento del caso
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <v-chip size="small" color="primary" variant="tonal">
+                                        {{ selectedTicket.comments?.length ?? 0 }}
+                                    </v-chip>
+                                </v-card-title>
+
                                 <v-divider />
-                                <v-list density="compact" lines="two">
-                                    <v-list-item
+
+                                <div class="pa-5">
+                                    <div
                                         v-for="comment in selectedTicket.comments ?? []"
                                         :key="comment.id"
+                                        class="mb-4 d-flex ga-3"
                                     >
-                                        <template #title>
-                                            {{ comment.user?.name ?? 'Sistema' }}
+                                        <v-avatar color="primary" size="38">
+                                            <span class="text-white font-weight-bold">
+                                                {{ (comment.user?.name ?? 'S').charAt(0) }}
+                                            </span>
+                                        </v-avatar>
+
+                                        <div class="flex-grow-1">
+                                            <div class="mb-1 d-flex justify-space-between align-center">
+                                                <span class="font-weight-medium">
+                                                    {{ comment.user?.name ?? 'Sistema' }}
+                                                </span>
+
+                                                <span class="text-caption text-grey">
+                                                    {{ comment.created_at ?? '' }}
+                                                </span>
+                                            </div>
+
+                                            <div class="rounded-lg pa-3 bg-grey-lighten-5 text-body-2">
+                                                {{ comment.comment }}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div v-if="!(selectedTicket.comments ?? []).length" class="py-8 text-center text-grey">
+                                        <v-icon size="38" class="mb-2">mdi-message-outline</v-icon>
+                                        <div class="font-weight-medium">Sin comentarios registrados</div>
+                                        <div class="text-caption">Aún no existe seguimiento para este ticket.</div>
+                                    </div>
+                                </div>
+                            </v-card>
+                        </v-col>
+
+                        <v-col cols="12" md="4" class="bg-white pa-6 border-s">
+                            <v-card rounded="xl" elevation="0" class="mb-5 border">
+                                <v-card-title class="px-5 py-4 text-subtitle-1 font-weight-bold">
+                                    Información general
+                                </v-card-title>
+
+                                <v-divider />
+
+                                <v-list density="comfortable" class="py-2">
+                                    <v-list-item>
+                                        <template #prepend>
+                                            <v-avatar color="grey-lighten-4" size="36">
+                                                <v-icon>mdi-account-outline</v-icon>
+                                            </v-avatar>
                                         </template>
-                                        <template #subtitle>
-                                            {{ comment.comment }}
-                                        </template>
+
+                                        <v-list-item-title>Reportado por</v-list-item-title>
+                                        <v-list-item-subtitle>
+                                            {{
+                                                selectedTicket.is_anonymous
+                                                    ? 'Anónimo'
+                                                    : (selectedTicket.reported_by?.name ?? 'Sin usuario')
+                                            }}
+                                        </v-list-item-subtitle>
                                     </v-list-item>
-                                    <v-list-item v-if="!(selectedTicket.comments ?? []).length" title="Sin comentarios" />
+
+                                    <v-list-item>
+                                        <template #prepend>
+                                            <v-avatar color="grey-lighten-4" size="36">
+                                                <v-icon>mdi-account-tie-outline</v-icon>
+                                            </v-avatar>
+                                        </template>
+
+                                        <v-list-item-title>Asignado a</v-list-item-title>
+                                        <v-list-item-subtitle>
+                                            {{ selectedTicket.assigned_to?.name ?? 'Sin asignar' }}
+                                        </v-list-item-subtitle>
+                                    </v-list-item>
+
+                                    <v-list-item>
+                                        <template #prepend>
+                                            <v-avatar color="grey-lighten-4" size="36">
+                                                <v-icon>mdi-calendar-clock</v-icon>
+                                            </v-avatar>
+                                        </template>
+
+                                        <v-list-item-title>Fecha de envío</v-list-item-title>
+                                        <v-list-item-subtitle>
+                                            {{ selectedTicket.submitted_at ?? '-' }}
+                                        </v-list-item-subtitle>
+                                    </v-list-item>
+
+                                    <v-list-item>
+                                        <template #prepend>
+                                            <v-avatar color="grey-lighten-4" size="36">
+                                                <v-icon>mdi-check-decagram-outline</v-icon>
+                                            </v-avatar>
+                                        </template>
+
+                                        <v-list-item-title>Resolución</v-list-item-title>
+                                        <v-list-item-subtitle>
+                                            {{ selectedTicket.resolution_notes ?? 'Sin resolución' }}
+                                        </v-list-item-subtitle>
+                                    </v-list-item>
                                 </v-list>
+                            </v-card>
+
+                            <v-card rounded="xl" elevation="0" class="border">
+                                <v-card-title class="px-5 py-4 d-flex align-center justify-space-between">
+                                    <span class="text-subtitle-1 font-weight-bold">
+                                        Historial del caso
+                                    </span>
+
+                                    <v-chip size="small" variant="tonal">
+                                        {{ selectedTicket.status_history?.length ?? 0 }}
+                                    </v-chip>
+                                </v-card-title>
+
+                                <v-divider />
+
+                                <v-timeline
+                                    v-if="(selectedTicket.status_history ?? []).length"
+                                    density="compact"
+                                    side="end"
+                                    truncate-line="both"
+                                    class="px-4 py-3"
+                                >
+                                    <v-timeline-item
+                                        v-for="history in selectedTicket.status_history ?? []"
+                                        :key="history.id"
+                                        dot-color="primary"
+                                        size="small"
+                                    >
+                                        <div class="text-body-2 font-weight-medium">
+                                            {{ history.old_status?.name ?? 'Sin estatus' }}
+                                            →
+                                            {{ history.new_status?.name ?? 'Sin estatus' }}
+                                        </div>
+
+                                        <div class="text-caption text-grey-darken-1">
+                                            {{ history.changed_by?.name ?? 'Sistema' }}
+                                        </div>
+
+                                        <div class="mt-1 text-caption text-grey">
+                                            {{ history.change_reason ?? 'Sin motivo' }}
+                                        </div>
+
+                                        <div class="mt-1 text-caption text-grey">
+                                            {{ history.created_at ?? '' }}
+                                        </div>
+                                    </v-timeline-item>
+                                </v-timeline>
+
+                                <div v-else class="py-8 text-center text-grey">
+                                    <v-icon size="38" class="mb-2">mdi-timeline-outline</v-icon>
+                                    <div class="font-weight-medium">Sin historial registrado</div>
+                                    <div class="text-caption">No hay cambios de estatus todavía.</div>
+                                </div>
                             </v-card>
                         </v-col>
                     </v-row>
