@@ -39,6 +39,8 @@ class FeedbackController extends Controller {
                 'member',
                 'reportedBy',
                 'assignedTo',
+                'attachments' => fn ($q) => $q->latest(),
+                'attachments.uploadedBy:id,name',
             ])->where('club_id', $clubId);
 
             $user = Auth::user();
@@ -88,6 +90,14 @@ class FeedbackController extends Controller {
                         'member' => $item->member,
                         'reported_by' => $item->reportedBy,
                         'assigned_to' => $item->assignedTo,
+                        'attachments' => $item->attachments->map(fn ($attachment) => [
+                            'id' => $attachment->id,
+                            'file_name' => $attachment->file_name,
+                            'file_path' => $attachment->file_path,
+                            'file_type' => $attachment->file_type,
+                            'file_size' => $attachment->file_size,
+                            'uploaded_by' => $attachment->uploadedBy,
+                        ])->values(),
                     ];
                 })
                 ->withQueryString();
