@@ -793,7 +793,7 @@ watch([options, search, statusFilter, priorityFilter], debounce(fetchItems, 400)
                         action="save"
                         :icon-only="false"
                         variant="tonal"
-                        :disabled="!canMoveToProcess()"
+                        v-if="canMoveToProcess()"
                         @click="openStatusDialog('IN_PROGRESS')"
                     />
 
@@ -802,7 +802,7 @@ watch([options, search, statusFilter, priorityFilter], debounce(fetchItems, 400)
                         action="save"
                         :icon-only="false"
                         variant="flat"
-                        :disabled="!canResolve()"
+                        v-if="canResolve()"
                         @click="openStatusDialog('RESOLVED')"
                     />
 
