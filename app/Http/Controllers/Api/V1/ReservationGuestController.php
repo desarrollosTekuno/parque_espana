@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreGuestListRequest;
 use App\Models\AdminClub\ReservationGuestList;
 use App\Models\AdminClub\ReservationGuestListItem;
 use App\Rules\ExistsInSchema;
@@ -21,24 +22,18 @@ class ReservationGuestController extends Controller {
         //return Inertia::render('Ruta/Index', compact('items'));
     }
 
-    public function store(Request $request)
+    public function store(StoreGuestListRequest $request)
     {
         DB::beginTransaction();
         try {
 
-            $validated = $request->validate([
-                'reservation_id' => ['required', new ExistsInSchema('reservations', 'reservations', 'id')],
-                'guests' => 'required|array|min:1',
-                'guests.*.name' => 'required|string|max:200',
-                'guests.*.last_name' => 'required|string|max:200',
-                'guests.*.email' => 'required|email',
-                'guests.*.phone' => 'required|string|max:15|regex:/^\+?[0-9]{8,15}$/',
-                'guests.*.age' => 'required|integer',
-            ]);
+            $validated = $request->validated();
 
-            // calculo de montos para registro general de la lista de invitados
+            // precio de adultos y niños, cambia por club
             $adultCost = 300;
             $childCost = 150;
+
+            
 
             $guests = $validated['guests'];
             $totalGuests = count($guests);
@@ -72,12 +67,6 @@ class ReservationGuestController extends Controller {
                 'message' => 'Lista de invitados creada correctamente'
             ], 200);
 
-        } catch ( ValidationException $e){
-            return response()->json([
-                'success' => false,
-                'error' => 'Error de validación',
-                'error_details' => $e->errors()
-            ], 200);
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
