@@ -65,7 +65,7 @@ class RoleController extends Controller
         )->appends($request->all());
 
         // Datos adicionales
-         $permissions = Permission::with('contexts')->select('id', 'name', 'description', 'guard_name')->get();
+        $permissions = Permission::with('contexts')->select('id', 'name', 'description', 'module', 'guard_name')->get();
         $contexts = Context::select('id', 'name', 'value')->get();
 
         return Inertia::render('Administrator/Roles/Index', [
