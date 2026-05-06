@@ -495,13 +495,13 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
             </v-form>
         </v-dialog>
 
-        <v-dialog v-model="showDetailModal" max-width="1200" scrollable>
-            <v-card v-if="selectedTicket" rounded="xl" elevation="10" class="overflow-hidden">
-                <div class="px-6 py-5 bg-grey-lighten-5">
+        <v-dialog v-model="showDetailModal" max-width="1280" scrollable>
+            <v-card v-if="selectedTicket" rounded="xl" elevation="12" class="overflow-hidden">
+                <div class="px-6 py-5 bg-white">
                     <div class="d-flex align-start justify-space-between ga-4">
                         <div>
                             <div class="flex-wrap d-flex align-center ga-3">
-                                <h2 class="mb-0 text-h6 font-weight-bold text-grey-darken-4">
+                                <h2 class="mb-0 text-h5 font-weight-bold text-grey-darken-4">
                                     {{ selectedTicket.title }}
                                 </h2>
 
@@ -510,6 +510,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                     :color="statusChipColor(selectedTicket.status)"
                                     size="small"
                                     variant="flat"
+                                    class="font-weight-medium"
                                 >
                                     {{ selectedTicket.status.name }}
                                 </v-chip>
@@ -519,29 +520,30 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                     color="primary"
                                     size="small"
                                     variant="tonal"
+                                    class="font-weight-medium"
                                 >
                                     {{ selectedTicket.priority.name }}
                                 </v-chip>
                             </div>
 
-                            <div class="flex-wrap mt-2 text-body-2 text-grey-darken-1 d-flex align-center ga-4">
-                                <span>
-                                    <v-icon size="16" class="mr-1">mdi-pound</v-icon>
+                            <div class="flex-wrap mt-3 text-body-2 text-grey-darken-1 d-flex align-center ga-4">
+                                <span class="d-flex align-center ga-1">
+                                    <v-icon size="17">mdi-pound</v-icon>
                                     {{ selectedTicket.ticket_number }}
                                 </span>
 
-                                <span>
-                                    <v-icon size="16" class="mr-1">mdi-calendar-outline</v-icon>
+                                <span class="d-flex align-center ga-1">
+                                    <v-icon size="17">mdi-calendar-outline</v-icon>
                                     {{ selectedTicket.ticket_date ?? 'Sin fecha' }}
                                 </span>
 
-                                <span>
-                                    <v-icon size="16" class="mr-1">mdi-shape-outline</v-icon>
+                                <span class="d-flex align-center ga-1">
+                                    <v-icon size="17">mdi-shape-outline</v-icon>
                                     {{ selectedTicket.category?.name ?? 'Sin categoría' }}
                                 </span>
 
-                                <span>
-                                    <v-icon size="16" class="mr-1">mdi-forum-outline</v-icon>
+                                <span class="d-flex align-center ga-1">
+                                    <v-icon size="17">mdi-forum-outline</v-icon>
                                     {{ selectedTicket.type?.name ?? 'Sin tipo' }}
                                 </span>
                             </div>
@@ -555,39 +557,55 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
 
                 <v-card-text class="pa-0">
                     <v-row no-gutters>
-                        <v-col cols="12" md="8" class="pa-6">
-                            <v-card rounded="xl" variant="outlined" class="mb-5">
-                                <v-card-title class="px-5 py-4 d-flex align-center ga-2">
-                                    <v-icon color="primary">mdi-text-box-outline</v-icon>
-                                    <span class="text-subtitle-1 font-weight-bold">
-                                        Descripción del ticket
-                                    </span>
+                        <v-col cols="12" md="8" class="pa-6 bg-grey-lighten-5">
+                            <v-card rounded="xl" elevation="0" class="mb-5 border">
+                                <v-card-title class="px-5 py-4 d-flex align-center ga-3">
+                                    <v-avatar color="primary" variant="tonal" size="38">
+                                        <v-icon size="22">mdi-text-box-outline</v-icon>
+                                    </v-avatar>
+
+                                    <div>
+                                        <div class="text-subtitle-1 font-weight-bold">
+                                            Descripción del ticket
+                                        </div>
+                                        <div class="text-caption text-grey-darken-1">
+                                            Detalle proporcionado por el usuario
+                                        </div>
+                                    </div>
                                 </v-card-title>
 
                                 <v-divider />
 
-                                <v-card-text class="px-5 py-5 text-body-1 text-grey-darken-3">
+                                <v-card-text class="px-5 py-5 whitespace-pre-line text-body-1 text-grey-darken-3">
                                     {{ selectedTicket.description }}
                                 </v-card-text>
                             </v-card>
 
-                            <v-card rounded="xl" variant="outlined" class="mb-5">
+                            <v-card rounded="xl" elevation="0" class="mb-5 border">
                                 <v-card-title class="px-5 py-4 d-flex align-center justify-space-between">
-                                    <div class="d-flex align-center ga-2">
-                                        <v-icon color="primary">mdi-paperclip</v-icon>
-                                        <span class="text-subtitle-1 font-weight-bold">
-                                            Evidencia adjunta
-                                        </span>
+                                    <div class="d-flex align-center ga-3">
+                                        <v-avatar color="primary" variant="tonal" size="38">
+                                            <v-icon size="22">mdi-paperclip</v-icon>
+                                        </v-avatar>
+
+                                        <div>
+                                            <div class="text-subtitle-1 font-weight-bold">
+                                                Evidencia adjunta
+                                            </div>
+                                            <div class="text-caption text-grey-darken-1">
+                                                Haz clic en un archivo para visualizarlo
+                                            </div>
+                                        </div>
                                     </div>
 
-                                    <v-chip size="small" variant="tonal">
+                                    <v-chip size="small" color="primary" variant="tonal">
                                         {{ selectedTicket.attachments?.length ?? 0 }}
                                     </v-chip>
                                 </v-card-title>
 
                                 <v-divider />
 
-                                <v-list density="comfortable" class="pa-2">
+                                <v-list density="comfortable" class="pa-3">
                                     <v-list-item
                                         v-for="file in selectedTicket.attachments ?? []"
                                         :key="file.id"
@@ -595,13 +613,11 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                         target="_blank"
                                         rel="noopener"
                                         rounded="lg"
-                                        class="mb-2 transition-all border border-gray-200 cursor-pointer hover:border-primary hover:bg-primary/5"
+                                        class="mb-2 transition-all bg-white border border-gray-200 cursor-pointer hover:bg-primary/5 hover:border-primary"
                                     >
                                         <template #prepend>
-                                            <v-avatar color="primary" variant="tonal" size="42">
-                                                <v-icon size="22">
-                                                    mdi-file-eye-outline
-                                                </v-icon>
+                                            <v-avatar color="primary" variant="tonal" size="44">
+                                                <v-icon size="23">mdi-file-eye-outline</v-icon>
                                             </v-avatar>
                                         </template>
 
@@ -611,21 +627,15 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                                     {{ file.file_name }}
                                                 </span>
 
-                                                <v-chip
-                                                    size="x-small"
-                                                    color="primary"
-                                                    variant="flat"
-                                                >
-                                                    Click para visualizar
+                                                <v-chip size="x-small" color="primary" variant="tonal">
+                                                    Ver archivo
                                                 </v-chip>
                                             </div>
                                         </template>
 
                                         <template #subtitle>
-                                            <div class="flex items-center gap-2 mt-1">
-                                                <span>
-                                                    {{ file.file_type ?? 'archivo' }}
-                                                </span>
+                                            <div class="flex flex-wrap items-center gap-2 mt-1">
+                                                <span>{{ file.file_type ?? 'archivo' }}</span>
 
                                                 <span v-if="file.uploaded_by?.name">
                                                     · {{ file.uploaded_by.name }}
@@ -634,9 +644,12 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                         </template>
 
                                         <template #append>
-                                            <v-icon color="primary">
-                                                mdi-open-in-new
-                                            </v-icon>
+                                            <v-btn
+                                                icon="mdi-open-in-new"
+                                                variant="text"
+                                                color="primary"
+                                                size="small"
+                                            />
                                         </template>
                                     </v-list-item>
 
@@ -644,9 +657,11 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                         v-if="!(selectedTicket.attachments ?? []).length"
                                         title="Sin archivos adjuntos"
                                         subtitle="Este ticket no tiene evidencia cargada."
+                                        rounded="lg"
+                                        class="bg-white border border-gray-200"
                                     >
                                         <template #prepend>
-                                            <v-avatar color="grey-lighten-3" size="36">
+                                            <v-avatar color="grey-lighten-3" size="40">
                                                 <v-icon>mdi-file-hidden</v-icon>
                                             </v-avatar>
                                         </template>
@@ -654,13 +669,21 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 </v-list>
                             </v-card>
 
-                            <v-card rounded="xl" variant="outlined">
+                            <v-card rounded="xl" elevation="0" class="border">
                                 <v-card-title class="px-5 py-4 d-flex align-center justify-space-between">
-                                    <div class="d-flex align-center ga-2">
-                                        <v-icon color="primary">mdi-message-processing-outline</v-icon>
-                                        <span class="text-subtitle-1 font-weight-bold">
-                                            Seguimiento / comentarios
-                                        </span>
+                                    <div class="d-flex align-center ga-3">
+                                        <v-avatar color="primary" variant="tonal" size="38">
+                                            <v-icon size="22">mdi-message-processing-outline</v-icon>
+                                        </v-avatar>
+
+                                        <div>
+                                            <div class="text-subtitle-1 font-weight-bold">
+                                                Seguimiento / comentarios
+                                            </div>
+                                            <div class="text-caption text-grey-darken-1">
+                                                Comunicación y seguimiento del caso
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <v-chip size="small" color="primary" variant="tonal">
@@ -699,28 +722,31 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                         </div>
                                     </div>
 
-                                    <div
-                                        v-if="!(selectedTicket.comments ?? []).length"
-                                        class="py-6 text-center text-grey"
-                                    >
-                                        <v-icon size="34" class="mb-2">mdi-message-outline</v-icon>
-                                        <div>Sin comentarios registrados</div>
+                                    <div v-if="!(selectedTicket.comments ?? []).length" class="py-8 text-center text-grey">
+                                        <v-icon size="38" class="mb-2">mdi-message-outline</v-icon>
+                                        <div class="font-weight-medium">Sin comentarios registrados</div>
+                                        <div class="text-caption">Aún no existe seguimiento para este ticket.</div>
                                     </div>
                                 </div>
                             </v-card>
                         </v-col>
 
-                        <v-col cols="12" md="4" class="pa-6 bg-grey-lighten-5 border-s">
-                            <v-card rounded="xl" flat class="mb-5">
-                                <v-card-title class="text-subtitle-1 font-weight-bold">
+                        <v-col cols="12" md="4" class="bg-white pa-6 border-s">
+                            <v-card rounded="xl" elevation="0" class="mb-5 border">
+                                <v-card-title class="px-5 py-4 text-subtitle-1 font-weight-bold">
                                     Información general
                                 </v-card-title>
 
-                                <v-list density="comfortable">
+                                <v-divider />
+
+                                <v-list density="comfortable" class="py-2">
                                     <v-list-item>
                                         <template #prepend>
-                                            <v-icon>mdi-account-outline</v-icon>
+                                            <v-avatar color="grey-lighten-4" size="36">
+                                                <v-icon>mdi-account-outline</v-icon>
+                                            </v-avatar>
                                         </template>
+
                                         <v-list-item-title>Reportado por</v-list-item-title>
                                         <v-list-item-subtitle>
                                             {{
@@ -733,8 +759,11 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
 
                                     <v-list-item>
                                         <template #prepend>
-                                            <v-icon>mdi-account-tie-outline</v-icon>
+                                            <v-avatar color="grey-lighten-4" size="36">
+                                                <v-icon>mdi-account-tie-outline</v-icon>
+                                            </v-avatar>
                                         </template>
+
                                         <v-list-item-title>Asignado a</v-list-item-title>
                                         <v-list-item-subtitle>
                                             {{ selectedTicket.assigned_to?.name ?? 'Sin asignar' }}
@@ -743,8 +772,11 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
 
                                     <v-list-item>
                                         <template #prepend>
-                                            <v-icon>mdi-calendar-clock</v-icon>
+                                            <v-avatar color="grey-lighten-4" size="36">
+                                                <v-icon>mdi-calendar-clock</v-icon>
+                                            </v-avatar>
                                         </template>
+
                                         <v-list-item-title>Fecha de envío</v-list-item-title>
                                         <v-list-item-subtitle>
                                             {{ selectedTicket.submitted_at ?? '-' }}
@@ -753,8 +785,11 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
 
                                     <v-list-item>
                                         <template #prepend>
-                                            <v-icon>mdi-check-decagram-outline</v-icon>
+                                            <v-avatar color="grey-lighten-4" size="36">
+                                                <v-icon>mdi-check-decagram-outline</v-icon>
+                                            </v-avatar>
                                         </template>
+
                                         <v-list-item-title>Resolución</v-list-item-title>
                                         <v-list-item-subtitle>
                                             {{ selectedTicket.resolution_notes ?? 'Sin resolución' }}
@@ -763,9 +798,15 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 </v-list>
                             </v-card>
 
-                            <v-card rounded="xl" flat>
-                                <v-card-title class="text-subtitle-1 font-weight-bold">
-                                    Historial del caso
+                            <v-card rounded="xl" elevation="0" class="border">
+                                <v-card-title class="px-5 py-4 d-flex align-center justify-space-between">
+                                    <span class="text-subtitle-1 font-weight-bold">
+                                        Historial del caso
+                                    </span>
+
+                                    <v-chip size="small" variant="tonal">
+                                        {{ selectedTicket.status_history?.length ?? 0 }}
+                                    </v-chip>
                                 </v-card-title>
 
                                 <v-divider />
@@ -796,15 +837,17 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                         <div class="mt-1 text-caption text-grey">
                                             {{ history.change_reason ?? 'Sin motivo' }}
                                         </div>
+
+                                        <div class="mt-1 text-caption text-grey">
+                                            {{ history.created_at ?? '' }}
+                                        </div>
                                     </v-timeline-item>
                                 </v-timeline>
 
-                                <div
-                                    v-else
-                                    class="py-6 text-center text-grey"
-                                >
-                                    <v-icon size="34" class="mb-2">mdi-timeline-outline</v-icon>
-                                    <div>Sin historial registrado</div>
+                                <div v-else class="py-8 text-center text-grey">
+                                    <v-icon size="38" class="mb-2">mdi-timeline-outline</v-icon>
+                                    <div class="font-weight-medium">Sin historial registrado</div>
+                                    <div class="text-caption">No hay cambios de estatus todavía.</div>
                                 </div>
                             </v-card>
                         </v-col>
