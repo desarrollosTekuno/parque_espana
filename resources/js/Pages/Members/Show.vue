@@ -345,6 +345,13 @@ const cancelAbsencePermit = (absencePermitId: number) => {
                                         Asignar casillero
                                     </v-btn>
                                     <v-btn
+                                        color="primary"
+                                        variant="tonal"
+                                        @click="router.visit(route('acts.index', props.account.id))"
+                                    >
+                                        Registrar multa
+                                    </v-btn>
+                                    <v-btn
                                         v-if="props.canChangePrimaryHolder"
                                         color="primary"
                                         variant="tonal"
