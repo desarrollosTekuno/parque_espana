@@ -30,6 +30,9 @@ class ReservationGuestController extends Controller {
                 'reservation_id' => ['required', new ExistsInSchema('reservations', 'reservations', 'id')],
                 'guests' => 'required|array|min:1',
                 'guests.*.name' => 'required|string|max:200',
+                'guests.*.last_name' => 'required|string|max:200',
+                'guests.*.email' => 'required|email',
+                'guests.*.phone' => 'required|string|max:15|regex:/^\+?[0-9]{8,15}$/',
                 'guests.*.age' => 'required|integer',
             ]);
 
