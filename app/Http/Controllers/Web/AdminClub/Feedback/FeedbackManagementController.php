@@ -22,24 +22,24 @@ class FeedbackManagementController extends Controller {
         $driver = DB::getDriverName();
 
         $query = Ticket::with([
-            'category:id,name',
+            'type:id,name,code',
+            'category:id,name,code',
             'status:id,name,code,color',
             'priority:id,name,code',
-            'assignedTo:id,name',
+            'member:id,first_name,last_name,second_last_name,email',
+            'reportedBy:id,name,email',
+            'assignedTo:id,name,email',
 
-            // adjuntos con usuario y ordenados
             'attachments' => fn($q) => $q->latest(),
-            'attachments.uploadedBy:id,name',
+            'attachments.uploadedBy:id,name,email',
 
-            // comentarios ordenados con usuario
             'comments' => fn($q) => $q->latest(),
-            'comments.user:id,name',
+            'comments.user:id,name,email',
 
-            // historial ordenado
             'statusHistory' => fn($q) => $q->latest(),
-            'statusHistory.oldStatus:id,name',
-            'statusHistory.newStatus:id,name',
-            'statusHistory.changedBy:id,name',
+            'statusHistory.oldStatus:id,name,code,color',
+            'statusHistory.newStatus:id,name,code,color',
+            'statusHistory.changedBy:id,name,email',
         ])
         ->where('club_id', $clubId);
 
@@ -48,8 +48,8 @@ class FeedbackManagementController extends Controller {
 
             $query->where(function ($q) use ($search, $operator) {
                 $q->where('ticket_number', $operator, "%{$search}%")
-                ->orWhere('title', $operator, "%{$search}%")
-                ->orWhere('description', $operator, "%{$search}%");
+                    ->orWhere('title', $operator, "%{$search}%")
+                    ->orWhere('description', $operator, "%{$search}%");
             });
         }
 
@@ -68,6 +68,7 @@ class FeedbackManagementController extends Controller {
 
         return Inertia::render('AdminClubs/FeedbackManagement/Index', [
             'tickets' => $tickets,
+
             'statuses' => Status::where('is_active', true)
                 ->orderBy('sort_order')
                 ->get(['id', 'name', 'code', 'color']),
