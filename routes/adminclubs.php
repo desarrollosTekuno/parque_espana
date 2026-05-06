@@ -74,7 +74,6 @@ Route::delete('/surveys/{survey}/questions/{question}', [SurveyController::class
 Route::post('/surveys/{survey}/questions/reorder', [SurveyController::class, 'reorderQuestions'])->name('surveys.questions.reorder');
 Route::get('/surveys/{survey}/results', [SurveyResultController::class, 'index'])->name('surveys.results');
 
-
 // members
 Route::get('/members/{membership}/additional-membership/create', [MemberController::class, 'createAdditionalMembership'])
     ->name('members.additional-membership.create');
@@ -123,7 +122,7 @@ Route::post('/lockers', [LockerAssignmentController::class, 'reserve'])
 
 // Acts
 Route::prefix('acts')->group(function () {
-    Route::get('/', [ActController::class, 'index'])->name('acts.index');
+    Route::get('/{account_id}', [ActController::class, 'index'])->name('acts.index');
     Route::post('/store', [ActController::class, 'store'])->name('acts.store');
-    Route::get('/{act}/edit', [ActController::class, 'edit'])->name('acts.edit');
+    Route::put('/{act}', [ActController::class, 'update'])->name('acts.update');
 });

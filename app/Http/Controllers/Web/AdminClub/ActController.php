@@ -10,77 +10,62 @@ use App\Models\Members\ActFile;
 use App\Models\Members\Warning;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use App\Models\Memberships\Membership;
 use App\Models\Memberships\MembershipAccount;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 
 class ActController extends Controller
 {
-     public function index(Request $request)
+    public function index(Request $request, $account_id)
     {
-        $query = Act::query()
+        $query = Act::where('account_id', $account_id)
             ->with(['fine', 'warning', 'files', 'account']);
-    
-        // búsqueda
+
         if ($request->search) {
             $query->where(function ($q) use ($request) {
                 $q->where('folio', 'like', "%{$request->search}%")
-                  ->orWhere('violation_type', 'like', "%{$request->search}%")
-                  ->orWhere('description', 'like', "%{$request->search}%");
+                ->orWhere('violation_type', 'like', "%{$request->search}%")
+                ->orWhere('description', 'like', "%{$request->search}%");
             });
         }
 
-        // filtro advertencia
-        if ($request->warning_type) {
-            $query->whereHas('warning', function ($q) use ($request) {
-                $q->where('type', $request->warning_type);
-            });
-        }
-
-        // filtro multa
-        if ($request->has_fine !== null) {
-            $request->has_fine
-                ? $query->has('fine')
-                : $query->doesntHave('fine');
-        }
-
-        // filtro por socio (IMPORTANTE para tu flujo)
-        if ($request->account_id) {
-            $query->where('account_id', $request->account_id);
-        }
-
-        $acts = $query->latest()->paginate(10)->withQueryString();
+        $acts = $query->latest()->paginate(10);
+        $account = MembershipAccount::with('members')->find($account_id);
+        $membership = Membership::where('membership_account_id', $account_id)->first();
 
         return Inertia::render('Members/Acts', [
             'acts' => $acts,
-            'filters' => $request->only(['search', 'warning_type', 'has_fine']),
-            'account' => $request->account_id
-            ? MembershipAccount::with('members')->find($request->account_id)
-            : null
+            'account' => $account,
+            'account_id' => $account_id,
+            'membershipId' => $membership,
         ]);
     }
 
     public function store(Request $request)
     {
         DB::beginTransaction();
+
         try {
-            $folio = 'ACT-' . now()->format('Ymd') . '-' . str_pad(
-                Act::count() + 1,
-                4,
-                '0',
-                STR_PAD_LEFT
-            );
+            // ACTA
             $act = Act::create([
-                'folio' => $folio,
-                'member_id' => $request->member_id,
                 'account_id' => $request->account_id,
+                'member_id' => $request->member_id,
                 'club_id' => $request->club_id,
-                'violation_type' => $request->violation_type,
+
+                'folio' => $request->folio,
+                'violation_type' => $request->violation_type === 'otro'
+                    ? $request->other_violation
+                    : $request->violation_type,
+
                 'description' => $request->description,
                 'date' => $request->date,
                 'time' => $request->time,
             ]);
-            if ($request->has_fine) {
+            
+            // MULTA
+            if ($request->hasFine) {
                 Fine::create([
                     'act_id' => $act->id,
                     'amount' => $request->amount,
@@ -88,33 +73,42 @@ class ActController extends Controller
                     'due_date' => $request->due_date,
                 ]);
             }
-            if ($request->has_suspension) {
+
+            // ADVERTENCIA
+            if ($request->warning_type) {
                 Warning::create([
                     'act_id' => $act->id,
                     'type' => $request->warning_type,
-                    'has_suspension' => $request->has_suspension,
+                    'has_suspension' => $request->has_suspension ?? false,
                     'suspension_start' => $request->suspension_start,
                     'suspension_end' => $request->suspension_end,
                 ]);
             }
+
+            // ARCHIVOS
             if ($request->hasFile('files')) {
                 foreach ($request->file('files') as $file) {
                     $path = $file->store('acts', 'public');
 
                     ActFile::create([
                         'act_id' => $act->id,
-                        'path' => $path
+                        'path' => $path,
                     ]);
                 }
             }
 
             DB::commit();
 
-            return back()->with('success', 'Acta creada correctamente');
+            return redirect()->route('acts.index', $request->account_id);
 
         } catch (\Exception $e) {
             DB::rollBack();
-            throw $e;
+            report($e);
+            return back()
+                ->withErrors([
+                    'messageError' => $e->getMessage()
+                ])
+                ->withInput();
         }
     }
 

@@ -15,7 +15,7 @@ class BusinessCategoryController extends Controller
         $this->middleware('permission:business-categories.index')->only('index');
         $this->middleware('permission:business-categories.store')->only('store');
         $this->middleware('permission:business-categories.update')->only('update');
-        $this->middleware('permission:business-categories.delete')->only('delete');
+        $this->middleware('permission:business-categories.delete')->only('delete'); 
     }
 
     public function index(Request $request)
@@ -102,36 +102,48 @@ class BusinessCategoryController extends Controller
 
     public function update(Request $request, $id)
     {
-         $request->validate([
-                'name' => 'required|string|max:255',
-                'is_active' => 'required|boolean',
-                'image' => 'nullable|image|max:2048'
-            ],[
-                'name.required' => 'Debes ingresar un nombre.',
-                'image.max' => 'La imagen no debe pesar más de 2MB.'
-            ]);
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'is_active' => 'required|boolean',
+            'image' => 'nullable|image|max:2048'
+        ],[
+            'name.required' => 'Debes ingresar un nombre.',
+            'image.max' => 'La imagen no debe pesar más de 2MB.'
+        ]);
 
         try {
             $category = BusinessCategory::findOrFail($id);
 
+            // 🔥 ELIMINAR IMAGEN
+            if ($request->has('remove_image')) {
+                if ($category->image) {
+                    Storage::disk('public')->delete($category->image);
+                }
+                $category->image = null;
+            }
+
+            // 🔥 GUARDAR NUEVA IMAGEN (ESTO TE FALTA)
             if ($request->hasFile('image')) {
+                // borrar anterior si existe
                 if ($category->image) {
                     Storage::disk('public')->delete($category->image);
                 }
 
-                $category->image = $request->file('image')->store('business-categories', 'public');
+                $category->image = $request->file('image')
+                    ->store('business-categories', 'public');
             }
 
+            // 🔥 UPDATE FINAL
             $category->update([
                 'name' => $request->name,
-                'is_active' => $request->is_active
+                'is_active' => $request->is_active,
+                'image' => $category->image // 👈 IMPORTANTE
             ]);
 
             return back()->with('success', 'Categoría actualizada');
 
         } catch (\Exception $e) {
             report($e);
-
             return back()->withErrors([
                 'messageError' => 'Error al actualizar la categoría',
                 'exception' => $e->getMessage()
