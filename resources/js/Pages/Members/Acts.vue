@@ -12,7 +12,8 @@ interface Props {
     account?: any;
     membershipId: Number,
 }
-
+const previews = ref<any[]>([]);
+const fileInput = ref<HTMLInputElement | null>(null);
 const props = defineProps({
     acts: Object,
     account_id: Number,
@@ -79,6 +80,7 @@ const memberOptions = computed(() => {
 });
 const date = new Date();
 const openCreate = () => {
+    previews.value = [];
     form.value = {
         id: null,
         member_id: null,
@@ -194,11 +196,8 @@ watch(search, debounce(() => {
 watch([options], debounce(fetchItems, 400), { deep: true });
 
 // Funciones
-const viewDetail = (item: any) => {
-    selectedAct.value = item;
-};
-
 const edit = (item: any) => {
+    previews.value = [];
     form.value = {
         id: item.id,
 
@@ -224,7 +223,15 @@ const edit = (item: any) => {
 
         files: []
     };
-
+    // cargar archivos existentes del backend
+    if (item.files?.length) {
+        previews.value = item.files.map((file: any) => ({
+            name: file.path.split('/').pop(),
+            type: 'image/*',
+            url: `/storage/${file.path}`, 
+            isExisting: true 
+        }));
+    }
     showModal.value = true;
 };
 
@@ -238,6 +245,72 @@ watch(() => form.value.has_suspension, (val) => {
         form.value.suspension_end = null;
     }
 });
+
+// Funciones para manejo de archivos
+const MAX_SIZE = 2 * 1024 * 1024; // 2MB
+
+const handleFiles = (files: File[] | FileList) => {
+    const fileArray = Array.from(files);
+    const validFiles = fileArray.filter(file => {
+        if (file.size > MAX_SIZE) {
+            customToastSwal({
+                title: `El archivo ${file.name} excede 2MB`,
+                icon: "error"
+            });
+            return false;
+        }
+        return true;
+    });
+    form.value.files = [
+        ...(form.value.files || []),
+        ...validFiles
+    ];
+    const newPreviews = validFiles.map(file => ({
+        name: file.name,
+        type: file.type,
+        url: file.type.startsWith("image/")
+            ? URL.createObjectURL(file)
+            : null,
+        isExisting: false
+    }));
+    previews.value = [
+        ...previews.value,
+        ...newPreviews
+    ];
+};
+const isDragging = ref(false);
+
+const onDrop = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    isDragging.value = false;
+
+    if (e.dataTransfer?.files?.length) {
+        handleFiles(e.dataTransfer.files);
+    }
+};
+
+const onDragOver = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    isDragging.value = true;
+};
+
+const onDragLeave = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    isDragging.value = false;
+};
+const removeFile = (index: number) => {
+    const file = previews.value[index];
+
+    // limpiar memoria
+    if (file.url) URL.revokeObjectURL(file.url);
+
+    previews.value.splice(index, 1);
+    form.value.files.splice(index, 1);
+};
 </script>
 
 <template>
@@ -315,11 +388,6 @@ watch(() => form.value.has_suspension, (val) => {
 
             <!-- Acciones -->
             <template #item.actions="{ item }">
-                <BaseButton
-                    action="view"
-                    @click="viewDetail(item)"
-                />
-
                 <BaseButton
                     icon="mdi-pencil"
                     action="edit"
@@ -498,19 +566,67 @@ watch(() => form.value.has_suspension, (val) => {
 
                             <!-- Archivos -->
                             <v-col cols="12">
-                                <v-file-input
-                                    v-model="form.files"
-                                    label="Evidencia"
-                                    multiple
-                                />
+                                <div
+                                    class="drop-zone"
+                                    :class="{ dragging: isDragging }"
+                                    @drop="onDrop"
+                                    @dragover="onDragOver"
+                                    @dragleave="onDragLeave"
+                                    @click="fileInput?.click()"
+                                >
+                                    <v-icon size="40" class="mb-2">mdi-cloud-upload</v-icon>
+                                    <div class="text-body-2" @click="fileInput?.click()">
+                                        Arrastra archivos aquí o da clic
+                                    </div>
+                                    <input
+                                        ref="fileInput"
+                                        type="file"
+                                        multiple
+                                        class="hidden-input"
+                                        @change="(e:any) => handleFiles(e.target.files)"; e.target.value = null;
+                                    />
+                                </div>
                             </v-col>
+                            <v-col cols="12" v-if="previews.length">
+                                <v-row>
+                                    <v-col
+                                        v-for="(file, i) in previews"
+                                        :key="i"
+                                        cols="4"
+                                    >
+                                        <v-card class="pa-2 text-center">
 
+                                            <!-- Imagen -->
+                                            <v-img
+                                                v-if="file.url"
+                                                :src="file.url"
+                                                height="100"
+                                                cover
+                                            />
+
+                                            <!-- Archivo no imagen -->
+                                            <div v-else>
+                                                <v-icon size="30">mdi-file</v-icon>
+                                                <div class="text-caption">
+                                                    {{ file.name }}
+                                                </div>
+                                            </div>
+                                            <v-btn
+                                                icon="mdi-close"
+                                                size="x-small"
+                                                color="red"
+                                                class="position-absolute"
+                                                style="top: 5px; right: 5px;"
+                                                @click="removeFile(i)"
+                                            />
+                                        </v-card>
+                                    </v-col>
+                                </v-row>
+                            </v-col>
                         </v-row>
                     </v-card-text>
-
                     <v-card-actions>
                         <v-spacer />
-
                         <BaseButton
                             text="Cancelar"
                             action="cancel"
@@ -518,7 +634,6 @@ watch(() => form.value.has_suspension, (val) => {
                             variant="tonal"
                             @click="showModal = false"
                         />
-
                         <BaseButton
                             :text="form.id ? 'Actualizar' : 'Guardar'"
                             :icon-only="false"
@@ -527,9 +642,27 @@ watch(() => form.value.has_suspension, (val) => {
                             @click="save" 
                         />
                     </v-card-actions>
-
                 </v-card>
             </v-form>
         </v-dialog>
     </AppLayout>
 </template>
+<style scoped>
+    .drop-zone {
+        border: 2px dashed #ccc;
+        border-radius: 12px;
+        padding: 30px;
+        text-align: center;
+        cursor: pointer;
+        transition: 0.2s;
+    }
+
+    .drop-zone.dragging {
+        border-color: #1976d2;
+        background: #e3f2fd;
+    }
+
+    .hidden-input {
+        display: none;
+    }
+</style>
