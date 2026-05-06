@@ -12,7 +12,7 @@ import AppLayout from "@/Layouts/AppLayout.vue";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import { Head, router, useForm, usePage } from "@inertiajs/vue3";
 import { debounce } from "lodash";
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 
 const can = usePage().props.auth.permissions;
 const page = usePage<any>();
@@ -50,6 +50,7 @@ const showDetailModal = ref(false);
 const formSendRef = ref();
 const selectedTicket = ref<any>(null);
 const previewAttachment = ref<any>(null);
+const visibleComments = computed(() => (selectedTicket.value?.comments ?? []).filter((comment: any) => !comment?.is_internal));
 
 const form = useForm<FeedbackForm>({
     id: null,
@@ -495,7 +496,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
             </v-form>
         </v-dialog>
 
-        <v-dialog v-model="showDetailModal" max-width="1280" scrollable>
+        <v-dialog v-model="showDetailModal" max-width="800" scrollable>
             <v-card v-if="selectedTicket" rounded="xl" elevation="12" class="overflow-hidden">
                 <div class="px-6 py-5 bg-white">
                     <div class="d-flex align-start justify-space-between ga-4">
@@ -557,7 +558,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
 
                 <v-card-text class="pa-0">
                     <v-row no-gutters>
-                        <v-col cols="12" md="8" class="pa-6 bg-grey-lighten-5">
+                        <v-col cols="12" md="12" class="pa-6 bg-grey-lighten-5">
                             <v-card rounded="xl" elevation="0" class="mb-5 border">
                                 <v-card-title class="px-5 py-4 d-flex align-center ga-3">
                                     <v-avatar color="primary" variant="tonal" size="38">
@@ -687,7 +688,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                     </div>
 
                                     <v-chip size="small" color="primary" variant="tonal">
-                                        {{ selectedTicket.comments?.length ?? 0 }}
+                                        {{ visibleComments.length }}
                                     </v-chip>
                                 </v-card-title>
 
@@ -695,7 +696,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
 
                                 <div class="pa-5">
                                     <div
-                                        v-for="comment in selectedTicket.comments ?? []"
+                                        v-for="comment in visibleComments"
                                         :key="comment.id"
                                         class="mb-4 d-flex ga-3"
                                     >
@@ -722,7 +723,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                         </div>
                                     </div>
 
-                                    <div v-if="!(selectedTicket.comments ?? []).length" class="py-8 text-center text-grey">
+                                    <div v-if="!visibleComments.length" class="py-8 text-center text-grey">
                                         <v-icon size="38" class="mb-2">mdi-message-outline</v-icon>
                                         <div class="font-weight-medium">Sin comentarios registrados</div>
                                         <div class="text-caption">Aún no existe seguimiento para este ticket.</div>
@@ -731,7 +732,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                             </v-card>
                         </v-col>
 
-                        <v-col cols="12" md="4" class="bg-white pa-6 border-s">
+                        <v-col v-if="false" cols="12" md="4" class="bg-white pa-6 border-s">
                             <v-card rounded="xl" elevation="0" class="mb-5 border">
                                 <v-card-title class="px-5 py-4 text-subtitle-1 font-weight-bold">
                                     Información general

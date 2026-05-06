@@ -260,18 +260,6 @@ const routes: Routing[] = [
         group: "Feedback",
         groupItems: [
             {
-                name: "feedback.index",
-                title: "Captura de tickets",
-                icon: "mdi-message-text-outline",
-                value: "feedback",
-            },
-            {
-                name: "feedback-management.index",
-                title: "Gestion de casos",
-                icon: "mdi-briefcase-edit-outline",
-                value: "feedback-management",
-            },
-            {
                 name: "feedback-categories.index",
                 title: "Categorías",
                 icon: "mdi-tag-outline",
@@ -294,6 +282,18 @@ const routes: Routing[] = [
                 title: "Prioridades",
                 icon: "mdi-flag-checkered",
                 value: "feedback-priorities",
+            },
+            {
+                name: "feedback.index",
+                title: "Captura de tickets",
+                icon: "mdi-message-text-outline",
+                value: "feedback",
+            },
+            {
+                name: "feedback-management.index",
+                title: "Gestion de casos",
+                icon: "mdi-briefcase-edit-outline",
+                value: "feedback-management",
             },
         ]
     },

@@ -40,6 +40,12 @@ class FeedbackController extends Controller {
                 'assignedTo',
                 'attachments' => fn ($q) => $q->latest(),
                 'attachments.uploadedBy:id,name',
+                'comments' => fn ($q) => $q->where('is_internal', false)->latest(),
+                'comments.user:id,name',
+                'statusHistory' => fn ($q) => $q->latest(),
+                'statusHistory.oldStatus:id,name,code,color',
+                'statusHistory.newStatus:id,name,code,color',
+                'statusHistory.changedBy:id,name',
             ])->where('club_id', $clubId);
 
             $user = Auth::user();
@@ -96,6 +102,21 @@ class FeedbackController extends Controller {
                             'file_type' => $attachment->file_type,
                             'file_size' => $attachment->file_size,
                             'uploaded_by' => $attachment->uploadedBy,
+                        ])->values(),
+                        'comments' => $item->comments->map(fn ($comment) => [
+                            'id' => $comment->id,
+                            'comment' => $comment->comment,
+                            'is_internal' => $comment->is_internal,
+                            'created_at' => $comment->created_at,
+                            'user' => $comment->user,
+                        ])->values(),
+                        'status_history' => $item->statusHistory->map(fn ($history) => [
+                            'id' => $history->id,
+                            'old_status' => $history->oldStatus,
+                            'new_status' => $history->newStatus,
+                            'changed_by' => $history->changedBy,
+                            'change_reason' => $history->change_reason,
+                            'created_at' => $history->created_at,
                         ])->values(),
                     ];
                 })
