@@ -30,20 +30,25 @@ class ReservationGuestListController extends Controller {
 
         // Query base
         $query = ReservationGuestList::with(['guestListItems', 'reservation', 'reservation.amenityResource'])
-            ->whereHas('reservation', function ($q) use ($clubId) {
-                $q->where('club_id', $clubId);
-            });
+            ->where('club_id', $clubId);
+            // ->whereHas('reservation', function ($q) use ($clubId) {
+            //     $q->where('club_id', $clubId);
+            // });
 
         if ($search = $request->input("{$prefix}_search")) {
 
             $query->where(function ($q) use ($driver, $search) {
 
-                $q->where('status', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
-                $q->orWhereHas('reservation', function ($q2) use ($driver, $search){
-                    $q2->whereHas('amenityResource', function ($q3) use ($driver, $search){
-                        $q3->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
-                    });
-                });
+                $q->where('status', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
+                    ->orWhere('total_guests', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
+                    ->orWhere('subtotal', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
+                    ->orWhere('discount', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
+                    ->orWhere('total', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
+                // $q->orWhereHas('reservation', function ($q2) use ($driver, $search){
+                //     $q2->whereHas('amenityResource', function ($q3) use ($driver, $search){
+                //         $q3->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
+                //     });
+                // });
             });
         }
 

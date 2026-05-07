@@ -144,10 +144,12 @@ watch(discount, (val) => {
 // Aquí se definen los encabezados de la tabla, donde key es el nombre de la columna en la base de datos
 const headers = [
     { title: "ID", key: "id" },
-    { title: "Recurso", key: "reservation.amenity_resource.name" },
-    { title: "Fecha Reserva", key: "reservation.start_datetime" },
+    // { title: "Recurso", key: "reservation.amenity_resource.name" },
+    // { title: "Fecha Reserva", key: "reservation.start_datetime" },
     { title: "Total Invitados", key: "total_guests" },
     { title: "Subtotal", key: "subtotal" },
+    { title: "Descuento", key: "discount"},
+    { title: "Total", key: "total"},
     { title: "Estatus", key: "status" },
     { title: "Acciones", key: "actions", sortable: false },
 ];
@@ -250,6 +252,14 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                             {{ formatCurrency(item.subtotal)}}
                         </template>
 
+                        <template v-slot:item.discount="{ item }">
+                            {{ formatCurrency(item.discount) }}
+                        </template>
+
+                        <template v-slot:item.total="{ item }">
+                            {{ formatCurrency(item.total) }}
+                        </template>
+
                         <template #item.actions="{ item }">
                             <BaseButton
                                 @click="detail(item)"
@@ -265,7 +275,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                     </v-data-table-server>
                 </v-col>
             </v-row>
-            <!-- <pre>{{ can }}</pre> -->
+            <!-- <pre>{{ guestLists }}</pre> -->
         </div>
 
         <v-dialog v-model="showModalApprove" max-width="700" persistent>
