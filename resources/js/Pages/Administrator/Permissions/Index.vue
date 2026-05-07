@@ -26,8 +26,15 @@ interface Permissions {
     id: number | null;
     name: string;
     description: string;
+    module: string;
     permission_contexts?: any;
 }
+
+const moduleOptions = [
+    "Administración", "Clubes", "Amenidades", "Reservaciones",
+    "Comunicación", "Sistema", "Membresías", "Cobranza",
+    "Encuestas", "Publicidad", "App Móvil",
+];
 
 // const props = defineProps<Props>();
 const props = withDefaults(defineProps<Props>(), {
@@ -45,6 +52,7 @@ const form = useForm<Permissions>({
     id: null,
     name: "",
     description: "",
+    module: "",
     permission_contexts: [],
 });
 
@@ -107,8 +115,8 @@ const edit = (data: any) => {
     form.id = data.id;
     form.name = data.name;
     form.description = data.description;
+    form.module = data.module ?? "";
     form.permission_contexts = data.contexts.map((context: any) => context.id);
-    console.log(data);
 
     // headQuarterForm.id = data.id;
     // headQuarterForm.name = data.name;
@@ -153,9 +161,9 @@ const close = () => {
 /* INICIO DATATABLE SERVER SIDE */
 // Aquí se definen los encabezados de la tabla, donde key es el nombre de la columna en la base de datos
 const headers = [
-    { title: "Nombre de ruta(Spatie)", key: "name" },
+    { title: "Nombre de ruta (Spatie)", key: "name" },
+    { title: "Módulo", key: "module", sortable: false },
     { title: "Disponible en", key: "contexts", sortable: false },
-    // { title: "Guard", key: "guard_name" },
     { title: "Descripción", key: "description" },
     { title: "Creado el", key: "created_at" },
     { title: "Actualizado el", key: "updated_at" },
@@ -251,15 +259,21 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                         <template v-slot:item.updated_at="{ item }">
                             {{ formatDateTime(item.updated_at) }}
                         </template>
+                        <template v-slot:item.module="{ item }">
+                            <v-chip v-if="item.module" size="small" color="secondary" variant="tonal">
+                                {{ item.module }}
+                            </v-chip>
+                            <span v-else class="text-medium-emphasis text-caption">Sin módulo</span>
+                        </template>
                         <template v-slot:item.contexts="{ item }">
-                                <v-chip
-                                    v-for="context in item.contexts"
-                                    :key="context.id"
-                                    color="primary"
-                                    class="ma-1"
-                                >
-                                    {{ context.name }}
-                                </v-chip>
+                            <v-chip
+                                v-for="context in item.contexts"
+                                :key="context.id"
+                                color="primary"
+                                class="ma-1"
+                            >
+                                {{ context.name }}
+                            </v-chip>
                         </template>
 
                         <template #item.actions="{ item }">
@@ -306,7 +320,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                     prepend-icon="mdi-key-outline"
                     :title="`${form.id ? 'Editar Permiso' : 'Nuevo Permiso'}`"
                 >
-                    <v-card-text>
+                    <v-card-text class="overflow-y-auto" style="max-height: 400px;">
                         <v-row>
                             <v-col cols="12">
                                 <v-text-field
@@ -327,6 +341,18 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                     :rules="[optionalLength(0, 75)]"
                                     auto-grow
                                     variant="filled"
+                                />
+                            </v-col>
+                            <v-col cols="12">
+                                <v-combobox
+                                    prepend-inner-icon="mdi-view-grid-outline"
+                                    v-model="form.module"
+                                    :items="moduleOptions"
+                                    label="Módulo"
+                                    clearable
+                                    hint="Selecciona uno existente o escribe uno nuevo"
+                                    persistent-hint
+                                    :rules="[required]"
                                 />
                             </v-col>
                             <v-col cols="12">

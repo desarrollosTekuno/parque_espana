@@ -9,11 +9,15 @@ import {
     fileTypeRule,
     requiredFileRule,
     fileExactCountRule,
+    minLength,
+    maxLength,
+    postalCode,
+    fileMaxSizeRule,
 } from "@/constants/validationRules";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { customToastSwal } from "@/utils/swal";
 import { Head, useForm, usePage } from "@inertiajs/vue3";
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 
 const page = usePage<any>();
 
@@ -22,6 +26,7 @@ interface Props {
     originMembershipTypes?: MembershipType[];
     clubs?: Club[];
     relationships?: Relationship[];
+    countries?: CountryCatalog[];
     nationalities?: Nationality[];
     maritalStatuses?: MaritalStatus[];
     isCrossClubRequest?: boolean;
@@ -42,12 +47,28 @@ interface Relationship {
     name: string;
 }
 
-interface Nationality {
+interface CountryCatalog {
     id: number;
     code: string;
     name: string;
+    translations: Record<string, string> | null;
     demonym: string | null;
 }
+
+interface StateCatalog {
+    id: number;
+    country_id: number;
+    name: string;
+}
+
+interface CityCatalog {
+    id: number;
+    country_id: number;
+    state_id: number;
+    name: string;
+}
+
+interface Nationality extends CountryCatalog {}
 
 interface MaritalStatus {
     id: number;
@@ -92,6 +113,9 @@ interface SourceMembership {
 }
 
 interface MemberAddressForm {
+    country_id: number | null;
+    state_id: number | null;
+    city_id: number | null;
     street: string | null;
     neighborhood: string | null;
     postal_code: string | null;
@@ -126,6 +150,9 @@ interface MemberForm {
     birthdate: string | null;
     age: number | null;
 
+    birth_country_id: number | null;
+    birth_state_id: number | null;
+    birth_city_id: number | null;
     birth_place: string | null;
     city: string | null;
     state: string | null;
@@ -141,6 +168,7 @@ interface MemberForm {
     relationship_name: string | null;
     is_primary_holder: boolean;
     is_locked: boolean;
+    is_from_source_membership: boolean;
 
     address: MemberAddressForm;
     employment: MemberEmploymentForm;
@@ -153,6 +181,9 @@ interface PrefillMember {
     last_name: string;
     second_last_name: string | null;
     birthdate: string | null;
+    birth_country_id: number | null;
+    birth_state_id: number | null;
+    birth_city_id: number | null;
     birth_place: string | null;
     city: string | null;
     state: string | null;
@@ -165,6 +196,7 @@ interface PrefillMember {
     relationship_id: number | null;
     relationship_name: string | null;
     is_primary_holder: boolean;
+    is_from_source_membership?: boolean;
     address?: Partial<MemberAddressForm> | null;
     employment?: Partial<MemberEmploymentForm> | null;
 }
@@ -187,8 +219,11 @@ interface PricingPreview {
     membership_type_name: string;
     membership_type_code: string | null;
     monthly_fee: number;
+    monthly_fee_total: number;
+    monthly_fee_share: number;
     inscription_fee: number;
     total_due: number;
+    amount_due_today: number;
     rule_type: string | null;
     source_membership_becomes_non_billable: boolean;
     current_monthly_fee: number | null;
@@ -201,6 +236,7 @@ const props = withDefaults(defineProps<Props>(), {
     originMembershipTypes: () => [],
     clubs: () => [],
     relationships: () => [],
+    countries: () => [],
     nationalities: () => [],
     maritalStatuses: () => [],
     isCrossClubRequest: false,
@@ -209,6 +245,13 @@ const props = withDefaults(defineProps<Props>(), {
     sourceMembership: null,
     prefillMembers: () => [],
 });
+
+const countryOptions = computed(() =>
+    props.countries.map((country) => ({
+        id: country.id,
+        title: getCountryDisplayName(country),
+    })),
+);
 
 const nationalityOptions = computed(() =>
     props.nationalities.map((nationality) => ({
@@ -223,15 +266,117 @@ const maritalStatusOptions = computed(() =>
     props.maritalStatuses.map((maritalStatus) => ({
         id: maritalStatus.id,
         title: maritalStatus.name,
+        code: maritalStatus.code,
     })),
 );
+
+
+const statesByCountry = ref<Record<number, StateCatalog[]>>({});
+const citiesByState = ref<Record<number, CityCatalog[]>>({});
+
+const normalizeText = (value: string | null | undefined) =>
+    (value ?? "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim();
+
+const getCountryDisplayName = (country: CountryCatalog | null | undefined) =>
+    country?.translations?.["es-MX"]?.trim() ||
+    country?.translations?.es?.trim() ||
+    country?.name ||
+    "";
+
+const defaultCountry = computed(
+    () =>
+        props.countries.find(
+            (country) =>
+                country.code === "MX" ||
+                normalizeText(getCountryDisplayName(country)) === "mexico" ||
+                normalizeText(country.name) === "mexico",
+        ) ?? null,
+);
+
+const getCountryName = (countryId: number | null) =>
+    getCountryDisplayName(
+        props.countries.find((country) => country.id === countryId),
+    );
+
+const getStateOptions = (countryId: number | null) =>
+    countryId ? statesByCountry.value[countryId] ?? [] : [];
+
+const getStateName = (countryId: number | null, stateId: number | null) =>
+    getStateOptions(countryId).find((state) => state.id === stateId)?.name ??
+    "";
+
+const getCityOptions = (stateId: number | null) =>
+    stateId ? citiesByState.value[stateId] ?? [] : [];
+
+const getCityName = (stateId: number | null, cityId: number | null) =>
+    getCityOptions(stateId).find((city) => city.id === cityId)?.name ?? "";
+
+const fetchStates = async (countryId: number | null) => {
+    if (!countryId) return [];
+    if (statesByCountry.value[countryId]) {
+        return statesByCountry.value[countryId];
+    }
+
+    const response = await fetch(
+        route("members.location-catalogs.states", {
+            country_id: countryId,
+        }),
+        {
+            method: "GET",
+            headers: {
+                Accept: "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+            },
+        },
+    );
+
+    if (!response.ok) {
+        throw new Error("No se pudieron cargar los estados.");
+    }
+
+    const payload = (await response.json()) as StateCatalog[];
+    statesByCountry.value[countryId] = payload;
+    return payload;
+};
+
+const fetchCities = async (stateId: number | null) => {
+    if (!stateId) return [];
+    if (citiesByState.value[stateId]) {
+        return citiesByState.value[stateId];
+    }
+
+    const response = await fetch(
+        route("members.location-catalogs.cities", {
+            state_id: stateId,
+        }),
+        {
+            method: "GET",
+            headers: {
+                Accept: "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+            },
+        },
+    );
+
+    if (!response.ok) {
+        throw new Error("No se pudieron cargar las ciudades.");
+    }
+
+    const payload = (await response.json()) as CityCatalog[];
+    citiesByState.value[stateId] = payload;
+    return payload;
+};
 
 const pageTitle = computed(() =>
     props.isCrossClubRequest
         ? "Solicitud Otro Parque"
         : props.isMembershipTransition
           ? "Cambio de Membresía"
-          : "Alta de Socios",
+          : "Alta de Usuarios",
 );
 
 const pageHeader = computed(() =>
@@ -239,7 +384,7 @@ const pageHeader = computed(() =>
         ? "Solicitud para el Otro Parque"
         : props.isMembershipTransition
           ? "Cambio de Membresía"
-          : "Alta de Socios",
+          : "Alta de Usuarios",
 );
 
 const usesSourceMembership = computed(
@@ -305,13 +450,18 @@ const form = useForm<MembershipsForm>({
     members: [],
 });
 
-const createEmptyAddress = (): MemberAddressForm => ({
+const createEmptyAddress = (
+    defaultCountryId: number | null = null,
+): MemberAddressForm => ({
+    country_id: defaultCountryId,
+    state_id: null,
+    city_id: null,
     street: "",
     neighborhood: "",
     postal_code: "",
     city: "",
     state: "",
-    country: "México",
+    country: defaultCountryId ? getCountryName(defaultCountryId) : "",
     years_in_city: null,
 });
 
@@ -335,6 +485,9 @@ const createEmptyMember = (
     birthdate: null,
     age: null,
 
+    birth_country_id: null,
+    birth_state_id: null,
+    birth_city_id: null,
     birth_place: "",
     city: "",
     state: "",
@@ -350,8 +503,11 @@ const createEmptyMember = (
     relationship_name: relationshipName,
     is_primary_holder: isPrimaryHolder,
     is_locked: isLocked,
+    is_from_source_membership: false,
 
-    address: createEmptyAddress(),
+    address: createEmptyAddress(
+        isPrimaryHolder ? (defaultCountry.value?.id ?? null) : null,
+    ),
     employment: createEmptyEmployment(),
     documents: [],
 });
@@ -370,6 +526,9 @@ const buildMemberFromPrefill = (prefillMember: PrefillMember): MemberForm => {
     member.second_last_name = prefillMember.second_last_name ?? "";
     member.birthdate = prefillMember.birthdate ?? null;
     member.age = calculateAge(prefillMember.birthdate ?? null);
+    member.birth_country_id = prefillMember.birth_country_id ?? null;
+    member.birth_state_id = prefillMember.birth_state_id ?? null;
+    member.birth_city_id = prefillMember.birth_city_id ?? null;
     member.birth_place = prefillMember.birth_place ?? "";
     member.city = prefillMember.city ?? "";
     member.state = prefillMember.state ?? "";
@@ -379,8 +538,15 @@ const buildMemberFromPrefill = (prefillMember: PrefillMember): MemberForm => {
     member.email = prefillMember.email ?? "";
     member.occupation = prefillMember.occupation ?? "";
     member.school_name = prefillMember.school_name ?? "";
+    member.is_from_source_membership =
+        prefillMember.is_from_source_membership ?? false;
     member.address = {
-        ...createEmptyAddress(),
+        ...createEmptyAddress(
+            prefillMember.address?.country_id ??
+                (prefillMember.is_primary_holder
+                    ? (defaultCountry.value?.id ?? null)
+                    : null),
+        ),
         ...(prefillMember.address ?? {}),
     };
     member.employment = {
@@ -425,20 +591,30 @@ const getDocumentsForMember = (member: MemberForm) => {
         .filter((doc) => shouldIncludeDocumentByAge(doc, member.age));
 };
 
+const isMatrimonioDocument = (doc: DocumentType) =>
+    doc.name.toLowerCase().includes("matrimon");
+
 const buildMemberDocuments = (member: MemberForm): MemberDocumentForm[] => {
-    return getDocumentsForMember(member).map((doc) => ({
-        document_type_id: doc.id,
-        name: doc.name,
-        allowed_extensions: doc.allowed_extensions
-            ? doc.allowed_extensions
-                  .split(",")
-                  .map((ext) => ext.trim().toLowerCase())
-            : [],
-        is_required: doc.pivot.is_required,
-        allow_multiple: doc.pivot.allow_multiple,
-        number_files: doc.pivot.number_files,
-        files: [],
-    }));
+    return getDocumentsForMember(member)
+        .filter((doc) => {
+            if (member.is_primary_holder && isMatrimonioDocument(doc)) {
+                return hasSpouse.value;
+            }
+            return true;
+        })
+        .map((doc) => ({
+            document_type_id: doc.id,
+            name: doc.name,
+            allowed_extensions: doc.allowed_extensions
+                ? doc.allowed_extensions
+                      .split(",")
+                      .map((ext) => ext.trim().toLowerCase())
+                : [],
+            is_required: doc.pivot.is_required,
+            allow_multiple: doc.pivot.allow_multiple,
+            number_files: doc.pivot.number_files,
+            files: [],
+        }));
 };
 
 const buildDocumentsForRelationship = (
@@ -495,6 +671,119 @@ const addFamilyMember = () => {
     form.members.push(createEmptyMember(null, null, false, false));
 };
 
+const memberFieldError = (index: number, field: string) =>
+    page.props.errors?.[`members.${index}.${field}`] ??
+    form.errors[`members.${index}.${field}`];
+
+const memberAddressFieldError = (index: number, field: string) =>
+    page.props.errors?.[`members.${index}.address.${field}`] ??
+    form.errors[`members.${index}.address.${field}`];
+
+const isExistingSourceMember = (member: MemberForm) =>
+    usesSourceMembership.value &&
+    member.is_from_source_membership &&
+    member.id !== null &&
+    member.id !== undefined;
+
+const isIdentityLocked = (member: MemberForm) =>
+    usesSourceMembership.value &&
+    (member.is_primary_holder || isExistingSourceMember(member));
+
+const onBirthCountryChange = async (
+    member: MemberForm,
+    countryId: number | null,
+) => {
+    member.birth_country_id = countryId;
+    member.birth_place = getCountryName(countryId);
+    member.birth_state_id = null;
+    member.state = "";
+    member.birth_city_id = null;
+    member.city = "";
+
+    if (countryId) {
+        await fetchStates(countryId);
+    }
+};
+
+const onBirthStateChange = async (member: MemberForm, stateId: number | null) => {
+    member.birth_state_id = stateId;
+    member.state = getStateName(member.birth_country_id, stateId);
+    member.birth_city_id = null;
+    member.city = "";
+
+    if (stateId) {
+        await fetchCities(stateId);
+    }
+};
+
+const onBirthCityChange = (member: MemberForm, cityId: number | null) => {
+    member.birth_city_id = cityId;
+    member.city = getCityName(member.birth_state_id, cityId);
+};
+
+const onAddressCountryChange = async (
+    member: MemberForm,
+    countryId: number | null,
+) => {
+    member.address.country_id = countryId;
+    member.address.country = getCountryName(countryId);
+    member.address.state_id = null;
+    member.address.state = "";
+    member.address.city_id = null;
+    member.address.city = "";
+
+    if (countryId) {
+        await fetchStates(countryId);
+    }
+};
+
+const onAddressStateChange = async (
+    member: MemberForm,
+    stateId: number | null,
+) => {
+    member.address.state_id = stateId;
+    member.address.state = getStateName(member.address.country_id, stateId);
+    member.address.city_id = null;
+    member.address.city = "";
+
+    if (stateId) {
+        await fetchCities(stateId);
+    }
+};
+
+const onAddressCityChange = (member: MemberForm, cityId: number | null) => {
+    member.address.city_id = cityId;
+    member.address.city = getCityName(member.address.state_id, cityId);
+};
+
+const initializeLocationCatalogsForMembers = async (members: MemberForm[]) => {
+    const countryIds = Array.from(
+        new Set(
+            members
+                .flatMap((member) => [
+                    member.birth_country_id,
+                    member.address.country_id,
+                ])
+                .filter((value): value is number => value !== null),
+        ),
+    );
+
+    await Promise.all(countryIds.map((countryId) => fetchStates(countryId)));
+
+    const stateIds = Array.from(
+        new Set(
+            members
+                .flatMap((member) => [
+                    member.birth_state_id,
+                    member.address.state_id,
+                ])
+                .filter((value): value is number => value !== null),
+        ),
+    );
+
+    await Promise.all(stateIds.map((stateId) => fetchCities(stateId)));
+};
+
 const onRelationshipChange = (member: MemberForm) => {
     if (!member.relationship_id) {
         member.relationship_name = null;
@@ -507,6 +796,14 @@ const onRelationshipChange = (member: MemberForm) => {
     );
 
     member.relationship_name = relationship?.name ?? null;
+
+    if (member.relationship_name === "Cónyuge") {
+        const primaryHolder = getPrimaryMember();
+        if (primaryHolder) {
+            member.marital_status_id = primaryHolder.marital_status_id;
+        }
+    }
+
     member.documents = buildDocumentsForRelationship(
         member.relationship_id,
         member.age,
@@ -612,20 +909,22 @@ const selectType = (membershipType: MembershipType) => {
             .map((member) => buildMemberFromPrefill(member));
 
         form.members = members;
+        void initializeLocationCatalogsForMembers(members);
         void fetchPricingPreview();
         return;
     }
 
     const members: MemberForm[] = [createPrimaryHolder()];
 
-    if (membershipType.allows_multiple_members) {
+    /* if (membershipType.allows_multiple_members) {
         const spouse = createSpouseMember();
         if (spouse) {
             members.push(spouse);
         }
-    }
+    } */
 
     form.members = members;
+    void initializeLocationCatalogsForMembers(members);
     void fetchPricingPreview();
 };
 
@@ -728,6 +1027,38 @@ const isChildRelationship = (member: MemberForm) => {
 
 const isSpouseRelationship = (member: MemberForm) => {
     return member.relationship_name === "Cónyuge";
+};
+
+const hasSpouse = computed(() =>
+    form.members.some((m) => isSpouseRelationship(m)),
+);
+
+watch(hasSpouse, () => {
+    const primary = getPrimaryMember();
+    if (primary) {
+        primary.documents = buildMemberDocuments(primary);
+    }
+});
+
+const availableRelationships = (currentMember: MemberForm) => {
+    return props.relationships.filter((rel) => {
+        if (rel.id === TITULAR_RELATIONSHIP_ID) {
+            return false;
+        }
+        if (rel.name === "Cónyuge") {
+            return !hasSpouse.value || isSpouseRelationship(currentMember);
+        }
+        return true;
+    });
+};
+
+const onMaritalStatusChange = (member: MemberForm) => {
+    if (!member.is_primary_holder) return;
+
+    const spouse = form.members.find((m) => isSpouseRelationship(m));
+    if (spouse) {
+        spouse.marital_status_id = member.marital_status_id;
+    }
 };
 
 const birthdateRule = (member: MemberForm) => {
@@ -841,6 +1172,9 @@ const submit = () => {
             second_last_name: member.second_last_name,
             birthdate: member.birthdate,
             age: member.age,
+            birth_country_id: member.birth_country_id,
+            birth_state_id: member.birth_state_id,
+            birth_city_id: member.birth_city_id,
             birth_place: member.birth_place,
             city: member.city,
             state: member.state,
@@ -853,8 +1187,17 @@ const submit = () => {
             relationship_id: member.relationship_id,
             relationship_name: member.relationship_name,
             is_primary_holder: member.is_primary_holder,
-            address: member.address,
+            address: {
+                ...member.address,
+                country_id: member.address.country_id,
+                state_id: member.address.state_id,
+                city_id: member.address.city_id,
+            },
             employment: member.employment,
+            documents: member.documents.map((doc) => ({
+                document_type_id: doc.document_type_id,
+                files: doc.files ?? [],
+            })),
         })),
     }));
 
@@ -921,7 +1264,7 @@ const memberLabel = (member: MemberForm) => {
                                     <strong>Titular:</strong>
                                     {{ props.sourceMembership.holder_name }}
                                     · {{ sourceMembershipSummary }}
-                                    · Folio
+                                    · No. cuenta:
                                     {{
                                         props.sourceMembership
                                             .membership_number || "-"
@@ -952,7 +1295,7 @@ const memberLabel = (member: MemberForm) => {
                                                     parque
                                                 </div>
                                                 <div class="text-body-2 mt-2">
-                                                    Se creara una nueva cuenta
+                                                    Se creará una nueva cuenta
                                                     en el club destino.
                                                 </div>
                                             </v-card>
@@ -983,7 +1326,7 @@ const memberLabel = (member: MemberForm) => {
                                                     }}
                                                 </div>
                                                 <div class="text-body-2">
-                                                    Folio:
+                                                    No. cuenta:
                                                     {{
                                                         props.sourceMembership
                                                             .membership_number ||
@@ -1058,10 +1401,10 @@ const memberLabel = (member: MemberForm) => {
                                                 <div
                                                     class="text-subtitle-1 font-weight-bold"
                                                 >
-                                                    Misma cuenta, mismo folio
+                                                    Misma cuenta, mismo no. cuenta
                                                 </div>
                                                 <div class="text-body-2 mt-2">
-                                                    Se conservara el folio
+                                                    Se conservará el no. cuenta
                                                     {{
                                                         props.sourceMembership
                                                             .membership_number ||
@@ -1167,7 +1510,7 @@ const memberLabel = (member: MemberForm) => {
                                     </div>
 
                                     <v-row class="mt-2">
-                                        <v-col cols="12" md="4">
+                                        <v-col cols="12" md="3">
                                             <v-skeleton-loader
                                                 v-if="pricingPreviewLoading"
                                                 type="paragraph"
@@ -1176,7 +1519,7 @@ const memberLabel = (member: MemberForm) => {
                                                 <div
                                                     class="text-caption text-medium-emphasis"
                                                 >
-                                                    Mensualidad
+                                                    Cuota total del esquema
                                                 </div>
                                                 <div
                                                     class="text-h6 font-weight-bold"
@@ -1184,7 +1527,7 @@ const memberLabel = (member: MemberForm) => {
                                                     {{
                                                         pricingPreview
                                                             ? currencyFormatter.format(
-                                                                  pricingPreview.monthly_fee,
+                                                                  pricingPreview.monthly_fee_total,
                                                               )
                                                             : "-"
                                                     }}
@@ -1192,7 +1535,32 @@ const memberLabel = (member: MemberForm) => {
                                             </template>
                                         </v-col>
 
-                                        <v-col cols="12" md="4">
+                                        <v-col cols="12" md="3">
+                                            <v-skeleton-loader
+                                                v-if="pricingPreviewLoading"
+                                                type="paragraph"
+                                            />
+                                            <template v-else>
+                                                <div
+                                                    class="text-caption text-medium-emphasis"
+                                                >
+                                                    Cuota de este parque
+                                                </div>
+                                                <div
+                                                    class="text-h6 font-weight-bold"
+                                                >
+                                                    {{
+                                                        pricingPreview
+                                                            ? currencyFormatter.format(
+                                                                  pricingPreview.monthly_fee_share,
+                                                              )
+                                                            : "-"
+                                                    }}
+                                                </div>
+                                            </template>
+                                        </v-col>
+
+                                        <v-col cols="12" md="3">
                                             <v-skeleton-loader
                                                 v-if="pricingPreviewLoading"
                                                 type="paragraph"
@@ -1217,7 +1585,7 @@ const memberLabel = (member: MemberForm) => {
                                             </template>
                                         </v-col>
 
-                                        <v-col cols="12" md="4">
+                                        <v-col cols="12" md="3">
                                             <v-skeleton-loader
                                                 v-if="pricingPreviewLoading"
                                                 type="paragraph"
@@ -1226,7 +1594,7 @@ const memberLabel = (member: MemberForm) => {
                                                 <div
                                                     class="text-caption text-medium-emphasis"
                                                 >
-                                                    Total estimado inicial
+                                                    Total a pagar hoy
                                                 </div>
                                                 <div
                                                     class="text-h6 font-weight-bold"
@@ -1234,12 +1602,68 @@ const memberLabel = (member: MemberForm) => {
                                                     {{
                                                         pricingPreview
                                                             ? currencyFormatter.format(
-                                                                  pricingPreview.total_due,
+                                                                  pricingPreview.amount_due_today,
                                                               )
                                                             : "-"
                                                     }}
                                                 </div>
                                             </template>
+                                        </v-col>
+                                    </v-row>
+
+                                    <v-row
+                                        v-if="
+                                            !pricingPreviewLoading &&
+                                            pricingPreview &&
+                                            (pricingPreview.current_monthly_fee !==
+                                                null ||
+                                                pricingPreview.additional_monthly_charge !==
+                                                    null)
+                                        "
+                                        class="mt-1"
+                                    >
+                                        <v-col
+                                            v-if="
+                                                pricingPreview.current_monthly_fee !==
+                                                null
+                                            "
+                                            cols="12"
+                                            md="6"
+                                        >
+                                            <div
+                                                class="text-caption text-medium-emphasis"
+                                            >
+                                                Cuota actual del esquema
+                                            </div>
+                                            <div class="text-body-1">
+                                                {{
+                                                    currencyFormatter.format(
+                                                        pricingPreview.current_monthly_fee,
+                                                    )
+                                                }}
+                                            </div>
+                                        </v-col>
+
+                                        <v-col
+                                            v-if="
+                                                pricingPreview.additional_monthly_charge !==
+                                                null
+                                            "
+                                            cols="12"
+                                            md="6"
+                                        >
+                                            <div
+                                                class="text-caption text-medium-emphasis"
+                                            >
+                                                Ajuste mensual de hoy
+                                            </div>
+                                            <div class="text-body-1">
+                                                {{
+                                                    currencyFormatter.format(
+                                                        pricingPreview.additional_monthly_charge,
+                                                    )
+                                                }}
+                                            </div>
                                         </v-col>
                                     </v-row>
 
@@ -1391,13 +1815,13 @@ const memberLabel = (member: MemberForm) => {
                                     >
                                         {{
                                             props.isCrossClubRequest
-                                                ? "Los integrantes se precargaron desde la membresía de origen para agilizar la solicitud. Puedes ajustar la captura antes de enviarla."
-                                                : "Los integrantes se precargaron desde la cuenta actual para agilizar el cambio. Puedes ajustar la captura antes de confirmarla."
+                                                ? "Los integrantes se precargaron desde la membresía de origen y, cuando aplica, desde el grupo familiar para agilizar la solicitud. Puedes ajustar la captura antes de enviarla."
+                                                : "Los integrantes se precargaron desde la cuenta actual y, cuando aplica, desde el grupo familiar para agilizar el cambio. Puedes ajustar la captura antes de confirmarla."
                                         }}
                                     </v-alert>
 
                                     <div
-                                        v-for="member in form.members"
+                                        v-for="(member, index) in form.members"
                                         :key="member.local_id"
                                         class="mb-6"
                                     >
@@ -1405,9 +1829,33 @@ const memberLabel = (member: MemberForm) => {
                                             <div
                                                 class="d-flex justify-space-between align-center mb-4"
                                             >
-                                                <h4>
-                                                    {{ memberLabel(member) }}
-                                                </h4>
+                                                <div class="d-flex align-center ga-2">
+                                                    <h4>
+                                                        {{ memberLabel(member) }}
+                                                    </h4>
+                                                    <v-chip
+                                                        v-if="
+                                                            isExistingSourceMember(
+                                                                member,
+                                                            )
+                                                        "
+                                                        size="small"
+                                                        color="info"
+                                                        variant="tonal"
+                                                    >
+                                                        Existente
+                                                    </v-chip>
+                                                    <v-chip
+                                                        v-else-if="
+                                                            usesSourceMembership
+                                                        "
+                                                        size="small"
+                                                        color="success"
+                                                        variant="tonal"
+                                                    >
+                                                        Nuevo
+                                                    </v-chip>
+                                                </div>
 
                                                 <v-btn
                                                     v-if="!member.is_locked"
@@ -1445,7 +1893,7 @@ const memberLabel = (member: MemberForm) => {
                                                             member.relationship_id
                                                         "
                                                         :items="
-                                                            props.relationships
+                                                            availableRelationships(member)
                                                         "
                                                         item-title="name"
                                                         item-value="id"
@@ -1454,7 +1902,10 @@ const memberLabel = (member: MemberForm) => {
                                                             selectRequired,
                                                         ]"
                                                         :disabled="
-                                                            member.is_locked
+                                                            member.is_locked ||
+                                                            isExistingSourceMember(
+                                                                member,
+                                                            )
                                                         "
                                                         @update:modelValue="
                                                             onRelationshipChange(
@@ -1470,7 +1921,12 @@ const memberLabel = (member: MemberForm) => {
                                                             member.first_name
                                                         "
                                                         label="Nombre(s)"
-                                                        :rules="[required]"
+                                                        :rules="[required,minLength(2), maxLength(75)]"
+                                                        :disabled="
+                                                            isIdentityLocked(
+                                                                member,
+                                                            )
+                                                        "
                                                     />
                                                 </v-col>
 
@@ -1480,7 +1936,12 @@ const memberLabel = (member: MemberForm) => {
                                                             member.last_name
                                                         "
                                                         label="Apellido paterno"
-                                                        :rules="[required]"
+                                                        :rules="[required,minLength(2), maxLength(50)]"
+                                                        :disabled="
+                                                            isIdentityLocked(
+                                                                member,
+                                                            )
+                                                        "
                                                     />
                                                 </v-col>
 
@@ -1490,6 +1951,13 @@ const memberLabel = (member: MemberForm) => {
                                                             member.second_last_name
                                                         "
                                                         label="Apellido materno"
+                                                        :disabled="
+                                                            isIdentityLocked(
+                                                                member,
+                                                            )
+                                                        "
+                                                        :rules="[minLength(2), maxLength(50)]"
+
                                                     />
                                                 </v-col>
 
@@ -1506,6 +1974,11 @@ const memberLabel = (member: MemberForm) => {
                                                                 member,
                                                             ),
                                                         ]"
+                                                        :disabled="
+                                                            isIdentityLocked(
+                                                                member,
+                                                            )
+                                                        "
                                                         @update:modelValue="
                                                             onBirthdateChange(
                                                                 member,
@@ -1538,11 +2011,33 @@ const memberLabel = (member: MemberForm) => {
                                                     cols="12"
                                                     md="4"
                                                 >
-                                                    <v-text-field
+                                                    <v-autocomplete
                                                         v-model="
-                                                            member.birth_place
+                                                            member.birth_country_id
                                                         "
-                                                        label="Lugar de nacimiento"
+                                                        :items="countryOptions"
+                                                        item-title="title"
+                                                        item-value="id"
+                                                        label="País de nacimiento"
+                                                        :error-messages="
+                                                            memberFieldError(
+                                                                index,
+                                                                'birth_country_id',
+                                                            )
+                                                        "
+                                                        :disabled="
+                                                            isIdentityLocked(
+                                                                member,
+                                                            )
+                                                        "
+                                                        clearable
+                                                        @update:modelValue="
+                                                            onBirthCountryChange(
+                                                                member,
+                                                                $event,
+                                                            )
+                                                        "
+                                                        :rules="[selectRequired]"
                                                     />
                                                 </v-col>
 
@@ -1556,9 +2051,40 @@ const memberLabel = (member: MemberForm) => {
                                                     cols="12"
                                                     md="4"
                                                 >
-                                                    <v-text-field
-                                                        v-model="member.city"
-                                                        label="Ciudad"
+                                                    <v-autocomplete
+                                                        v-model="
+                                                            member.birth_state_id
+                                                        "
+                                                        :items="
+                                                            getStateOptions(
+                                                                member.birth_country_id,
+                                                            )
+                                                        "
+                                                        item-title="name"
+                                                        item-value="id"
+                                                        label="Estado de nacimiento"
+                                                        :error-messages="
+                                                            memberFieldError(
+                                                                index,
+                                                                'birth_state_id',
+                                                            )
+                                                        "
+                                                        :disabled="
+                                                            isIdentityLocked(
+                                                                member,
+                                                            ) ||
+                                                            !member.birth_country_id
+                                                        "
+                                                        clearable
+                                                        @update:modelValue="
+                                                            onBirthStateChange(
+                                                                member,
+                                                                $event,
+                                                            )
+                                                        "
+                                                        :rules="[
+                                                            selectRequired,
+                                                        ]"
                                                     />
                                                 </v-col>
 
@@ -1572,9 +2098,37 @@ const memberLabel = (member: MemberForm) => {
                                                     cols="12"
                                                     md="4"
                                                 >
-                                                    <v-text-field
-                                                        v-model="member.state"
-                                                        label="Estado"
+                                                    <v-autocomplete
+                                                        v-model="
+                                                            member.birth_city_id
+                                                        "
+                                                        :items="
+                                                            getCityOptions(
+                                                                member.birth_state_id,
+                                                            )
+                                                        "
+                                                        item-title="name"
+                                                        item-value="id"
+                                                        label="Ciudad de nacimiento"
+                                                        :error-messages="
+                                                            memberFieldError(
+                                                                index,
+                                                                'birth_city_id',
+                                                            )
+                                                        "
+                                                        :disabled="
+                                                            isIdentityLocked(
+                                                                member,
+                                                            ) ||
+                                                            !member.birth_state_id
+                                                        "
+                                                        clearable
+                                                        @update:modelValue="
+                                                            onBirthCityChange(
+                                                                member,
+                                                                $event,
+                                                            )
+                                                        "
                                                     />
                                                 </v-col>
 
@@ -1598,8 +2152,16 @@ const memberLabel = (member: MemberForm) => {
                                                         item-title="title"
                                                         item-value="id"
                                                         label="Nacionalidad"
+                                                        :disabled="
+                                                            isIdentityLocked(
+                                                                member,
+                                                            )
+                                                        "
                                                         clearable
                                                         auto-select-first
+                                                        :rules="[
+                                                            selectRequired,
+                                                        ]"
                                                     />
                                                 </v-col>
 
@@ -1623,8 +2185,21 @@ const memberLabel = (member: MemberForm) => {
                                                         item-title="title"
                                                         item-value="id"
                                                         label="Estado civil"
+                                                        :disabled="
+                                                            isSpouseRelationship(
+                                                                member,
+                                                            )
+                                                        "
                                                         clearable
                                                         auto-select-first
+                                                        @update:modelValue="
+                                                            onMaritalStatusChange(
+                                                                member,
+                                                            )
+                                                        "
+                                                        :rules="[
+                                                            selectRequired,
+                                                        ]"
                                                     />
                                                 </v-col>
 
@@ -1647,7 +2222,9 @@ const memberLabel = (member: MemberForm) => {
                                                                       required,
                                                                       validatePhone,
                                                                   ]
-                                                                : []
+                                                                : [
+                                                                        validatePhone,
+                                                                ]
                                                         "
                                                     />
                                                 </v-col>
@@ -1661,8 +2238,9 @@ const memberLabel = (member: MemberForm) => {
                                                                 ? [
                                                                       required,
                                                                       email,
+                                                                      maxLength(255)
                                                                   ]
-                                                                : [email]
+                                                                : [email, maxLength(255)]
                                                         "
                                                     />
                                                 </v-col>
@@ -1679,6 +2257,7 @@ const memberLabel = (member: MemberForm) => {
                                                             member.occupation
                                                         "
                                                         label="Ocupación"
+                                                        :rules="[required, minLength(2), maxLength(100)]"
                                                     />
                                                 </v-col>
 
@@ -1696,6 +2275,7 @@ const memberLabel = (member: MemberForm) => {
                                                             member.school_name
                                                         "
                                                         label="Colegio"
+                                                        :rules="[required, minLength(3), maxLength(150)]"
                                                     />
                                                 </v-col>
                                             </v-row>
@@ -1720,6 +2300,7 @@ const memberLabel = (member: MemberForm) => {
                                                                 .street
                                                         "
                                                         label="Calle"
+                                                        :rules="[required, minLength(3), maxLength(150)]"
                                                     />
                                                 </v-col>
 
@@ -1730,6 +2311,7 @@ const memberLabel = (member: MemberForm) => {
                                                                 .neighborhood
                                                         "
                                                         label="Colonia"
+                                                        :rules="[required, minLength(3), maxLength(150)]"
                                                     />
                                                 </v-col>
 
@@ -1740,45 +2322,118 @@ const memberLabel = (member: MemberForm) => {
                                                                 .postal_code
                                                         "
                                                         label="Código postal"
+                                                        :rules="[postalCode]"
                                                     />
                                                 </v-col>
 
                                                 <v-col cols="12" md="4">
-                                                    <v-text-field
-                                                        v-model="
-                                                            member.address.city
-                                                        "
-                                                        label="Ciudad del domicilio"
-                                                    />
-                                                </v-col>
-
-                                                <v-col cols="12" md="4">
-                                                    <v-text-field
-                                                        v-model="
-                                                            member.address.state
-                                                        "
-                                                        label="Estado del domicilio"
-                                                    />
-                                                </v-col>
-
-                                                <v-col cols="12" md="4">
-                                                    <v-text-field
+                                                    <v-autocomplete
                                                         v-model="
                                                             member.address
-                                                                .country
+                                                                .country_id
                                                         "
+                                                        :items="countryOptions"
+                                                        item-title="title"
+                                                        item-value="id"
                                                         label="País"
+                                                        :error-messages="
+                                                            memberAddressFieldError(
+                                                                index,
+                                                                'country_id',
+                                                            )
+                                                        "
+                                                        clearable
+                                                        @update:modelValue="
+                                                            onAddressCountryChange(
+                                                                member,
+                                                                $event,
+                                                            )
+                                                        "
+                                                        :rules="[selectRequired]"
                                                     />
                                                 </v-col>
 
                                                 <v-col cols="12" md="4">
-                                                    <v-text-field
+                                                    <v-autocomplete
+                                                        v-model="
+                                                            member.address
+                                                                .state_id
+                                                        "
+                                                        :items="
+                                                            getStateOptions(
+                                                                member.address
+                                                                    .country_id,
+                                                            )
+                                                        "
+                                                        item-title="name"
+                                                        item-value="id"
+                                                        label="Estado del domicilio"
+                                                        :error-messages="
+                                                            memberAddressFieldError(
+                                                                index,
+                                                                'state_id',
+                                                            )
+                                                        "
+                                                        :disabled="
+                                                            !member.address
+                                                                .country_id
+                                                        "
+                                                        clearable
+                                                        @update:modelValue="
+                                                            onAddressStateChange(
+                                                                member,
+                                                                $event,
+                                                            )
+                                                        "
+                                                        :rules="[
+                                                            selectRequired,
+                                                        ]"
+                                                    />
+                                                </v-col>
+
+                                                <v-col cols="12" md="4">
+                                                    <v-autocomplete
+                                                        v-model="
+                                                            member.address
+                                                                .city_id
+                                                        "
+                                                        :items="
+                                                            getCityOptions(
+                                                                member.address
+                                                                    .state_id,
+                                                            )
+                                                        "
+                                                        item-title="name"
+                                                        item-value="id"
+                                                        label="Ciudad del domicilio"
+                                                        :error-messages="
+                                                            memberAddressFieldError(
+                                                                index,
+                                                                'city_id',
+                                                            )
+                                                        "
+                                                        :disabled="
+                                                            !member.address
+                                                                .state_id
+                                                        "
+                                                        clearable
+                                                        @update:modelValue="
+                                                            onAddressCityChange(
+                                                                member,
+                                                                $event,
+                                                            )
+                                                        "
+                                                    />
+                                                </v-col>
+
+                                                <v-col cols="12" md="4">
+                                                    <v-number-input
                                                         v-model="
                                                             member.address
                                                                 .years_in_city
                                                         "
-                                                        type="number"
                                                         label="Años radicando en la ciudad"
+                                                        :rules="[required]"
                                                     />
                                                 </v-col>
                                             </v-row>
@@ -1803,6 +2458,7 @@ const memberLabel = (member: MemberForm) => {
                                                                 .company_name
                                                         "
                                                         label="Empresa"
+                                                        :rules="[required, minLength(2), maxLength(150)]"
                                                     />
                                                 </v-col>
 
@@ -1813,6 +2469,7 @@ const memberLabel = (member: MemberForm) => {
                                                                 .company_address
                                                         "
                                                         label="Dirección de la empresa"
+                                                            :rules="[required, minLength(5), maxLength(255)]"
                                                     />
                                                 </v-col>
 
@@ -1823,6 +2480,7 @@ const memberLabel = (member: MemberForm) => {
                                                                 .company_phone
                                                         "
                                                         label="Teléfono de la empresa"
+                                                        :rules="[required, validatePhone]"
                                                     />
                                                 </v-col>
                                             </v-row>
@@ -1880,6 +2538,12 @@ const memberLabel = (member: MemberForm) => {
                                                 class="text-subtitle-1 font-weight-bold mb-4"
                                             >
                                                 {{ memberLabel(member) }}
+                                                <span
+                                                    v-if="member.first_name || member.last_name"
+                                                    class="font-weight-regular"
+                                                >
+                                                    — {{ [member.first_name, member.last_name, member.second_last_name].filter(Boolean).join(' ') }}
+                                                </span>
                                             </h4>
 
                                             <v-row>
@@ -1922,13 +2586,13 @@ const memberLabel = (member: MemberForm) => {
                                                             doc.allow_multiple
                                                         "
                                                         :rules="[
-                                                            fileExactCountRule(
-                                                                doc.number_files,
-                                                            ),
-                                                            requiredFileRule,
+                                                            ...(doc.is_required
+                                                                ? [requiredFileRule, fileExactCountRule(doc.number_files)]
+                                                                : []),
                                                             fileTypeRule(
                                                                 doc.allowed_extensions,
                                                             ),
+                                                            fileMaxSizeRule(2)
                                                         ]"
                                                         clearable
                                                     />
@@ -1971,7 +2635,7 @@ const memberLabel = (member: MemberForm) => {
                                             props.sourceMembership
                                         "
                                     >
-                                        <strong>Folio:</strong>
+                                        <strong>No. cuenta:</strong>
                                         {{
                                             props.sourceMembership
                                                 .membership_number || "-"
@@ -2046,7 +2710,7 @@ const memberLabel = (member: MemberForm) => {
                                     variant="tonal"
                                 >
                                     Al confirmar, se actualizará la misma cuenta
-                                    y el mismo folio con el nuevo tipo de
+                                    y el mismo no. cuenta con el nuevo tipo de
                                     membresía y su cuota correspondiente.
                                 </v-alert>
                             </v-container>

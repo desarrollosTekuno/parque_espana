@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use App\Models\Permission;
 
@@ -64,7 +65,7 @@ class RoleController extends Controller
         )->appends($request->all());
 
         // Datos adicionales
-         $permissions = Permission::with('contexts')->select('id', 'name', 'description', 'guard_name')->get();
+        $permissions = Permission::with('contexts')->select('id', 'name', 'description', 'module', 'guard_name')->get();
         $contexts = Context::select('id', 'name', 'value')->get();
 
         return Inertia::render('Administrator/Roles/Index', [
@@ -78,26 +79,37 @@ class RoleController extends Controller
     public function store(Request $request)
     {
         try {
-            // validar que el nombre del rol sea único para el guard especificado
+            $guardName  = $request->input('guard_name', 'web');
+            $contextId  = $request->input('context_id');
+
             $validator = Validator::make($request->all(), [
-                'name' => 'unique:roles'
+                'name' => [
+                    'required',
+                    'string',
+                    'max:255',
+                    Rule::unique('roles')->where(fn ($q) => $q
+                        ->where('guard_name', $guardName)
+                        ->where('context_id', $contextId)
+                    ),
+                ],
+                'description' => ['nullable', 'string', 'max:500'],
             ]);
 
             if ($validator->fails()) {
                 return redirect()->back()->withErrors([
-                    'messageError' =>  'El nombre del rol ya existe',
-                    'exception' => '',
+                    'messageError' => 'El nombre del rol ya existe para el guard y contexto seleccionados',
+                    'exception'    => '',
                 ]);
             }
 
             $role = Role::create($request->except('permissions'));
-            $role->syncPermissions($request->permissions);
+            $role->syncPermissions($request->permissions ?? []);
             app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
-            return redirect()->back() ->with('success', 'Rol creado con éxito!');
+            return redirect()->back()->with('success', 'Rol creado con éxito!');
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([
-                'messageError' =>  'Ocurrió un error al crear el rol',
-                'exception' => $e->getMessage(),
+                'messageError' => 'Ocurrió un error al crear el rol',
+                'exception'    => $e->getMessage(),
             ]);
         }
     }
@@ -107,26 +119,38 @@ class RoleController extends Controller
      */
     public function update(Request $request, Role $role)
     {
-        // return $request->all();
         try {
-                // validar que el nombre del rol sea único para el guard especificado, excluyendo el rol actual
+            $guardName = $request->input('guard_name', $role->guard_name);
+            $contextId = $request->input('context_id', $role->context_id);
+
             $validator = Validator::make($request->all(), [
-                'name' => 'unique:roles,name,' . $role->id
+                'name' => [
+                    'required',
+                    'string',
+                    'max:255',
+                    Rule::unique('roles')->ignore($role->id)->where(fn ($q) => $q
+                        ->where('guard_name', $guardName)
+                        ->where('context_id', $contextId)
+                    ),
+                ],
+                'description' => ['nullable', 'string', 'max:500'],
             ]);
+
             if ($validator->fails()) {
                 return redirect()->back()->withErrors([
-                    'messageError' =>  'El nombre del rol ya existe',
-                    'exception' => '',
+                    'messageError' => 'El nombre del rol ya existe para el guard y contexto seleccionados',
+                    'exception'    => '',
                 ]);
             }
+
             $role->update($request->except('permissions'));
-            $role->syncPermissions($request->permissions);
+            $role->syncPermissions($request->permissions ?? []);
             app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
             return redirect()->back()->with('success', 'Rol actualizado con éxito!');
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([
-                'messageError' =>  'Ocurrió un error al actualizar el rol',
-                'exception' => $e->getMessage(),
+                'messageError' => 'Ocurrió un error al actualizar el rol',
+                'exception'    => $e->getMessage(),
             ]);
         }
     }
@@ -159,20 +183,34 @@ class RoleController extends Controller
 
     public function duplicate(Request $request)
     {
-        // return $request->all();
         try {
-            $roleName = $request->name;
-            $roleName = $roleName . '- Copia';
+            $guardName = $request->input('guard_name', 'web');
+            $contextId = $request->input('context_id');
+            $copyName  = $request->input('name') . ' - Copia';
+
+            // Asegurar que el nombre de la copia no colisione en el mismo contexto
+            $exists = Role::where('name', $copyName)
+                ->where('guard_name', $guardName)
+                ->where('context_id', $contextId)
+                ->exists();
+
+            if ($exists) {
+                return redirect()->back()->withErrors([
+                    'messageError' => 'Ya existe una copia de este rol en el mismo contexto',
+                    'exception'    => '',
+                ]);
+            }
+
             $role = Role::create(
-                collect($request->all())->put('name', $roleName)->toArray()
+                collect($request->all())->put('name', $copyName)->toArray()
             );
-            $role->syncPermissions($request->permissions);
+            $role->syncPermissions($request->permissions ?? []);
             app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
             return redirect()->back()->with('success', 'Rol duplicado con éxito!');
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([
-                'messageError' =>  'Ocurrió un error al crear el rol',
-                'exception' => $e->getMessage(),
+                'messageError' => 'Ocurrió un error al duplicar el rol',
+                'exception'    => $e->getMessage(),
             ]);
         }
     }

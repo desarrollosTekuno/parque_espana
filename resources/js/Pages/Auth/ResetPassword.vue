@@ -30,7 +30,7 @@ const restablecerContrasena = async () => {
 <template>
   <Head title="Restablecer contraseña" />
 
-  <v-container class="fill-height d-flex align-center justify-center">
+  <div class="min-h-screen flex items-center justify-center auth-bg">
     <v-card width="500" class="pa-6">
 
       <v-card-title class="text-h6 text-center">
@@ -102,5 +102,12 @@ const restablecerContrasena = async () => {
 
       </v-card-text>
     </v-card>
-  </v-container>
+  </div>
 </template>
+
+
+<style scoped>
+.auth-bg {
+    background: linear-gradient(180deg, #0B5A8C 0%, #031826 100%) !important;
+}
+</style>

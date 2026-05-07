@@ -31,20 +31,28 @@ class LoginController extends Controller
                 'message' => 'Unauthorized'
             ], 200);
         }
-        $permissions = $request->user()
-            ->getAllPermissions()
-            ->filter(function ($permission) {
-                return $permission->contexts->contains('value', 'mobile_app');
-            })
-            ->values()
-            ->pluck('name');
+        $user = $request->user();
+        $allPermissions = $user->getAllPermissions();
+
+        // Agrupar permisos por club (mobile_club_1 / mobile_club_2)
+        $mobileContexts = ['mobile_club_1', 'mobile_club_2'];
+        $permissionsByClub = [];
+        foreach ($mobileContexts as $contextValue) {
+            $clubPermissions = $allPermissions
+                ->filter(fn($p) => $p->contexts->contains('value', $contextValue))
+                ->pluck('name')
+                ->values();
+
+            if ($clubPermissions->isNotEmpty()) {
+                $permissionsByClub[$contextValue] = $clubPermissions;
+            }
+        }
+
         return response()->json([
-            // 'token' => $request->user()->createToken($request->device)->plainTextToken,
-            // 'message' => 'Success'
-            'success' => true,
-            'message' => 'Login successful',
-            'token' => $request->user()->createToken($request->email)->plainTextToken,
-            'permissions' => $permissions
+            'success'            => true,
+            'message'            => 'Login successful',
+            'token'              => $user->createToken($request->email)->plainTextToken,
+            'permissions_by_club' => $permissionsByClub,
         ]);
     }
 

@@ -8,7 +8,7 @@ import FormImage from "@/Components/Form/FormImage.vue";
 import FormName from "@/Components/Form/FormName.vue";
 import FormNumber from "@/Components/Form/FormNumber.vue";
 import TimePicker from "@/Components/TimePicker.vue";
-import { required, maxLength } from "@/constants/validationRules";
+import { required, maxLength, fileMaxSizeRule, fileTypeRule } from "@/constants/validationRules";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import { Form, Head, router, useForm, usePage } from "@inertiajs/vue3";
@@ -944,11 +944,19 @@ watch(
                     <v-card-text class="overflow-y-auto h-full" style="max-height:70vh; overflow-y:auto;">
                         <v-row>
                             <v-col cols="12">
-                                <FormName v-model="form.name" label="Nombre" :rules="[required, maxLength(50)]" />
+                                <FormName v-model="form.name" 
+                                    label="Nombre" 
+                                    :rules="[required, maxLength(50)]" />
                             </v-col>
 
                             <v-col cols="6">
-                                <FormIcon v-model="form.icon" label="Icono" ref="iconRef" />
+                                <FormIcon v-model="form.icon" 
+                                    label="Icono" 
+                                    ref="iconRef"
+                                    :rules="[
+                                        fileMaxSizeRule(2),
+                                        fileTypeRule(['jpg','jpeg','png','webp'])
+                                    ]" />
 
                                 <v-card height="150" variant="outlined"
                                     class="mt-2 pa-2 d-flex flex-column align-center justify-center imagePreview">
@@ -968,7 +976,13 @@ watch(
                                 </div>
                             </v-col>
                             <v-col cols="6">
-                                <FormImage v-model="form.background_image" label="Imagen de fondo" ref="imageRef" />
+                                <FormImage v-model="form.background_image" 
+                                    label="Imagen de fondo" 
+                                    ref="imageRef"
+                                    :rules="[
+                                        fileMaxSizeRule(2),
+                                        fileTypeRule(['jpg','jpeg','png','webp'])
+                                    ]" />
                                 <v-card height="150" variant="outlined"
                                     class="mt-2 d-flex flex-column align-center justify-center imagePreview">
                                     <v-img v-if="imagePreview" :src="imagePreview" height="90" width="200" cover

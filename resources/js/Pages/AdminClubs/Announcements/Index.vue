@@ -1,11 +1,14 @@
     <script setup lang="ts">
 
     import '@/../css/amenities.css';
+    import "@vueup/vue-quill/dist/vue-quill.snow.css";
+    import { QuillEditor } from "@vueup/vue-quill";
     import BaseButton from "@/Components/BaseButton.vue";
+    import FormDateTimePicker from "@/Components/Form/FormDateTimePicker.vue";
     import FormDescripcion from "@/Components/Form/FormDescripcion.vue";
     import FormImage from "@/Components/Form/FormImage.vue";
     import FormName from "@/Components/Form/FormName.vue";
-    import { required, maxLength } from "@/constants/validationRules";
+    import { required, maxLength, fileMaxSizeRule, fileTypeRule } from "@/constants/validationRules";
     import AppLayout from "@/Layouts/AppLayout.vue";
     import { customConfirmSwal, customToastSwal } from "@/utils/swal";
     import { Head, router, useForm, usePage } from "@inertiajs/vue3";
@@ -17,8 +20,6 @@
 
     interface Props {
         announcements?: any;
-        amenities?: any;
-        resources?: any;
     }
     const props = withDefaults(
         defineProps<Props>(), {
@@ -35,7 +36,6 @@
         id: null,
         club_id: page.props.auth.currentClub,
         title: "",
-        summary: "",
         content: "",
         type: null,
         image: null,
@@ -47,11 +47,8 @@
         resource_id: null,
         capacity: null,
         starts_at: null,
-        ends_at: null
-    });
-    const showEventFields = computed(() => {
-        return form.type === "torneo"
-            || form.type === "evento";
+        ends_at: null,
+        status: "draft"
     });
     const isSaveDisabled = computed(() => {
         return imageRef.value?.isValid === false;
@@ -68,25 +65,40 @@
     };
     const formatDateForInput = (val: string | null) => {
         if (!val) return null;
-        return val.replace(" ", "T").slice(0, 16);
+            if (val.includes('T')) {
+                return val.slice(0, 16);
+            }
+        return val.replace(' ', 'T').slice(0, 16);
     };
+const formatToPicker = (val: string | null) => {
+    if (!val) return null;
+
+    // 👉 elimina milisegundos y zona
+    let clean = val.replace('T', ' ').split('.')[0];
+
+    // 👉 si trae Z o timezone lo quitamos
+    clean = clean.replace('Z', '');
+
+    return clean;
+};
     const edit = (item: any) => {
         form.reset();
+
         form.id = item.id;
         form.title = item.title;
-        form.summary = item.summary;
         form.content = item.content;
         form.type = item.type;
-        form.publish_at = formatDateForInput(item.publish_at);
-        form.expires_at = formatDateForInput(item.expires_at);
+        form.status = item.status;
+
+        form.publish_at = formatToPicker(item.publish_at);  
+        form.expires_at = formatToPicker(item.expires_at); 
+
         form.is_active = item.is_active;
-        form.resource_id = item.detail?.resource_id ?? null;
-        form.capacity = item.detail?.capacity ?? null;
-        form.starts_at = formatDateForInput(item.detail?.starts_at);
-        form.ends_at = formatDateForInput(item.detail?.ends_at);
+
         form.image = null;
         form.image_path = item.image;
         imagePreview.value = item.image ? `/storage/${item.image}` : null;
+
         showModal.value = true;
     };
     const save = () => {
@@ -94,16 +106,32 @@
             ?.validate()
             .then(({ valid }) => {
                 if (!valid) return;
+                const publish = normalizeDate(form.publish_at);
+                const expires = normalizeDate(form.expires_at);
+                const now = Date.now();
+
+                if (!publish) {
+                    customToastSwal({ title: "Fecha de publicación inválida", icon: "error" });
+                    return;
+                }
+
+                if (publish < now) {
+                    customToastSwal({ title: "La publicación no puede ser en el pasado", icon: "error" });
+                    return;
+                }
+
+                if (!expires) {
+                    customToastSwal({ title: "Fecha de expiración inválida", icon: "error" });
+                    return;
+                }
+
+                if (expires <= publish) {
+                    customToastSwal({ title: "La expiración debe ser mayor a publicación", icon: "error" });
+                    return;
+                }
                 form.transform((data: any) => {
-                    const normalizeDate = (val:any) => {
-                    return val ? val.replace("T"," ") + ":00" : null;
-                };
                 let payload:any = {
                     ...data,
-                    publish_at: normalizeDate(data.publish_at),
-                    expires_at: normalizeDate(data.expires_at),
-                    starts_at: normalizeDate(data.starts_at),
-                    ends_at: normalizeDate(data.ends_at),
                 };
                 if (!(data.image instanceof File)) {
                     delete payload.image;
@@ -184,87 +212,66 @@
         const e = new Date(end);
         return s.toDateString() === e.toDateString();
 };
+const parseLocalDate = (dateStr: string) => {
+    if (!dateStr) return null;
 
+    const parts = dateStr.split(' ');
+    const date = parts[0];
+    const time = parts[1] ?? '00:00:00'; // 👈 fallback
+
+    const [year, month, day] = date.split('-').map(Number);
+    const [hour, minute, second] = time.split(':').map(Number);
+
+    return new Date(
+        year,
+        (month ?? 1) - 1,
+        day ?? 1,
+        hour ?? 0,
+        minute ?? 0,
+        second ?? 0
+    );
+};
 const formatEventDate = (start:string|null,end:string|null) => {
     if(!start) return "-";
-    const s = new Date(start.replace(" ","T"));
-    const datePart = s.toLocaleDateString(
-        "es-MX",
-        {
-            day:"2-digit",
-            month:"short",
-            year:"numeric"
-        }
-    );
 
-    const startTime = s.toLocaleTimeString(
-        "es-MX",
-        {
-            hour:"numeric",
-            minute:"2-digit",
-            hour12:true
-        }
-    );
+    const s = parseLocalDate(start);
+
+    const datePart = s.toLocaleDateString("es-MX", {
+        day:"2-digit",
+        month:"short",
+        year:"numeric"
+    });
+
+    const startTime = s.toLocaleTimeString("es-MX", {
+        hour:"numeric",
+        minute:"2-digit",
+        hour12:true
+    });
 
     if(!end) return `${datePart} · ${startTime}`;
 
-    const e = new Date(end.replace(" ","T"));
+    const e = parseLocalDate(end);
 
-    const endTime = e.toLocaleTimeString(
-        "es-MX",
-        {
-            hour:"numeric",
-            minute:"2-digit",
-            hour12:true
-        }
-    );
+    const endTime = e.toLocaleTimeString("es-MX", {
+        hour:"numeric",
+        minute:"2-digit",
+        hour12:true
+    });
 
     if(isSameDay(start,end)){
         return `${datePart} · ${startTime} - ${endTime}`;
     }
 
-    const endDatePart = e.toLocaleDateString(
-        "es-MX",
-        {
-            day:"2-digit",
-            month:"short",
-            year:"numeric"
-        }
-    );
+    const endDatePart = e.toLocaleDateString("es-MX", {
+        day:"2-digit",
+        month:"short",
+        year:"numeric"
+    });
+
     return `${datePart} ${startTime}
             → ${endDatePart} ${endTime}`;
 };
 
-const calculateDurationMinutes = (
-    start:string|null,
-    end:string|null
-)=>{
-    if(!start || !end) return 0;
-    return Math.floor(
-        (
-            new Date(end).getTime()
-            - new Date(start).getTime()
-        ) / 60000
-    );
-};
-
-const formatDuration = (minutes:number)=>{
-    const h = Math.floor(minutes/60);
-    const m = minutes % 60;
-    if(h && m) return `${h}h ${m}m`;
-    if(h) return `${h}h`;
-    return `${m}m`;
-};
-
-const durationColor = (minutes:number)=>{
-    if(minutes >= 360)
-        return "deep-purple";
-    if(minutes >= 240)
-        return "indigo";
-    if(minutes >= 120)
-        return "primary";
-    return "teal";
-};
     const removeImage = () => {
         form.image = null;
         form.image_path = null;
@@ -275,11 +282,8 @@ const durationColor = (minutes:number)=>{
     const headers = [
         {title: "Título",key: "title"},
         {title: "Tipo",key: "type"},
-        //{title: "Locación", key: "resource" },
         {title: "Imagen",key: "image"},
         {title: "Fecha de publicación y expiración",key: "event_date"},
-        /*{title: "Fecha",key: "event_date"},
-        {title: "Duración", key: "duration" },*/
         {title: "Acciones",key: "actions",sortable: false}
     ];
     const typeLabel: any = {
@@ -310,27 +314,38 @@ const durationColor = (minutes:number)=>{
             }
         ]
     });
-    const endsAfterStart = (value:any) => {
-        if (!value || !form.starts_at) return true;
+const publishNotInPast = (value: any) => {
+    const publish = normalizeDate(value);
+    if (!publish) return true;
 
-        return new Date(value) >= new Date(form.starts_at)
-            || "La fecha de fin no puede ser menor que la de inicio";
-    };
-    const notPastDate = (value:any) => {
-        if (!value) return true;
-        return new Date(value) >= new Date()
-            || "No puedes seleccionar una fecha pasada";
-    };
-    const expiresAfterPublish = (value:any) => {
-        if (!value || !form.publish_at) return true;
-        return new Date(value) > new Date(form.publish_at)
-            || "Debe ser mayor que la fecha de publicación";
-    };
-    const startAfterPublish = (value:any) => {
-        if (!value || !form.publish_at) return true;
-        return new Date(value) >= new Date(form.publish_at)
-            || "Debe ser posterior a la publicación";
-    };
+    const now = Date.now();
+
+    return publish >= now || "La fecha de publicación no puede ser anterior a hoy";
+};
+const normalizeDate = (val: any) => {
+    if (!val) return null;
+    const str = String(val).trim();
+    const iso = str.includes('T')
+        ? str
+        : str.replace(' ', 'T');
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? null : d.getTime();
+};
+const expiresAfterPublish = (value: any) => {
+    const expires = normalizeDate(value);
+    const publish = normalizeDate(form.publish_at);
+
+    if (!expires || !publish) return true;
+
+    return expires > publish || "La fecha de expiración debe ser mayor a la publicación";
+};
+const isToday = (dateStr: string | null) => {
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    const now = new Date();
+    return d.toDateString() === now.toDateString();
+};
+
     const prefix = "announcements";
     const fetchItems = () => {
     loading.value = true;
@@ -392,6 +407,7 @@ const openGallery = async (item:any) => {
 const previewURL = (file: File) => {
     return window.URL.createObjectURL(file);
 };
+const MAX_MB = 2 * 1024 * 1024;
 const handleImagesSelected = (files:any[]) => {
     if(!files) return;
     const MAX_MB = 2 * 1024 * 1024;
@@ -477,14 +493,22 @@ watch(
     },
     { immediate: true }
 );
+
 watch(
     () => form.image,
     (file) => {
-        if (file instanceof File) {
-            imagePreview.value =
-                URL.createObjectURL(file);
-            form.remove_image = false;
-        } 
+        if (!(file instanceof File)) return;
+            if (file.size > MAX_MB) {
+                customToastSwal({
+                    title: "La imagen excede 2MB",
+                    icon: "error"
+                });
+                form.image = null;
+                imagePreview.value = null;
+                return;
+            }
+        imagePreview.value = URL.createObjectURL(file);
+        form.remove_image = false;
     }
 );
 watch(
@@ -577,30 +601,10 @@ watch(
                     </template>
                     <template #item.event_date="{ item }">
                         {{ formatEventDate(
-                            item.publish_at,
-                            item.expires_at
+                            item.publish_at_formatted,
+                            item.expires_at_formatted
                         ) }}
                     </template>
-                    <!--<template #item.event_date="{ item }">
-                        {{ formatEventDate(
-                            item.detail?.starts_at,
-                            item.detail?.ends_at
-                        ) }}
-                    </template>
-                    <template #item.duration="{ item }">
-                        <v-chip
-                            size="small"
-                            :color="durationColor(calculateDurationMinutes(item.detail?.starts_at, item.detail?.ends_at))"
-                            variant="tonal"
-                        >
-                        {{ formatDuration(calculateDurationMinutes(item.detail?.starts_at, item.detail?.ends_at)) }}
-                        </v-chip>
-                    </template>
-                    <template #item.is_active="{ item }">
-                        <v-chip size="small" :color="item.is_active ? 'green' : 'red'">
-                            {{ item.is_active ? 'Activo' : 'Inactivo' }}
-                        </v-chip>
-                    </template>-->
                     <template #item.actions="{ item }">
                         <v-tooltip text="Agregar galería">
                             <template #activator="{ props }">
@@ -618,15 +622,6 @@ watch(
                         <v-card-text style="max-height:70vh; overflow:auto">
                             <v-row>
                                 <v-col cols="12">
-                                    <FormName v-model="form.title" label="Título" :rules="[required, maxLength(150)]" />
-                                </v-col>
-                                <v-col cols="12">
-                                    <FormDescripcion v-model="form.summary" label="Resumen" rows="2" />
-                                </v-col>
-                                <v-col cols="12">
-                                    <FormDescripcion v-model="form.content" label="Contenido" rows="4" auto-grow />
-                                </v-col>
-                                <v-col cols="12">
                                     <v-select v-model="form.type" label="Tipo de aviso" prepend-inner-icon="mdi-shape"
                                         :items="[
                                             { title: 'Comunicado', value: 'comunicado' },
@@ -636,7 +631,24 @@ watch(
                                         ]" item-title="title" item-value="value" :rules="[required]" />
                                 </v-col>
                                 <v-col cols="12">
-                                    <FormImage v-model="form.image" label="Imagen" ref="imageRef" />
+                                    <FormName v-model="form.title" label="Título" :rules="[required, maxLength(150)]" />
+                                </v-col>
+                                <v-col cols="12" style="margin-bottom:50px">
+                                    <QuillEditor v-model:content="form.content" 
+                                        contentType="html" 
+                                        theme="snow" 
+                                        toolbar="toolbarCompact" 
+                                        placeholder="Escribe el contenido del aviso..."
+                                        style="min-height:150px;"/>
+                                </v-col>
+                                <v-col cols="12">
+                                    <FormImage v-model="form.image" 
+                                        label="Imagen" 
+                                        ref="imageRef"
+                                        :rules="[
+                                            fileMaxSizeRule(2),
+                                            fileTypeRule(['jpg','jpeg','png','webp'])
+                                        ]" />
                                     <v-card height="150" variant="outlined" class="mt-2 d-flex align-center justify-center">
                                         <v-img v-if="imagePreview" :src="imagePreview" height="120" class="rounded" />
                                         <v-icon v-else size="40" color="grey">
@@ -651,37 +663,30 @@ watch(
                                         Tamaño recomendado 1200x800px · Máximo 2MB · Formatos JPG, PNG
                                     </div>
                                 </v-col>
-                                <!--<template v-if="showEventFields">
-                                    <v-col cols="6">
-                                        <v-select v-model="form.resource_id" label="Locación"
-                                            prepend-inner-icon="mdi-map-marker" :items="resourcesList" item-title="name"
-                                            item-value="id" :rules="showEventFields ? [required] : []" />
-                                    </v-col>
-                                    <v-col cols="6">
-                                        <v-text-field v-model="form.capacity" label="Capacidad" type="number"
-                                            prepend-inner-icon="mdi-account-group" />
-                                    </v-col>
-                                    <v-col cols="6">
-                                        <v-text-field v-model="form.starts_at" label="Inicio" type="datetime-local"
-                                            prepend-inner-icon="mdi-calendar" :rules="showEventFields ? [required, notPastDate, startAfterPublish] : []" :error-messages="form.errors.starts_at"/>
-                                    </v-col>
-                                    <v-col cols="6">
-                                        <v-text-field v-model="form.ends_at" label="Fin" type="datetime-local"
-                                            prepend-inner-icon="mdi-calendar-check" :rules="showEventFields ? [required, notPastDate, endsAfterStart] : []" :error-messages="form.errors.ends_at"/>
-                                    </v-col>
-                                </template>-->
                                 <v-col cols="6">
-                                    <v-text-field v-model="form.publish_at" label="Fecha publicación" type="datetime-local"
-                                        prepend-inner-icon="mdi-calendar" :rules="[required, notPastDate]" />
+                                    <FormDateTimePicker v-model="form.publish_at" label="Fecha de publicación" :rules="[required, publishNotInPast]" />
                                 </v-col>
                                 <v-col cols="6">
-                                    <v-text-field v-model="form.expires_at" label="Fecha expiración" type="datetime-local"
-                                        prepend-inner-icon="mdi-calendar-remove" :rules="[required, notPastDate, expiresAfterPublish]"/>
+                                    <FormDateTimePicker 
+                                        v-model="form.expires_at" 
+                                        label="Fecha de expiración"
+                                        prepend-inner-icon="mdi-calendar-remove" 
+                                        :error="!!form.errors.expires_at"
+                                        :error-messages="form.errors.expires_at"
+                                        :rules="[required, expiresAfterPublish]"/>
                                 </v-col>
-                                <!--<v-col cols="6" v-if="form.id">
-                                    <v-switch v-model="form.is_active" color="green"
-                                        :label="form.is_active ? 'Activo' : 'Inactivo'" inset />
-                                </v-col>-->
+                                <v-col cols="12">
+                                    <v-select
+                                        v-model="form.status"
+                                        label="Estado"
+                                        :items="[
+                                            { title: 'Borrador', value: 'draft' },
+                                            { title: 'Publicado', value: 'published' }
+                                        ]"
+                                        item-title="title"
+                                        item-value="value"
+                                    />
+                                </v-col>
                             </v-row>
                         </v-card-text>
                         <v-card-actions>
@@ -696,15 +701,14 @@ watch(
             <v-dialog v-model="showGalleryModal" max-width="700" persistent>
                 <v-card title="Galería de imágenes">
                     <v-card-text>
-                        <v-file-input :model-value="galleryForm.images"
+                        <v-file-input v-model="galleryForm.images"
                             multiple
                             accept="image/*"
                             label="Subir imágenes"
                             prepend-icon="mdi-image-multiple"
                             show-size
                             chips
-                            @update:modelValue="handleImagesSelected"
-                            :disabled="totalImages >= 5"
+                            @update:model-value="handleImagesSelected"
                         />
                         <v-alert
                             type="info"
@@ -712,7 +716,7 @@ watch(
                             density="compact"
                             class="mt-2"
                             icon="mdi-information-outline">
-                            Máximo 5 imágenes · 2MB por archivo
+                            2MB por archivo • formatos JPG, PNG o WEBP
                         </v-alert>
                 <!-- preview nuevas -->
                 <div class="d-flex flex-wrap mt-3">
@@ -756,7 +760,6 @@ watch(
                         class="mb-2"
                     >
                     {{ galleryForm.existing_images.length + galleryForm.images.length }}
-                    / 5 imágenes
                     </v-chip>
                     <v-progress-linear
                         v-if="loadingGallery"

@@ -6,7 +6,10 @@ import type { ValidationRule } from "vuetify";
 export const required: ValidationRule = (v) => !!v || "El campo es requerido";
 
 export const email: ValidationRule = (v) =>
-    !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) || "El correo no es válido";
+  !v || /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)*\.[a-zA-Z]{2,}$/.test(v) || "El correo no es válido";
+
+export const postalCode = (v: string) =>
+  !v || /^\d{5}$/.test(v) || "El código postal debe tener 5 dígitos";
 
 export const curp: ValidationRule = (v) =>
     /^[A-Z]{1}[AEIOU]{1}[A-Z]{2}\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])[HM]{1}(AS|BC|BS|CC|CL|CM|CS|CH|DF|DG|GT|GR|HG|JC|MC|MN|MS|NT|NL|OC|PL|QT|QR|SP|SL|SR|TC|TS|TL|VZ|YN|ZS)[B-DF-HJ-NP-TV-Z]{3}[A-Z\d]{1}\d{1}$/.test(
@@ -26,6 +29,11 @@ export const selectRequired: ValidationRule = (v) => {
 export const onlyLetters = (v: string) => {
     if (!v) return true;
     return /^[A-Za-zÀ-ÿ\s]+$/.test(v) || "Solo se permiten letras y espacios";
+};
+
+export const alphaNumeric = (v: string) => {
+    if (!v) return true;
+    return /^[A-Za-zÀ-ÿ0-9,\s]+$/.test(v) || "Solo se permiten letras, numeros, comas y espacios";
 };
 
 export const sanitizeLetters = (value: string) => {
@@ -49,15 +57,19 @@ export const sanitizeAddress = (value: string) => {
 /* ─────────────────────────────
  * VALIDACIONES DE LONGITUD
  * ───────────────────────────── */
+// export const minLength =
+//     (min: number): ValidationRule =>
+//     (v) =>
+//         (v && v.length >= min) || `Debe tener al menos ${min} caracteres`;
 export const minLength =
     (min: number): ValidationRule =>
     (v) =>
-        (v && v.length >= min) || `Debe tener al menos ${min} caracteres`;
+        !v || v.length >= min || `Debe tener al menos ${min} caracteres`;
 
 export const maxLength =
     (max: number): ValidationRule =>
     (v) =>
-        (v && v.length <= max) || `Debe tener máximo ${max} caracteres`;
+        !v || v.length <= max || `Debe tener máximo ${max} caracteres`;
 
 export const lengthBetween =
     (min: number, max: number): ValidationRule =>
@@ -197,10 +209,9 @@ export const validateFechaNacimiento = (fecha: string): string | true => {
  * ───────────────────────────── */
 // ✅ Valida que el teléfono tenga formato correcto y 10 dígitos
 export const validatePhone: ValidationRule = (value) => {
-    if (!value) return true; // permite vacío
+  if (!value) return true;
 
-    const cleaned = value.replace(/\D/g, ''); // quita todo lo que no sea número
-    return cleaned.length === 10 || "El teléfono debe tener 10 dígitos";
+  return /^\d{10}$/.test(value) || "El teléfono debe tener exactamente 10 dígitos";
 };
 
 // const birthdateRule = (member: MemberForm) => {

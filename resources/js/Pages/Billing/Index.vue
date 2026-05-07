@@ -10,6 +10,7 @@ import {
     required,
     selectRequired,
 } from "@/constants/validationRules";
+import { nowAsLocalInput } from "@/constants/formatDates";
 
 interface ClubItem {
     id: number;
@@ -37,6 +38,16 @@ interface ChargeItem {
     club_code: string | null;
     club_name: string | null;
     membership_type_name: string | null;
+    origin_code: string;
+    origin_label: string;
+    badges: Array<{
+        label: string;
+        color: string;
+    }>;
+    target_monthly_fee: number | null;
+    monthly_fee_total: number | null;
+    monthly_fee_share: number | null;
+    effective_monthly_fee: number | null;
 }
 
 interface BillingAccountItem {
@@ -83,6 +94,7 @@ interface PaymentMethodItem {
     requires_reference: boolean;
     requires_bank_name: boolean;
     requires_check_number: boolean;
+    affects_cash_cut: boolean;
 }
 
 interface ClubPaymentMethodItem {
@@ -152,12 +164,12 @@ const page = usePage<any>();
 const can = page.props.auth.permissions ?? [];
 
 const headers = [
-    { title: "Folio", key: "membership_number", sortable: false },
+    { title: "No. Cuenta", key: "membership_number", sortable: false },
     { title: "Titular", key: "holder_name", sortable: false },
     { title: "Parques", key: "clubs", sortable: false },
     { title: "Conceptos pendientes", key: "charge_summary", sortable: false },
     { title: "Saldo pendiente", key: "outstanding_balance", sortable: false },
-    { title: "Proximo vencimiento", key: "next_due_date", sortable: false },
+    { title: "Próximo vencimiento", key: "next_due_date", sortable: false },
     { title: "Acciones", key: "actions", sortable: false },
 ];
 
@@ -197,7 +209,7 @@ const paymentForm = useForm<PaymentFormData>({
     membership_account_id: null,
     club_id: null,
     payment_method_id: null,
-    paid_at: new Date().toISOString().slice(0, 16),
+    paid_at: nowAsLocalInput(),
     reference: "",
     bank_name: "",
     check_number: "",
@@ -301,6 +313,12 @@ const chargeConceptColor = (code: string | null) => {
     return colors[code ?? ""] ?? "default";
 };
 
+const shouldShowChargeFeeBreakdown = (charge: ChargeItem) =>
+    charge.concept_code === "MONTHLY_FEE" &&
+    (charge.monthly_fee_total !== null ||
+        charge.monthly_fee_share !== null ||
+        charge.effective_monthly_fee !== null);
+
 const hasOverdueCharges = (account: BillingAccountItem) =>
     account.charges.some(
         (charge) => resolveDueState(charge.due_date).label === "Vencido",
@@ -308,10 +326,10 @@ const hasOverdueCharges = (account: BillingAccountItem) =>
 
 const manageAccountTooltip = (account: BillingAccountItem) => {
     if (account.primary_membership_id) {
-        return "Abrir la cuenta del socio en el parque activo";
+        return "Abrir la cuenta del usuario en el parque activo";
     }
 
-    return "Para gestionar esta cuenta, cambia la sesion al parque correspondiente.";
+    return "Para gestionar esta cuenta, cambia la sesión al parque correspondiente.";
 };
 
 const selectedPaymentAccountClubs = computed(() => {
@@ -360,10 +378,11 @@ const selectedPaymentMethods = computed(() => {
     );
 });
 
-const selectedPaymentMethod = computed(() =>
-    selectedPaymentMethods.value.find(
-        (method) => method.id === paymentForm.payment_method_id,
-    ) ?? null,
+const selectedPaymentMethod = computed(
+    () =>
+        selectedPaymentMethods.value.find(
+            (method) => method.id === paymentForm.payment_method_id,
+        ) ?? null,
 );
 
 const paymentTotal = computed(() =>
@@ -414,7 +433,10 @@ const checkNumberRules = [
     optionalLength(0, 255),
 ];
 
-const chargeAmountRules = (charge: ChargeItem, draft: PaymentDraftItem | undefined) => [
+const chargeAmountRules = (
+    charge: ChargeItem,
+    draft: PaymentDraftItem | undefined,
+) => [
     (value: string | number) => {
         if (!draft?.selected) {
             return true;
@@ -473,7 +495,7 @@ const openPaymentModal = (account: BillingAccountItem) => {
     paymentFormRef.value?.resetValidation?.();
     paymentForm.membership_account_id = account.id;
     paymentForm.club_id = selectedPaymentClubId.value;
-    paymentForm.paid_at = new Date().toISOString().slice(0, 16);
+    paymentForm.paid_at = nowAsLocalInput();
     buildPaymentDrafts(selectedPaymentClubId.value);
     showPaymentModal.value = true;
 };
@@ -588,7 +610,8 @@ const fetchItems = async () => {
             total.value = accountPayload.total ?? 0;
             summary.value = (page.props as any).summary ?? summary.value;
             clubPaymentMethods.value =
-                (page.props as any).clubPaymentMethods ?? clubPaymentMethods.value;
+                (page.props as any).clubPaymentMethods ??
+                clubPaymentMethods.value;
             expanded.value = [];
             loading.value = false;
         },
@@ -649,9 +672,9 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
 
         <div class="d-flex flex-column ga-4">
             <v-alert type="info" variant="tonal">
-                Este modulo concentra los cargos pendientes de ambos parques.
+                Este módulo concentra los cargos pendientes de ambos parques.
                 Puedes filtrar por parque cuando lo necesites, pero la pantalla
-                siempre te muestra la cuenta completa del socio para evitar
+                siempre te muestra la cuenta completa del usuario para evitar
                 confusiones al cobrar.
             </v-alert>
 
@@ -676,7 +699,9 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                                 Saldo vencido
                             </div>
                             <div class="text-h5 font-weight-bold mt-2">
-                                {{ formatCurrency(summary.overdue_outstanding) }}
+                                {{
+                                    formatCurrency(summary.overdue_outstanding)
+                                }}
                             </div>
                         </v-card-text>
                     </v-card>
@@ -689,7 +714,11 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                                 Inscripciones pendientes
                             </div>
                             <div class="text-h5 font-weight-bold mt-2">
-                                {{ formatCurrency(summary.inscription_outstanding) }}
+                                {{
+                                    formatCurrency(
+                                        summary.inscription_outstanding,
+                                    )
+                                }}
                             </div>
                         </v-card-text>
                     </v-card>
@@ -705,7 +734,10 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                                 {{ summary.accounts_with_balance }}
                             </div>
                             <div class="text-caption text-medium-emphasis mt-1">
-                                Mensualidades: {{ formatCurrency(summary.monthly_outstanding) }}
+                                Mensualidades:
+                                {{
+                                    formatCurrency(summary.monthly_outstanding)
+                                }}
                             </div>
                         </v-card-text>
                     </v-card>
@@ -736,7 +768,7 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                                         <v-col cols="12" md="6">
                                             <v-text-field
                                                 v-model="search"
-                                                label="Buscar por folio, titular o concepto"
+                                                label="Buscar por no. cuenta, titular o concepto"
                                                 prepend-inner-icon="mdi-magnify"
                                                 clearable
                                                 hide-details
@@ -753,7 +785,11 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                                             />
                                         </v-col>
 
-                                        <v-col cols="12" md="2" class="d-flex align-center">
+                                        <v-col
+                                            cols="12"
+                                            md="2"
+                                            class="d-flex align-center"
+                                        >
                                             <BaseButton
                                                 v-if="hasActiveFilters"
                                                 :icon-only="false"
@@ -772,7 +808,8 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                                     {{ item.membership_number }}
                                 </div>
                                 <div class="text-caption text-medium-emphasis">
-                                    {{ item.pending_charges_count }} cargos pendientes
+                                    {{ item.pending_charges_count }} cargos
+                                    pendientes
                                 </div>
                             </template>
 
@@ -784,7 +821,7 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                                     {{ item.email || "Sin correo" }}
                                 </div>
                                 <div class="text-caption text-medium-emphasis">
-                                    {{ item.phone || "Sin telefono" }}
+                                    {{ item.phone || "Sin teléfono" }}
                                 </div>
                             </template>
 
@@ -810,14 +847,19 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                                         size="small"
                                         variant="outlined"
                                     >
-                                        {{ concept.concept_name }}: {{ formatCurrency(concept.balance) }}
+                                        {{ concept.concept_name }}:
+                                        {{ formatCurrency(concept.balance) }}
                                     </v-chip>
                                 </div>
                             </template>
 
                             <template #item.outstanding_balance="{ item }">
-                                <div class="font-weight-bold text-high-emphasis">
-                                    {{ formatCurrency(item.outstanding_balance) }}
+                                <div
+                                    class="font-weight-bold text-high-emphasis"
+                                >
+                                    {{
+                                        formatCurrency(item.outstanding_balance)
+                                    }}
                                 </div>
                                 <div
                                     class="text-caption"
@@ -841,11 +883,17 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                                 </div>
                                 <v-chip
                                     size="small"
-                                    :color="resolveDueState(item.next_due_date).color"
+                                    :color="
+                                        resolveDueState(item.next_due_date)
+                                            .color
+                                    "
                                     variant="tonal"
                                     class="mt-1"
                                 >
-                                    {{ resolveDueState(item.next_due_date).label }}
+                                    {{
+                                        resolveDueState(item.next_due_date)
+                                            .label
+                                    }}
                                 </v-chip>
                             </template>
 
@@ -880,84 +928,167 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
 
                             <template #expanded-row="{ columns, item }">
                                 <tr>
-                                    <td :colspan="columns.length" class="bg-grey-lighten-5">
+                                    <td
+                                        :colspan="columns.length"
+                                        class="bg-grey-lighten-5"
+                                    >
                                         <div class="pa-4">
                                             <v-row>
                                                 <v-col cols="12" md="8">
-                                                    <div class="text-subtitle-1 font-weight-bold mb-3">
+                                                    <div
+                                                        class="text-subtitle-1 font-weight-bold mb-3"
+                                                    >
                                                         Cargos pendientes
                                                     </div>
 
-                                                    <v-row v-if="item.charges.length">
+                                                    <v-row
+                                                        v-if="
+                                                            item.charges.length
+                                                        "
+                                                    >
                                                         <v-col
                                                             v-for="charge in item.charges"
                                                             :key="charge.id"
                                                             cols="12"
                                                             md="6"
                                                         >
-                                                            <v-card variant="outlined">
+                                                            <v-card
+                                                                variant="outlined"
+                                                            >
                                                                 <v-card-text>
                                                                     <div
                                                                         class="d-flex flex-wrap justify-space-between align-start ga-2"
                                                                     >
                                                                         <div>
-                                                                            <div class="font-weight-bold">
-                                                                                {{ charge.concept_name || "Cargo" }}
-                                                                            </div>
-                                                                            <div class="text-caption text-medium-emphasis">
+                                                                            <div
+                                                                                class="font-weight-bold"
+                                                                            >
                                                                                 {{
-                                                                                    charge.membership_type_name
-                                                                                        || "Sin membresia asociada"
+                                                                                    charge.concept_name ||
+                                                                                    "Cargo"
                                                                                 }}
                                                                             </div>
+                                                                        <div
+                                                                            class="text-caption text-medium-emphasis"
+                                                                        >
+                                                                            {{
+                                                                                charge.origin_label
+                                                                            }}
+                                                                            <span
+                                                                                v-if="
+                                                                                    charge.membership_type_name
+                                                                                "
+                                                                            >
+                                                                                ·
+                                                                                {{
+                                                                                    charge.membership_type_name
+                                                                                }}
+                                                                            </span>
                                                                         </div>
+                                                                        <div
+                                                                            class="text-caption text-medium-emphasis"
+                                                                        >
+                                                                            {{
+                                                                                charge.description ||
+                                                                                "Sin membresía asociada"
+                                                                            }}
+                                                                        </div>
+                                                                    </div>
 
-                                                                        <div class="d-flex flex-wrap ga-2">
+                                                                        <div
+                                                                            class="d-flex flex-wrap ga-2"
+                                                                        >
                                                                             <v-chip
                                                                                 size="small"
-                                                                                :color="chargeConceptColor(charge.concept_code)"
+                                                                                :color="
+                                                                                    chargeConceptColor(
+                                                                                        charge.concept_code,
+                                                                                    )
+                                                                                "
                                                                                 variant="tonal"
                                                                             >
-                                                                                {{ charge.club_code || "N/A" }}
+                                                                                {{
+                                                                                    charge.club_code ||
+                                                                                    "N/A"
+                                                                                }}
                                                                             </v-chip>
                                                                             <v-chip
                                                                                 size="small"
-                                                                                :color="chargeStatusColor(charge.status)"
+                                                                                :color="
+                                                                                    chargeStatusColor(
+                                                                                        charge.status,
+                                                                                    )
+                                                                                "
                                                                                 variant="tonal"
                                                                             >
-                                                                                {{ chargeStatusLabel(charge.status) }}
+                                                                                {{
+                                                                                    chargeStatusLabel(
+                                                                                        charge.status,
+                                                                                    )
+                                                                                }}
                                                                             </v-chip>
                                                                         </div>
                                                                     </div>
 
                                                                     <div
-                                                                        v-if="charge.description"
+                                                                        v-if="
+                                                                            charge.description
+                                                                        "
                                                                         class="text-body-2 mt-3"
                                                                     >
-                                                                        {{ charge.description }}
+                                                                        {{
+                                                                            charge.description
+                                                                        }}
                                                                     </div>
 
-                                                                    <div class="text-body-2 mt-3">
+                                                                    <div
+                                                                        class="text-body-2 mt-3"
+                                                                    >
                                                                         Parque:
-                                                                        <span class="font-weight-medium">
-                                                                            {{ charge.club_name || "Sin definir" }}
+                                                                        <span
+                                                                            class="font-weight-medium"
+                                                                        >
+                                                                            {{
+                                                                                charge.club_name ||
+                                                                                "Sin definir"
+                                                                            }}
                                                                         </span>
                                                                     </div>
 
-                                                                    <div class="text-body-2 mt-1">
+                                                                    <div
+                                                                        class="text-body-2 mt-1"
+                                                                    >
                                                                         Vencimiento:
-                                                                        <span class="font-weight-medium">
-                                                                            {{ formatDate(charge.due_date) }}
+                                                                        <span
+                                                                            class="font-weight-medium"
+                                                                        >
+                                                                            {{
+                                                                                formatDate(
+                                                                                    charge.due_date,
+                                                                                )
+                                                                            }}
                                                                         </span>
                                                                     </div>
 
-                                                                    <div class="d-flex flex-wrap ga-2 mt-3">
+                                                                    <div
+                                                                        class="d-flex flex-wrap ga-2 mt-3"
+                                                                    >
                                                                         <v-chip
                                                                             size="small"
-                                                                            :color="resolveDueState(charge.due_date).color"
+                                                                            :color="
+                                                                                resolveDueState(
+                                                                                    charge.due_date,
+                                                                                )
+                                                                                    .color
+                                                                            "
                                                                             variant="outlined"
                                                                         >
-                                                                            {{ resolveDueState(charge.due_date).label }}
+                                                                            {{
+                                                                                resolveDueState(
+                                                                                    charge.due_date,
+                                                                                )
+                                                                                    .label
+                                                                            }}
                                                                         </v-chip>
                                                                         <v-chip
                                                                             size="small"
@@ -974,14 +1105,90 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                                                                                     : "Pago completo"
                                                                             }}
                                                                         </v-chip>
+                                                                        <v-chip
+                                                                            v-for="badge in charge.badges"
+                                                                            :key="`${charge.id}-${badge.label}`"
+                                                                            size="small"
+                                                                            :color="badge.color"
+                                                                            variant="outlined"
+                                                                        >
+                                                                            {{
+                                                                                badge.label
+                                                                            }}
+                                                                        </v-chip>
                                                                     </div>
 
-                                                                    <div class="text-caption text-medium-emphasis mt-4">
-                                                                        Importe original:
-                                                                        {{ formatCurrency(charge.amount) }}
+                                                                    <div
+                                                                        v-if="
+                                                                            shouldShowChargeFeeBreakdown(
+                                                                                charge,
+                                                                            )
+                                                                        "
+                                                                        class="text-caption text-medium-emphasis mt-3"
+                                                                    >
+                                                                        <div
+                                                                            v-if="
+                                                                                charge.monthly_fee_total !==
+                                                                                null
+                                                                            "
+                                                                        >
+                                                                            Cuota total del esquema:
+                                                                            {{
+                                                                                formatCurrency(
+                                                                                    charge.monthly_fee_total,
+                                                                                )
+                                                                            }}
+                                                                        </div>
+                                                                        <div
+                                                                            v-if="
+                                                                                charge.monthly_fee_share !==
+                                                                                null
+                                                                            "
+                                                                        >
+                                                                            Cuota de este parque:
+                                                                            {{
+                                                                                formatCurrency(
+                                                                                    charge.monthly_fee_share,
+                                                                                )
+                                                                            }}
+                                                                        </div>
+                                                                        <div
+                                                                            v-if="
+                                                                                charge.effective_monthly_fee !==
+                                                                                null &&
+                                                                                charge.effective_monthly_fee !==
+                                                                                    charge.monthly_fee_share
+                                                                            "
+                                                                        >
+                                                                            Cargo aplicado:
+                                                                            {{
+                                                                                formatCurrency(
+                                                                                    charge.effective_monthly_fee,
+                                                                                )
+                                                                            }}
+                                                                        </div>
                                                                     </div>
-                                                                    <div class="text-h6 font-weight-bold mt-1">
-                                                                        Saldo: {{ formatCurrency(charge.balance) }}
+
+                                                                    <div
+                                                                        class="text-caption text-medium-emphasis mt-4"
+                                                                    >
+                                                                        Importe
+                                                                        original:
+                                                                        {{
+                                                                            formatCurrency(
+                                                                                charge.amount,
+                                                                            )
+                                                                        }}
+                                                                    </div>
+                                                                    <div
+                                                                        class="text-h6 font-weight-bold mt-1"
+                                                                    >
+                                                                        Saldo:
+                                                                        {{
+                                                                            formatCurrency(
+                                                                                charge.balance,
+                                                                            )
+                                                                        }}
                                                                     </div>
                                                                 </v-card-text>
                                                             </v-card>
@@ -993,56 +1200,109 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                                                         type="info"
                                                         variant="tonal"
                                                     >
-                                                        Esta cuenta no tiene cargos pendientes para mostrar.
+                                                        Esta cuenta no tiene
+                                                        cargos pendientes para
+                                                        mostrar.
                                                     </v-alert>
                                                 </v-col>
 
                                                 <v-col cols="12" md="4">
-                                                    <v-card variant="tonal" color="primary">
+                                                    <v-card
+                                                        variant="tonal"
+                                                        color="primary"
+                                                    >
                                                         <v-card-text>
-                                                            <div class="text-subtitle-2 font-weight-bold">
-                                                                Resumen rapido
+                                                            <div
+                                                                class="text-subtitle-2 font-weight-bold"
+                                                            >
+                                                                Resumen rápido
                                                             </div>
-                                                            <div class="text-body-2 mt-3">
+                                                            <div
+                                                                class="text-body-2 mt-3"
+                                                            >
                                                                 Titular:
-                                                                <span class="font-weight-medium">
-                                                                    {{ item.holder_name }}
+                                                                <span
+                                                                    class="font-weight-medium"
+                                                                >
+                                                                    {{
+                                                                        item.holder_name
+                                                                    }}
                                                                 </span>
                                                             </div>
-                                                            <div class="text-body-2 mt-1">
-                                                                Folio:
-                                                                <span class="font-weight-medium">
-                                                                    {{ item.membership_number }}
+                                                            <div
+                                                                class="text-body-2 mt-1"
+                                                            >
+                                                                No. cuenta:
+                                                                <span
+                                                                    class="font-weight-medium"
+                                                                >
+                                                                    {{
+                                                                        item.membership_number
+                                                                    }}
                                                                 </span>
                                                             </div>
-                                                            <div class="text-body-2 mt-1">
-                                                                Proximo vencimiento:
-                                                                <span class="font-weight-medium">
-                                                                    {{ formatDate(item.next_due_date) }}
+                                                            <div
+                                                                class="text-body-2 mt-1"
+                                                            >
+                                                                Próximo
+                                                                vencimiento:
+                                                                <span
+                                                                    class="font-weight-medium"
+                                                                >
+                                                                    {{
+                                                                        formatDate(
+                                                                            item.next_due_date,
+                                                                        )
+                                                                    }}
                                                                 </span>
                                                             </div>
-                                                            <div class="text-body-2 mt-1">
-                                                                Total por cobrar:
-                                                                <span class="font-weight-bold">
-                                                                    {{ formatCurrency(item.outstanding_balance) }}
+                                                            <div
+                                                                class="text-body-2 mt-1"
+                                                            >
+                                                                Total por
+                                                                cobrar:
+                                                                <span
+                                                                    class="font-weight-bold"
+                                                                >
+                                                                    {{
+                                                                        formatCurrency(
+                                                                            item.outstanding_balance,
+                                                                        )
+                                                                    }}
                                                                 </span>
                                                             </div>
 
                                                             <BaseButton
-                                                                v-if="can.includes('billing.store')"
+                                                                v-if="
+                                                                    can.includes(
+                                                                        'billing.store',
+                                                                    )
+                                                                "
                                                                 class="mt-3"
-                                                                :icon-only="false"
+                                                                :icon-only="
+                                                                    false
+                                                                "
                                                                 action="save"
                                                                 text="Registrar cobro"
-                                                                @click="openPaymentModal(item)"
+                                                                @click="
+                                                                    openPaymentModal(
+                                                                        item,
+                                                                    )
+                                                                "
                                                             />
 
                                                             <BaseButton
                                                                 class="mt-3"
-                                                                :icon-only="false"
+                                                                :icon-only="
+                                                                    false
+                                                                "
                                                                 action="view"
-                                                                text="Abrir cuenta del socio"
-                                                                :tooltip="manageAccountTooltip(item)"
+                                                                text="Abrir cuenta del usuario"
+                                                                :tooltip="
+                                                                    manageAccountTooltip(
+                                                                        item,
+                                                                    )
+                                                                "
                                                                 @click="
                                                                     router.visit(
                                                                         route(
@@ -1051,7 +1311,9 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                                                                         ),
                                                                     )
                                                                 "
-                                                                :disabled="!item.primary_membership_id"
+                                                                :disabled="
+                                                                    !item.primary_membership_id
+                                                                "
                                                             />
                                                         </v-card-text>
                                                     </v-card>
@@ -1067,11 +1329,13 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
 
                 <v-col cols="12" lg="4">
                     <v-card>
-                        <v-card-title>Metodos disponibles por parque</v-card-title>
+                        <v-card-title
+                            >Metodos disponibles por parque</v-card-title
+                        >
                         <v-card-subtitle>
-                            Ambos parques pueden registrar cobros, pero cada cargo
-                            debe respetar los metodos habilitados para el parque al
-                            que pertenece.
+                            Ambos parques pueden registrar cobros, pero cada
+                            cargo debe respetar los metodos habilitados para el
+                            parque al que pertenece.
                         </v-card-subtitle>
 
                         <v-card-text class="d-flex flex-column ga-3">
@@ -1104,260 +1368,468 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
             </v-row>
         </div>
 
-        <v-dialog v-model="showPaymentModal" max-width="1100" persistent>
-            <v-form ref="paymentFormRef" validate-on="input" @submit.prevent="submitPayment">
+        <v-dialog v-model="showPaymentModal" max-width="1100" persistent scrollable>
                 <v-card>
                     <v-card-title>Registrar cobro</v-card-title>
                     <v-card-subtitle>
-                        Captura el pago y define exactamente a que cargos se aplicara.
+                        Captura el pago y define exactamente a que cargos se
+                        aplicará
                     </v-card-subtitle>
 
                     <v-card-text class="d-flex flex-column ga-4">
-                    <v-row v-if="selectedPaymentAccount">
-                        <v-col cols="12" md="4">
-                            <v-card variant="tonal" color="primary">
-                                <v-card-text>
-                                    <div class="text-caption text-medium-emphasis">
-                                        Titular
-                                    </div>
-                                    <div class="font-weight-bold">
-                                        {{ selectedPaymentAccount.holder_name }}
-                                    </div>
-                                    <div class="text-caption text-medium-emphasis mt-3">
-                                        Folio
-                                    </div>
-                                    <div class="font-weight-medium">
-                                        {{ selectedPaymentAccount.membership_number }}
-                                    </div>
-                                    <div class="text-caption text-medium-emphasis mt-3">
-                                        Total seleccionado
-                                    </div>
-                                    <div class="text-h6 font-weight-bold">
-                                        {{ formatCurrency(paymentTotal) }}
-                                    </div>
-                                </v-card-text>
-                            </v-card>
-                        </v-col>
-
-                        <v-col cols="12" md="8">
-                            <v-row>
-                                <v-col cols="12" md="4">
-                                    <v-select
-                                        v-model="selectedPaymentClubId"
-                                        :items="
-                                            selectedPaymentAccountClubs.map((club) => ({
-                                                title: `${club.code} - ${club.name}`,
-                                                value: club.id,
-                                            }))
-                                        "
-                                        label="Parque del cobro"
-                                        :rules="paymentClubRules"
-                                        hide-details="auto"
-                                    />
-                                </v-col>
-
-                                <v-col cols="12" md="4">
-                                    <v-select
-                                        v-model="paymentForm.payment_method_id"
-                                        :items="
-                                            selectedPaymentMethods.map((method) => ({
-                                                title: method.name,
-                                                value: method.id,
-                                            }))
-                                        "
-                                        label="Metodo de pago"
-                                        :rules="paymentMethodRules"
-                                        :error-messages="paymentForm.errors.payment_method_id"
-                                        hide-details="auto"
-                                    />
-                                </v-col>
-
-                                <v-col cols="12" md="4">
-                                    <v-text-field
-                                        v-model="paymentForm.paid_at"
-                                        label="Fecha y hora del pago"
-                                        type="datetime-local"
-                                        :rules="paidAtRules"
-                                        :error-messages="paymentForm.errors.paid_at"
-                                        hide-details="auto"
-                                    />
-                                </v-col>
-
-                                <v-col cols="12" md="4">
-                                    <v-text-field
-                                        v-model="paymentForm.reference"
-                                        label="Referencia"
-                                        :disabled="!selectedPaymentMethod?.requires_reference"
-                                        :rules="referenceRules"
-                                        :error-messages="paymentForm.errors.reference"
-                                        hide-details="auto"
-                                    />
-                                </v-col>
-
-                                <v-col cols="12" md="4">
-                                    <v-text-field
-                                        v-model="paymentForm.bank_name"
-                                        label="Banco"
-                                        :disabled="!selectedPaymentMethod?.requires_bank_name"
-                                        :rules="bankNameRules"
-                                        :error-messages="paymentForm.errors.bank_name"
-                                        hide-details="auto"
-                                    />
-                                </v-col>
-
-                                <v-col cols="12" md="4">
-                                    <v-text-field
-                                        v-model="paymentForm.check_number"
-                                        label="Numero de cheque"
-                                        :disabled="!selectedPaymentMethod?.requires_check_number"
-                                        :rules="checkNumberRules"
-                                        :error-messages="paymentForm.errors.check_number"
-                                        hide-details="auto"
-                                    />
-                                </v-col>
-
-                                <v-col cols="12">
-                                    <v-textarea
-                                        v-model="paymentForm.notes"
-                                        label="Notas"
-                                        rows="2"
-                                        auto-grow
-                                        :rules="notesRules"
-                                        :error-messages="paymentForm.errors.notes"
-                                        hide-details="auto"
-                                    />
-                                </v-col>
-                            </v-row>
-                        </v-col>
-                    </v-row>
-
-                    <v-alert
-                        v-if="paymentForm.errors.applications"
-                        type="error"
-                        variant="tonal"
+                    <v-form
+                        ref="paymentFormRef"
+                        validate-on="input"
+                        @submit.prevent="submitPayment"
                     >
-                        {{ paymentForm.errors.applications }}
-                    </v-alert>
-
-                    <div>
-                        <div class="text-subtitle-1 font-weight-bold mb-3">
-                            Cargos a aplicar
-                        </div>
-
-                        <v-row v-if="selectedPaymentCharges.length">
-                            <v-col
-                                v-for="charge in selectedPaymentCharges"
-                                :key="charge.id"
-                                cols="12"
-                                md="6"
-                            >
-                                <v-card variant="outlined">
+                        <v-row v-if="selectedPaymentAccount">
+                            <v-col cols="12" md="4">
+                                <v-card variant="tonal" color="primary">
                                     <v-card-text>
-                                        <div class="d-flex justify-space-between align-start ga-3">
-                                            <div>
-                                                <div class="font-weight-bold">
-                                                    {{ charge.concept_name || "Cargo" }}
-                                                </div>
-                                                <div class="text-caption text-medium-emphasis">
-                                                    {{ charge.description || charge.membership_type_name || "Sin descripcion" }}
-                                                </div>
-                                            </div>
-
-                                            <v-checkbox
-                                                :model-value="
-                                                    paymentDrafts.find((draft) => draft.charge_id === charge.id)?.selected || false
-                                                "
-                                                color="primary"
-                                                hide-details
-                                                @update:modelValue="
-                                                    (value) => {
-                                                        const draft = paymentDrafts.find((item) => item.charge_id === charge.id);
-                                                        if (!draft) return;
-                                                        draft.selected = Boolean(value);
-                                                        toggleChargeSelection(draft);
-                                                    }
-                                                "
-                                            />
-                                        </div>
-
-                                        <div class="d-flex flex-wrap ga-2 mt-3">
-                                            <v-chip
-                                                size="small"
-                                                :color="chargeStatusColor(charge.status)"
-                                                variant="tonal"
-                                            >
-                                                {{ chargeStatusLabel(charge.status) }}
-                                            </v-chip>
-                                            <v-chip
-                                                size="small"
-                                                :color="resolveDueState(charge.due_date).color"
-                                                variant="outlined"
-                                            >
-                                                {{ resolveDueState(charge.due_date).label }}
-                                            </v-chip>
-                                            <v-chip
-                                                size="small"
-                                                :color="charge.allows_partial_payments ? 'success' : 'default'"
-                                                variant="outlined"
-                                            >
-                                                {{
-                                                    charge.allows_partial_payments
-                                                        ? "Admite parcialidades"
-                                                        : "Pago completo"
-                                                }}
-                                            </v-chip>
-                                        </div>
-
-                                        <div class="text-body-2 mt-3">
-                                            Saldo pendiente:
-                                            <span class="font-weight-bold">
-                                                {{ formatCurrency(charge.balance) }}
-                                            </span>
-                                        </div>
-
-                                        <v-text-field
-                                            :model-value="
-                                                paymentDrafts.find((draft) => draft.charge_id === charge.id)?.amount || '0.00'
-                                            "
-                                            label="Importe a aplicar"
-                                            type="number"
-                                            min="0"
-                                            step="0.01"
-                                            class="mt-3"
-                                            :rules="
-                                                chargeAmountRules(
-                                                    charge,
-                                                    paymentDrafts.find((draft) => draft.charge_id === charge.id),
-                                                )
-                                            "
-                                            :disabled="
-                                                !(paymentDrafts.find((draft) => draft.charge_id === charge.id)?.selected) ||
-                                                !charge.allows_partial_payments
-                                            "
-                                            @update:modelValue="
-                                                (value) => {
-                                                    const draft = paymentDrafts.find((item) => item.charge_id === charge.id);
-                                                    if (!draft) return;
-                                                    draft.amount = String(value ?? '');
-                                                }
-                                            "
-                                        />
-
                                         <div
-                                            v-if="!charge.allows_partial_payments"
                                             class="text-caption text-medium-emphasis"
                                         >
-                                            Este cargo debe liquidarse completo.
+                                            Titular
+                                        </div>
+                                        <div class="font-weight-bold">
+                                            {{
+                                                selectedPaymentAccount.holder_name
+                                            }}
+                                        </div>
+                                        <div
+                                            class="text-caption text-medium-emphasis mt-3"
+                                        >
+                                            No. cuenta
+                                        </div>
+                                        <div class="font-weight-medium">
+                                            {{
+                                                selectedPaymentAccount.membership_number
+                                            }}
+                                        </div>
+                                        <div
+                                            class="text-caption text-medium-emphasis mt-3"
+                                        >
+                                            Total seleccionado
+                                        </div>
+                                        <div class="text-h6 font-weight-bold">
+                                            {{ formatCurrency(paymentTotal) }}
                                         </div>
                                     </v-card-text>
                                 </v-card>
                             </v-col>
+
+                            <v-col cols="12" md="8">
+                                <v-row>
+                                    <v-col cols="12" md="4">
+                                        <v-select
+                                            v-model="selectedPaymentClubId"
+                                            :items="
+                                                selectedPaymentAccountClubs.map(
+                                                    (club) => ({
+                                                        title: `${club.code} - ${club.name}`,
+                                                        value: club.id,
+                                                    }),
+                                                )
+                                            "
+                                            label="Parque del cobro"
+                                            :rules="paymentClubRules"
+                                            hide-details="auto"
+                                        />
+                                    </v-col>
+
+                                    <v-col cols="12" md="4">
+                                        <v-select
+                                            v-model="
+                                                paymentForm.payment_method_id
+                                            "
+                                            :items="
+                                                selectedPaymentMethods.map(
+                                                    (method) => ({
+                                                        title: method.name,
+                                                        value: method.id,
+                                                    }),
+                                                )
+                                            "
+                                            label="Método de pago"
+                                            :rules="paymentMethodRules"
+                                            :error-messages="
+                                                paymentForm.errors
+                                                    .payment_method_id
+                                            "
+                                            hide-details="auto"
+                                        />
+                                    </v-col>
+
+                                    <v-col cols="12">
+                                        <v-alert
+                                            v-if="
+                                                selectedPaymentMethod &&
+                                                !selectedPaymentMethod.affects_cash_cut
+                                            "
+                                            type="info"
+                                            variant="tonal"
+                                        >
+                                            Este pago se registrará como
+                                            <strong>pago con servicios</strong>.
+                                            Liquidará los cargos seleccionados,
+                                            pero no impactará el corte de caja
+                                            monetario.
+                                        </v-alert>
+                                    </v-col>
+
+                                    <v-col cols="12" md="4">
+                                        <v-text-field
+                                            v-model="paymentForm.paid_at"
+                                            label="Fecha y hora del pago"
+                                            type="datetime-local"
+                                            :rules="paidAtRules"
+                                            :error-messages="
+                                                paymentForm.errors.paid_at
+                                            "
+                                            hide-details="auto"
+                                        />
+                                    </v-col>
+
+                                    <v-col cols="12" md="4">
+                                        <v-text-field
+                                            v-model="paymentForm.reference"
+                                            label="Referencia"
+                                            :disabled="
+                                                !selectedPaymentMethod?.requires_reference
+                                            "
+                                            :rules="referenceRules"
+                                            :error-messages="
+                                                paymentForm.errors.reference
+                                            "
+                                            hide-details="auto"
+                                        />
+                                    </v-col>
+
+                                    <v-col cols="12" md="4">
+                                        <v-text-field
+                                            v-model="paymentForm.bank_name"
+                                            label="Banco"
+                                            :disabled="
+                                                !selectedPaymentMethod?.requires_bank_name
+                                            "
+                                            :rules="bankNameRules"
+                                            :error-messages="
+                                                paymentForm.errors.bank_name
+                                            "
+                                            hide-details="auto"
+                                        />
+                                    </v-col>
+
+                                    <v-col cols="12" md="4">
+                                        <v-text-field
+                                            v-model="paymentForm.check_number"
+                                            label="Número de cheque"
+                                            :disabled="
+                                                !selectedPaymentMethod?.requires_check_number
+                                            "
+                                            :rules="checkNumberRules"
+                                            :error-messages="
+                                                paymentForm.errors.check_number
+                                            "
+                                            hide-details="auto"
+                                        />
+                                    </v-col>
+
+                                    <v-col cols="12">
+                                        <v-textarea
+                                            v-model="paymentForm.notes"
+                                            label="Notas"
+                                            rows="2"
+                                            auto-grow
+                                            :rules="notesRules"
+                                            :error-messages="
+                                                paymentForm.errors.notes
+                                            "
+                                            hide-details="auto"
+                                        />
+                                    </v-col>
+                                </v-row>
+                            </v-col>
                         </v-row>
 
-                        <v-alert v-else type="info" variant="tonal">
-                            No hay cargos pendientes para el parque seleccionado.
+                        <v-alert
+                            v-if="paymentForm.errors.applications"
+                            type="error"
+                            variant="tonal"
+                        >
+                            {{ paymentForm.errors.applications }}
                         </v-alert>
-                    </div>
+
+                        <div>
+                            <div class="text-subtitle-1 font-weight-bold mb-3">
+                                Cargos a aplicar
+                            </div>
+
+                            <v-row v-if="selectedPaymentCharges.length">
+                                <v-col
+                                    v-for="charge in selectedPaymentCharges"
+                                    :key="charge.id"
+                                    cols="12"
+                                    md="6"
+                                >
+                                    <v-card variant="outlined">
+                                        <v-card-text>
+                                            <div
+                                                class="d-flex justify-space-between align-start ga-3"
+                                            >
+                                                <div>
+                                                    <div
+                                                        class="font-weight-bold"
+                                                    >
+                                                        {{
+                                                            charge.concept_name ||
+                                                            "Cargo"
+                                                        }}
+                                                    </div>
+                                                    <div
+                                                        class="text-caption text-medium-emphasis"
+                                                    >
+                                                        {{
+                                                            charge.origin_label
+                                                        }}
+                                                        <span
+                                                            v-if="
+                                                                charge.membership_type_name
+                                                            "
+                                                        >
+                                                            ·
+                                                            {{
+                                                                charge.membership_type_name
+                                                            }}
+                                                        </span>
+                                                    </div>
+                                                    <div
+                                                        class="text-caption text-medium-emphasis"
+                                                    >
+                                                        {{
+                                                            charge.description ||
+                                                            "Sin descripción"
+                                                        }}
+                                                    </div>
+                                                </div>
+
+                                                <v-checkbox
+                                                    :model-value="
+                                                        paymentDrafts.find(
+                                                            (draft) =>
+                                                                draft.charge_id ===
+                                                                charge.id,
+                                                        )?.selected || false
+                                                    "
+                                                    color="primary"
+                                                    hide-details
+                                                    @update:modelValue="
+                                                        (value) => {
+                                                            const draft =
+                                                                paymentDrafts.find(
+                                                                    (item) =>
+                                                                        item.charge_id ===
+                                                                        charge.id,
+                                                                );
+                                                            if (!draft) return;
+                                                            draft.selected =
+                                                                Boolean(value);
+                                                            toggleChargeSelection(
+                                                                draft,
+                                                            );
+                                                        }
+                                                    "
+                                                />
+                                            </div>
+
+                                            <div
+                                                class="d-flex flex-wrap ga-2 mt-3"
+                                            >
+                                                <v-chip
+                                                    size="small"
+                                                    :color="
+                                                        chargeStatusColor(
+                                                            charge.status,
+                                                        )
+                                                    "
+                                                    variant="tonal"
+                                                >
+                                                    {{
+                                                        chargeStatusLabel(
+                                                            charge.status,
+                                                        )
+                                                    }}
+                                                </v-chip>
+                                                <v-chip
+                                                    size="small"
+                                                    :color="
+                                                        resolveDueState(
+                                                            charge.due_date,
+                                                        ).color
+                                                    "
+                                                    variant="outlined"
+                                                >
+                                                    {{
+                                                        resolveDueState(
+                                                            charge.due_date,
+                                                        ).label
+                                                    }}
+                                                </v-chip>
+                                                <v-chip
+                                                    size="small"
+                                                    :color="
+                                                        charge.allows_partial_payments
+                                                            ? 'success'
+                                                            : 'default'
+                                                    "
+                                                    variant="outlined"
+                                                >
+                                                    {{
+                                                        charge.allows_partial_payments
+                                                            ? "Admite parcialidades"
+                                                            : "Pago completo"
+                                                    }}
+                                                </v-chip>
+                                                <v-chip
+                                                    v-for="badge in charge.badges"
+                                                    :key="`${charge.id}-${badge.label}`"
+                                                    size="small"
+                                                    :color="badge.color"
+                                                    variant="outlined"
+                                                >
+                                                    {{ badge.label }}
+                                                </v-chip>
+                                            </div>
+
+                                            <div
+                                                v-if="
+                                                    shouldShowChargeFeeBreakdown(
+                                                        charge,
+                                                    )
+                                                "
+                                                class="text-caption text-medium-emphasis mt-3"
+                                            >
+                                                <div
+                                                    v-if="
+                                                        charge.monthly_fee_total !==
+                                                        null
+                                                    "
+                                                >
+                                                    Cuota total del esquema:
+                                                    {{
+                                                        formatCurrency(
+                                                            charge.monthly_fee_total,
+                                                        )
+                                                    }}
+                                                </div>
+                                                <div
+                                                    v-if="
+                                                        charge.monthly_fee_share !==
+                                                        null
+                                                    "
+                                                >
+                                                    Cuota de este parque:
+                                                    {{
+                                                        formatCurrency(
+                                                            charge.monthly_fee_share,
+                                                        )
+                                                    }}
+                                                </div>
+                                                <div
+                                                    v-if="
+                                                        charge.effective_monthly_fee !==
+                                                        null &&
+                                                        charge.effective_monthly_fee !==
+                                                            charge.monthly_fee_share
+                                                    "
+                                                >
+                                                    Cargo aplicado:
+                                                    {{
+                                                        formatCurrency(
+                                                            charge.effective_monthly_fee,
+                                                        )
+                                                    }}
+                                                </div>
+                                            </div>
+
+                                            <div class="text-body-2 mt-3">
+                                                Saldo pendiente:
+                                                <span class="font-weight-bold">
+                                                    {{
+                                                        formatCurrency(
+                                                            charge.balance,
+                                                        )
+                                                    }}
+                                                </span>
+                                            </div>
+
+                                            <v-text-field
+                                                :model-value="
+                                                    paymentDrafts.find(
+                                                        (draft) =>
+                                                            draft.charge_id ===
+                                                            charge.id,
+                                                    )?.amount || '0.00'
+                                                "
+                                                label="Importe a aplicar"
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                class="mt-3"
+                                                :rules="
+                                                    chargeAmountRules(
+                                                        charge,
+                                                        paymentDrafts.find(
+                                                            (draft) =>
+                                                                draft.charge_id ===
+                                                                charge.id,
+                                                        ),
+                                                    )
+                                                "
+                                                :disabled="
+                                                    !paymentDrafts.find(
+                                                        (draft) =>
+                                                            draft.charge_id ===
+                                                            charge.id,
+                                                    )?.selected ||
+                                                    !charge.allows_partial_payments
+                                                "
+                                                @update:modelValue="
+                                                    (value) => {
+                                                        const draft =
+                                                            paymentDrafts.find(
+                                                                (item) =>
+                                                                    item.charge_id ===
+                                                                    charge.id,
+                                                            );
+                                                        if (!draft) return;
+                                                        draft.amount = String(
+                                                            value ?? '',
+                                                        );
+                                                    }
+                                                "
+                                            />
+
+                                            <div
+                                                v-if="
+                                                    !charge.allows_partial_payments
+                                                "
+                                                class="text-caption text-medium-emphasis"
+                                            >
+                                                Este cargo debe liquidarse
+                                                completo.
+                                            </div>
+                                        </v-card-text>
+                                    </v-card>
+                                </v-col>
+                            </v-row>
+
+                            <v-alert v-else type="info" variant="tonal">
+                                No hay cargos pendientes para el parque
+                                seleccionado.
+                            </v-alert>
+                        </div>
+                    </v-form>
                     </v-card-text>
 
                     <v-card-actions>
@@ -1373,11 +1845,10 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                             action="save"
                             text="Guardar cobro"
                             :loading="paymentForm.processing"
-                            type="submit"
+                            @click="submitPayment"
                         />
                     </v-card-actions>
                 </v-card>
-            </v-form>
         </v-dialog>
     </AppLayout>
 </template>

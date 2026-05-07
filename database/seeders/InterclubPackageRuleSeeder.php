@@ -126,6 +126,116 @@ class InterclubPackageRuleSeeder extends Seeder
                     'monthly_fee' => 3650,
                     'priority' => 1,
                 ],
+
+                // =========================================================
+                // PAQUETE INTERMEDIO PE2
+                // PE2 Individual -> PE1 Familiar
+                // Inscripción: 50,000
+                // Mensualidad: 3,650
+                // =========================================================
+                [
+                    'source_club_code' => 'PE2',
+                    'target_club_code' => 'PE1',
+                    'source_membership_code' => 'PE2_IND_ASC',
+                    'target_membership_code' => 'PE1_FAM',
+                    'package_code' => 'PE2_INTERMEDIATE_PACKAGE',
+                    'min_years_in_source_club' => null,
+                    'requires_active_source_membership' => true,
+                    'inscription_fee' => 50000,
+                    'monthly_fee' => 3650,
+                    'priority' => 1,
+                ],
+                [
+                    'source_club_code' => 'PE2',
+                    'target_club_code' => 'PE1',
+                    'source_membership_code' => 'PE2_IND_EXT',
+                    'target_membership_code' => 'PE1_FAM',
+                    'package_code' => 'PE2_INTERMEDIATE_PACKAGE',
+                    'min_years_in_source_club' => null,
+                    'requires_active_source_membership' => true,
+                    'inscription_fee' => 50000,
+                    'monthly_fee' => 3650,
+                    'priority' => 1,
+                ],
+                [
+                    'source_club_code' => 'PE2',
+                    'target_club_code' => 'PE1',
+                    'source_membership_code' => 'PE2_IND_BEN',
+                    'target_membership_code' => 'PE1_FAM',
+                    'package_code' => 'PE2_INTERMEDIATE_PACKAGE',
+                    'min_years_in_source_club' => null,
+                    'requires_active_source_membership' => true,
+                    'inscription_fee' => 50000,
+                    'monthly_fee' => 3650,
+                    'priority' => 1,
+                ],
+                [
+                    'source_club_code' => 'PE2',
+                    'target_club_code' => 'PE1',
+                    'source_membership_code' => 'PE2_IND_DOC',
+                    'target_membership_code' => 'PE1_FAM',
+                    'package_code' => 'PE2_INTERMEDIATE_PACKAGE',
+                    'min_years_in_source_club' => null,
+                    'requires_active_source_membership' => true,
+                    'inscription_fee' => 50000,
+                    'monthly_fee' => 3650,
+                    'priority' => 1,
+                ],
+                // =========================================================
+                // PAQUETE INTERMEDIO PE2
+                // PE2 Familiar -> PE1 Individual
+                // Inscripción: 25,000
+                // Mensualidad: 3,650
+                // =========================================================
+                [
+                    'source_club_code' => 'PE2',
+                    'target_club_code' => 'PE1',
+                    'source_membership_code' => 'PE2_FAM_ASC',
+                    'target_membership_code' => 'PE1_IND',
+                    'package_code' => 'PE2_INTERMEDIATE_PACKAGE',
+                    'min_years_in_source_club' => null,
+                    'requires_active_source_membership' => true,
+                    'inscription_fee' => 25000,
+                    'monthly_fee' => 3650,
+                    'priority' => 1,
+                ],
+                [
+                    'source_club_code' => 'PE2',
+                    'target_club_code' => 'PE1',
+                    'source_membership_code' => 'PE2_FAM_EXT',
+                    'target_membership_code' => 'PE1_IND',
+                    'package_code' => 'PE2_INTERMEDIATE_PACKAGE',
+                    'min_years_in_source_club' => null,
+                    'requires_active_source_membership' => true,
+                    'inscription_fee' => 25000,
+                    'monthly_fee' => 3650,
+                    'priority' => 1,
+                ],
+                [
+                    'source_club_code' => 'PE2',
+                    'target_club_code' => 'PE1',
+                    'source_membership_code' => 'PE2_FAM_BEN',
+                    'target_membership_code' => 'PE1_IND',
+                    'package_code' => 'PE2_INTERMEDIATE_PACKAGE',
+                    'min_years_in_source_club' => null,
+                    'requires_active_source_membership' => true,
+                    'inscription_fee' => 25000,
+                    'monthly_fee' => 3650,
+                    'priority' => 1,
+                ],
+                [
+                    'source_club_code' => 'PE2',
+                    'target_club_code' => 'PE1',
+                    'source_membership_code' => 'PE2_FAM_DOC',
+                    'target_membership_code' => 'PE1_IND',
+                    'package_code' => 'PE2_INTERMEDIATE_PACKAGE',
+                    'min_years_in_source_club' => null,
+                    'requires_active_source_membership' => true,
+                    'inscription_fee' => 25000,
+                    'monthly_fee' => 3650,
+                    'priority' => 1,
+                ],
+
             ];
 
             foreach ($data as $item) {

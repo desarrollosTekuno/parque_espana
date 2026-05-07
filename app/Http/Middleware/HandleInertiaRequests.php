@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
+use App\Models\AdminClub\BusinessAd;
 
 use function Symfony\Component\Clock\now;
 
@@ -91,7 +92,17 @@ class HandleInertiaRequests extends Middleware
                 ];
             },
 
+            'pendingBusinessAds' => function () use ($request) {
+                $clubId = session('club_id');
+                return BusinessAd::when($clubId, function ($query) use ($clubId) {
+                        $query->where('club_id', $clubId);
+                    })
+                    ->where('status_id', 1)
+                    ->count();
+            },
+
             'showingMobileMenu' => false,
+            
         ]);
     }
 }

@@ -22,14 +22,18 @@ export default {
                 'lp': '1366px',
             },
             colors: {
-                "primary": "#134556",
-                "secondary": "#1A2B2D",
-                "tertiary": "#7e9294",
-                "complement1": "#FF8000",
-                "complement2": "#5E5EF7",
-                "complement3": "#109409",
-                "complement4": "#87ADDB",
-                "complement5": "#34495E",
+                // Paleta oficial del proyecto
+                "principal":    "#FEFEFE", // Fondo / texto sobre oscuro
+                "principal2":   "#000000", // Texto oscuro / drawer
+                "secundario":   "#D4172A", // Acciones importantes / activo
+                "secundario2":  "#F4B403", // Advertencias / highlights
+                "acento":       "#0097B2", // Botones primarios / links
+                "acento2":      "#EE70A8", // Decorativo / acento suave
+                "acento3":      "#004AAD", // Informativo / banda de perfil
+
+                // Aliases para compatibilidad con clases existentes
+                "primary":      "#0097B2",
+                "secondary":    "#D4172A",
             },
             fontSize: {
                 "mxs": "0.666rem",

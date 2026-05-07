@@ -20,6 +20,7 @@ class PaymentMethodSeeder extends Seeder
                 'requires_reference' => false,
                 'requires_bank_name' => false,
                 'requires_check_number' => false,
+                'affects_cash_cut' => true,
                 'is_active' => true,
             ],
             [
@@ -29,6 +30,7 @@ class PaymentMethodSeeder extends Seeder
                 'requires_reference' => true,
                 'requires_bank_name' => true,
                 'requires_check_number' => false,
+                'affects_cash_cut' => true,
                 'is_active' => true,
             ],
             [
@@ -38,6 +40,7 @@ class PaymentMethodSeeder extends Seeder
                 'requires_reference' => true,
                 'requires_bank_name' => false,
                 'requires_check_number' => false,
+                'affects_cash_cut' => true,
                 'is_active' => true,
             ],
             [
@@ -47,6 +50,17 @@ class PaymentMethodSeeder extends Seeder
                 'requires_reference' => false,
                 'requires_bank_name' => true,
                 'requires_check_number' => true,
+                'affects_cash_cut' => true,
+                'is_active' => true,
+            ],
+            [
+                'code' => 'SERVICES',
+                'name' => 'Pago con servicios',
+                'description' => 'Liquidacion de cargos mediante servicios autorizados, sin impacto en corte de caja monetario.',
+                'requires_reference' => false,
+                'requires_bank_name' => false,
+                'requires_check_number' => false,
+                'affects_cash_cut' => false,
                 'is_active' => true,
             ],
         ];

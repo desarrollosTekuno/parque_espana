@@ -17,8 +17,10 @@ class DatabaseSeeder extends Seeder
         $this->call([
             ContextSeeder::class,
             PermissionSeeder::class,
+            RoleSeeder::class,
             SuperAdminSeeder::class,
             AdminClubSeeder::class,
+            LocationCatalogsSeeder::class,
             ClubSeeder::class,
             UserSeeder::class,
             ReservationStatusSeeder::class,
@@ -39,6 +41,12 @@ class DatabaseSeeder extends Seeder
             BillingConceptSeeder::class,
             PaymentMethodSeeder::class,
             ClubPaymentMethodSeeder::class,
+            LockerSeeder::class,
+
+            FeedbackCategoriesSeeder::class,
+            FeedbackTicketTypesSeeder::class,
+            FeedbackStatusesSeeder::class,
+            FeedbackPrioritiesSeeder::class,
         ]);
     }
 }

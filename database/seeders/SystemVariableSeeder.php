@@ -17,13 +17,13 @@ class SystemVariableSeeder extends Seeder
             [
                 'name' => 'dias_para_crear_reserva',
                 'value' => '2',
-                'description' => 'Total de días en los que el socio puede crear reservaciones (día actual y siguiente)',
+                'description' => 'Total de días en los que el usuario puede crear reservaciones (día actual y siguiente)',
                 'club_id' => 1
             ],
             [
                 'name' => 'dias_para_cancelar_reserva',
                 'value' => '2',
-                'description' => 'Total de días en los que el socio puede cancelar reservaciones',
+                'description' => 'Total de días en los que el usuario puede cancelar reservaciones',
                 'club_id' => 1
             ],
             [

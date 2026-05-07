@@ -9,6 +9,8 @@ interface MemberItem {
     id: number;
     membership_id: number | null;
     membership_number: string;
+    account_club_name: string | null;
+    account_club_code: string | null;
     holder_name: string;
     email: string | null;
     phone: string | null;
@@ -27,6 +29,9 @@ interface ActiveMembershipItem {
     club_name: string | null;
     club_code: string | null;
     monthly_fee: number;
+    monthly_fee_total: number;
+    monthly_fee_share: number;
+    billing_split_mode: string | null;
     is_billable: boolean;
     start_date: string | null;
     end_date: string | null;
@@ -52,11 +57,11 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const headers = [
-    { title: "Folio", key: "membership_number" },
+    { title: "No. cuenta", key: "membership_number" },
     { title: "Titular", key: "holder_name" },
-    { title: "Membresias activas", key: "active_memberships", sortable: false },
+    { title: "Membresías activas", key: "active_memberships", sortable: false },
     { title: "Correo", key: "email", sortable: false },
-    { title: "Telefono", key: "phone", sortable: false },
+    { title: "Teléfono", key: "phone", sortable: false },
     { title: "Cuota actual", key: "monthly_fee" },
     { title: "Estatus", key: "status" },
     { title: "Acciones", key: "actions", sortable: false },
@@ -136,16 +141,16 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
 
 const emptyMessage = computed(() =>
     search.value
-        ? "No se encontraron socios titulares activos con ese criterio"
-        : "No hay socios titulares activos para mostrar",
+        ? "No se encontraron membresías activas con ese criterio"
+        : "No hay membresías activas para mostrar",
 );
 </script>
 
 <template>
-    <Head title="Socios" />
+    <Head title="Usuarios" />
 
     <AppLayout>
-        <template #header>Socios Titulares Activos</template>
+        <template #header>Membresías activas</template>
         <template #options>
             <BaseButton
                 variant="elevated"
@@ -180,18 +185,28 @@ const emptyMessage = computed(() =>
                                     variant="tonal"
                                     class="mx-4 mt-4 mb-2"
                                 >
-                                    No hay socios titulares activos para mostrar.
+                                    No hay membresías activas para mostrar.
                                     Actualmente existen
                                     {{ pendingMembersCount }}
-                                    membresias pendientes.
+                                    membresías pendientes.
                                 </v-alert>
 
                                 <v-text-field
                                     v-model="search"
-                                    label="Buscar socios"
+                                    label="Buscar usuarios"
                                     class="mx-4 mt-2"
                                     clearable
                                 />
+                            </div>
+                        </template>
+
+                        <template #item.membership_number="{ item }">
+                            <div class="font-weight-medium">
+                                {{ item.membership_number }}
+                            </div>
+                            <div class="text-caption text-medium-emphasis">
+                                {{ item.account_club_code || "-" }} ·
+                                {{ item.account_club_name || "Sin club" }}
                             </div>
                         </template>
 
@@ -227,6 +242,14 @@ const emptyMessage = computed(() =>
                                                 }}
                                             </v-chip>
                                             <v-chip
+                                                v-if="membership.billing_split_mode === 'equal_split'"
+                                                size="small"
+                                                color="info"
+                                                variant="tonal"
+                                            >
+                                                50/50
+                                            </v-chip>
+                                            <v-chip
                                                 size="small"
                                                 :color="statusColor(membership.status)"
                                                 variant="tonal"
@@ -239,9 +262,16 @@ const emptyMessage = computed(() =>
                                     <div class="text-caption text-medium-emphasis mt-2">
                                         {{
                                             membership.is_billable
-                                                ? `Cuota a cobrar: ${currencyFormatter.format(membership.monthly_fee)}`
-                                                : `Monto referencial: ${currencyFormatter.format(membership.monthly_fee)}`
+                                                ? `Cuota a cobrar: ${currencyFormatter.format(membership.monthly_fee_share)}`
+                                                : `Monto referencial: ${currencyFormatter.format(membership.monthly_fee_share)}`
                                         }}
+                                    </div>
+                                    <div
+                                        v-if="membership.monthly_fee_total !== membership.monthly_fee_share"
+                                        class="text-caption text-medium-emphasis"
+                                    >
+                                        Cuota total del esquema:
+                                        {{ currencyFormatter.format(membership.monthly_fee_total) }}
                                     </div>
                                 </div>
                             </div>
@@ -330,8 +360,8 @@ const emptyMessage = computed(() =>
                                     v-if="item.can_change_membership"
                                     :icon-only="false"
                                     action="edit"
-                                    text="Cambiar membresia"
-                                    tooltip="Cambiar el tipo de membresia en este parque"
+                                    text="Cambiar membresía"
+                                    tooltip="Cambiar el tipo de membresía en este parque"
                                     @click="
                                         router.visit(
                                             route(
@@ -346,8 +376,8 @@ const emptyMessage = computed(() =>
                                 <BaseButton
                                     :icon-only="false"
                                     action="add"
-                                    text="Agregar membresia"
-                                    tooltip="Agregar membresia del otro parque"
+                                    text="Agregar membresía"
+                                    tooltip="Agregar membresía del otro parque"
                                     @click="
                                         router.visit(
                                             route(

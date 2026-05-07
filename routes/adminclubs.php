@@ -1,22 +1,40 @@
 <?php
 
-use App\Htpp\Controllers\Web\AdminClub\Announcement;
+use App\Http\Controllers\Web\AdminClub\ActController;
+use App\Http\Controllers\Web\AdminClub\SurveyController;
+use App\Http\Controllers\Web\AdminClub\MemberController;
+use App\Http\Controllers\Web\AdminClub\BillingController;
 use App\Http\Controllers\Web\AdminClub\AmenityController;
+use App\Http\Controllers\Web\AdminClub\BusinessAdController;
 use App\Http\Controllers\Web\AdminClub\ReservationController;
 use App\Http\Controllers\Web\AdminClub\AnnouncementController;
 use App\Http\Controllers\Web\AdminClub\BlockedPeriodController;
-use App\Http\Controllers\Web\AdminClub\AmenityScheduleController;
-use App\Http\Controllers\Web\AdminClub\BillingController;
-use App\Http\Controllers\Web\AdminClub\MemberController;
-use App\Http\Controllers\Web\AdminClub\AmenityResourceController;
-use App\Http\Controllers\Web\AdminClub\ReservationGuestListController;
 use App\Http\Controllers\Web\AdminClub\SystemVariableController;
+use App\Http\Controllers\Web\AdminClub\AmenityScheduleController;
+use App\Http\Controllers\Web\AdminClub\BusinessCategoryController;
+use App\Http\Controllers\Web\AdminClub\BillingConceptController;
+use App\Http\Controllers\Web\AdminClub\InterclubPackageRuleController;
+use App\Http\Controllers\Web\AdminClub\PricingRuleController;
+use App\Http\Controllers\Web\AdminClub\AmenityResourceController;
+use App\Http\Controllers\Web\AdminClub\Feedback\FeedbackCategoryController;
+use App\Http\Controllers\Web\AdminClub\Feedback\FeedbackController;
+use App\Http\Controllers\Web\AdminClub\Feedback\FeedbackManagementController;
+use App\Http\Controllers\Web\AdminClub\Feedback\FeedbackPriorityController;
+use App\Http\Controllers\Web\AdminClub\Feedback\FeedbackStatusController;
+use App\Http\Controllers\Web\AdminClub\Feedback\FeedbackTicketTypeController;
+use App\Http\Controllers\Web\AdminClub\ReservationGuestListController;
+use App\Http\Controllers\Web\AdminClub\SurveyResultController;
+use App\Http\Controllers\Web\AdminClub\LockerAssignmentController;
+use App\Http\Controllers\Web\AdminClub\LockerController;
+use App\Http\Controllers\Web\AdminClub\CashCutController;
+use App\Http\Controllers\Web\AdminClub\GlobalCashCutController;
 use Illuminate\Support\Facades\Route;
 
-
+// amenities
 Route::resource('/amenities', AmenityController::class)->names('amenities');
 Route::resource('/amenityResource', AmenityResourceController::class)->names('amenityResource');
 Route::resource('/amenitySchedule', AmenityScheduleController::class)->names('amenitySchedule');
+Route::resource('/blockedPeriods', BlockedPeriodController::class)->names('blockedPeriods');
 
 Route::resource('/reservations', ReservationController::class)->only(['index', 'update'])->names('reservations');
 Route::resource('/system-variables', SystemVariableController::class)->only(['index', 'store', 'update', 'destroy'])->names('system-variables');
@@ -25,19 +43,85 @@ Route::resource('/guest-lists', ReservationGuestListController::class)->only(['i
 Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
 Route::post('/billing/payments', [BillingController::class, 'storePayment'])->name('billing.payments.store');
 
+// cash cuts
+Route::get('/cash-cuts', [CashCutController::class, 'index'])->name('cash-cuts.index');
+Route::post('/cash-cuts', [CashCutController::class, 'store'])->name('cash-cuts.store');
+Route::get('/cash-cuts/{cashCut}', [CashCutController::class, 'show'])->name('cash-cuts.show');
+Route::post('/cash-cuts/{cashCut}/close', [CashCutController::class, 'close'])->name('cash-cuts.close');
+Route::get('/cash-cuts/{cashCut}/export', [CashCutController::class, 'export'])->name('cash-cuts.export');
+
+// global cash cuts
+Route::get('/global-cash-cuts', [GlobalCashCutController::class, 'index'])->name('global-cash-cuts.index');
+Route::post('/global-cash-cuts', [GlobalCashCutController::class, 'store'])->name('global-cash-cuts.store');
+Route::get('/global-cash-cuts/{globalCashCut}', [GlobalCashCutController::class, 'show'])->name('global-cash-cuts.show');
+Route::post('/global-cash-cuts/{globalCashCut}/close', [GlobalCashCutController::class, 'close'])->name('global-cash-cuts.close');
+Route::get('/global-cash-cuts/{globalCashCut}/export', [GlobalCashCutController::class, 'export'])->name('global-cash-cuts.export');
+Route::resource('/billing-concepts', BillingConceptController::class)
+    ->only(['index', 'store', 'update', 'destroy'])
+    ->names('billing-concepts');
+Route::resource('/pricing-rules', PricingRuleController::class)
+    ->only(['index', 'store', 'update', 'destroy'])
+    ->names('pricing-rules');
+Route::resource('/interclub-package-rules', InterclubPackageRuleController::class)
+    ->only(['index', 'store', 'update', 'destroy'])
+    ->names('interclub-package-rules');
+
+// announcements
 Route::resource('/announcements', AnnouncementController::class)->names('announcements');
 Route::post('announcements/gallery', [AnnouncementController::class,'storeGallery'])->name('announcements.gallery.store');
 Route::delete('announcements/gallery/{image}',[AnnouncementController::class,'destroyGalleryImage'])->name('announcements.gallery.destroy');
 Route::get('announcements/{announcement}/gallery', [AnnouncementController::class,'getGallery'])->name('announcements.gallery.index');
-Route::resource('/blockedPeriods', BlockedPeriodController::class)->names('blockedPeriods');
+
+// business_ads
+Route::get('/business-ads', [BusinessAdController::class, 'index'])->name('business-ads.index');
+Route::post('/business-ads/{id}/approve', [BusinessAdController::class, 'approve'])->name('business-ads.approve');
+Route::post('/business-ads/{id}/reject', [BusinessAdController::class, 'reject'])->name('business-ads.reject');
+Route::post('/business-ads/{id}/confirm-payment', [BusinessAdController::class, 'confirmPayment'])->name('business-ads.confirm-payment');
+Route::post('/business-ads/{id}/publish', [BusinessAdController::class, 'publish'])->name('business-ads.publish');
+Route::delete('/business-ads/{id}', [BusinessAdController::class, 'destroy'])->name('business-ads.destroy');
+
+// business_ads categories
+Route::prefix('business-categories')->name('business-categories.')->group(function () {
+    Route::get('/', [BusinessCategoryController::class, 'index'])->name('index');
+    Route::post('/', [BusinessCategoryController::class, 'store'])->name('store');
+    Route::put('{id}', [BusinessCategoryController::class, 'update'])->name('update');
+    Route::delete('{id}', [BusinessCategoryController::class, 'destroy'])->name('destroy');
+});
+
+// surveys
+Route::resource('/surveys', SurveyController::class)->only(['index', 'create', 'store', 'edit', 'update', 'destroy'])->names('surveys');
+Route::post('/surveys/{survey}/questions', [SurveyController::class, 'storeQuestion'])->name('surveys.questions.store');
+Route::put('/surveys/{survey}/questions/{question}', [SurveyController::class, 'updateQuestion'])->name('surveys.questions.update');
+Route::delete('/surveys/{survey}/questions/{question}', [SurveyController::class, 'destroyQuestion'])->name('surveys.questions.destroy');
+Route::post('/surveys/{survey}/questions/reorder', [SurveyController::class, 'reorderQuestions'])->name('surveys.questions.reorder');
+Route::get('/surveys/{survey}/results', [SurveyResultController::class, 'index'])->name('surveys.results');
+
+
+// =========== FEEDBACK ============
+Route::resource('/feedback-categories', FeedbackCategoryController::class)->only(['index', 'store', 'update', 'destroy'])->names('feedback-categories');
+Route::resource('/feedback', FeedbackController::class)->only(['index', 'store', 'update', 'destroy'])->names('feedback');
+Route::patch('/feedback/{feedback}/cancel', [FeedbackController::class, 'cancelTicket'])->name('feedback.cancel');
+Route::get('/feedback-management', [FeedbackManagementController::class, 'index'])->name('feedback-management.index');
+Route::patch('/feedback-management/{feedback}', [FeedbackManagementController::class, 'update'])->name('feedback-management.update');
+Route::resource('/feedback-ticket-types', FeedbackTicketTypeController::class)->only(['index', 'store', 'update', 'destroy'])->names('feedback-ticket-types');
+Route::resource('/feedback-statuses', FeedbackStatusController::class)->only(['index', 'store', 'update', 'destroy'])->names('feedback-statuses');
+Route::resource('/feedback-priorities', FeedbackPriorityController::class)->only(['index', 'store', 'update', 'destroy'])->names('feedback-priorities');
 
 // members
 Route::get('/members/{membership}/additional-membership/create', [MemberController::class, 'createAdditionalMembership'])
     ->name('members.additional-membership.create');
 Route::get('/members/pricing-preview', [MemberController::class, 'pricingPreview'])
     ->name('members.pricing-preview');
+Route::get('/members/location-catalogs/states', [MemberController::class, 'locationStates'])
+    ->name('members.location-catalogs.states');
+Route::get('/members/location-catalogs/cities', [MemberController::class, 'locationCities'])
+    ->name('members.location-catalogs.cities');
 Route::get('/members/{membership}/manage', [MemberController::class, 'show'])
     ->name('members.manage.show');
+Route::post('/members/{membership}/absence-permits', [MemberController::class, 'storeAbsencePermit'])
+    ->name('members.absence-permits.store');
+Route::patch('/members/{membership}/absence-permits/{absencePermit}/cancel', [MemberController::class, 'cancelAbsencePermit'])
+    ->name('members.absence-permits.cancel');
 Route::get('/members/{membership}/transition/create', [MemberController::class, 'createMembershipTransition'])
     ->name('members.transition.create');
 Route::get('/members/{membership}/change-holder', [MemberController::class, 'createChangePrimaryHolder'])
@@ -52,4 +136,26 @@ Route::get('/members/{membership}/separation/create', [MemberController::class, 
     ->name('members.separation.create');
 Route::post('/members/{membership}/separation', [MemberController::class, 'storeMemberSeparation'])
     ->name('members.separation.store');
+Route::get('/members/{membership}/member/{member}/edit', [MemberController::class, 'editMember'])
+    ->name('members.member.edit');
+Route::put('/members/{membership}/member/{member}', [MemberController::class, 'updateMember'])
+    ->name('members.member.update');
 Route::resource('/members', MemberController::class)->only(['index', 'create', 'store', 'edit', 'update'])->names('members');
+
+
+// Lockers
+Route::get('/members/{accountId}/lockers/create', [LockerAssignmentController::class, 'create'])
+    ->name('members.lockers.create');
+Route::get('/lockers/assigned-by-account', [LockerController::class, 'assignedByAccount'])
+    ->name('lockers.assigned.by.account');
+Route::get('/lockers/available', [LockerController::class, 'available'])
+    ->name('lockers.available');
+Route::post('/lockers', [LockerAssignmentController::class, 'reserve'])
+        ->name('members.lockers.reserve');
+
+// Acts
+Route::prefix('acts')->group(function () {
+    Route::get('/{account_id}', [ActController::class, 'index'])->name('acts.index');
+    Route::post('/store', [ActController::class, 'store'])->name('acts.store');
+    Route::put('/{act}', [ActController::class, 'update'])->name('acts.update');
+});

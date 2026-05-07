@@ -4,6 +4,7 @@ namespace App\Models\Memberships;
 
 use App\Models\Catalogs\Relationship;
 use App\Models\Members\Member;
+use App\Models\Memberships\MembershipAccount;
 use App\Traits\SerializesDates;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;

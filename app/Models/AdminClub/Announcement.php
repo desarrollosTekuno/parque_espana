@@ -18,7 +18,6 @@ class Announcement extends Model {
     protected $fillable = [
         'club_id',
         'title',
-        'summary',
         'content',
         'type',
         'image',
@@ -67,5 +66,12 @@ class Announcement extends Model {
     public function images()
     {
         return $this->hasMany(AnnouncementImage::class);
+    }
+
+    protected $appends = ['publish_at_formatted'];
+
+    public function getPublishAtFormattedAttribute()
+    {
+        return $this->publish_at?->format('Y-m-d H:i:s');
     }
 }
