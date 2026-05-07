@@ -17,8 +17,9 @@ class ContextSeeder extends Seeder
         $contexts = array(
             array('name' => 'Web', 'value' => 'web'),
             array('name' => 'Api', 'value' => 'api'),
-            // App móvil socios
-            array('name' => "App Móvil Socios", 'value' => 'mobile_app')
+            // App móvil usuarios por club
+            array('name' => "App Móvil - Parque España 1", 'value' => 'mobile_club_1'),
+            array('name' => "App Móvil - Parque España 2", 'value' => 'mobile_club_2'),
         );
         foreach ($contexts as $context) {
             Context::updateOrCreate(['value' => $context['value']], $context);

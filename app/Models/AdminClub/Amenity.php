@@ -12,6 +12,8 @@ class Amenity extends Model
 {
     use HasFactory, SoftDeletes, SerializesDates;
 
+    protected $table = 'amenities.amenities';
+
     protected $fillable = [
         'name',
         'description',
@@ -20,14 +22,22 @@ class Amenity extends Model
         'reservation_type',
         'capacity',
         'is_active',
-        'slot_duration_minutes',
         'club_id',
     ];
-    protected $guarded = ['id', 'created_at', 'updated_at'];
     protected $dates = ['deleted_at'];
 
     public function club()
     {
         return $this->belongsTo(Club::class, 'club_id');
     }
+    public function schedules()
+    {
+        return $this->hasMany(AmenitySchedule::class, 'amenity_id');
+    }
+
+    public function resources()
+    {
+        return $this->hasMany(AmenityResource::class, 'amenity_id');
+    }
+
 }

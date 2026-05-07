@@ -41,8 +41,8 @@ interface Props {
   modelValue: string;
   label?: string;
   showIcon: boolean;
-  icon: string;
-  rules: any;
+  icon?: string;
+  rules?: any;
   min?: Date; // ← opcionales para mayor flexibilidad
   max?: Date;
 }
@@ -56,6 +56,11 @@ const props = withDefaults(defineProps<Props>(), {
 
 const today = new Date();
 
+function parseLocalDate(dateString: string): Date {
+  const [year, month, day] = dateString.split("-").map(Number);
+  return new Date(year, month - 1, day); // 👈 LOCAL, no UTC
+}
+
 // 🔹 Recalcula automáticamente si cambian las props
 const minDateISO = computed(() => {
   const min = props.min ?? today;
@@ -68,7 +73,9 @@ const maxDateISO = computed(() => {
 });
 
 const emit = defineEmits(["update:modelValue"]);
-const internalValue = ref(props.modelValue);
+const internalValue = ref<Date | null>(
+  props.modelValue ? parseLocalDate(props.modelValue) : null
+);
 const showPicker = ref(false);
 
 /* ─────────────────────────────
@@ -76,15 +83,24 @@ const showPicker = ref(false);
  * ───────────────────────────── */
 watch(
   () => props.modelValue,
-  (val) => (internalValue.value = val)
+  (val) => {
+    internalValue.value = val ? parseLocalDate(val) : null;
+  }
 );
 
 /* ─────────────────────────────
  * EVENTOS
  * ───────────────────────────── */
-function updateValue(val: string) {
-  internalValue.value = val;
-  emit("update:modelValue", val);
+function updateValue(val: Date | null) {
+  if (!val) return;
+
+  const formatted = new Date(
+    val.getTime() - val.getTimezoneOffset() * 60000
+  )
+    .toISOString()
+    .split("T")[0];
+
+  emit("update:modelValue", formatted);
   showPicker.value = false;
 }
 
@@ -93,7 +109,16 @@ function updateValue(val: string) {
  * ───────────────────────────── */
 const formattedDate = computed(() => {
   if (!internalValue.value) return "";
-  const date = new Date(internalValue.value);
+
+  const d = internalValue.value;
+
+  // Creamos fecha LOCAL (no UTC)
+  const date = new Date(
+    d.getFullYear(),
+    d.getMonth(),
+    d.getDate()
+  );
+
   return date.toLocaleDateString("es-MX", {
     year: "numeric",
     month: "long",

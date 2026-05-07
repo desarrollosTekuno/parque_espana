@@ -24,6 +24,8 @@ return new class extends Migration
     {
         Schema::table('roles', function (Blueprint $table) {
             //
+            $table->dropForeign(['context_id']);
+            $table->dropColumn('context_id');
         });
     }
 };

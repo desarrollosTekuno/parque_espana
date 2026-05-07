@@ -3,6 +3,10 @@
 namespace App\Models\Administrator;
 
 use App\Models\AdminClub\Amenity;
+use App\Models\AdminClub\Survey;
+use App\Models\Billing\ChargeConceptClubAmount;
+use App\Models\Billing\ClubPaymentMethod;
+use App\Models\Billing\Payment;
 use App\Models\Administrator\UserClub;
 use App\Models\AdminClub\ClubRule;
 use App\Traits\SerializesDates;
@@ -12,6 +16,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Club extends Model {
     use HasFactory, SoftDeletes,SerializesDates;
+
+    protected $table = 'clubs.clubs';
+    protected $connection = 'pgsql';
 
     protected $guarded = ['id', 'created_at', 'updated_at'];
     protected $dates = ['deleted_at'];
@@ -29,5 +36,25 @@ class Club extends Model {
     public function userClub()
     {
         return $this->hasMany(UserClub::class, 'club_id');
+    }
+
+    public function clubPaymentMethods()
+    {
+        return $this->hasMany(ClubPaymentMethod::class, 'club_id');
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(Payment::class, 'club_id');
+    }
+
+    public function surveys()
+    {
+        return $this->hasMany(Survey::class, 'club_id');
+    }
+
+    public function chargeConceptAmounts()
+    {
+        return $this->hasMany(ChargeConceptClubAmount::class, 'club_id');
     }
 }

@@ -10,6 +10,18 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class BlockedPeriod extends Model {
     use HasFactory, SoftDeletes, SerializesDates;
 
-    protected $guarded = ['id', 'created_at', 'updated_at'];
+    protected $table = 'amenities.blocked_periods';
+
+    protected $fillable = [
+        'resource_id',
+        'start_time',
+        'end_time',
+        'reason',
+        'is_active'
+    ];
     protected $dates = ['deleted_at'];
+
+    public function resource() {
+        return $this->belongsTo(AmenityResource::class, 'resource_id');     
+    }       
 }

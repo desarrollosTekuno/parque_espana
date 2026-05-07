@@ -10,12 +10,12 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        Schema::create('club_rules', function (Blueprint $table) {
+        Schema::create('clubs.rules', function (Blueprint $table) {
             $table->id();
             $table->integer('max_active_reservations')->default(0);
             $table->integer('max_days_in_advance')->default(0);
             $table->boolean('allow_same_day')->default(false);
-            $table->foreignId('club_id')->constrained('clubs');
+            $table->foreignId('club_id')->constrained('clubs.clubs');
             $table->timestamps();
             $table->softDeletes();
         });
@@ -26,6 +26,6 @@ return new class extends Migration {
      */
     public function down(): void
     {
-        Schema::dropIfExists('club_rules');
+        Schema::dropIfExists('clubs.rules');
     }
 };

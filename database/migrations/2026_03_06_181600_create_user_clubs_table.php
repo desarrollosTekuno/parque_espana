@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('user_clubs', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained('users');
-            $table->foreignId('club_id')->constrained('clubs');
+            $table->foreignId('club_id')->constrained('clubs.clubs');
             $table->boolean('is_active')->default(true);
             $table->timestamps();
             $table->softDeletes();
