@@ -24,7 +24,6 @@ import { Link } from "@inertiajs/vue3";
             <v-img
                 :width="100"
                 aspect-ratio="16/9"
-                cover
                 src="/assets/images/LogoP2.png"
             ></v-img>
         </div>

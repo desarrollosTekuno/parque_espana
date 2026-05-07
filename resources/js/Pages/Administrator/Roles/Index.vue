@@ -68,13 +68,15 @@ const save = () => {
     formSendRef.value?.validate().then(({ valid: isValid }) => {
         if (!isValid) return;
 
+        if (!form.permissions.length) {
+            customToastSwal({ title: "Selecciona al menos un permiso", icon: "warning" });
+            return;
+        }
+
         if (form.id) {
             form.put(route("roles.update", form.id), {
                 onSuccess: () => {
-                    customToastSwal({
-                        title: page.props.flash.success || "",
-                        icon: "success",
-                    });
+                    customToastSwal({ title: page.props.flash.success || "", icon: "success" });
                     showModal.value = false;
                     form.reset();
                     fetchItems();
@@ -90,10 +92,7 @@ const save = () => {
         } else {
             form.post(route("roles.store"), {
                 onSuccess: () => {
-                    customToastSwal({
-                        title: page.props.flash.success || "",
-                        icon: "success",
-                    });
+                    customToastSwal({ title: page.props.flash.success || "", icon: "success" });
                     showModal.value = false;
                     form.reset();
                     fetchItems();
@@ -112,17 +111,13 @@ const save = () => {
 
 const edit = (data: any) => {
     permissionsByContext.value = {};
-
     form.id = data.id;
     form.name = data.name;
     form.description = data.description;
     form.guard_name = data.guard_name;
     form.context_id = data.context_id;
-
     form.permissions = data.permissions.map((permission: any) => permission.id);
-
     permissionsByContext.value[data.context_id] = [...form.permissions];
-
     showModal.value = true;
 };
 
@@ -140,10 +135,7 @@ const duplicate = (data: any) => {
         if (result.isConfirmed) {
             form.post(route("roles.duplicate"), {
                 onSuccess: () => {
-                    customToastSwal({
-                        title: page.props.flash.success || "",
-                        icon: "success",
-                    });
+                    customToastSwal({ title: page.props.flash.success || "", icon: "success" });
                     fetchItems();
                 },
                 onError: () => {
@@ -165,10 +157,7 @@ const destroy = (data: any) => {
         if (result.isConfirmed) {
             form.delete(route("roles.destroy", data.id), {
                 onSuccess: () => {
-                    customToastSwal({
-                        title: page.props.flash.success || "",
-                        icon: "success",
-                    });
+                    customToastSwal({ title: page.props.flash.success || "", icon: "success" });
                     fetchItems();
                 },
                 onError: () => {
@@ -190,15 +179,13 @@ const close = () => {
 };
 
 /* watch contexto */
-
 watch(
     () => form.context_id,
     (newContext, oldContext) => {
         if (oldContext) {
             permissionsByContext.value[oldContext] = [...form.permissions];
         }
-
-        if (permissionsByContext.value[newContext]) {
+        if (newContext && permissionsByContext.value[newContext]) {
             form.permissions = [...permissionsByContext.value[newContext]];
         } else {
             form.permissions = [];
@@ -207,17 +194,47 @@ watch(
 );
 
 /* permisos filtrados por contexto */
+const permissionsList = computed(() =>
+    props.permissions.filter((permission: any) =>
+        permission.contexts.some((context: any) => context.id === form.context_id)
+    )
+);
 
-const permissionsList = computed(() => {
-    return props.permissions.filter((permission) =>
-        permission.contexts.some(
-            (context) => context.id === form.context_id
-        )
-    );
+/* permisos agrupados por módulo */
+const permissionsGroupedByModule = computed(() => {
+    const grouped: Record<string, any[]> = {};
+    permissionsList.value.forEach((permission: any) => {
+        const mod = permission.module || "Sin módulo";
+        if (!grouped[mod]) grouped[mod] = [];
+        grouped[mod].push(permission);
+    });
+    return grouped;
 });
 
-/* DATATABLE */
+const isModuleFullySelected = (permissions: any[]) =>
+    permissions.length > 0 && permissions.every((p) => form.permissions.includes(p.id));
 
+const isModulePartiallySelected = (permissions: any[]) =>
+    permissions.some((p) => form.permissions.includes(p.id)) && !isModuleFullySelected(permissions);
+
+const toggleModule = (permissions: any[]) => {
+    const ids = permissions.map((p) => p.id);
+    if (isModuleFullySelected(permissions)) {
+        form.permissions = form.permissions.filter((id) => !ids.includes(id));
+    } else {
+        form.permissions = [...new Set([...form.permissions, ...ids])];
+    }
+};
+
+const togglePermission = (id: number, val: boolean) => {
+    if (val) {
+        if (!form.permissions.includes(id)) form.permissions = [...form.permissions, id];
+    } else {
+        form.permissions = form.permissions.filter((p) => p !== id);
+    }
+};
+
+/* DATATABLE */
 const headers = [
     { title: "Nombre", key: "name" },
     { title: "Descripción", key: "description" },
@@ -281,8 +298,6 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
         </template>
 
         <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
-            <!-- <div class="p-6 border-b border-gray-200"> -->
-
             <v-row>
                 <v-col cols="12">
                     <v-data-table-server
@@ -339,50 +354,21 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                     </v-data-table-server>
                 </v-col>
             </v-row>
-            <!-- </div> -->
         </div>
-        <v-dialog v-model="showModal" max-width="600" persistent>
-            <v-form @submit.prevent="save" ref="formSendRef">
-                <v-card
-                    prepend-icon="mdi-cube-outline"
-                    :title="`${form.id ? 'Editar Rol' : 'Nuevo Rol'}`"
-                >
-                    <v-card-text class="overflow-y-auto h-full">
-                        <!-- <v-text-field
-                            v-model="form.name"
-                            label="Nombre"
-                            persistent-hint
-                            :rules="validationRules.required"
-                        /> -->
+
+        <v-dialog v-model="showModal" max-width="800" persistent scrollable>
+            <v-card prepend-icon="mdi-cube-outline" :title="`${form.id ? 'Editar Rol' : 'Nuevo Rol'}`">
+                <v-card-text>
+                    <v-form @submit.prevent="save" ref="formSendRef">
                         <v-row>
-                            <v-col cols="12">
+                            <v-col cols="12" md="6">
                                 <v-text-field
                                     v-model="form.name"
                                     label="Nombre"
-                                    persistent-hint
-                                    :rules="[
-                                        required,
-                                        minLength(4),
-                                        maxLength(50),
-                                    ]"
+                                    :rules="[required, minLength(4), maxLength(50)]"
                                 />
                             </v-col>
-                            <v-col cols="12">
-                                <v-textarea
-                                    v-model="form.description"
-                                    label="Descripción"
-                                    persistent-hint
-                                    clearable
-                                    counter
-                                    rows="3"
-                                    :rules="[optionalLength(0, 75)]"
-                                    auto-grow
-                                    variant="filled"
-                                />
-                            </v-col>
-                            <!-- Contexto -->
-                            
-                            <v-col cols="12">
+                            <v-col cols="12" md="6">
                                 <v-autocomplete
                                     prepend-inner-icon="mdi-cog"
                                     v-model="form.context_id"
@@ -390,66 +376,100 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                     item-title="name"
                                     :items="contexts"
                                     :rules="[selectRequired]"
-                                    hint="Contexto"
-                                    persistent-hint
+                                    label="Contexto"
                                 />
                             </v-col>
                             <v-col cols="12">
-                                <v-autocomplete
-                                    prepend-inner-icon="mdi-key"
-                                    v-model="form.permissions"
-                                    chips
-                                    closable-chips
-                                    multiple
+                                <v-textarea
+                                    v-model="form.description"
+                                    label="Descripción"
                                     clearable
-                                    item-value="id"
-                                    item-title="description"
-                                    :items="permissionsList"
-                                    :rules="[selectRequired]"
-                                    hint="Permisos"
-                                    persistent-hint
-                                >
-                                </v-autocomplete>
-                                <!-- <v-file-input
-                                    label="Subir archivo"
-                                    :rules="[
-
-                                    ]"
-                                /> -->
+                                    counter
+                                    rows="2"
+                                    :rules="[optionalLength(0, 75)]"
+                                    auto-grow
+                                    variant="filled"
+                                />
                             </v-col>
                         </v-row>
-                    </v-card-text>
-                    <v-card-actions>
-                        <v-spacer></v-spacer>
-                        <!-- <v-btn text="Cerrar" type="button" @click="close" />
-                        <v-btn
-                            prepend-icon="mdi-home"
-                            :text="form.id ? 'update' : 'save'"
-                            type="submit"
-                            v-if="can.includes('roles.store')"
-                        /> -->
-                        <BaseButton
-                            :icon-only="false"
-                            variant="tonal"
-                            action="cancel"
-                            @click="close"
-                        />
-                        <BaseButton
-                            :text="form.id ? 'Actualizar' : 'Guardar'"
-                            variant="flat"
-                            :icon-only="false"
-                            type="submit"
-                            action="save"
-                            :v-if="
-                                form.id
-                                    ? can.includes('roles.update')
-                                    : can.includes('roles.store')
-                            "
-                        />
-                    </v-card-actions>
-                </v-card>
-            </v-form>
+
+                        <!-- Permisos agrupados por módulo -->
+                        <div v-if="form.context_id" class="mt-2">
+                            <div class="d-flex align-center justify-space-between mb-3">
+                                <span class="text-subtitle-2 font-weight-bold">Permisos</span>
+                                <span class="text-caption text-medium-emphasis">
+                                    {{ form.permissions.length }} seleccionados de {{ permissionsList.length }}
+                                </span>
+                            </div>
+
+                            <v-expansion-panels variant="accordion" multiple>
+                                <v-expansion-panel
+                                    v-for="(modulePermissions, moduleName) in permissionsGroupedByModule"
+                                    :key="moduleName"
+                                >
+                                    <v-expansion-panel-title>
+                                        <div class="d-flex align-center ga-2 w-100 pr-2">
+                                            <v-checkbox
+                                                :model-value="isModuleFullySelected(modulePermissions)"
+                                                :indeterminate="isModulePartiallySelected(modulePermissions)"
+                                                color="primary"
+                                                hide-details
+                                                density="compact"
+                                                @click.stop="toggleModule(modulePermissions)"
+                                            />
+                                            <span class="font-weight-medium">{{ moduleName }}</span>
+                                            <v-chip
+                                                size="x-small"
+                                                :color="isModulePartiallySelected(modulePermissions) || isModuleFullySelected(modulePermissions) ? 'primary' : 'default'"
+                                                variant="tonal"
+                                                class="ml-auto"
+                                            >
+                                                {{ modulePermissions.filter((p) => form.permissions.includes(p.id)).length }}
+                                                / {{ modulePermissions.length }}
+                                            </v-chip>
+                                        </div>
+                                    </v-expansion-panel-title>
+                                    <v-expansion-panel-text>
+                                        <v-row dense>
+                                            <v-col
+                                                v-for="permission in modulePermissions"
+                                                :key="permission.id"
+                                                cols="12"
+                                                sm="6"
+                                            >
+                                                <v-checkbox
+                                                    :model-value="form.permissions.includes(permission.id)"
+                                                    :label="permission.description"
+                                                    color="primary"
+                                                    hide-details
+                                                    density="compact"
+                                                    @update:modelValue="(val) => togglePermission(permission.id, Boolean(val))"
+                                                />
+                                            </v-col>
+                                        </v-row>
+                                    </v-expansion-panel-text>
+                                </v-expansion-panel>
+                            </v-expansion-panels>
+                        </div>
+
+                        <v-alert v-else type="info" variant="tonal" class="mt-3">
+                            Selecciona un contexto para ver los permisos disponibles.
+                        </v-alert>
+                    </v-form>
+                </v-card-text>
+
+                <v-card-actions>
+                    <v-spacer />
+                    <BaseButton :icon-only="false" variant="tonal" action="cancel" @click="close" />
+                    <BaseButton
+                        :text="form.id ? 'Actualizar' : 'Guardar'"
+                        variant="flat"
+                        :icon-only="false"
+                        action="save"
+                        @click="save"
+                    />
+                </v-card-actions>
+            </v-card>
         </v-dialog>
-        <!-- <Loader :overlay="form.processing" /> -->
     </AppLayout>
 </template>

@@ -9,6 +9,10 @@ use App\Models\AdminClub\SurveyAnswer;
 
 class SurveyResultController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('can:surveys.results')->only('index');
+    }
     public function index(Survey $survey)
     {
         try {
@@ -43,9 +47,9 @@ class SurveyResultController extends Controller
                 } elseif ($question->type === 'rating') {
                     // Distribución de calificaciones
                     $config = $question->config ?? [];
-                    $min    = $config['min'] ?? 1;
-                    $max    = $config['max'] ?? 5;
-                    $dist   = [];
+                    $min = $config['min'] ?? 1;
+                    $max = $config['max'] ?? 5;
+                    $dist = [];
                     for ($i = $min; $i <= $max; $i++) {
                         $dist[$i] = ['label' => (string) $i, 'count' => 0];
                     }
@@ -55,7 +59,7 @@ class SurveyResultController extends Controller
                             $dist[$val]['count']++;
                         }
                     }
-                    $avg       = $answers->isNotEmpty()
+                    $avg = $answers->isNotEmpty()
                         ? round($answers->avg(fn($a) => (float) $a->answer_text), 2)
                         : null;
                     $chartData = ['distribution' => array_values($dist), 'average' => $avg];
@@ -65,21 +69,21 @@ class SurveyResultController extends Controller
                 }
 
                 return [
-                    'id'              => $question->id,
-                    'question_text'   => $question->question_text,
-                    'type'            => $question->type,
-                    'config'          => $question->config,
-                    'options'         => $question->options,
-                    'answers_count'   => $answers->count(),
+                    'id' => $question->id,
+                    'question_text' => $question->question_text,
+                    'type' => $question->type,
+                    'config' => $question->config,
+                    'options' => $question->options,
+                    'answers_count' => $answers->count(),
                     'total_responses' => $totalResponses,
-                    'chart_data'      => $chartData,
+                    'chart_data' => $chartData,
                 ];
             });
 
             return Inertia::render('AdminClubs/Surveys/Results', [
-                'survey'         => $survey,
+                'survey' => $survey,
                 'totalResponses' => $totalResponses,
-                'questions'      => $questionsData,
+                'questions' => $questionsData,
             ]);
         } catch (\Exception $e) {
             report($e);

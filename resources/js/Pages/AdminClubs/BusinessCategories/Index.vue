@@ -5,8 +5,8 @@ import BaseButton from "@/Components/BaseButton.vue";
 import { ref, watch, computed } from "vue";
 import { debounce } from "lodash";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
-
 const page = usePage();
+const can = usePage().props.auth.permissions;
 
 const props = defineProps<{ categories?: any }>();
 
@@ -186,7 +186,7 @@ watch(() => form.value.image, (file) => {
     <span class="text-grey">Administra las categorías</span>
   </div>
 
-  <BaseButton :text="'Nueva categoría'" action="add" @click="openCreate" :icon-only="false" variant="elevated"/>
+  <BaseButton :text="'Nueva categoría'" action="add" @click="openCreate" :icon-only="false" variant="elevated" v-if="can.includes('business-categories.store')" />
 </div>
 
 <v-card rounded="xl" elevation="2">

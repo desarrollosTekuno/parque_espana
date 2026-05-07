@@ -1,5 +1,5 @@
 interface Routing {
-    name: string | Array<string>;
+    name: Array<string>;
     title: string;
     icon: string;
     value: string;
@@ -15,25 +15,30 @@ interface Routing {
 const routes: Routing[] = [
     /* Rutas para superadministrador */
     {
-        name: "profile.show",
+        name: ["profile.show"],
         title: "Mi perfil",
         icon: "mdi-account-circle-outline",
         value: "profile",
         group: null,
-        // groupItems: null
     },
 
-
     {
-        name: "dashboard",
+        name: ["dashboard"],
         title: "Inicio",
         icon: "mdi-home-outline",
         value: "dashboard",
         group: null,
-        // groupItems: null
     },
     {
-        name: ["members.index", "members.create", "members.edit", "members.additional-membership.create", "members.manage.show", "members.family-members.create", "member-access.index"],
+        name: [
+            "members.index",
+            "members.create",
+            "members.edit",
+            "members.additional-membership.create",
+            "members.manage.show",
+            "members.family-members.create",
+            "member-access.index",
+        ],
         title: "Membresías",
         icon: "mdi-account-group-outline",
         value: "membresiasMenu",
@@ -45,24 +50,36 @@ const routes: Routing[] = [
                 icon: "mdi-account-group-outline",
                 value: "membresias-activas",
             },
-            // nueva membresía
             {
                 name: "members.create",
                 title: "Nueva membresía",
                 icon: "mdi-account-plus-outline",
                 value: "nueva-membresia",
             },
-            // accesos app móvil
-            {
-                name: "member-access.index",
-                title: "Accesos App Móvil",
-                icon: "mdi-cellphone-key",
-                value: "accesos-app",
-            },
         ],
     },
     {
-        name: ["billing.index"],
+        name: ["member-access.index"],
+        title: "Accesos App Móvil",
+        icon: "mdi-cellphone-key",
+        value: "accesos-app",
+        group: null,
+    },
+    {
+        name: ["billing-concepts.index"],
+        title: "Conceptos de cobro",
+        icon: "mdi-receipt-text-outline",
+        value: "conceptos-cobro",
+        group: null,
+    },
+    {
+        name: [
+            "billing.index",
+            "cash-cuts.index",
+            "cash-cuts.show",
+            "global-cash-cuts.index",
+            "global-cash-cuts.show",
+        ],
         title: "Cobranza",
         icon: "mdi-cash-multiple",
         value: "cobranzaMenu",
@@ -74,54 +91,53 @@ const routes: Routing[] = [
                 icon: "mdi-receipt-text-outline",
                 value: "cargos-pendientes",
             },
+            {
+                name: "cash-cuts.index",
+                title: "Mis cortes de caja",
+                icon: "mdi-cash-register",
+                value: "cortes-caja",
+            },
+            {
+                name: "global-cash-cuts.index",
+                title: "Cortes globales",
+                icon: "mdi-calculator-variant-outline",
+                value: "cortes-globales",
+            },
         ],
     },
-        // Clubs deportivos
+    // Clubs deportivos
     {
-        name: "clubs.index",
+        name: ["clubs.index"],
         title: "Clubs deportivos",
         icon: "mdi-soccer",
         value: "clubs-deportivos",
         group: null,
-        // groupItems: null
     },
 
     //permisos
     {
-        name: "permissions.index",
+        name: ["permissions.index"],
         title: "Permisos",
         icon: "mdi-key-outline",
         value: "permisos",
         group: null,
-        // groupItems: null
     },
-     // Roles
+    // Roles
     {
-        name: "roles.index",
+        name: ["roles.index"],
         title: "Roles",
         icon: "mdi-account-key-outline",
         value: "roles",
         group: null,
-        // groupItems: null
     },
     // Usuarios
     {
-        name: "users.index",
+        name: ["users.index"],
         title: "Usuarios",
         icon: "mdi-account-multiple-outline",
         value: "usuarios",
         group: null,
-        // groupItems: null
     },
-    // Amenidades
-    /*{
-        name: "amenities.index",
-        title: "Amenidades",
-        icon: "mdi-beach",
-        value: "amenidades",
-        group: null,
-        // groupItems: null
-    },*/
     // Amenidades
     {
         name: ["amenities.index", "blockedPeriods.index"],
@@ -142,7 +158,7 @@ const routes: Routing[] = [
                 icon: "mdi-calendar-clock-outline",
                 value: "bloqueos",
             },
-        ]
+        ],
     },
     // Reservaciones
     {
@@ -166,20 +182,19 @@ const routes: Routing[] = [
             },
             {
                 name: "system-variables.index",
-                title: "Variables del Sistema",
+                title: "Configuración",
                 icon: "mdi-cog",
                 value: "variables-sistema",
-            }
-        ]
+            },
+        ],
     },
     // Anuncios
     {
-        name: "announcements.index",
+        name: ["announcements.index"],
         title: "Comunicación",
         icon: "mdi-bullhorn-outline",
         value: "anuncios",
         group: null,
-        // groupItems: null
     },
     // Publicidad de negocios
     {
@@ -202,62 +217,45 @@ const routes: Routing[] = [
                 icon: "mdi-storefront-outline",
                 value: "anuncios-activos",
             },
-        ]
+        ],
     },
     // Encuestas
     {
-        name: "surveys.index",
-        title: "Encuestas",
-        icon: "mdi-poll",
-        value: "surveys",
-        group: null
-    },
-    // Variables de sistema
-    {
-        name: "system-variables.index",
-        title: "Variables del Sistema",
-        icon: "mdi-cog",
-        value: "variables-sistema",
-        group: null,
-        // groupItems: null
-    },
-    {
-        name: "pricing-rules.index",
-        title: "Reglas de precio",
-        icon: "mdi-currency-usd",
-        value: "reglas-precio",
-        group: null,
-    },
-    {
-        name: "billing-concepts.index",
-        title: "Conceptos de cobro",
-        icon: "mdi-receipt-text-outline",
-        value: "conceptos-cobro",
-        group: null,
-    },
-    {
-        name: "interclub-package-rules.index",
-        title: "Paquetes interclub",
-        icon: "mdi-swap-horizontal",
-        value: "paquetes-interclub",
-        group: null,
-    },
-    // Encuestas
-    {
-        name: "surveys.index",
+        name: ["surveys.index", "surveys.create", "surveys.edit"],
         title: "Encuestas",
         icon: "mdi-clipboard-list-outline",
         value: "encuestas",
         group: null,
     },
 
+    {
+        name: ["pricing-rules.index"],
+        title: "Reglas de precio",
+        icon: "mdi-currency-usd",
+        value: "reglas-precio",
+        group: null,
+    },
+    {
+        name: ["interclub-package-rules.index"],
+        title: "Paquetes interclub",
+        icon: "mdi-swap-horizontal",
+        value: "paquetes-interclub",
+        group: null,
+    },
 
     {
-        name: ["feedback.index", "feedback-management.index", "feedback-categories.index", "feedback-ticket-types.index", "feedback-statuses.index", "feedback-priorities.index"],
-        title: "Feedback",
+        name: [
+            "feedback.index",
+            "feedback-management.index",
+            "feedback-categories.index",
+            "feedback-ticket-types.index",
+            "feedback-statuses.index",
+            "feedback-priorities.index",
+        ],
+        title: "Quejas y sugerencias",
         icon: "mdi-message-alert-outline",
         value: "feedbackMenu",
-        group: "Feedback",
+        group: "Quejas y sugerencias",
         groupItems: [
             {
                 name: "feedback-categories.index",
@@ -295,7 +293,7 @@ const routes: Routing[] = [
                 icon: "mdi-briefcase-edit-outline",
                 value: "feedback-management",
             },
-        ]
+        ],
     },
     /*
     {

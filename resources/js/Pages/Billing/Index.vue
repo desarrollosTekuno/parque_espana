@@ -10,6 +10,7 @@ import {
     required,
     selectRequired,
 } from "@/constants/validationRules";
+import { nowAsLocalInput } from "@/constants/formatDates";
 
 interface ClubItem {
     id: number;
@@ -208,7 +209,7 @@ const paymentForm = useForm<PaymentFormData>({
     membership_account_id: null,
     club_id: null,
     payment_method_id: null,
-    paid_at: new Date().toISOString().slice(0, 16),
+    paid_at: nowAsLocalInput(),
     reference: "",
     bank_name: "",
     check_number: "",
@@ -494,7 +495,7 @@ const openPaymentModal = (account: BillingAccountItem) => {
     paymentFormRef.value?.resetValidation?.();
     paymentForm.membership_account_id = account.id;
     paymentForm.club_id = selectedPaymentClubId.value;
-    paymentForm.paid_at = new Date().toISOString().slice(0, 16);
+    paymentForm.paid_at = nowAsLocalInput();
     buildPaymentDrafts(selectedPaymentClubId.value);
     showPaymentModal.value = true;
 };
@@ -1367,12 +1368,7 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
             </v-row>
         </div>
 
-        <v-dialog v-model="showPaymentModal" max-width="1100" persistent>
-            <v-form
-                ref="paymentFormRef"
-                validate-on="input"
-                @submit.prevent="submitPayment"
-            >
+        <v-dialog v-model="showPaymentModal" max-width="1100" persistent scrollable>
                 <v-card>
                     <v-card-title>Registrar cobro</v-card-title>
                     <v-card-subtitle>
@@ -1381,6 +1377,11 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                     </v-card-subtitle>
 
                     <v-card-text class="d-flex flex-column ga-4">
+                    <v-form
+                        ref="paymentFormRef"
+                        validate-on="input"
+                        @submit.prevent="submitPayment"
+                    >
                         <v-row v-if="selectedPaymentAccount">
                             <v-col cols="12" md="4">
                                 <v-card variant="tonal" color="primary">
@@ -1828,6 +1829,7 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                                 seleccionado.
                             </v-alert>
                         </div>
+                    </v-form>
                     </v-card-text>
 
                     <v-card-actions>
@@ -1843,11 +1845,10 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                             action="save"
                             text="Guardar cobro"
                             :loading="paymentForm.processing"
-                            type="submit"
+                            @click="submitPayment"
                         />
                     </v-card-actions>
                 </v-card>
-            </v-form>
         </v-dialog>
     </AppLayout>
 </template>

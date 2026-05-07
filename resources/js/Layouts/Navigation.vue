@@ -51,8 +51,7 @@ const existSomeRoute = (routeNames: any): boolean => {
     return can.includes(routeNames);
 };
 
-const isActive = (name: string | string[]): boolean =>
-    name instanceof Array ? route().current(name[0]) : route().current(name);
+const isActive = (name: string[]): boolean => name.some((n) => route().current(n));
 
 const userInitials = computed(() => {
     const parts = (auth.user.name ?? "").trim().split(/\s+/);
@@ -184,7 +183,7 @@ const isInLockersFlow = computed(() => {
                     >
                         <template #activator="{ props: tipProps }">
                             <Link
-                                :href="route(ruta.name)"
+                                :href="route(ruta.name[0])"
                                 preserve-scroll
                                 v-bind="tipProps"
                             >
