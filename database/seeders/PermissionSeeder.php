@@ -91,6 +91,10 @@ class PermissionSeeder extends Seeder
             ['module' => 'Cobranza', 'name' => 'billing-concepts.store', 'description' => 'Crear conceptos de cobro', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'billing-concepts.update', 'description' => 'Actualizar conceptos de cobro', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'billing-concepts.destroy', 'description' => 'Eliminar conceptos de cobro', 'contexts' => ['web']],
+            ['module' => 'Cobranza', 'name' => 'payment-methods.index', 'description' => 'Ver métodos de pago', 'contexts' => ['web']],
+            ['module' => 'Cobranza', 'name' => 'payment-methods.store', 'description' => 'Crear métodos de pago', 'contexts' => ['web']],
+            ['module' => 'Cobranza', 'name' => 'payment-methods.update', 'description' => 'Actualizar métodos de pago', 'contexts' => ['web']],
+            ['module' => 'Cobranza', 'name' => 'payment-methods.destroy', 'description' => 'Eliminar métodos de pago', 'contexts' => ['web']],
 
             // Cortes de caja
             ['module' => 'Cortes de caja', 'name' => 'cash-cuts.index', 'description' => 'Ver mis cortes de caja', 'contexts' => ['web']],

@@ -82,6 +82,11 @@ class AdminClubSeeder extends Seeder
             'billing-concepts.update',
             'billing-concepts.destroy',
 
+            'payment-methods.index',
+            'payment-methods.store',
+            'payment-methods.update',
+            'payment-methods.destroy',
+
             'surveys.index',
             'surveys.store',
             'surveys.create',

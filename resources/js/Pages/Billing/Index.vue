@@ -1330,11 +1330,11 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                 <v-col cols="12" lg="4">
                     <v-card>
                         <v-card-title
-                            >Metodos disponibles por parque</v-card-title
+                            >Métodos disponibles por parque</v-card-title
                         >
                         <v-card-subtitle>
                             Ambos parques pueden registrar cobros, pero cada
-                            cargo debe respetar los metodos habilitados para el
+                            cargo debe respetar los métodos habilitados para el
                             parque al que pertenece.
                         </v-card-subtitle>
 

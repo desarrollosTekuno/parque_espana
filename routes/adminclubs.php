@@ -28,6 +28,7 @@ use App\Http\Controllers\Web\AdminClub\LockerAssignmentController;
 use App\Http\Controllers\Web\AdminClub\LockerController;
 use App\Http\Controllers\Web\AdminClub\CashCutController;
 use App\Http\Controllers\Web\AdminClub\GlobalCashCutController;
+use App\Http\Controllers\Web\AdminClub\PaymentMethodController;
 use Illuminate\Support\Facades\Route;
 
 // amenities
@@ -59,6 +60,11 @@ Route::get('/global-cash-cuts/{globalCashCut}/export', [GlobalCashCutController:
 Route::resource('/billing-concepts', BillingConceptController::class)
     ->only(['index', 'store', 'update', 'destroy'])
     ->names('billing-concepts');
+Route::resource('/payment-methods', PaymentMethodController::class)
+    ->only(['index', 'store', 'update', 'destroy'])
+    ->names('payment-methods');
+Route::post('/payment-methods/{paymentMethod}/toggle-club', [PaymentMethodController::class, 'toggleClub'])
+    ->name('payment-methods.toggle-club');
 Route::resource('/pricing-rules', PricingRuleController::class)
     ->only(['index', 'store', 'update', 'destroy'])
     ->names('pricing-rules');

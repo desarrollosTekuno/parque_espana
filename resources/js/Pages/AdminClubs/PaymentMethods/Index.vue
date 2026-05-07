@@ -5,17 +5,19 @@ import { computed, ref, watch } from "vue";
 import { debounce } from "lodash";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import BaseButton from "@/Components/BaseButton.vue";
-
-interface BillingConceptItem {
+import { required, minLength,maxLength } from '../../../constants/validationRules';
+interface PaymentMethodItem {
     id: number;
     code: string;
     name: string;
     description: string | null;
-    default_amount: number | null;
-    club_amount: number | null;
-    is_recurring: boolean;
-    allows_partial_payments: boolean;
+    requires_reference: boolean;
+    requires_bank_name: boolean;
+    requires_check_number: boolean;
+    affects_cash_cut: boolean;
     is_active: boolean;
+    club_enabled: boolean;
+    club_display_order: number;
 }
 
 interface CurrentClub {
@@ -25,13 +27,13 @@ interface CurrentClub {
 }
 
 interface Props {
-    billingConcepts?: any;
+    paymentMethods?: any;
     currentClub?: CurrentClub | null;
     filters?: Record<string, string | number | null>;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-    billingConcepts: null,
+    paymentMethods: null,
     currentClub: null,
     filters: () => ({}),
 });
@@ -41,11 +43,11 @@ const can = page.props.auth.permissions;
 const showModal = ref(false);
 const formSendRef = ref();
 const loading = ref(false);
-const items = ref(props.billingConcepts?.data ?? []);
-const total = ref(props.billingConcepts?.total ?? 0);
+const items = ref(props.paymentMethods?.data ?? []);
+const total = ref(props.paymentMethods?.total ?? 0);
 const search = ref(String(props.filters?.search ?? ""));
 const activeFilter = ref(props.filters?.is_active ?? null);
-const prefix = "billingConcepts";
+const prefix = "paymentMethods";
 
 const options = ref({
     page: 1,
@@ -55,24 +57,19 @@ const options = ref({
 
 const headers = computed(() => [
     // { title: "ID", key: "id" },
-    { title: "Concepto", key: "name" },
-    { title: "Monto base", key: "default_amount" },
+    { title: "Método de pago", key: "name" },
+    { title: "Requisitos", key: "requirements", sortable: false },
+    { title: "Corte de caja", key: "affects_cash_cut", sortable: false },
+    { title: "Activo", key: "is_active", sortable: false },
     {
         title: props.currentClub?.code
-            ? `Monto ${props.currentClub.code}`
-            : "Monto del parque",
-        key: "club_amount",
+            ? `Habilitado en ${props.currentClub.code}`
+            : "Habilitado en club",
+        key: "club_enabled",
+        sortable: false,
     },
-    { title: "Configuración", key: "settings", sortable: false },
-    { title: "Activo", key: "is_active", sortable: false },
     { title: "Acciones", key: "actions", sortable: false },
 ]);
-
-const currencyFormatter = new Intl.NumberFormat("es-MX", {
-    style: "currency",
-    currency: "MXN",
-    maximumFractionDigits: 2,
-});
 
 const yesNoOptions = [
     { title: "Todos", value: null },
@@ -80,27 +77,27 @@ const yesNoOptions = [
     { title: "No", value: "false" },
 ];
 
-interface BillingConceptForm {
+interface PaymentMethodForm {
     id: number | null;
     code: string;
     name: string;
     description: string | null;
-    default_amount: string | number | null;
-    club_amount: string | number | null;
-    is_recurring: boolean;
-    allows_partial_payments: boolean;
+    requires_reference: boolean;
+    requires_bank_name: boolean;
+    requires_check_number: boolean;
+    affects_cash_cut: boolean;
     is_active: boolean;
 }
 
-const form = useForm<BillingConceptForm>({
+const form = useForm<PaymentMethodForm>({
     id: null,
     code: "",
     name: "",
     description: null,
-    default_amount: null,
-    club_amount: null,
-    is_recurring: false,
-    allows_partial_payments: false,
+    requires_reference: false,
+    requires_bank_name: false,
+    requires_check_number: false,
+    affects_cash_cut: true,
     is_active: true,
 });
 
@@ -111,10 +108,10 @@ const resetForm = () => {
     form.code = "";
     form.name = "";
     form.description = null;
-    form.default_amount = null;
-    form.club_amount = null;
-    form.is_recurring = false;
-    form.allows_partial_payments = false;
+    form.requires_reference = false;
+    form.requires_bank_name = false;
+    form.requires_check_number = false;
+    form.affects_cash_cut = true;
     form.is_active = true;
 };
 
@@ -123,16 +120,16 @@ const openCreate = () => {
     showModal.value = true;
 };
 
-const openEdit = (item: BillingConceptItem) => {
+const openEdit = (item: PaymentMethodItem) => {
     resetForm();
     form.id = item.id;
     form.code = item.code;
     form.name = item.name;
     form.description = item.description;
-    form.default_amount = item.default_amount;
-    form.club_amount = item.club_amount;
-    form.is_recurring = item.is_recurring;
-    form.allows_partial_payments = item.allows_partial_payments;
+    form.requires_reference = item.requires_reference;
+    form.requires_bank_name = item.requires_bank_name;
+    form.requires_check_number = item.requires_check_number;
+    form.affects_cash_cut = item.affects_cash_cut;
     form.is_active = item.is_active;
     showModal.value = true;
 };
@@ -142,15 +139,9 @@ const close = () => {
     showModal.value = false;
 };
 
-const formatAmount = (value: number | null) => {
-    return value === null ? "Sin definir" : currencyFormatter.format(value);
-};
-
 const save = () => {
     formSendRef.value?.validate().then(({ valid: isValid }: { valid: boolean }) => {
-        if (!isValid) {
-            return;
-        }
+        if (!isValid) return;
 
         const callbacks = {
             preserveScroll: true,
@@ -172,23 +163,21 @@ const save = () => {
         };
 
         if (form.id) {
-            form.put(route("billing-concepts.update", form.id), callbacks);
+            form.put(route("payment-methods.update", form.id), callbacks);
             return;
         }
 
-        form.post(route("billing-concepts.store"), callbacks);
+        form.post(route("payment-methods.store"), callbacks);
     });
 };
 
-const destroy = (item: BillingConceptItem) => {
+const destroy = (item: PaymentMethodItem) => {
     customConfirmSwal({
-        title: "¿Esta segur@ que desea eliminar este concepto de cobro?",
+        title: "¿Está segur@ que desea eliminar este método de pago?",
     }).then((result) => {
-        if (!result.isConfirmed) {
-            return;
-        }
+        if (!result.isConfirmed) return;
 
-        form.delete(route("billing-concepts.destroy", item.id), {
+        form.delete(route("payment-methods.destroy", item.id), {
             preserveScroll: true,
             onSuccess: () => {
                 customToastSwal({
@@ -208,6 +197,37 @@ const destroy = (item: BillingConceptItem) => {
     });
 };
 
+const toggleClub = (item: PaymentMethodItem) => {
+    const action = item.club_enabled ? "deshabilitar" : "habilitar";
+    customConfirmSwal({
+        title: `¿Desea ${action} "${item.name}" para este club?`,
+    }).then((result) => {
+        if (!result.isConfirmed) return;
+
+        router.post(
+            route("payment-methods.toggle-club", item.id),
+            { club_id: page.props.auth.currentClub },
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    customToastSwal({
+                        title: page.props.flash.success || "",
+                        icon: "success",
+                    });
+                    fetchItems();
+                },
+                onError: (errors: any) => {
+                    customToastSwal({
+                        title: `Error: ${errors.messageError}`,
+                        text: errors.exception ?? "",
+                        icon: "error",
+                    });
+                },
+            },
+        );
+    });
+};
+
 const fetchItems = () => {
     loading.value = true;
 
@@ -221,7 +241,7 @@ const fetchItems = () => {
         [`${prefix}_is_active`]: activeFilter.value,
     };
 
-    router.get(route("billing-concepts.index"), params, {
+    router.get(route("payment-methods.index"), params, {
         preserveState: true,
         replace: true,
         preserveScroll: true,
@@ -251,13 +271,13 @@ watch(
 </script>
 
 <template>
-    <Head title="Conceptos de cobro" />
+    <Head title="Métodos de pago" />
 
     <AppLayout>
-        <template #header>Conceptos de cobro</template>
+        <template #header>Métodos de pago</template>
         <template #options>
             <BaseButton
-                v-if="can.includes('billing-concepts.store')"
+                v-if="can.includes('payment-methods.store')"
                 variant="elevated"
                 :icon-only="false"
                 action="add"
@@ -274,7 +294,7 @@ watch(
                         variant="tonal"
                         class="mx-4 mt-4"
                     >
-                        Los montos por parque se editan sobre el club actual:
+                        La columna "Habilitado en club" indica si el método está disponible para
                         <strong>{{ currentClub.name }} ({{ currentClub.code }})</strong>.
                     </v-alert>
 
@@ -290,7 +310,7 @@ watch(
                         class="elevation-1"
                         :items-per-page-options="[10, 25, 50, 100]"
                         items-per-page-text="Mostrar"
-                        no-data-text="No hay conceptos de cobro para mostrar"
+                        no-data-text="No hay métodos de pago para mostrar"
                     >
                         <template #top>
                             <v-row class="px-4 pt-4">
@@ -322,35 +342,49 @@ watch(
                             </div>
                         </template>
 
-                        <template #item.default_amount="{ item }">
-                            {{ formatAmount(item.default_amount) }}
-                        </template>
-
-                        <template #item.club_amount="{ item }">
-                            {{ formatAmount(item.club_amount) }}
-                        </template>
-
-                        <template #item.settings="{ item }">
+                        <template #item.requirements="{ item }">
                             <div class="d-flex flex-wrap ga-1">
                                 <v-chip
+                                    v-if="item.requires_reference"
                                     size="small"
-                                    :color="item.is_recurring ? 'primary' : 'default'"
+                                    color="primary"
                                     variant="tonal"
                                 >
-                                    {{ item.is_recurring ? "Recurrente" : "No recurrente" }}
+                                    Referencia
                                 </v-chip>
                                 <v-chip
+                                    v-if="item.requires_bank_name"
                                     size="small"
-                                    :color="item.allows_partial_payments ? 'success' : 'default'"
+                                    color="secondary"
                                     variant="tonal"
                                 >
-                                    {{
-                                        item.allows_partial_payments
-                                            ? "Permite parcialidades"
-                                            : "Sin parcialidades"
-                                    }}
+                                    Banco
                                 </v-chip>
+                                <v-chip
+                                    v-if="item.requires_check_number"
+                                    size="small"
+                                    color="warning"
+                                    variant="tonal"
+                                >
+                                    No. cheque
+                                </v-chip>
+                                <span
+                                    v-if="!item.requires_reference && !item.requires_bank_name && !item.requires_check_number"
+                                    class="text-medium-emphasis text-caption"
+                                >
+                                    Sin requisitos
+                                </span>
                             </div>
+                        </template>
+
+                        <template #item.affects_cash_cut="{ item }">
+                            <v-chip
+                                size="small"
+                                :color="item.affects_cash_cut ? 'success' : 'default'"
+                                variant="tonal"
+                            >
+                                {{ item.affects_cash_cut ? "Sí" : "No" }}
+                            </v-chip>
                         </template>
 
                         <template #item.is_active="{ item }">
@@ -363,14 +397,26 @@ watch(
                             </v-chip>
                         </template>
 
+                        <template #item.club_enabled="{ item }">
+                            <v-chip
+                                size="small"
+                                :color="item.club_enabled ? 'success' : 'default'"
+                                variant="tonal"
+                                :class="can.includes('payment-methods.update') ? 'cursor-pointer' : ''"
+                                @click="can.includes('payment-methods.update') && toggleClub(item)"
+                            >
+                                {{ item.club_enabled ? "Habilitado" : "Deshabilitado" }}
+                            </v-chip>
+                        </template>
+
                         <template #item.actions="{ item }">
                             <BaseButton
-                                v-if="can.includes('billing-concepts.update')"
+                                v-if="can.includes('payment-methods.update')"
                                 action="edit"
                                 @click="openEdit(item)"
                             />
                             <BaseButton
-                                v-if="can.includes('billing-concepts.destroy')"
+                                v-if="can.includes('payment-methods.destroy')"
                                 action="delete"
                                 @click="destroy(item)"
                             />
@@ -380,19 +426,20 @@ watch(
             </v-row>
         </div>
 
-        <v-dialog v-model="showModal" max-width="760" persistent>
+        <v-dialog v-model="showModal" max-width="720" persistent>
             <v-form ref="formSendRef" @submit.prevent="save">
                 <v-card
-                    prepend-icon="mdi-receipt-text-outline"
-                    :title="`${form.id ? 'Editar concepto' : 'Nuevo concepto de cobro'}`"
+                    prepend-icon="mdi-credit-card-outline"
+                    :title="form.id ? 'Editar método de pago' : 'Nuevo método de pago'"
                 >
                     <v-card-text>
                         <v-row>
                             <v-col cols="12" md="4">
                                 <v-text-field
+                                    :disabled="form.id"
                                     v-model="form.code"
                                     label="Código"
-                                    :rules="[(value: unknown) => !!value || 'Campo requerido']"
+                                    :rules="[required, minLength(2), maxLength(20)]"
                                     :error-messages="form.errors.code"
                                 />
                             </v-col>
@@ -401,7 +448,7 @@ watch(
                                 <v-text-field
                                     v-model="form.name"
                                     label="Nombre"
-                                    :rules="[(value: unknown) => !!value || 'Campo requerido']"
+                                    :rules="[required, minLength(2), maxLength(50)]"
                                     :error-messages="form.errors.name"
                                 />
                             </v-col>
@@ -413,54 +460,55 @@ watch(
                                     rows="2"
                                     auto-grow
                                     :error-messages="form.errors.description"
+                                    :rules="[minLength(5), maxLength(255)]"
+                                />
+                            </v-col>
+
+                            <v-col cols="12">
+                                <div class="text-subtitle-2 mb-2">Requisitos al registrar un pago</div>
+                                <v-row>
+                                    <v-col cols="12" md="4">
+                                        <v-switch
+                                            v-model="form.requires_reference"
+                                            color="primary"
+                                            label="Requiere referencia"
+                                            hide-details
+                                        />
+                                    </v-col>
+                                    <v-col cols="12" md="4">
+                                        <v-switch
+                                            v-model="form.requires_bank_name"
+                                            color="secondary"
+                                            label="Requiere banco"
+                                            hide-details
+                                        />
+                                    </v-col>
+                                    <v-col cols="12" md="4">
+                                        <v-switch
+                                            v-model="form.requires_check_number"
+                                            color="warning"
+                                            label="Requiere no. cheque"
+                                            hide-details
+                                        />
+                                    </v-col>
+                                </v-row>
+                            </v-col>
+
+                            <v-col cols="12" md="6">
+                                <v-switch
+                                    v-model="form.affects_cash_cut"
+                                    color="success"
+                                    label="Afecta corte de caja"
+                                    hide-details
                                 />
                             </v-col>
 
                             <v-col cols="12" md="6">
-                                <v-text-field
-                                    v-model="form.default_amount"
-                                    label="Monto base"
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    :error-messages="form.errors.default_amount"
-                                />
-                            </v-col>
-
-                            <v-col cols="12" md="6">
-                                <v-text-field
-                                    v-model="form.club_amount"
-                                    :label="currentClub?.code ? `Monto ${currentClub.code}` : 'Monto del parque actual'"
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    hint="Si se deja vacio, se usa el monto base."
-                                    persistent-hint
-                                    :error-messages="form.errors.club_amount"
-                                />
-                            </v-col>
-
-                            <v-col cols="12" md="4">
-                                <v-switch
-                                    v-model="form.is_recurring"
-                                    color="primary"
-                                    label="Recurrente"
-                                />
-                            </v-col>
-
-                            <v-col cols="12" md="4">
-                                <v-switch
-                                    v-model="form.allows_partial_payments"
-                                    color="primary"
-                                    label="Permite parcialidades"
-                                />
-                            </v-col>
-
-                            <v-col cols="12" md="4">
                                 <v-switch
                                     v-model="form.is_active"
                                     color="success"
                                     label="Activo"
+                                    hide-details
                                 />
                             </v-col>
                         </v-row>

@@ -65,16 +65,12 @@ const routes: Routing[] = [
         value: "accesos-app",
         group: null,
     },
-    {
-        name: ["billing-concepts.index"],
-        title: "Conceptos de cobro",
-        icon: "mdi-receipt-text-outline",
-        value: "conceptos-cobro",
-        group: null,
-    },
+
     {
         name: [
             "billing.index",
+            "billing-concepts.index",
+            "payment-methods.index",
             "cash-cuts.index",
             "cash-cuts.show",
             "global-cash-cuts.index",
@@ -85,6 +81,18 @@ const routes: Routing[] = [
         value: "cobranzaMenu",
         group: "Cobranza",
         groupItems: [
+            {
+                name: "billing-concepts.index",
+                title: "Conceptos de cobro",
+                icon: "mdi-receipt-text-outline",
+                value: "conceptos-cobro",
+            },
+            {
+                name: "payment-methods.index",
+                title: "Métodos de pago",
+                icon: "mdi-credit-card-outline",
+                value: "metodos-pago",
+            },
             {
                 name: "billing.index",
                 title: "Cargos pendientes",
