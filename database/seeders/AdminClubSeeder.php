@@ -46,6 +46,18 @@ class AdminClubSeeder extends Seeder
             'blockedPeriods.store',
             'blockedPeriods.update',
             'blockedPeriods.destroy',
+            // document types
+            'document-types.index',
+            'document-types.store',
+            'document-types.update',
+            'document-types.destroy',
+
+            // membership types
+            'membership-types.index',
+            'membership-types.store',
+            'membership-types.update',
+            'membership-types.destroy',
+
             // pricing rules
             'pricing-rules.index',
             'pricing-rules.store',

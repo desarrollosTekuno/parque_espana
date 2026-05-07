@@ -31,6 +31,44 @@ const routes: Routing[] = [
     },
     {
         name: [
+            "membership-types.index",
+            "document-types.index",
+            "pricing-rules.index",
+            "interclub-package-rules.index",
+        ],
+        title: "Configuración de membresías",
+        icon: "mdi-cog-outline",
+        value: "configuracionMembresiasMenu",
+        group: "Configuración de membresías",
+        groupItems: [
+            {
+                name: "document-types.index",
+                title: "Tipos de documento",
+                icon: "mdi-file-document-outline",
+                value: "tipos-documento",
+            },
+            {
+                name: "membership-types.index",
+                title: "Tipos de membresía",
+                icon: "mdi-card-account-details-outline",
+                value: "tipos-membresia",
+            },
+            {
+                name: "pricing-rules.index",
+                title: "Reglas de precio",
+                icon: "mdi-currency-usd",
+                value: "reglas-precio",
+            },
+            {
+                name: "interclub-package-rules.index",
+                title: "Paquetes interclub",
+                icon: "mdi-swap-horizontal",
+                value: "paquetes-interclub",
+            },
+        ],
+    },
+    {
+        name: [
             "members.index",
             "members.create",
             "members.edit",
@@ -56,14 +94,13 @@ const routes: Routing[] = [
                 icon: "mdi-account-plus-outline",
                 value: "nueva-membresia",
             },
+            {
+                name: "member-access.index",
+                title: "Accesos App Móvil",
+                icon: "mdi-cellphone-key",
+                value: "accesos-app",
+            },
         ],
-    },
-    {
-        name: ["member-access.index"],
-        title: "Accesos App Móvil",
-        icon: "mdi-cellphone-key",
-        value: "accesos-app",
-        group: null,
     },
 
     {
@@ -233,21 +270,6 @@ const routes: Routing[] = [
         title: "Encuestas",
         icon: "mdi-clipboard-list-outline",
         value: "encuestas",
-        group: null,
-    },
-
-    {
-        name: ["pricing-rules.index"],
-        title: "Reglas de precio",
-        icon: "mdi-currency-usd",
-        value: "reglas-precio",
-        group: null,
-    },
-    {
-        name: ["interclub-package-rules.index"],
-        title: "Paquetes interclub",
-        icon: "mdi-swap-horizontal",
-        value: "paquetes-interclub",
         group: null,
     },
 

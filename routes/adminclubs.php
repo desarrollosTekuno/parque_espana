@@ -28,6 +28,8 @@ use App\Http\Controllers\Web\AdminClub\LockerAssignmentController;
 use App\Http\Controllers\Web\AdminClub\LockerController;
 use App\Http\Controllers\Web\AdminClub\CashCutController;
 use App\Http\Controllers\Web\AdminClub\GlobalCashCutController;
+use App\Http\Controllers\Web\AdminClub\DocumentTypeController;
+use App\Http\Controllers\Web\AdminClub\MembershipTypeController;
 use App\Http\Controllers\Web\AdminClub\PaymentMethodController;
 use Illuminate\Support\Facades\Route;
 
@@ -68,6 +70,12 @@ Route::post('/payment-methods/{paymentMethod}/toggle-club', [PaymentMethodContro
 Route::resource('/pricing-rules', PricingRuleController::class)
     ->only(['index', 'store', 'update', 'destroy'])
     ->names('pricing-rules');
+Route::resource('/membership-types', MembershipTypeController::class)
+    ->only(['index', 'store', 'update', 'destroy'])
+    ->names('membership-types');
+Route::resource('/document-types', DocumentTypeController::class)
+    ->only(['index', 'store', 'update', 'destroy'])
+    ->names('document-types');
 Route::resource('/interclub-package-rules', InterclubPackageRuleController::class)
     ->only(['index', 'store', 'update', 'destroy'])
     ->names('interclub-package-rules');
