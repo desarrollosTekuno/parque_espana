@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Services\Reservation\Rules;
+namespace App\Services\GuestList\Rules;
 
 use App\Services\GuestList\Context\GuestListContext;
 
-interface GuestList
+interface GuestListRule
 {
     public function validate(GuestListContext $context): void;
 }

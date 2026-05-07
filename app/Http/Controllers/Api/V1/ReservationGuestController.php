@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Exceptions\BusinessRuleException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreGuestListRequest;
 use App\Models\AdminClub\ReservationGuestList;
 use App\Models\AdminClub\ReservationGuestListItem;
 use App\Rules\ExistsInSchema;
+use App\Services\GuestList\Context\GuestListContext;
+use App\Services\GuestList\Validators\CreateGuestListValidator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -27,35 +30,34 @@ class ReservationGuestController extends Controller {
         DB::beginTransaction();
         try {
 
+            $validator = new CreateGuestListValidator();
+
             $validated = $request->validated();
 
-            // precio de adultos y niños, cambia por club
-            $adultCost = 300;
-            $childCost = 150;
+            $context = new GuestListContext(
+                data: $validated
+            );
+            $validator->validate($context);
 
-            
-
-            $guests = $validated['guests'];
-            $totalGuests = count($guests);
-            $totalAdults = count(array_filter($guests, function($guest) {
-                return $guest['age'] > 7;
-            }));
-            $totalChildren = $totalGuests - $totalAdults;
-            $subtotal = $adultCost * $totalAdults + $childCost * $totalChildren;
+            $data = $this->priceCalculator($validated);
 
             $guestList = ReservationGuestList::create([
                 'status' => ReservationGuestList::PENDING,
-                'total_guests' => $totalGuests,
-                'total_adults' => $totalAdults,
-                'total_children' => $totalChildren,
-                'subtotal' => $subtotal,
-                'reservation_id' => $validated['reservation_id'],
+                'total_guests' => $data['total_guests'],
+                'total_adults' => $data['total_normal_guests'],
+                'total_children' => $data['total_special_guests'],
+                'subtotal' => $data['subtotal'],
+                'reservation_id' => $validated['reservation_id'] ?? null,
+                'club_id' => $validated['club_id'],
                 'user_id' => $request->user()->id,
             ]);
 
-            foreach ($guests as $guest) {
+            foreach ($validated['guests'] as $guest) {
                 ReservationGuestListItem::create([
                     'name' => $guest['name'],
+                    'last_name' => $guest['last_name'],
+                    'email' => $guest['email'],
+                    'phone' => $guest['phone'],
                     'age' => $guest['age'],
                     'guest_list_id' => $guestList->id
                 ]);
@@ -67,6 +69,12 @@ class ReservationGuestController extends Controller {
                 'message' => 'Lista de invitados creada correctamente'
             ], 200);
 
+        } catch (BusinessRuleException $e){
+            return response()->json([
+                'success' => false,
+                'error' => 'Error de regla',
+                'error_details' => $e->getMessage()
+            ]);
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
@@ -74,5 +82,31 @@ class ReservationGuestController extends Controller {
                 'error_details' => $e->getMessage()
             ], 500);
         }
+    }
+
+    public function priceCalculator(array $data)
+    {
+        $club_id = $data['club_id'];
+        $guests = $data['guests'];
+
+        $normalPrice = $club_id == 1 ? 300 : 400; // Invitados de 7 años o más
+        $specialPrice = $club_id == 1 ? 150 : 200; // Invitados de 3 a 6 años
+
+        $totalGuests = count($guests);
+        $totalNormalGuests = count(array_filter($guests, function($guest) {
+            return $guest['age'] >= 7;
+        }));
+        $totalSpecialGuests = count(array_filter($guests, function($guest) {
+            return $guest['age'] >= 3 && $guest['age'] < 7;
+        }));
+
+        $subtotal = $normalPrice * $totalNormalGuests + $specialPrice * $totalSpecialGuests;
+
+        return [
+            'total_guests' => $totalGuests,
+            'total_normal_guests' => $totalNormalGuests,
+            'total_special_guests' => $totalSpecialGuests,
+            'subtotal' => $subtotal
+        ];
     }
 }

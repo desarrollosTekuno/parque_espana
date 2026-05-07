@@ -3,6 +3,7 @@
 namespace App\Services\GuestList\Validators;
 
 use App\Services\GuestList\Context\GuestListContext;
+use App\Services\GuestList\Rules\MaxGuestsRule;
 
 class CreateGuestListValidator
 {
@@ -11,7 +12,7 @@ class CreateGuestListValidator
     public function __construct()
     {
         $this->rules = [
-
+            new MaxGuestsRule(),
         ];
     }
 
