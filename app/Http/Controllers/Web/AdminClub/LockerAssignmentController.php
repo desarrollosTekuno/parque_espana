@@ -10,6 +10,7 @@ use App\Models\Members\Locker;
 use App\Models\Billing\Charge;
 use App\Models\Billing\ChargeConcept;
 use App\Models\Members\Member;
+use App\Models\Members\LockerAssignment;
 use App\Models\Memberships\Membership;
 use App\Models\Memberships\MembershipAccount;
 
@@ -115,4 +116,30 @@ class LockerAssignmentController extends Controller
                 ->with('success', 'Casillero asignado correctamente');
         });
     }
+
+    public function remove(LockerAssignment $assignment)
+    {
+        try {
+           /* if ($assignment->locker->club_id != 2) {
+
+                return back()->withErrors([
+                    'locker' => 'Solo Parque 2 puede dar de baja casilleros.'
+                ]);
+            }*/
+            DB::transaction(function () use ($assignment) {
+                $assignment->locker->update([
+                    'status' => 'disponible'
+                ]);
+                $assignment->delete();
+            });
+
+            return back();
+        } catch (\Exception $e) {
+            report($e);
+            return back()->withErrors([
+                'locker' => 'Error al dar de baja el casillero.'
+            ]);
+        }
+    }
+    
 }
