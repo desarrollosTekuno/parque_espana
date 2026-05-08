@@ -19,12 +19,12 @@ class TestEmailMailable extends Mailable
 
     public function build(): self
     {
-        $html = '<h2>Prueba de correo SMTP</h2>'
-            . '<p><strong>Entidad:</strong> ' . e((string) $this->entityId) . '</p>'
-            . '<p>' . nl2br(e($this->messageText)) . '</p>';
-
         return $this
             ->subject($this->subjectText)
-            ->html($html);
+            ->view('emails.test_email', [
+                'subjectText' => $this->subjectText,
+                'messageText' => $this->messageText,
+                'entityId' => $this->entityId,
+            ]);
     }
 }
