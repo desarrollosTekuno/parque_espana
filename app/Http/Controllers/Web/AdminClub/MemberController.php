@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Administrator\Club;
 use App\Models\Catalogs\City;
 use App\Models\Catalogs\Country;
+use App\Models\Catalogs\DocumentType;
 use App\Models\Catalogs\MaritalStatus;
 use App\Models\Catalogs\Relationship;
 use App\Models\Catalogs\State;
@@ -1587,9 +1588,10 @@ class MemberController extends Controller
                 : [];
 
             // Collect [member_id => documents[]] inside the transaction to upload after commit
-            $savedMemberDocuments = [];
+            $savedMemberDocuments    = [];
+            $savedMembershipAccount  = null;
 
-            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership, $sameClubTransition, $sourceAccountMembersById, $reusableSourceMemberIds, &$savedMemberDocuments) {
+            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership, $sameClubTransition, $sourceAccountMembersById, $reusableSourceMemberIds, &$savedMemberDocuments, &$savedMembershipAccount) {
                 $sourceAccount = $sourceMembership?->account;
 
                 $membershipAccount = $sameClubTransition
@@ -1603,6 +1605,8 @@ class MemberController extends Controller
                         status: 'pending',
                         accountGroup: $sourceAccount?->accountGroup
                     );
+
+                $savedMembershipAccount = $membershipAccount;
 
                 $submittedMemberIds = [];
 
@@ -1825,8 +1829,12 @@ class MemberController extends Controller
                 }
             });
 
-            // ── Upload documents to SFTP after transaction commits ────────────
-            $this->uploadMemberDocuments($savedMemberDocuments);
+            // ── Upload documents to Spaces after transaction commits ──────────
+            $this->uploadMemberDocuments(
+                clubCode:         $club->code,
+                membershipNumber: $savedMembershipAccount->membership_number,
+                memberDocuments:  $savedMemberDocuments,
+            );
 
             return redirect()
                 ->back()
@@ -1842,16 +1850,23 @@ class MemberController extends Controller
     }
 
     /**
-     * Upload member documents to SFTP and persist records in members.documents.
+     * Upload member documents to Spaces and persist records in members.documents.
      * File failures are logged but do not abort the response.
+     *
+     * Path: {club_code}/{membership_number}/{member_id}/{document_type_slug}/{uuid}.{ext}
      *
      * @param array<int, array> $memberDocuments  [member_id => documents[]]
      */
-    protected function uploadMemberDocuments(array $memberDocuments): void
-    {
+    protected function uploadMemberDocuments(
+        string $clubCode,
+        string $membershipNumber,
+        array  $memberDocuments,
+    ): void {
         if (empty($memberDocuments)) {
             return;
         }
+
+        $docTypeSlugCache = [];
 
         foreach ($memberDocuments as $memberId => $documents) {
             foreach ($documents as $docData) {
@@ -1862,6 +1877,16 @@ class MemberController extends Controller
                     continue;
                 }
 
+                if (!isset($docTypeSlugCache[$documentTypeId])) {
+                    $docType = DocumentType::find($documentTypeId);
+                    $docTypeSlugCache[$documentTypeId] = $docType
+                        ? Str::slug($docType->name)
+                        : (string) $documentTypeId;
+                }
+
+                $docTypeSlug = $docTypeSlugCache[$documentTypeId];
+                $directory   = "{$clubCode}/{$membershipNumber}/{$memberId}/{$docTypeSlug}";
+
                 foreach ($files as $file) {
                     if (!($file instanceof \Illuminate\Http\UploadedFile)) {
                         continue;
@@ -1869,9 +1894,7 @@ class MemberController extends Controller
 
                     try {
                         $extension = $file->getClientOriginalExtension();
-                        $baseName  = Str::slug(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME));
-                        $filename  = now()->format('YmdHis') . '_' . $baseName . '.' . $extension;
-                        $directory = "members/{$memberId}/{$documentTypeId}";
+                        $filename  = Str::uuid() . '.' . $extension;
 
                         $uploaded = Storage::disk('spaces')->putFileAs($directory, $file, $filename);
 
