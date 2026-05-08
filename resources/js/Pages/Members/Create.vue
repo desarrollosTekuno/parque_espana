@@ -1202,6 +1202,7 @@ const submit = () => {
     }));
 
     form.post(route("members.store"), {
+        forceFormData: true,
         preserveScroll: true,
         onSuccess: () => {
             customToastSwal({
