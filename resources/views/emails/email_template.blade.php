@@ -7,7 +7,7 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            background-color: #f7f7f7;
+            background-color: #f5f8fb;
             margin: 0;
             padding: 0;
         }
@@ -20,7 +20,7 @@
             overflow: hidden;
         }
         .email-header {
-            background-color: #7d2447;
+            background: linear-gradient(90deg, #0097b2, #004aad);
             color: #ffffff;
             text-align: center;
             padding: 15px;
@@ -38,7 +38,8 @@
             margin-bottom: 20px;
         }
         .email-footer {
-            background-color: #f1f1f1;
+            background-color: #eef2f7;
+            border-top: 3px solid #d4172a;
             padding: 15px;
             text-align: center;
             font-size: 14px;
@@ -48,7 +49,7 @@
             display: inline-block;
             padding: 10px 15px;
             color: #ffffff !important;
-            background-color: #7d2447;
+            background-color: #0097b2;
             text-decoration: none;
             border-radius: 5px;
         }
