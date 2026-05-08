@@ -28,6 +28,9 @@ use App\Http\Controllers\Web\AdminClub\LockerAssignmentController;
 use App\Http\Controllers\Web\AdminClub\LockerController;
 use App\Http\Controllers\Web\AdminClub\CashCutController;
 use App\Http\Controllers\Web\AdminClub\GlobalCashCutController;
+use App\Http\Controllers\Web\AdminClub\DocumentTypeController;
+use App\Http\Controllers\Web\AdminClub\MembershipTypeController;
+use App\Http\Controllers\Web\AdminClub\PaymentMethodController;
 use Illuminate\Support\Facades\Route;
 
 // amenities
@@ -59,9 +62,20 @@ Route::get('/global-cash-cuts/{globalCashCut}/export', [GlobalCashCutController:
 Route::resource('/billing-concepts', BillingConceptController::class)
     ->only(['index', 'store', 'update', 'destroy'])
     ->names('billing-concepts');
+Route::resource('/payment-methods', PaymentMethodController::class)
+    ->only(['index', 'store', 'update', 'destroy'])
+    ->names('payment-methods');
+Route::post('/payment-methods/{paymentMethod}/toggle-club', [PaymentMethodController::class, 'toggleClub'])
+    ->name('payment-methods.toggle-club');
 Route::resource('/pricing-rules', PricingRuleController::class)
     ->only(['index', 'store', 'update', 'destroy'])
     ->names('pricing-rules');
+Route::resource('/membership-types', MembershipTypeController::class)
+    ->only(['index', 'store', 'update', 'destroy'])
+    ->names('membership-types');
+Route::resource('/document-types', DocumentTypeController::class)
+    ->only(['index', 'store', 'update', 'destroy'])
+    ->names('document-types');
 Route::resource('/interclub-package-rules', InterclubPackageRuleController::class)
     ->only(['index', 'store', 'update', 'destroy'])
     ->names('interclub-package-rules');
@@ -152,6 +166,10 @@ Route::get('/lockers/available', [LockerController::class, 'available'])
     ->name('lockers.available');
 Route::post('/lockers', [LockerAssignmentController::class, 'reserve'])
         ->name('members.lockers.reserve');
+Route::delete('/members/lockers/{id}/cancel',[LockerController::class, 'cancel'])
+        ->name('members.lockers.cancel');
+Route::delete('/members/lockers/{assignment}/remove', [LockerAssignmentController::class, 'remove'])
+        ->name('members.lockers.remove');
 
 // Acts
 Route::prefix('acts')->group(function () {

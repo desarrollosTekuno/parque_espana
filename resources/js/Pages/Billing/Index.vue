@@ -678,74 +678,113 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                 confusiones al cobrar.
             </v-alert>
 
-            <v-row>
-                <v-col cols="12" sm="6" xl="3">
-                    <v-card color="primary" variant="tonal">
-                        <v-card-text>
-                            <div class="text-caption text-medium-emphasis">
-                                Saldo total pendiente
-                            </div>
-                            <div class="text-h5 font-weight-bold mt-2">
-                                {{ formatCurrency(summary.total_outstanding) }}
-                            </div>
-                        </v-card-text>
-                    </v-card>
+            <v-row align="stretch">
+                <v-col cols="12" lg="7" class="d-flex">
+                    <v-row class="flex-grow-1">
+                        <v-col cols="12" sm="6">
+                            <v-card color="primary" variant="tonal" height="100%">
+                                <v-card-text class="py-3">
+                                    <div class="text-caption text-medium-emphasis">
+                                        Saldo total pendiente
+                                    </div>
+                                    <div class="text-h6 font-weight-bold mt-2">
+                                        {{ formatCurrency(summary.total_outstanding) }}
+                                    </div>
+                                </v-card-text>
+                            </v-card>
+                        </v-col>
+                        <v-col cols="12" sm="6">
+                            <v-card color="error" variant="tonal" height="100%">
+                                <v-card-text class="py-3">
+                                    <div class="text-caption text-medium-emphasis">
+                                        Saldo vencido
+                                    </div>
+                                    <div class="text-h6 font-weight-bold mt-2">
+                                        {{
+                                            formatCurrency(summary.overdue_outstanding)
+                                        }}
+                                    </div>
+                                </v-card-text>
+                            </v-card>
+                        </v-col>
+                        <v-col cols="12" sm="6">
+                            <v-card color="secondary" variant="tonal" height="100%">
+                                <v-card-text class="py-3">
+                                    <div class="text-caption text-medium-emphasis">
+                                        Inscripciones pendientes
+                                    </div>
+                                    <div class="text-h6 font-weight-bold mt-2">
+                                        {{
+                                            formatCurrency(
+                                                summary.inscription_outstanding,
+                                            )
+                                        }}
+                                    </div>
+                                </v-card-text>
+                            </v-card>
+                        </v-col>
+                        <v-col cols="12" sm="6">
+                            <v-card color="success" variant="tonal" height="100%">
+                                <v-card-text class="py-3">
+                                    <div class="text-caption text-medium-emphasis">
+                                        Cuentas con saldo
+                                    </div>
+                                    <div class="text-h6 font-weight-bold mt-2">
+                                        {{ summary.accounts_with_balance }}
+                                    </div>
+                                    <div class="text-caption text-medium-emphasis mt-1">
+                                        Mensualidades:
+                                        {{
+                                            formatCurrency(summary.monthly_outstanding)
+                                        }}
+                                    </div>
+                                </v-card-text>
+                            </v-card>
+                        </v-col>
+                    </v-row>
                 </v-col>
+                <v-col cols="12" lg="5">
+                    <v-card height="100%">
+                        <v-card-title
+                            >Métodos disponibles por parque</v-card-title
+                        >
+                        <v-card-subtitle>
+                            Ambos parques pueden registrar cobros, pero cada
+                            cargo debe respetar los metodos habilitados para el
+                            parque al que pertenece.
+                        </v-card-subtitle>
 
-                <v-col cols="12" sm="6" xl="3">
-                    <v-card color="error" variant="tonal">
-                        <v-card-text>
-                            <div class="text-caption text-medium-emphasis">
-                                Saldo vencido
-                            </div>
-                            <div class="text-h5 font-weight-bold mt-2">
-                                {{
-                                    formatCurrency(summary.overdue_outstanding)
-                                }}
-                            </div>
-                        </v-card-text>
-                    </v-card>
-                </v-col>
+                        <v-card-text class="d-flex flex-column ga-3 py-3">
+                            <v-card
+                                v-for="club in clubPaymentMethods"
+                                :key="club.id"
+                                variant="outlined"
+                            >
+                                <v-card-text class=" py-3">
+                                    <div class="font-weight-bold">
+                                        {{ club.code }} - {{ club.name }}
+                                    </div>
 
-                <v-col cols="12" sm="6" xl="3">
-                    <v-card color="secondary" variant="tonal">
-                        <v-card-text>
-                            <div class="text-caption text-medium-emphasis">
-                                Inscripciones pendientes
-                            </div>
-                            <div class="text-h5 font-weight-bold mt-2">
-                                {{
-                                    formatCurrency(
-                                        summary.inscription_outstanding,
-                                    )
-                                }}
-                            </div>
-                        </v-card-text>
-                    </v-card>
-                </v-col>
-
-                <v-col cols="12" sm="6" xl="3">
-                    <v-card color="success" variant="tonal">
-                        <v-card-text>
-                            <div class="text-caption text-medium-emphasis">
-                                Cuentas con saldo
-                            </div>
-                            <div class="text-h5 font-weight-bold mt-2">
-                                {{ summary.accounts_with_balance }}
-                            </div>
-                            <div class="text-caption text-medium-emphasis mt-1">
-                                Mensualidades:
-                                {{
-                                    formatCurrency(summary.monthly_outstanding)
-                                }}
-                            </div>
+                                    <div class="d-flex flex-wrap ga-2 mt-3">
+                                        <v-chip
+                                            v-for="method in club.payment_methods"
+                                            :key="method.id"
+                                            size="small"
+                                            color="success"
+                                            variant="tonal"
+                                        >
+                                            {{ method.name }}
+                                        </v-chip>
+                                    </div>
+                                </v-card-text>
+                            </v-card>
                         </v-card-text>
                     </v-card>
                 </v-col>
             </v-row>
 
             <v-row>
-                <v-col cols="12" lg="8">
+                <v-col cols="12" lg="12">
                     <v-card class="overflow-hidden">
                         <v-data-table-server
                             v-model:options="options"
@@ -775,7 +814,7 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                                             />
                                         </v-col>
 
-                                        <v-col cols="12" md="4">
+                                        <v-col cols="12" md="6">
                                             <v-select
                                                 v-model="selectedClubId"
                                                 :items="clubFilterItems"
@@ -1326,45 +1365,6 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                         </v-data-table-server>
                     </v-card>
                 </v-col>
-
-                <v-col cols="12" lg="4">
-                    <v-card>
-                        <v-card-title
-                            >Metodos disponibles por parque</v-card-title
-                        >
-                        <v-card-subtitle>
-                            Ambos parques pueden registrar cobros, pero cada
-                            cargo debe respetar los metodos habilitados para el
-                            parque al que pertenece.
-                        </v-card-subtitle>
-
-                        <v-card-text class="d-flex flex-column ga-3">
-                            <v-card
-                                v-for="club in clubPaymentMethods"
-                                :key="club.id"
-                                variant="outlined"
-                            >
-                                <v-card-text>
-                                    <div class="font-weight-bold">
-                                        {{ club.code }} - {{ club.name }}
-                                    </div>
-
-                                    <div class="d-flex flex-wrap ga-2 mt-3">
-                                        <v-chip
-                                            v-for="method in club.payment_methods"
-                                            :key="method.id"
-                                            size="small"
-                                            color="success"
-                                            variant="tonal"
-                                        >
-                                            {{ method.name }}
-                                        </v-chip>
-                                    </div>
-                                </v-card-text>
-                            </v-card>
-                        </v-card-text>
-                    </v-card>
-                </v-col>
             </v-row>
         </div>
 
@@ -1385,7 +1385,7 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                         <v-row v-if="selectedPaymentAccount">
                             <v-col cols="12" md="4">
                                 <v-card variant="tonal" color="primary">
-                                    <v-card-text>
+                                    <v-card-text class="py-3">
                                         <div
                                             class="text-caption text-medium-emphasis"
                                         >

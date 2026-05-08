@@ -71,6 +71,18 @@ class PermissionSeeder extends Seeder
             ['module' => 'Sistema', 'name' => 'interclub-package-rules.update', 'description' => 'Actualizar paquetes interclub', 'contexts' => ['web']],
             ['module' => 'Sistema', 'name' => 'interclub-package-rules.destroy', 'description' => 'Eliminar paquetes interclub', 'contexts' => ['web']],
 
+            // Tipos de documento
+            ['module' => 'Membresías', 'name' => 'document-types.index', 'description' => 'Ver tipos de documento', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'document-types.store', 'description' => 'Crear tipos de documento', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'document-types.update', 'description' => 'Actualizar tipos de documento', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'document-types.destroy', 'description' => 'Eliminar tipos de documento', 'contexts' => ['web']],
+
+            // Tipos de membresía
+            ['module' => 'Membresías', 'name' => 'membership-types.index', 'description' => 'Ver tipos de membresía', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'membership-types.store', 'description' => 'Crear tipos de membresía', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'membership-types.update', 'description' => 'Actualizar tipos de membresía', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'membership-types.destroy', 'description' => 'Eliminar tipos de membresía', 'contexts' => ['web']],
+
             // Membresías
             ['module' => 'Membresías', 'name' => 'members.index', 'description' => 'Ver usuarios del club', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.create', 'description' => 'Crear usuarios del club', 'contexts' => ['web']],
@@ -91,6 +103,10 @@ class PermissionSeeder extends Seeder
             ['module' => 'Cobranza', 'name' => 'billing-concepts.store', 'description' => 'Crear conceptos de cobro', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'billing-concepts.update', 'description' => 'Actualizar conceptos de cobro', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'billing-concepts.destroy', 'description' => 'Eliminar conceptos de cobro', 'contexts' => ['web']],
+            ['module' => 'Cobranza', 'name' => 'payment-methods.index', 'description' => 'Ver métodos de pago', 'contexts' => ['web']],
+            ['module' => 'Cobranza', 'name' => 'payment-methods.store', 'description' => 'Crear métodos de pago', 'contexts' => ['web']],
+            ['module' => 'Cobranza', 'name' => 'payment-methods.update', 'description' => 'Actualizar métodos de pago', 'contexts' => ['web']],
+            ['module' => 'Cobranza', 'name' => 'payment-methods.destroy', 'description' => 'Eliminar métodos de pago', 'contexts' => ['web']],
 
             // Cortes de caja
             ['module' => 'Cortes de caja', 'name' => 'cash-cuts.index', 'description' => 'Ver mis cortes de caja', 'contexts' => ['web']],
