@@ -13,7 +13,8 @@ class TestEmailMailable extends Mailable
     public function __construct(
         public string $subjectText,
         public string $messageText,
-        public int $entityId
+        public int $entityId,
+        public string $templateName = 'emails.email_template'
     ) {
     }
 
@@ -25,6 +26,22 @@ class TestEmailMailable extends Mailable
                 'subjectText' => $this->subjectText,
                 'messageText' => $this->messageText,
                 'entityId' => $this->entityId,
+                'templateView' => $this->resolveTemplateView(),
             ]);
+    }
+
+    private function resolveTemplateView(): string
+    {
+        $template = trim($this->templateName);
+
+        if ($template === '') {
+            return 'emails.email_template';
+        }
+
+        if (str_contains($template, '.')) {
+            return $template;
+        }
+
+        return 'emails.' . $template;
     }
 }

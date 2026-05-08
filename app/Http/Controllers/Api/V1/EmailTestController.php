@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\SendTestEmailRequest;
 use App\Mail\TestEmailMailable;
 use App\Models\Administrator\Club;
+use App\Models\Notifications\EmailConfig;
 use App\Services\Email\MailService;
 use Throwable;
 
@@ -25,11 +26,15 @@ class EmailTestController extends Controller
 
             $subject = $data['subject'] ?? 'Correo de prueba SMTP';
             $message = $data['message'] ?? 'Este es un correo de prueba enviado con configuracion SMTP dinamica.';
+            $templateName = EmailConfig::query()
+                ->where('entity_id', (int) $data['entity_id'])
+                ->where('is_active', true)
+                ->value('template_name') ?? 'emails.email_template';
 
             $mailService->send(
                 entityId: (int) $data['entity_id'],
                 to: $data['to'],
-                mailable: new TestEmailMailable($subject, $message, (int) $data['entity_id'])
+                mailable: new TestEmailMailable($subject, $message, (int) $data['entity_id'], $templateName)
             );
 
             return response()->json([
