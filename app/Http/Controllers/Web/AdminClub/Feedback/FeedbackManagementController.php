@@ -7,6 +7,7 @@ use App\Models\Feedback\Comment;
 use App\Models\Feedback\Status;
 use App\Models\Feedback\StatusHistory;
 use App\Models\Feedback\Ticket;
+use App\Services\Feedback\FeedbackNotificationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
@@ -88,7 +89,7 @@ class FeedbackManagementController extends Controller {
         ]);
     }
 
-    public function update(Request $request, Ticket $feedback) {
+    public function update(Request $request, Ticket $feedback, FeedbackNotificationService $feedbackNotificationService) {
         $validated = $request->validate([
             'action' => 'required|string',
             'rejection_reason' => 'required_if:action,reject|string|max:1000',
@@ -115,6 +116,12 @@ class FeedbackManagementController extends Controller {
                     'comment' => $validated['comment'],
                     'is_internal' => (bool) ($validated['is_internal'] ?? false),
                 ]);
+
+                try {
+                    $feedbackNotificationService->notifyCommentAdded($feedback, (bool) ($validated['is_internal'] ?? false), Auth::id());
+                } catch (\Throwable $notificationError) {
+                    report($notificationError);
+                }
 
                 return back()->with('success', 'Comentario agregado correctamente.');
             }
@@ -178,6 +185,13 @@ class FeedbackManagementController extends Controller {
                     }
                 });
 
+                try {
+                    $feedback->loadMissing('status:id,name');
+                    $feedbackNotificationService->notifyStatusChanged($feedback, (string) $newStatus->name, Auth::id());
+                } catch (\Throwable $notificationError) {
+                    report($notificationError);
+                }
+
                 return back()->with('success', 'Estatus actualizado correctamente.');
             }
 
@@ -214,6 +228,13 @@ class FeedbackManagementController extends Controller {
                     'is_internal' => true,
                 ]);
             });
+
+            try {
+                $feedback->loadMissing('status:id,name');
+                $feedbackNotificationService->notifyStatusChanged($feedback, (string) $rejectedStatus->name, Auth::id());
+            } catch (\Throwable $notificationError) {
+                report($notificationError);
+            }
 
             return back()->with('success', 'Ticket rechazado correctamente.');
         } catch (\Exception $e) {
