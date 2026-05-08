@@ -404,7 +404,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                     v-model="form.description"
                                     label="Descripción"
                                     rows="4"
-                                    :rules="[required]"
+                                    :rules="[required, maxLength(350)]"
                                 />
                             </v-col>
 
@@ -454,11 +454,11 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                     hint="Puedes seleccionar varios archivos a la vez (Ctrl + clic en Windows o Cmd + clic en Mac). También puedes arrastrar y soltar varios archivos aquí."
                                     persistent-hint
                                     prepend-icon="mdi-paperclip"
-                                    accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx"
+                                    accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.tif,.tiff,.svg"
                                     :rules="[
                                         fileMaxCountRule(5),
-                                        fileTypeRule(['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx', 'xls', 'xlsx']),
-                                        fileMaxSizeRule(10),
+                                        fileTypeRule(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tif', 'tiff', 'svg']),
+                                        fileMaxSizeRule(2),
                                     ]"
                                 />
                             </v-col>
