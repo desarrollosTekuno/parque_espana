@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SendTestEmailRequest;
 use App\Mail\TestEmailMailable;
+use App\Models\Administrator\Club;
 use App\Services\Email\MailService;
 use Throwable;
 
@@ -14,6 +15,13 @@ class EmailTestController extends Controller
     {
         try {
             $data = $request->validated();
+
+            if (! Club::query()->whereKey($data['entity_id'])->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'La entidad indicada no existe',
+                ], 422);
+            }
 
             $subject = $data['subject'] ?? 'Correo de prueba SMTP';
             $message = $data['message'] ?? 'Este es un correo de prueba enviado con configuracion SMTP dinamica.';

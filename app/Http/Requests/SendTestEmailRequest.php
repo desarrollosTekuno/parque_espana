@@ -16,7 +16,7 @@ class SendTestEmailRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'entity_id' => ['required', 'integer', 'exists:clubs.clubs,id'],
+            'entity_id' => ['required', 'integer'],
             'to' => ['required', 'email'],
             'subject' => ['nullable', 'string', 'max:255'],
             'message' => ['nullable', 'string', 'max:2000'],
