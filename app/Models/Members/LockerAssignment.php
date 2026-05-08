@@ -3,11 +3,13 @@
 namespace App\Models\Members;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class LockerAssignment extends Model
 {
     use HasFactory;
+    use SoftDeletes;
 
     protected $table = 'members.locker_assignments';
 

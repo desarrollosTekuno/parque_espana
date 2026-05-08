@@ -166,6 +166,10 @@ Route::get('/lockers/available', [LockerController::class, 'available'])
     ->name('lockers.available');
 Route::post('/lockers', [LockerAssignmentController::class, 'reserve'])
         ->name('members.lockers.reserve');
+Route::delete('/members/lockers/{id}/cancel',[LockerController::class, 'cancel'])
+        ->name('members.lockers.cancel');
+Route::delete('/members/lockers/{assignment}/remove', [LockerAssignmentController::class, 'remove'])
+        ->name('members.lockers.remove');
 
 // Acts
 Route::prefix('acts')->group(function () {
