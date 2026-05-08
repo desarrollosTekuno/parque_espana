@@ -10,10 +10,9 @@ use App\Models\Notifications\EmailConfig;
 use App\Services\Email\MailService;
 use Throwable;
 
-class EmailTestController extends Controller
-{
-    public function send(SendTestEmailRequest $request, MailService $mailService)
-    {
+class EmailTestController extends Controller   {
+
+    public function send(SendTestEmailRequest $request, MailService $mailService) {
         try {
             $data = $request->validated();
 
@@ -25,7 +24,7 @@ class EmailTestController extends Controller
             }
 
             $subject = $data['subject'] ?? 'Correo de prueba SMTP';
-            $message = $data['message'] ?? 'Este es un correo de prueba enviado con configuracion SMTP dinamica.';
+            $message = $data['message'] ?? 'Si llegue!!!! Este es un correo de prueba enviado con configuracion SMTP dinamica .';
             $templateName = EmailConfig::query()
                 ->where('entity_id', (int) $data['entity_id'])
                 ->where('is_active', true)
