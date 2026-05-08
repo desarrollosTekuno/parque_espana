@@ -1873,10 +1873,10 @@ class MemberController extends Controller
                         $filename  = now()->format('YmdHis') . '_' . $baseName . '.' . $extension;
                         $directory = "members/{$memberId}/{$documentTypeId}";
 
-                        $uploaded = Storage::disk('sftp')->putFileAs($directory, $file, $filename);
+                        $uploaded = Storage::disk('spaces')->putFileAs($directory, $file, $filename);
 
                         if ($uploaded === false) {
-                            Log::error('SFTP document upload returned false (archivo no subido)', [
+                            Log::error('Spaces document upload returned false (archivo no subido)', [
                                 'member_id'        => $memberId,
                                 'document_type_id' => $documentTypeId,
                                 'file'             => $file->getClientOriginalName(),
@@ -1890,7 +1890,7 @@ class MemberController extends Controller
                             'file_path'        => "{$directory}/{$filename}",
                         ]);
                     } catch (\Throwable $e) {
-                        Log::error('SFTP document upload failed', [
+                        Log::error('Spaces document upload failed', [
                             'member_id'        => $memberId,
                             'document_type_id' => $documentTypeId,
                             'file'             => $file->getClientOriginalName(),
