@@ -15,6 +15,7 @@ use App\Http\Controllers\Web\AdminClub\BillingConceptController;
 use App\Http\Controllers\Web\AdminClub\InterclubPackageRuleController;
 use App\Http\Controllers\Web\AdminClub\PricingRuleController;
 use App\Http\Controllers\Web\AdminClub\AmenityResourceController;
+use App\Http\Controllers\Web\AdminClub\GuestListVariableController;
 use App\Http\Controllers\Web\AdminClub\ReservationGuestListController;
 use App\Http\Controllers\Web\AdminClub\LockerAssignmentController;
 use App\Http\Controllers\Web\AdminClub\LockerController;
@@ -26,10 +27,14 @@ Route::resource('/amenityResource', AmenityResourceController::class)->names('am
 Route::resource('/amenitySchedule', AmenityScheduleController::class)->names('amenitySchedule');
 Route::resource('/blockedPeriods', BlockedPeriodController::class)->names('blockedPeriods');
 
+// reservations
 Route::resource('/reservations', ReservationController::class)->only(['index', 'update'])->names('reservations');
 Route::resource('/system-variables', SystemVariableController::class)->only(['index', 'store', 'update', 'destroy'])->names('system-variables');
 
+// guest lists
 Route::resource('/guest-lists', ReservationGuestListController::class)->only(['index', 'update'])->names('guest-lists');
+Route::resource('/guest-list-variables', GuestListVariableController::class)->only(['index', 'store', 'update', 'destroy']);
+
 Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
 Route::post('/billing/payments', [BillingController::class, 'storePayment'])->name('billing.payments.store');
 Route::resource('/billing-concepts', BillingConceptController::class)

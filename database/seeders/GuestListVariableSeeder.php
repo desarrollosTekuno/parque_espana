@@ -18,7 +18,7 @@ class GuestListVariableSeeder extends Seeder
                 'code' => 'MAX_GUESTS',
                 'name' => 'Máximo de invitados',
                 'description' => 'Número máximo de invitados permitidos por el club',
-                'value' => null,
+                'value' => 100,
                 'club_id' => 1
             ],
             [
