@@ -179,12 +179,12 @@ const routes: Routing[] = [
                 icon: "mdi-account-group-outline",
                 value: "listas-invitados",
             },
-            // {
-            //     name: "system-variables.index",
-            //     title: "Configuración",
-            //     icon: "mdi-cog",
-            //     value: "variables-sistema",
-            // }
+            {
+                name: "guest-list-variables.index",
+                title: "Configuración",
+                icon: "mdi-cog",
+                value: "listas-invitados-configuracion",
+            }
         ]
     },
     // Anuncios

@@ -48,8 +48,13 @@ class PermissionSeeder extends Seeder
             // Reservaciones
             array('name' => 'reservations.index', 'description' => 'Ver reservaciones', 'contexts' => ['web']),
             array('name' => 'reservations.update', 'description' => 'Cancelar reservaciones', 'contexts' => ['web']),
+            // Listas de invitados
             array('name' => 'guest-lists.index', 'description' => 'Ver listas de invitados', 'contexts' => ['web']),
             array('name' => 'guest-lists.update', 'description' => 'Actualizar estatus de lista de invitados', 'contexts' => ['web']),
+            array('name' => 'guest-list-variables.index', 'description' => 'Ver variables de listas de invitados', 'contexts' => ['web']),
+            array('name' => 'guest-list-variables.store', 'description' => 'Crear variables de listas de invitados', 'contexts' => ['web']),
+            array('name' => 'guest-list-variables.update', 'description' => 'Actualizar variables de listas de invitados', 'contexts' => ['web']),
+            array('name' => 'guest-list-variables.destroy', 'description' => 'Eliminar variables de listas de invitados', 'contexts' => ['web']),
 
             // Anuncios
             array('name' => 'announcements.index', 'description' => 'Ver anuncios', 'contexts' => ['web']),
