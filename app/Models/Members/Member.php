@@ -105,4 +105,9 @@ class Member extends Model
             ->where('year', now()->year);;
     }
 
+    public function documents()
+    {
+        return $this->hasMany(MemberDocument::class, 'member_id');
+    }
+
 }
