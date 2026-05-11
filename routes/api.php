@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AmenityController;
+use App\Http\Controllers\Api\V1\EmailTestController;
 use App\Http\Controllers\Api\V1\FeedbackTicketMobileController;
 use App\Http\Controllers\Api\V1\LoginController;
 use App\Http\Controllers\Api\V1\LockerApiController;
@@ -46,6 +47,9 @@ Route::prefix('v1')->group(function () {
     Route::get('/lockers/index', [LockerApiController::class, 'index'])->middleware('auth:sanctum');
     Route::get('/lockers/members', [LockerApiController::class, 'membersAvailable'])->middleware('auth:sanctum');
     Route::post('/lockers/assign', [LockerApiController::class, 'assign'])->middleware('auth:sanctum');
+
+    // Email test
+    Route::post('/email/test', [EmailTestController::class, 'send'])->middleware('auth:sanctum');
 
 });
 
