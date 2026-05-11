@@ -12,7 +12,6 @@ use App\Models\Feedback\Category;
 use App\Models\Feedback\TicketType;
 use App\Models\Feedback\Status;
 use App\Models\Feedback\Priority;
-use App\Services\Feedback\FeedbackNotificationService;
 use App\Traits\HandlesFeedbackTickets;
 use Illuminate\Support\Facades\Auth;
 
@@ -149,7 +148,7 @@ class FeedbackController extends Controller {
         }
     }
 
-    public function store(StoreFeedbackTicketRequest $request, FeedbackNotificationService $feedbackNotificationService) {
+    public function store(StoreFeedbackTicketRequest $request) {
         try {
             $status = Status::where('code', 'SUBMITTED')->firstOrFail();
             $clubId = (int) session('club_id');
@@ -190,12 +189,6 @@ class FeedbackController extends Controller {
                 $this->storeTicketAttachments($ticket, $attachments);
             }
 
-            try {
-                $feedbackNotificationService->notifyCreated($ticket, Auth::id());
-            } catch (\Throwable $notificationError) {
-                report($notificationError);
-            }
-
             return back()->with('success', 'Queja o sugerencia creada correctamente');
 
         } catch (\Exception $e) {
@@ -208,7 +201,7 @@ class FeedbackController extends Controller {
         }
     }
 
-    public function update(Request $request, Ticket $feedback, FeedbackNotificationService $feedbackNotificationService) {
+    public function update(Request $request, Ticket $feedback) {
         $request->validate([
             'ticket_type_id' => 'required',
             'category_id' => 'required',
@@ -261,12 +254,6 @@ class FeedbackController extends Controller {
                 $this->storeTicketAttachments($feedback, $attachments);
             }
 
-            try {
-                $feedbackNotificationService->notifyUpdated($feedback, Auth::id());
-            } catch (\Throwable $notificationError) {
-                report($notificationError);
-            }
-
             return back()->with('success', 'Queja o sugerencia actualizada');
 
         } catch (\Exception $e) {
@@ -279,7 +266,7 @@ class FeedbackController extends Controller {
         }
     }
 
-    public function cancelTicket(Ticket $feedback, FeedbackNotificationService $feedbackNotificationService) {
+    public function cancelTicket(Ticket $feedback) {
         try {
             $submittedStatus = Status::where('code', 'SUBMITTED')->firstOrFail();
             $cancelledStatus = Status::where('code', 'CANCELLED')->firstOrFail();
@@ -294,13 +281,6 @@ class FeedbackController extends Controller {
                 'status_id' => $cancelledStatus->id,
                 'closed_at' => now(),
             ]);
-
-            try {
-                $feedback->loadMissing('status:id,name');
-                $feedbackNotificationService->notifyCancelled($feedback, Auth::id());
-            } catch (\Throwable $notificationError) {
-                report($notificationError);
-            }
 
             return back()->with('success', 'Ticket cancelado correctamente');
         } catch (\Exception $e) {

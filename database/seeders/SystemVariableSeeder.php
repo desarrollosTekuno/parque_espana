@@ -32,18 +32,6 @@ class SystemVariableSeeder extends Seeder
                 'description' => 'Total de horas de suspensión para reservar',
                 'club_id' => 1
             ],
-            [
-                'name' => 'correo_notificacion_feedback',
-                'value' => 'feedback.club1@parque.dom.com',
-                'description' => 'Buzon de correo para notificaciones de quejas y sugerencias',
-                'club_id' => 1
-            ],
-            [
-                'name' => 'correo_notificacion_feedback',
-                'value' => 'feedback.club2@parque.dom.com',
-                'description' => 'Buzon de correo para notificaciones de quejas y sugerencias',
-                'club_id' => 2
-            ],
         ];
 
         foreach ($system_variables as $system_variable) {

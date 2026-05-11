@@ -8,7 +8,6 @@ use App\Models\Administrator\Club;
 use App\Models\Feedback\Status;
 use App\Models\Feedback\Ticket;
 use App\Models\Members\Member;
-use App\Services\Feedback\FeedbackNotificationService;
 use App\Traits\HandlesFeedbackTickets;
 use Illuminate\Http\Request;
 
@@ -85,7 +84,7 @@ class FeedbackTicketMobileController extends Controller {
         }
     }
 
-    public function store(StoreFeedbackTicketRequest $request, Club $club, FeedbackNotificationService $feedbackNotificationService) {
+    public function store(StoreFeedbackTicketRequest $request, Club $club) {
         try {
             $status = Status::where('code', 'SUBMITTED')->first();
             $member = Member::where('user_id', $request->user()->id)->first();
@@ -131,12 +130,6 @@ class FeedbackTicketMobileController extends Controller {
                     $this->storeTicketAttachments($ticket, $attachments);
                 }
 
-                try {
-                    $feedbackNotificationService->notifyCreated($ticket, (int) $request->user()->id);
-                } catch (\Throwable $notificationError) {
-                    report($notificationError);
-                }
-
                 return response()->json([
                     'success' => true,
                     'message' => 'Ticket creado correctamente',
@@ -152,7 +145,7 @@ class FeedbackTicketMobileController extends Controller {
         }
     }
 
-    public function cancel(Request $request, Club $club, Ticket $ticket, FeedbackNotificationService $feedbackNotificationService) {
+    public function cancel(Request $request, Club $club, Ticket $ticket) {
         try {
             $member = Member::where('user_id', $request->user()->id)->first();
 
@@ -191,13 +184,6 @@ class FeedbackTicketMobileController extends Controller {
                         'status_id' => $cancelledStatus->id,
                         'closed_at' => now(),
                     ]);
-
-                    try {
-                        $ticketQuery->loadMissing('status:id,name');
-                        $feedbackNotificationService->notifyCancelled($ticketQuery, (int) $request->user()->id);
-                    } catch (\Throwable $notificationError) {
-                        report($notificationError);
-                    }
 
                     return response()->json([
                         'success' => true,
