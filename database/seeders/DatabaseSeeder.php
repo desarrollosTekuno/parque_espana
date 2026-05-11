@@ -23,8 +23,9 @@ class DatabaseSeeder extends Seeder
             LocationCatalogsSeeder::class,
             ClubSeeder::class,
             UserSeeder::class,
-            ReservationStatusSeeder::class,
             SystemVariableSeeder::class,
+            EmailConfigSeeder::class,
+            ReservationStatusSeeder::class,
             DocumentTypeSeeder::class,
             RelationshipSeeder::class,
             NationalitySeeder::class,
@@ -47,8 +48,6 @@ class DatabaseSeeder extends Seeder
             FeedbackTicketTypesSeeder::class,
             FeedbackStatusesSeeder::class,
             FeedbackPrioritiesSeeder::class,
-
-            EmailConfigSeeder::class,
         ]);
     }
 }
