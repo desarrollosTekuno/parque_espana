@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Web\AdminClub\Feedback;
 
 use Illuminate\Routing\Controller;
+use App\Mail\FeedbackTicketNotificationMailable;
 use App\Http\Requests\StoreFeedbackTicketRequest;
+use App\Models\AdminClub\SystemVariable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -12,6 +14,7 @@ use App\Models\Feedback\Category;
 use App\Models\Feedback\TicketType;
 use App\Models\Feedback\Status;
 use App\Models\Feedback\Priority;
+use App\Services\Email\MailService;
 use App\Traits\HandlesFeedbackTickets;
 use Illuminate\Support\Facades\Auth;
 
@@ -148,7 +151,7 @@ class FeedbackController extends Controller {
         }
     }
 
-    public function store(StoreFeedbackTicketRequest $request) {
+    public function store(StoreFeedbackTicketRequest $request, MailService $mailService) {
         try {
             $status = Status::where('code', 'SUBMITTED')->firstOrFail();
             $clubId = (int) session('club_id');
@@ -188,6 +191,8 @@ class FeedbackController extends Controller {
             if (!empty($attachments)) {
                 $this->storeTicketAttachments($ticket, $attachments);
             }
+
+            $this->sendTicketNotifications($mailService, $ticket, 'created');
 
             return back()->with('success', 'Queja o sugerencia creada correctamente');
 
@@ -266,7 +271,7 @@ class FeedbackController extends Controller {
         }
     }
 
-    public function cancelTicket(Ticket $feedback) {
+    public function cancelTicket(Ticket $feedback, MailService $mailService) {
         try {
             $submittedStatus = Status::where('code', 'SUBMITTED')->firstOrFail();
             $cancelledStatus = Status::where('code', 'CANCELLED')->firstOrFail();
@@ -281,6 +286,8 @@ class FeedbackController extends Controller {
                 'status_id' => $cancelledStatus->id,
                 'closed_at' => now(),
             ]);
+
+            $this->sendTicketNotifications($mailService, $feedback->fresh(), 'cancelled');
 
             return back()->with('success', 'Ticket cancelado correctamente');
         } catch (\Exception $e) {
@@ -306,6 +313,43 @@ class FeedbackController extends Controller {
                 'messageError' => 'Error al eliminar la queja o sugerencia',
                 'exception' => $e->getMessage(),
             ]);
+        }
+    }
+
+    private function sendTicketNotifications(MailService $mailService, Ticket $ticket, string $event): void {
+        try {
+            $clubId = (int) ($ticket->club_id ?: session('club_id'));
+            $ticket->loadMissing(['type', 'category', 'status', 'priority', 'reportedBy', 'member', 'attachments']);
+
+            $adminEmail = SystemVariable::where('club_id', $clubId)
+                ->where('name', 'feedback_notification_email')
+                ->value('value');
+
+            $clientEmail = null;
+
+            if (!$ticket->is_anonymous) {
+                $clientEmail = $ticket->reportedBy?->email ?: $ticket->member?->email;
+            }
+
+            $reviewUrl = route('feedback-management.index', ['search' => $ticket->ticket_number]);
+
+            if (is_string($adminEmail) && trim($adminEmail) !== '') {
+                $mailService->send(
+                    entityId: $clubId,
+                    to: trim($adminEmail),
+                    mailable: new FeedbackTicketNotificationMailable($ticket, $event, 'admin', $reviewUrl)
+                );
+            }
+
+            if (is_string($clientEmail) && trim($clientEmail) !== '') {
+                $mailService->send(
+                    entityId: $clubId,
+                    to: trim($clientEmail),
+                    mailable: new FeedbackTicketNotificationMailable($ticket, $event, 'client')
+                );
+            }
+        } catch (\Throwable $e) {
+            report($e);
         }
     }
 
