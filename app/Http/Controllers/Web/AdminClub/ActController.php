@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Web\AdminClub;
 
-use App\Http\Controllers\Controller;
+use Illuminate\Routing\Controller;
 use Illuminate\Http\Request;
 use App\Models\Members\Act;
 use App\Models\Members\Fine;
@@ -20,6 +20,13 @@ use Inertia\Inertia;
 
 class ActController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('permission:acts.index')->only('index');
+        $this->middleware('permission:acts.create')->only('store');
+        $this->middleware('permission:acts.update')->only('update');
+    }
+
     public function index(Request $request, $account_id)
     {
         $query = Act::where('account_id', $account_id)

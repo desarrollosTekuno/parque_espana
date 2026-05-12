@@ -12,7 +12,9 @@ const props = defineProps({
     accountId: Number,
     members: Array,
     clubId: Number,
+    anualCost: Number,
 });
+console.log(props);
 const page = usePage();
 const selectedMember = ref(null);
 const lockers = ref([]);
@@ -88,7 +90,7 @@ const loadMyLockers = async () => {
 const calculateCost = () => {
     const month = new Date().getMonth() + 1;
     const monthsRemaining = 12 - month + 1;
-    cost.value = (1100 / 12) * monthsRemaining;
+    cost.value = (props.anualCost / 12) * monthsRemaining;
 };
 
 onMounted(() => {
@@ -142,7 +144,7 @@ const assign = async () => {
         member_id: memberId,
         membership_id: props.membershipId,
         account_id: props.accountId,
-        clubId: props.clubId,
+        club_id: props.clubId,
     }, {
         onSuccess: () => {
             customToastSwal({

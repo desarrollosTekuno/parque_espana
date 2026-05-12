@@ -5,12 +5,14 @@ namespace App\Http\Controllers\Web\AdminClub;
 use Illuminate\Routing\Controller;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use App\Models\Members\Locker;
 use App\Models\Billing\Charge;
 use App\Models\Billing\ChargeConcept;
 use App\Models\Members\Member;
 use App\Models\Members\LockerAssignment;
+use App\Models\Members\LockerAssignmentHistory;
 use App\Models\Memberships\Membership;
 use App\Models\Memberships\MembershipAccount;
 
@@ -27,6 +29,10 @@ class LockerAssignmentController extends Controller
     public function create($accountId)
     {   
         $account = MembershipAccount::with('members')->findOrFail($accountId);
+        $concept = ChargeConcept::query()
+            ->with('clubAmounts')
+            ->where('code', 'LOCKERS')
+            ->first();
         $pendingMembers = Charge::where('status', 'pending')
             ->where('period_year', now()->year)
             ->whereNotNull('metadata->locker_id')
@@ -50,6 +56,7 @@ class LockerAssignmentController extends Controller
             'accountId' => $accountId,
             'members' => $members,
             'clubId' => $membership?->club_id,
+            'anualCost' => $concept->default_amount,
         ]);
     }
 
@@ -76,12 +83,6 @@ class LockerAssignmentController extends Controller
                 ]);
             }
 
-            // cálculo proporcional
-            $annualCost = 1100;
-            $month = now()->month;
-            $monthsRemaining = 12 - $month + 1;
-            $amount = round(($annualCost / 12) * $monthsRemaining, 2);
-
             // reservar
             $locker->update([
                 'status' => 'pago_pendiente',
@@ -91,6 +92,15 @@ class LockerAssignmentController extends Controller
                 ->with('clubAmounts')
                 ->where('code', 'LOCKERS')
                 ->firstOrFail();
+            
+            // cálculo proporcional
+            $annualCost = $concept->clubAmounts
+                ->where('club_id', $request->club_id)
+                ->first()
+                ?->amount ?? $concept->default_amount;
+            $month = now()->month;
+            $monthsRemaining = 12 - $month + 1;
+            $amount = round(($annualCost / 12) * $monthsRemaining, 2);
 
             Charge::create([
                 'membership_account_id' => $request->account_id,
@@ -123,34 +133,42 @@ class LockerAssignmentController extends Controller
     {
         DB::transaction(function () use ($request) {
 
-            $oldAssignment = LockerAssignment::where('locker_id', $request->old_locker_id)
-                ->where('member_id', $request->member_id)
+            $assignment = LockerAssignment::where('member_id', $request->member_id)
                 ->whereNull('deleted_at')
                 ->first();
 
-            if ($oldAssignment) {
-
-                $oldAssignment->delete();
-
-                Locker::where('id', $request->old_locker_id)
-                    ->update([
-                        'status' => 'disponible'
-                    ]);
+            if (!$assignment) {
+                return;
             }
 
-            LockerAssignment::create([
-                'locker_id' => $request->new_locker_id,
-                'member_id' => $request->member_id,
-                'amount_paid' => 0,
-                'start_date' => now(),
-                'end_date' => now()->endOfYear(),
-                'year' => now()->year,
-            ]);
+            $oldLockerId = $assignment->locker_id;
 
+            // liberar locker anterior
+            Locker::where('id', $oldLockerId)
+                ->update([
+                    'status' => 'disponible'
+                ]);
+
+            // ocupar nuevo locker
             Locker::where('id', $request->new_locker_id)
                 ->update([
                     'status' => 'ocupado'
                 ]);
+
+            // guardar historial
+            LockerAssignmentHistory::create([
+                'locker_assignment_id' => $assignment->id,
+                'member_id' => $request->member_id,
+                'old_locker_id' => $oldLockerId,
+                'new_locker_id' => $request->new_locker_id,
+                'changed_at' => now(),
+                'changed_by' => Auth::id(),
+            ]);
+
+            // actualizar asignación actual
+            $assignment->update([
+                'locker_id' => $request->new_locker_id,
+            ]);
         });
 
         return back();
@@ -158,16 +176,15 @@ class LockerAssignmentController extends Controller
     public function remove(LockerAssignment $assignment)
     {
         try {
-           /* if ($assignment->locker->club_id != 2) {
-
-                return back()->withErrors([
-                    'locker' => 'Solo Parque 2 puede dar de baja casilleros.'
-                ]);
-            }*/
             DB::transaction(function () use ($assignment) {
                 $assignment->locker->update([
                     'status' => 'disponible'
                 ]);
+
+                $assignment->update([
+                    'cancellation_reason' => 'Baja voluntaria'
+                ]);
+
                 $assignment->delete();
             });
 

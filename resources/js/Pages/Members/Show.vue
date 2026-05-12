@@ -2,7 +2,7 @@
 import BaseButton from "@/Components/BaseButton.vue";
 import MonthPicker from "@/Components/MonthPicker.vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
-import { Head, router, useForm } from "@inertiajs/vue3";
+import { Head, router, useForm, usePage  } from "@inertiajs/vue3";
 import Swal from "sweetalert2";
 import { customToastSwal } from "@/utils/swal";
 import { computed, ref, watch } from "vue";
@@ -107,6 +107,8 @@ interface Props {
     canChangePrimaryHolder?: boolean;
     canSeparateMembers?: boolean;
 }
+
+const can = usePage().props.auth.permissions;
 
 const props = withDefaults(defineProps<Props>(), {
     canAddFamilyMembers: false,
@@ -269,14 +271,11 @@ const loadAvailableEditLockers = async () => {
     }
 };
 const updateLocker = async () => {
-
     if (!editSelectedLocker.value) {
-
         customToastSwal({
             title: 'Selecciona un casillero',
             icon: 'warning'
         });
-
         return;
     }
 
@@ -483,7 +482,7 @@ watch(editLockerSearch, () => {
                                 </div>
 
                                 <div class="d-flex flex-wrap ga-2">
-                                    <v-btn
+                                    <v-btn v-if="can.includes('members.lockers.create')"
                                         color="primary"
                                         variant="tonal"
                                         @click="
@@ -497,7 +496,7 @@ watch(editLockerSearch, () => {
                                     >
                                         Asignar casillero
                                     </v-btn>
-                                    <v-btn
+                                    <v-btn v-if="can.includes('acts.index')"
                                         color="primary"
                                         variant="tonal"
                                         @click="router.visit(route('acts.index', props.account.id))"

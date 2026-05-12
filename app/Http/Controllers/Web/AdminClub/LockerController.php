@@ -13,13 +13,13 @@ use Inertia\Inertia;
 
 class LockerController extends Controller {
 
-        public function __construct()
-        {
-            $this->middleware('permission:members.lockers.cancel')->only('cancel');
-            $this->middleware('permission:lockers.available')->only('available');
-            $this->middleware('permission:lockers.assigned.by.account')->only('assignedByAccount');
-            $this->middleware('permission:lockers.available.for.change')->only('availableForChange');
-        }
+    public function __construct()
+    {
+        $this->middleware('permission:members.lockers.cancel')->only('cancel');
+        $this->middleware('permission:lockers.available')->only('available');
+        $this->middleware('permission:lockers.assigned.by.account')->only('assignedByAccount');
+        $this->middleware('permission:lockers.available.for.change')->only('availableForChange');
+    }
 
     public function available(Request $request)
     {

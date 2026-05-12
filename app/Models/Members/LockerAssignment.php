@@ -20,6 +20,7 @@ class LockerAssignment extends Model
         'end_date',
         'amount_paid',
         'year',
+        'cancellation_reason',
     ];
 
     protected $casts = [
@@ -27,6 +28,7 @@ class LockerAssignment extends Model
         'end_date' => 'date',
         'amount_paid' => 'decimal:2',
         'year' => 'integer',
+        'cancellation_reason' => 'string',
     ];
 
     public function locker()
