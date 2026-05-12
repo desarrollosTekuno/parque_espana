@@ -4,10 +4,13 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreFeedbackTicketRequest;
+use App\Mail\FeedbackTicketNotificationMailable;
 use App\Models\Administrator\Club;
+use App\Models\AdminClub\SystemVariable;
 use App\Models\Feedback\Status;
 use App\Models\Feedback\Ticket;
 use App\Models\Members\Member;
+use App\Services\Email\MailService;
 use App\Traits\HandlesFeedbackTickets;
 use Illuminate\Http\Request;
 
@@ -84,7 +87,7 @@ class FeedbackTicketMobileController extends Controller {
         }
     }
 
-    public function store(StoreFeedbackTicketRequest $request, Club $club) {
+    public function store(StoreFeedbackTicketRequest $request, Club $club, MailService $mailService) {
         try {
             $status = Status::where('code', 'SUBMITTED')->first();
             $member = Member::where('user_id', $request->user()->id)->first();
@@ -130,6 +133,8 @@ class FeedbackTicketMobileController extends Controller {
                     $this->storeTicketAttachments($ticket, $attachments);
                 }
 
+                $this->sendTicketNotifications($mailService, $ticket, 'created');
+
                 return response()->json([
                     'success' => true,
                     'message' => 'Ticket creado correctamente',
@@ -145,7 +150,7 @@ class FeedbackTicketMobileController extends Controller {
         }
     }
 
-    public function cancel(Request $request, Club $club, Ticket $ticket) {
+    public function cancel(Request $request, Club $club, Ticket $ticket, MailService $mailService) {
         try {
             $member = Member::where('user_id', $request->user()->id)->first();
 
@@ -185,6 +190,8 @@ class FeedbackTicketMobileController extends Controller {
                         'closed_at' => now(),
                     ]);
 
+                    $this->sendTicketNotifications($mailService, $ticketQuery->fresh(), 'cancelled');
+
                     return response()->json([
                         'success' => true,
                         'message' => 'Ticket cancelado correctamente',
@@ -197,6 +204,43 @@ class FeedbackTicketMobileController extends Controller {
                 'message' => 'Error al cancelar ticket',
                 'error_details' => $e->getMessage(),
             ], 500);
+        }
+    }
+
+    private function sendTicketNotifications(MailService $mailService, Ticket $ticket, string $event): void {
+        try {
+            $clubId = (int) $ticket->club_id;
+            $ticket->loadMissing(['type', 'category', 'status', 'priority', 'reportedBy', 'member', 'attachments']);
+
+            $adminEmail = SystemVariable::where('club_id', $clubId)
+                ->where('name', 'feedback_notification_email')
+                ->value('value');
+
+            $clientEmail = null;
+
+            if (!$ticket->is_anonymous) {
+                $clientEmail = $ticket->reportedBy?->email ?: $ticket->member?->email;
+            }
+
+            $reviewUrl = route('feedback-management.index', ['search' => $ticket->ticket_number]);
+
+            if (is_string($adminEmail) && trim($adminEmail) !== '') {
+                $mailService->send(
+                    entityId: $clubId,
+                    to: trim($adminEmail),
+                    mailable: new FeedbackTicketNotificationMailable($ticket, $event, 'admin', $reviewUrl)
+                );
+            }
+
+            if (is_string($clientEmail) && trim($clientEmail) !== '') {
+                $mailService->send(
+                    entityId: $clubId,
+                    to: trim($clientEmail),
+                    mailable: new FeedbackTicketNotificationMailable($ticket, $event, 'client')
+                );
+            }
+        } catch (\Throwable $e) {
+            report($e);
         }
     }
 }
