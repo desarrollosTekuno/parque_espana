@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Services\Notifications\FirebaseNotificationService;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Throwable;
 
 class FirebaseTestController extends Controller {
@@ -39,4 +40,31 @@ class FirebaseTestController extends Controller {
             ], 500);
         }
     }
+
+    public function ping(): JsonResponse {
+
+        try {
+
+            $messaging = app('firebase.messaging');
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Firebase conectado correctamente',
+                'project' => config('firebase.projects.app.credentials'),
+            ]);
+
+        } catch (Throwable $e) {
+
+            report($e);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error conectando con Firebase',
+                'error' => $e->getMessage(),
+            ], 500);
+
+        }
+
+    }
+
 }

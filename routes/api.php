@@ -54,6 +54,7 @@ Route::prefix('v1')->group(function () {
 
     // Firebase test
     Route::post('/firebase/test', [FirebaseTestController::class, 'send'])->middleware('auth:sanctum');
+    Route::get('/firebase/ping', [FirebaseTestController::class, 'ping']);
 
 });
 
