@@ -187,7 +187,12 @@ class FeedbackManagementController extends Controller {
                 });
 
                 $updatedTicket = Ticket::query()->findOrFail($feedback->id);
-                $this->sendTicketStatusNotification($mailService, $updatedTicket);
+
+                if (strtoupper((string) $newStatus->code) === 'RESOLVED') {
+                    $this->sendTicketResolvedNotification($mailService, $updatedTicket);
+                } else {
+                    $this->sendTicketStatusNotification($mailService, $updatedTicket);
+                }
 
                 return back()->with('success', 'Estatus actualizado correctamente.');
             }

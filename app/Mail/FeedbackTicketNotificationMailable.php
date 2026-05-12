@@ -26,9 +26,12 @@ class FeedbackTicketNotificationMailable extends Mailable {
         $isCancelled = $this->event === 'cancelled';
         $isStatusChanged = $this->event === 'status_changed';
         $isCommentAdded = $this->event === 'comment_added';
+        $isResolved = $this->event === 'resolved';
         $isClient = $this->recipientType === 'client';
 
-        $subject = $isCommentAdded
+        $subject = $isResolved
+            ? 'Tu ticket fue resuelto ' . $this->ticket->ticket_number
+            : ($isCommentAdded
             ? 'Nuevo comentario en tu ticket ' . $this->ticket->ticket_number
             : ($isStatusChanged
             ? 'Actualizacion de estatus de tu ticket ' . $this->ticket->ticket_number
@@ -38,7 +41,7 @@ class FeedbackTicketNotificationMailable extends Mailable {
                 : 'Recibimos tu queja/sugerencia ' . $this->ticket->ticket_number)
             : ($isCancelled
                 ? 'Ticket cancelado: ' . $this->ticket->ticket_number
-                : 'Nuevo ticket creado: ' . $this->ticket->ticket_number)));
+                : 'Nuevo ticket creado: ' . $this->ticket->ticket_number))));
 
         $attachmentLinks = $this->ticket->attachments
             ->map(function ($attachment) {
@@ -55,6 +58,7 @@ class FeedbackTicketNotificationMailable extends Mailable {
 
         $latestStatusComment = null;
         $latestTicketComment = null;
+        $resolutionMessage = null;
 
         if ($isStatusChanged) {
             $latestStatusComment = $this->ticket->comments()
@@ -70,13 +74,26 @@ class FeedbackTicketNotificationMailable extends Mailable {
                 ->value('comment');
         }
 
-        $view = $isCommentAdded
+        if ($isResolved) {
+            $resolutionMessage = trim((string) ($this->ticket->resolution_notes ?? ''));
+
+            if ($resolutionMessage === '') {
+                $resolutionMessage = $this->ticket->comments()
+                    ->where('is_internal', false)
+                    ->latest('id')
+                    ->value('comment');
+            }
+        }
+
+        $view = $isResolved
+            ? 'emails.feedback_ticket_resolved'
+            : ($isCommentAdded
             ? 'emails.feedback_ticket_comment_added'
             : ($isStatusChanged
             ? 'emails.feedback_ticket_status_changed'
             : ($isCancelled
                 ? 'emails.feedback_ticket_cancelled'
-                : 'emails.feedback_ticket_notification'));
+                : 'emails.feedback_ticket_notification')));
 
         $mail = $this
             ->subject($subject)
@@ -88,6 +105,7 @@ class FeedbackTicketNotificationMailable extends Mailable {
                 'attachmentLinks' => $attachmentLinks,
                 'latestStatusComment' => $latestStatusComment,
                 'latestTicketComment' => $latestTicketComment,
+                'resolutionMessage' => $resolutionMessage,
                 'subjectText' => $subject,
             ]);
 
