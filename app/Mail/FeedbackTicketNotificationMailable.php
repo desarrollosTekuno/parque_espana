@@ -25,15 +25,18 @@ class FeedbackTicketNotificationMailable extends Mailable
         $this->ticket->loadMissing(['type', 'category', 'status', 'priority', 'reportedBy', 'attachments']);
 
         $isCancelled = $this->event === 'cancelled';
+        $isStatusChanged = $this->event === 'status_changed';
         $isClient = $this->recipientType === 'client';
 
-        $subject = $isClient
+        $subject = $isStatusChanged
+            ? 'Actualizacion de estatus de tu ticket ' . $this->ticket->ticket_number
+            : ($isClient
             ? ($isCancelled
                 ? 'Recibimos la cancelacion de tu ticket ' . $this->ticket->ticket_number
                 : 'Recibimos tu queja/sugerencia ' . $this->ticket->ticket_number)
             : ($isCancelled
                 ? 'Ticket cancelado: ' . $this->ticket->ticket_number
-                : 'Nuevo ticket creado: ' . $this->ticket->ticket_number);
+                : 'Nuevo ticket creado: ' . $this->ticket->ticket_number));
 
         $attachmentLinks = $this->ticket->attachments
             ->map(function ($attachment) {
@@ -48,9 +51,11 @@ class FeedbackTicketNotificationMailable extends Mailable
             ->values()
             ->all();
 
-        $view = $isCancelled
-            ? 'emails.feedback_ticket_cancelled'
-            : 'emails.feedback_ticket_notification';
+        $view = $isStatusChanged
+            ? 'emails.feedback_ticket_status_changed'
+            : ($isCancelled
+                ? 'emails.feedback_ticket_cancelled'
+                : 'emails.feedback_ticket_notification');
 
         $mail = $this
             ->subject($subject)
