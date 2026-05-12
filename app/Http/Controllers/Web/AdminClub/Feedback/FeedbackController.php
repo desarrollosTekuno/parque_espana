@@ -103,6 +103,8 @@ class FeedbackController extends Controller {
                             'id' => $attachment->id,
                             'file_name' => $attachment->file_name,
                             'file_path' => $attachment->file_path,
+                            'storage_path' => $attachment->storage_path,
+                            'file_url' => $attachment->public_url,
                             'file_type' => $attachment->file_type,
                             'file_size' => $attachment->file_size,
                             'uploaded_by' => $attachment->uploadedBy,

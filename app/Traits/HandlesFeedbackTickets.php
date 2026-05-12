@@ -51,7 +51,7 @@ trait HandlesFeedbackTickets {
             Attachment::create([
                 'ticket_id' => $ticket->id,
                 'file_name' => $file->getClientOriginalName(),
-                'file_path' => $path,
+                'file_path' => basename($path),
                 'file_type' => $file->getClientMimeType(),
                 'file_size' => $file->getSize(),
                 'storage_disk' => 'public',

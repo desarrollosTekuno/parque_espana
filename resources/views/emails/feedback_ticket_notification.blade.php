@@ -110,7 +110,9 @@
 
     @if ($recipientType === 'admin' && !empty($reviewUrl))
         <p style="margin: 0;">
-            <a class="btn" href="{{ $reviewUrl }}" target="_blank">Revisar ticket en el sistema</a>
+            <a href="{{ $reviewUrl }}" target="_blank" style="color: #004aad; text-decoration: underline; font-weight: 600;">
+                Revisar ticket en el sistema
+            </a>
         </p>
     @endif
 @endsection

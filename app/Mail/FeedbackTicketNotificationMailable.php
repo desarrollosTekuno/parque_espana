@@ -39,8 +39,8 @@ class FeedbackTicketNotificationMailable extends Mailable
             ->map(function ($attachment) {
                 return [
                     'name' => $attachment->file_name,
-                    'url' => Storage::disk($attachment->storage_disk ?: 'public')->url($attachment->file_path),
-                    'path' => $attachment->file_path,
+                    'url' => $attachment->public_url,
+                    'path' => $attachment->storage_path,
                     'disk' => $attachment->storage_disk ?: 'public',
                     'mime' => $attachment->file_type,
                 ];

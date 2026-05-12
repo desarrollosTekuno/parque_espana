@@ -263,7 +263,7 @@ const closeDetail = () => {
 };
 
 const getAttachmentUrl = (file: any): string => {
-    return `/storage/${file.file_path}`;
+    return file.file_url || `/storage/${file.storage_path || file.file_path}`;
 };
 
 const canPreviewAttachment = (file: any): boolean => {
@@ -610,7 +610,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                     <v-list-item
                                         v-for="file in selectedTicket.attachments ?? []"
                                         :key="file.id"
-                                        :href="`/storage/${file.file_path}`"
+                                        :href="getAttachmentUrl(file)"
                                         target="_blank"
                                         rel="noopener"
                                         rounded="lg"
