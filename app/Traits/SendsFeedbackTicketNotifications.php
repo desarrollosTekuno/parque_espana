@@ -120,4 +120,29 @@ trait SendsFeedbackTicketNotifications {
             report($e);
         }
     }
+
+    protected function sendTicketRejectedNotification(MailService $mailService, Ticket $ticket): void {
+        try {
+            $clubId = (int) $ticket->club_id;
+            $ticket->load(['type', 'category', 'status', 'priority', 'reportedBy', 'member', 'attachments']);
+
+            if ($ticket->is_anonymous) {
+                return;
+            }
+
+            $clientEmail = $ticket->reportedBy?->email ?: $ticket->member?->email;
+
+            if (!is_string($clientEmail) || trim($clientEmail) === '') {
+                return;
+            }
+
+            $mailService->send(
+                entityId: $clubId,
+                to: trim($clientEmail),
+                mailable: new FeedbackTicketNotificationMailable($ticket, 'rejected', 'client')
+            );
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
 }

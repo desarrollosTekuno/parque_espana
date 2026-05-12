@@ -232,7 +232,7 @@ class FeedbackManagementController extends Controller {
             });
 
             $updatedTicket = Ticket::query()->findOrFail($feedback->id);
-            $this->sendTicketStatusNotification($mailService, $updatedTicket);
+            $this->sendTicketRejectedNotification($mailService, $updatedTicket);
 
             return back()->with('success', 'Ticket rechazado correctamente.');
         } catch (\Exception $e) {
