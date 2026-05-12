@@ -352,6 +352,7 @@ class BillingController extends Controller
                     // Evitar duplicados
                     $alreadyAssigned = LockerAssignment::where('member_id', $memberId)
                         ->where('year', now()->year)
+                        ->whereNull('deleted_at')
                         ->exists();
 
                     if ($alreadyAssigned) {

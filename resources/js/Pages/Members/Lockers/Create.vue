@@ -106,7 +106,7 @@ const resetForm = () => {
     showErrors.value = false;
 };
 
-const assign = () => {
+const assign = async () => {
     if (!canAssign.value) {
         showErrors.value = true;
 
@@ -115,6 +115,20 @@ const assign = () => {
             icon: "warning"
         });
 
+        return;
+    }
+
+    const result = await Swal.fire({
+        title: '¿Reservar casillero?',
+        text: 'El casillero quedará pendiente hasta que se realice el pago.',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, reservar',
+        cancelButtonText: 'Cancelar',
+        reverseButtons: true
+    });
+
+    if (!result.isConfirmed) {
         return;
     }
 
@@ -376,7 +390,7 @@ const removeLocker = async (id: number) => {
                     </v-card>
                 </v-col>
             </v-row>
-            <v-row
+           <!-- <v-row
                 v-if="activeLockers.length"
                 class="mb-4"
             >
@@ -446,7 +460,7 @@ const removeLocker = async (id: number) => {
                         </v-chip>
                     </v-card>
                 </v-col>
-            </v-row>
+            </v-row>-->
             <v-alert
                 type="info"
                 variant="tonal"

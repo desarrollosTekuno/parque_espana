@@ -19,7 +19,9 @@ class LockerAssignmentController extends Controller
     public function __construct()
     {
         $this->middleware('permission:members.lockers.create')->only('create');
-        $this->middleware('permission:members.lockers.store')->only('store');
+        $this->middleware('permission:members.lockers.change')->only('change');
+        $this->middleware('permission:members.lockers.remove')->only('remove');
+        $this->middleware('permission:members.lockers.reserve')->only('reserve');
     }
 
     public function create($accountId)
@@ -117,6 +119,42 @@ class LockerAssignmentController extends Controller
         });
     }
 
+    public function change(Request $request)
+    {
+        DB::transaction(function () use ($request) {
+
+            $oldAssignment = LockerAssignment::where('locker_id', $request->old_locker_id)
+                ->where('member_id', $request->member_id)
+                ->whereNull('deleted_at')
+                ->first();
+
+            if ($oldAssignment) {
+
+                $oldAssignment->delete();
+
+                Locker::where('id', $request->old_locker_id)
+                    ->update([
+                        'status' => 'disponible'
+                    ]);
+            }
+
+            LockerAssignment::create([
+                'locker_id' => $request->new_locker_id,
+                'member_id' => $request->member_id,
+                'amount_paid' => 0,
+                'start_date' => now(),
+                'end_date' => now()->endOfYear(),
+                'year' => now()->year,
+            ]);
+
+            Locker::where('id', $request->new_locker_id)
+                ->update([
+                    'status' => 'ocupado'
+                ]);
+        });
+
+        return back();
+    }
     public function remove(LockerAssignment $assignment)
     {
         try {

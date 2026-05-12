@@ -16,6 +16,7 @@ use App\Models\Members\MemberDocument;
 use App\Models\Memberships\AbsencePermit;
 use App\Models\Memberships\InterclubPackageRule;
 use App\Models\Memberships\Membership;
+use App\Models\Members\LockerAssignment;
 use App\Models\Memberships\MembershipAccount;
 use App\Models\Memberships\MembershipAccountGroup;
 use App\Models\Memberships\MembershipAccountMember;
@@ -2538,6 +2539,12 @@ class MemberController extends Controller
         $address = $member?->primaryAddress;
         $employment = $member?->employmentInfo;
 
+        $lockerAssignment = LockerAssignment::with('locker')
+            ->where('member_id', $member?->id)
+            ->where('year', now()->year)
+            ->whereNull('deleted_at')
+            ->first();
+
         return [
             ...$this->buildAccountMemberPayload($accountMember),
             'relationship_id' => $accountMember->relationship_id,
@@ -2564,6 +2571,12 @@ class MemberController extends Controller
                 'company_address' => $employment?->company_address,
                 'company_phone' => $employment?->company_phone,
             ],
+            'locker' => $lockerAssignment ? [
+                'assignment_id' => $lockerAssignment->id,
+                'number' => $lockerAssignment->locker?->number,
+                'status' => $lockerAssignment->locker?->status,
+                'category' => $lockerAssignment->locker?->category,
+            ] : null,
         ];
     }
 

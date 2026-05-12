@@ -7,10 +7,19 @@ use App\Models\Members\LockerAssignment;
 use App\Models\Members\Locker;
 use Illuminate\Http\Request;
 use App\Models\Billing\Charge;
+use App\Models\Memberships\Membership;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class LockerController extends Controller {
+
+        public function __construct()
+        {
+            $this->middleware('permission:members.lockers.cancel')->only('cancel');
+            $this->middleware('permission:lockers.available')->only('available');
+            $this->middleware('permission:lockers.assigned.by.account')->only('assignedByAccount');
+            $this->middleware('permission:lockers.available.for.change')->only('availableForChange');
+        }
 
     public function available(Request $request)
     {
@@ -118,9 +127,7 @@ class LockerController extends Controller {
     public function cancel($id)
     {
         DB::beginTransaction();
-
         try {
-
             $charge = Charge::findOrFail($id);
             Locker::where(
                 'id',
@@ -128,25 +135,64 @@ class LockerController extends Controller {
             )->update([
                 'status' => 'disponible'
             ]);
-
             $charge->delete();
-
             DB::commit();
-
             return back()->with(
                 'success',
                 'Solicitud cancelada correctamente'
             );
-
         } catch (\Exception $e) {
-
             DB::rollBack();
-
             report($e);
-
             return back()->withErrors([
                 'messageError' => $e->getMessage()
             ]);
+        }
+    }
+
+    public function availableForChange(Request $request)
+    {
+        try {
+
+            $driver = DB::getDriverName();
+            $club_id = Membership::find($request->membership_id)->club_id;
+            $query = Locker::query()
+                ->where('club_id', $club_id);
+
+            // categoría
+            if ($request->category) {
+                $query->where('category', $request->category);
+            }
+
+            // disponibles + actual
+            $query->where(function ($q) use ($request) {
+                $q->where('status', 'disponible');
+            });
+
+            // búsqueda
+            if ($search = $request->lockers_search) {
+                $operator = $driver === 'pgsql'
+                    ? 'ilike'
+                    : 'like';
+                $query->where(function ($q) use ($search, $operator) {
+                    $q->where('number', $operator, "%{$search}%");
+                });
+            }
+
+            return response()->json(
+                $query
+                    ->orderBy('number')
+                    ->paginate(30)
+            );
+
+        } catch (\Exception $e) {
+
+            report($e);
+
+            return response()->json([
+                'message' => 'Error al cargar casilleros',
+                'error' => $e->getMessage()
+            ], 500);
         }
     }
 }
