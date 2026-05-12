@@ -48,9 +48,13 @@ class FeedbackTicketNotificationMailable extends Mailable
             ->values()
             ->all();
 
+        $view = $isCancelled
+            ? 'emails.feedback_ticket_cancelled'
+            : 'emails.feedback_ticket_notification';
+
         $mail = $this
             ->subject($subject)
-            ->view('emails.feedback_ticket_notification', [
+            ->view($view, [
                 'ticket' => $this->ticket,
                 'event' => $this->event,
                 'recipientType' => $this->recipientType,
