@@ -4,7 +4,6 @@ namespace App\Services\Notifications;
 
 use Kreait\Firebase\Contract\Messaging;
 use Kreait\Firebase\Exception\MessagingException;
-use Kreait\Firebase\Exception\FirebaseException;
 use Kreait\Firebase\Messaging\CloudMessage;
 use Kreait\Firebase\Messaging\Notification;
 
@@ -14,7 +13,12 @@ class FirebaseNotificationService {
     }
 
     public function sendToToken(string $token, string $title, string $body, array $data = []): void {
-        $message = CloudMessage::withTarget('token', $token)
+        $data = collect($data)
+            ->map(fn ($value) => is_scalar($value) ? (string) $value : json_encode($value))
+            ->toArray();
+
+        $message = CloudMessage::new()
+            ->toToken($token)
             ->withNotification(Notification::create($title, $body))
             ->withData($data);
 

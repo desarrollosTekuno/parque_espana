@@ -53,7 +53,7 @@ Route::prefix('v1')->group(function () {
     Route::post('/email/test', [EmailTestController::class, 'send'])->middleware('auth:sanctum');
 
     // Firebase test
-    Route::post('/firebase/test', [FirebaseTestController::class, 'send'])->middleware('auth:sanctum');
+    Route::post('/firebase/test', [FirebaseTestController::class, 'send']);
     Route::get('/firebase/ping', [FirebaseTestController::class, 'ping']);
 
 });
