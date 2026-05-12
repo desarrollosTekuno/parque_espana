@@ -8,8 +8,7 @@ use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Storage;
 
-class FeedbackTicketNotificationMailable extends Mailable
-{
+class FeedbackTicketNotificationMailable extends Mailable {
     use Queueable, SerializesModels;
 
     public function __construct(
@@ -26,9 +25,12 @@ class FeedbackTicketNotificationMailable extends Mailable
 
         $isCancelled = $this->event === 'cancelled';
         $isStatusChanged = $this->event === 'status_changed';
+        $isCommentAdded = $this->event === 'comment_added';
         $isClient = $this->recipientType === 'client';
 
-        $subject = $isStatusChanged
+        $subject = $isCommentAdded
+            ? 'Nuevo comentario en tu ticket ' . $this->ticket->ticket_number
+            : ($isStatusChanged
             ? 'Actualizacion de estatus de tu ticket ' . $this->ticket->ticket_number
             : ($isClient
             ? ($isCancelled
@@ -36,7 +38,7 @@ class FeedbackTicketNotificationMailable extends Mailable
                 : 'Recibimos tu queja/sugerencia ' . $this->ticket->ticket_number)
             : ($isCancelled
                 ? 'Ticket cancelado: ' . $this->ticket->ticket_number
-                : 'Nuevo ticket creado: ' . $this->ticket->ticket_number));
+                : 'Nuevo ticket creado: ' . $this->ticket->ticket_number)));
 
         $attachmentLinks = $this->ticket->attachments
             ->map(function ($attachment) {
@@ -52,6 +54,7 @@ class FeedbackTicketNotificationMailable extends Mailable
             ->all();
 
         $latestStatusComment = null;
+        $latestTicketComment = null;
 
         if ($isStatusChanged) {
             $latestStatusComment = $this->ticket->comments()
@@ -60,11 +63,20 @@ class FeedbackTicketNotificationMailable extends Mailable
                 ->value('comment');
         }
 
-        $view = $isStatusChanged
+        if ($isCommentAdded) {
+            $latestTicketComment = $this->ticket->comments()
+                ->where('is_internal', false)
+                ->latest('id')
+                ->value('comment');
+        }
+
+        $view = $isCommentAdded
+            ? 'emails.feedback_ticket_comment_added'
+            : ($isStatusChanged
             ? 'emails.feedback_ticket_status_changed'
             : ($isCancelled
                 ? 'emails.feedback_ticket_cancelled'
-                : 'emails.feedback_ticket_notification');
+                : 'emails.feedback_ticket_notification'));
 
         $mail = $this
             ->subject($subject)
@@ -75,6 +87,7 @@ class FeedbackTicketNotificationMailable extends Mailable
                 'reviewUrl' => $this->reviewUrl,
                 'attachmentLinks' => $attachmentLinks,
                 'latestStatusComment' => $latestStatusComment,
+                'latestTicketComment' => $latestTicketComment,
                 'subjectText' => $subject,
             ]);
 

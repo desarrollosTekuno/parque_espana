@@ -119,6 +119,11 @@ class FeedbackManagementController extends Controller {
                     'is_internal' => (bool) ($validated['is_internal'] ?? false),
                 ]);
 
+                if (!(bool) ($validated['is_internal'] ?? false)) {
+                    $updatedTicket = Ticket::query()->findOrFail($feedback->id);
+                    $this->sendTicketCommentNotification($mailService, $updatedTicket);
+                }
+
                 return back()->with('success', 'Comentario agregado correctamente.');
             }
 
