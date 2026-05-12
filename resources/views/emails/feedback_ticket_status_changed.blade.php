@@ -45,5 +45,18 @@
                 {{ $ticket->title }}
             </td>
         </tr>
+
+        @if (!empty($latestStatusComment))
+            <tr>
+                <td style="padding: 12px; border-top: 1px solid #e2e8f0; color: #334155; font-weight: 700;">
+                    Comentario
+                </td>
+            </tr>
+            <tr>
+                <td style="padding: 0 12px 14px; color: #0f172a; line-height: 1.65;">
+                    {!! nl2br(e($latestStatusComment)) !!}
+                </td>
+            </tr>
+        @endif
     </table>
 @endsection

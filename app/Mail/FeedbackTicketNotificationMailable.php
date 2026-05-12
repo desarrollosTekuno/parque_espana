@@ -51,6 +51,15 @@ class FeedbackTicketNotificationMailable extends Mailable
             ->values()
             ->all();
 
+        $latestStatusComment = null;
+
+        if ($isStatusChanged) {
+            $latestStatusComment = $this->ticket->comments()
+                ->where('is_internal', false)
+                ->latest('id')
+                ->value('comment');
+        }
+
         $view = $isStatusChanged
             ? 'emails.feedback_ticket_status_changed'
             : ($isCancelled
@@ -65,6 +74,7 @@ class FeedbackTicketNotificationMailable extends Mailable
                 'recipientType' => $this->recipientType,
                 'reviewUrl' => $this->reviewUrl,
                 'attachmentLinks' => $attachmentLinks,
+                'latestStatusComment' => $latestStatusComment,
                 'subjectText' => $subject,
             ]);
 
