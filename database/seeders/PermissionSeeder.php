@@ -90,12 +90,12 @@ class PermissionSeeder extends Seeder
             ['module' => 'Membresías', 'name' => 'members.edit', 'description' => 'Editar usuarios del club', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.update', 'description' => 'Actualizar usuarios del club', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.destroy', 'description' => 'Eliminar usuarios del club', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'members.cancel', 'description' => 'Dar de baja una cuenta', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.lockers.create', 'description' => 'Crear asignación de casillero', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.lockers.store', 'description' => 'Guardar asignación de casillero', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'member-access.index', 'description' => 'Ver acceso de miembros', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'member-access.store', 'description' => 'Asignar acceso a miembros', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'member-access.destroy', 'description' => 'Revocar acceso a miembros', 'contexts' => ['web']],
-
             // Cobranza
             ['module' => 'Cobranza', 'name' => 'billing.index', 'description' => 'Ver módulo de cobranza', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'billing.store', 'description' => 'Registrar cobros', 'contexts' => ['web']],

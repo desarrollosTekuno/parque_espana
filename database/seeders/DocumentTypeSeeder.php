@@ -79,6 +79,18 @@ class DocumentTypeSeeder extends Seeder
                 'description' => 'Documento que acredita la residencia de una persona en un lugar específico.',
                 'allowed_extensions' => 'pdf,jpg,png',
             ],
+            [
+                'code' => 'carta_baja',
+                'name' => 'Carta de Baja',
+                'description' => 'Carta firmada por el titular solicitando la baja de la cuenta.',
+                'allowed_extensions' => 'pdf,jpg,png',
+            ],
+            [
+                'code' => 'documento_permiso_ausencia',
+                'name' => 'Documento de Permiso por Ausencia',
+                'description' => 'Documento que respalda la solicitud de permiso por ausencia del titular.',
+                'allowed_extensions' => 'pdf,jpg,png',
+            ],
             // carta de no adeudo
             [
                 'code' => 'carta_no_adeudo',

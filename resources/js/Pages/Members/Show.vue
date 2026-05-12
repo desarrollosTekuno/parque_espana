@@ -113,11 +113,14 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const showAbsencePermitDialog = ref(false);
+const absencePermitFileInput = ref<HTMLInputElement | null>(null);
+const absencePermitFileName = ref("");
 const absencePermitForm = useForm({
     start_month: "",
     end_month: "",
     charge_percentage: 25,
     notes: "",
+    absence_permit_document: null as File | null,
 });
 
 const currentMonth = computed(() => {
@@ -200,16 +203,26 @@ const openAbsencePermitDialog = () => {
     absencePermitForm.reset();
     absencePermitForm.clearErrors();
     absencePermitForm.charge_percentage = 25;
+    absencePermitFileName.value = "";
     showAbsencePermitDialog.value = true;
+};
+
+const onAbsencePermitFileChange = (e: Event) => {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    absencePermitForm.absence_permit_document = file;
+    absencePermitFileName.value = file?.name ?? "";
 };
 
 const submitAbsencePermit = () => {
     absencePermitForm.post(route("members.absence-permits.store", props.membership.id), {
+        forceFormData: true,
         preserveScroll: true,
         onSuccess: () => {
             showAbsencePermitDialog.value = false;
             absencePermitForm.reset();
             absencePermitForm.charge_percentage = 25;
+            absencePermitFileName.value = "";
         },
     });
 };
@@ -797,6 +810,60 @@ const cancelAbsencePermit = (absencePermitId: number) => {
                             auto-grow
                             :error-messages="absencePermitForm.errors.notes"
                         />
+                    </v-col>
+
+                    <v-col cols="12">
+                        <v-card
+                            variant="outlined"
+                            class="pa-3"
+                            :color="absencePermitForm.errors.absence_permit_document ? 'error' : undefined"
+                        >
+                            <div class="font-weight-medium text-body-2 mb-1">
+                                Documento de solicitud
+                                <span class="text-error">*</span>
+                            </div>
+                            <div class="text-caption text-medium-emphasis mb-3">
+                                Adjunta el documento firmado que respalda la solicitud. PDF, JPG o PNG, máx. 5 MB.
+                            </div>
+
+                            <input
+                                ref="absencePermitFileInput"
+                                type="file"
+                                accept=".pdf,.jpg,.jpeg,.png"
+                                style="display: none"
+                                @change="onAbsencePermitFileChange"
+                            />
+
+                            <div class="d-flex align-center ga-3">
+                                <v-btn
+                                    size="small"
+                                    variant="outlined"
+                                    prepend-icon="mdi-upload"
+                                    @click="absencePermitFileInput?.click()"
+                                >
+                                    Seleccionar archivo
+                                </v-btn>
+                                <span
+                                    v-if="absencePermitFileName"
+                                    class="text-body-2 text-success"
+                                >
+                                    {{ absencePermitFileName }}
+                                </span>
+                                <span
+                                    v-else
+                                    class="text-body-2 text-medium-emphasis"
+                                >
+                                    Ningún archivo seleccionado
+                                </span>
+                            </div>
+
+                            <div
+                                v-if="absencePermitForm.errors.absence_permit_document"
+                                class="text-error text-caption mt-2"
+                            >
+                                {{ absencePermitForm.errors.absence_permit_document }}
+                            </div>
+                        </v-card>
                     </v-col>
                 </v-row>
             </v-card-text>

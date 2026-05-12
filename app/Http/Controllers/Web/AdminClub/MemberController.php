@@ -573,6 +573,11 @@ class MemberController extends Controller
                 'end_month'   => ['required', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/'],
                 'charge_percentage' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
                 'notes' => ['nullable', 'string', 'max:1000'],
+                'absence_permit_document' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+            ], [
+                'absence_permit_document.required' => 'El documento de solicitud de permiso por ausencia es obligatorio.',
+                'absence_permit_document.mimes' => 'El documento debe ser un archivo PDF, JPG o PNG.',
+                'absence_permit_document.max' => 'El documento no debe superar los 5 MB.',
             ]);
 
             $startDate = Carbon::createFromFormat('Y-m', $validated['start_month'])->startOfMonth()->startOfDay();
@@ -615,20 +620,42 @@ class MemberController extends Controller
                 ]);
             }
 
-            AbsencePermit::create([
-                'account_group_id' => $accountGroup->id,
-                'membership_account_id' => $membership->membership_account_id,
-                'primary_member_id' => $primaryHolder->member_id,
-                'start_date' => $startDate->toDateString(),
-                'end_date' => $endDate->toDateString(),
-                'charge_percentage' => (float) ($validated['charge_percentage'] ?? 25),
-                'status' => $this->resolveAbsencePermitStatus($startDate, $endDate),
-                'blocks_facility_access' => true,
-                'blocks_reservations' => true,
-                'notes' => $validated['notes'] ?? null,
-                'approved_by' => $request->user()?->id,
-                'approved_at' => now(),
-            ]);
+            DB::transaction(function () use ($request, $membership, $accountGroup, $primaryHolder, $startDate, $endDate, $validated) {
+                AbsencePermit::create([
+                    'account_group_id' => $accountGroup->id,
+                    'membership_account_id' => $membership->membership_account_id,
+                    'primary_member_id' => $primaryHolder->member_id,
+                    'start_date' => $startDate->toDateString(),
+                    'end_date' => $endDate->toDateString(),
+                    'charge_percentage' => (float) ($validated['charge_percentage'] ?? 25),
+                    'status' => $this->resolveAbsencePermitStatus($startDate, $endDate),
+                    'blocks_facility_access' => true,
+                    'blocks_reservations' => true,
+                    'notes' => $validated['notes'] ?? null,
+                    'approved_by' => $request->user()?->id,
+                    'approved_at' => now(),
+                ]);
+
+                $file = $request->file('absence_permit_document');
+                $docType = \App\Models\Catalogs\DocumentType::where('code', 'documento_permiso_ausencia')->first();
+                $clubCode = $membership->club?->code ?? 'sin-club';
+                $membershipNumber = $membership->account?->membership_number;
+                $docTypeSlug = $docType ? Str::slug($docType->name) : 'documento-permiso-ausencia';
+                $directory = "{$clubCode}/{$membershipNumber}/{$primaryHolder->member_id}/{$docTypeSlug}";
+                $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
+
+                $uploaded = Storage::disk('spaces')->putFileAs($directory, $file, $filename);
+
+                if ($uploaded === false) {
+                    throw new \RuntimeException('No se pudo subir el documento del permiso por ausencia.');
+                }
+
+                MemberDocument::create([
+                    'member_id'        => $primaryHolder->member_id,
+                    'document_type_id' => $docType?->id,
+                    'file_path'        => "{$directory}/{$filename}",
+                ]);
+            });
 
             return redirect()
                 ->route('members.manage.show', $membership)

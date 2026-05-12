@@ -388,6 +388,22 @@ const emptyMessage = computed(() =>
                                     "
                                     :disabled="!item.membership_id"
                                 />
+
+                                <BaseButton
+                                    :icon-only="false"
+                                    action="delete"
+                                    text="Dar de baja"
+                                    tooltip="Procesar baja de la cuenta a solicitud del titular"
+                                    @click="
+                                        router.visit(
+                                            route(
+                                                'members.cancel.create',
+                                                item.membership_id,
+                                            ),
+                                        )
+                                    "
+                                    :disabled="!item.membership_id"
+                                />
                             </div>
                         </template>
                     </v-data-table-server>

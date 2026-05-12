@@ -6,6 +6,7 @@ use App\Models\Administrator\Club;
 use App\Models\Members\Member;
 use App\Models\Billing\Charge;
 use App\Models\Billing\Payment;
+use App\Models\User;
 use App\Traits\SerializesDates;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -15,6 +16,10 @@ class MembershipAccount extends Model
     use HasFactory, SerializesDates;
 
     protected $guarded = ['id', 'created_at', 'updated_at'];
+
+    protected $casts = [
+        'cancelled_at' => 'datetime',
+    ];
 
     protected $table = 'memberships.accounts';
 
@@ -57,6 +62,11 @@ class MembershipAccount extends Model
     public function absencePermits()
     {
         return $this->hasMany(AbsencePermit::class, 'membership_account_id');
+    }
+
+    public function cancelledBy()
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
     }
 
     public function members()

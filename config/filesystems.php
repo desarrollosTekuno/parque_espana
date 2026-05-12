@@ -69,8 +69,10 @@ return [
             'endpoint'                => env('DO_SPACES_ENDPOINT'),
             'url'                     => env('DO_SPACES_URL'),
             'use_path_style_endpoint' => false,
-            'throw'                   => false,
-            'report'                  => false,
+            'throw'                   => true,
+            'http'                    => [
+                'verify' => env('DO_SPACES_SSL_VERIFY', true),
+            ],
         ],
 
     ],
