@@ -38,7 +38,7 @@ trait HandlesFeedbackTickets {
         return null;
     }
 
-    protected function storeTicketAttachments(Ticket $ticket, array $files): void {
+    protected function storeFileAttachments(Ticket $ticket, array $files): void {
         $ticketFolder = 'Feedback/' . $ticket->ticket_number;
 
         foreach ($files as $file) {

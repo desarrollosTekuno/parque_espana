@@ -191,7 +191,7 @@ class FeedbackController extends Controller {
             $attachments = $this->getAttachmentFiles($request);
 
             if (!empty($attachments)) {
-                $this->storeTicketAttachments($ticket, $attachments);
+                $this->storeFileAttachments($ticket, $attachments);
             }
 
             $this->sendTicketNotifications($mailService, $ticket, 'created');
@@ -258,7 +258,7 @@ class FeedbackController extends Controller {
             $attachments = $this->getAttachmentFiles($request);
 
             if (!empty($attachments)) {
-                $this->storeTicketAttachments($feedback, $attachments);
+                $this->storeFileAttachments($feedback, $attachments);
             }
 
             return back()->with('success', 'Queja o sugerencia actualizada');
@@ -289,7 +289,8 @@ class FeedbackController extends Controller {
                 'closed_at' => now(),
             ]);
 
-            $this->sendTicketNotifications($mailService, $feedback->fresh(), 'cancelled');
+            $updatedTicket = Ticket::query()->findOrFail($feedback->id);
+            $this->sendTicketNotifications($mailService, $updatedTicket, 'cancelled');
 
             return back()->with('success', 'Ticket cancelado correctamente');
         } catch (\Exception $e) {

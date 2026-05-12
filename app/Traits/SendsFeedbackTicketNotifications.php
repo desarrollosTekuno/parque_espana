@@ -12,7 +12,7 @@ trait SendsFeedbackTicketNotifications {
     protected function sendTicketNotifications(MailService $mailService, Ticket $ticket, string $event): void {
         try {
             $clubId = (int) $ticket->club_id;
-            $ticket->loadMissing(['type', 'category', 'status', 'priority', 'reportedBy', 'member', 'attachments']);
+            $ticket->load(['type', 'category', 'status', 'priority', 'reportedBy', 'member', 'attachments']);
 
             $adminEmail = SystemVariable::where('club_id', $clubId)
                 ->where('name', 'feedback_notification_email')
@@ -26,7 +26,7 @@ trait SendsFeedbackTicketNotifications {
 
             $reviewUrl = route('feedback-management.index', ['search' => $ticket->ticket_number]);
 
-            if (is_string($adminEmail) && trim($adminEmail) !== '') {
+            if (trim($adminEmail) != '') {
                 $mailService->send(
                     entityId: $clubId,
                     to: trim($adminEmail),
@@ -34,7 +34,7 @@ trait SendsFeedbackTicketNotifications {
                 );
             }
 
-            if (is_string($clientEmail) && trim($clientEmail) !== '') {
+            if (trim($clientEmail) != '') {
                 $mailService->send(
                     entityId: $clubId,
                     to: trim($clientEmail),

@@ -130,7 +130,7 @@ class FeedbackTicketMobileController extends Controller {
                 $attachments = $this->getAttachmentFiles($request);
 
                 if (!empty($attachments)) {
-                    $this->storeTicketAttachments($ticket, $attachments);
+                    $this->storeFileAttachments($ticket, $attachments);
                 }
 
                 $this->sendTicketNotifications($mailService, $ticket, 'created');
@@ -190,7 +190,8 @@ class FeedbackTicketMobileController extends Controller {
                         'closed_at' => now(),
                     ]);
 
-                    $this->sendTicketNotifications($mailService, $ticketQuery->fresh(), 'cancelled');
+                    $updatedTicket = Ticket::query()->findOrFail($ticketQuery->id);
+                    $this->sendTicketNotifications($mailService, $updatedTicket, 'cancelled');
 
                     return response()->json([
                         'success' => true,
