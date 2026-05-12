@@ -280,6 +280,51 @@
                     "response": []
                 }
             ]
+        },
+        {
+            "name": "Firebase",
+            "item": [
+                {
+                    "name": "SendTestPush",
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{token}}",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"token\": \"{{fcm_token}}\",\n  \"title\": \"Prueba Firebase\",\n  \"body\": \"Notificacion enviada desde API Laravel\",\n  \"data\": {\n    \"type\": \"test\",\n    \"source\": \"postman\"\n  }\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/firebase/test",
+                            "host": ["{{base_url}}"],
+                            "path": ["firebase", "test"]
+                        }
+                    },
+                    "response": []
+                }
+            ]
         }
     ],
     "event": [
@@ -320,6 +365,10 @@
         {
             "key": "test_email_to",
             "value": "mailtrap@example.com"
+        },
+        {
+            "key": "fcm_token",
+            "value": ""
         }
     ]
 }
