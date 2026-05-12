@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\AmenityController;
 use App\Http\Controllers\Api\V1\EmailTestController;
+use App\Http\Controllers\Api\V1\FirebaseTestController;
 use App\Http\Controllers\Api\V1\FeedbackTicketMobileController;
 use App\Http\Controllers\Api\V1\LoginController;
 use App\Http\Controllers\Api\V1\LockerApiController;
@@ -50,6 +51,9 @@ Route::prefix('v1')->group(function () {
 
     // Email test
     Route::post('/email/test', [EmailTestController::class, 'send'])->middleware('auth:sanctum');
+
+    // Firebase test
+    Route::post('/firebase/test', [FirebaseTestController::class, 'send'])->middleware('auth:sanctum');
 
 });
 

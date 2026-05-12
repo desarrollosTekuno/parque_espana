@@ -6,7 +6,6 @@ use App\Models\Notifications\EmailConfig;
 use App\Models\Notifications\EmailLog;
 use Illuminate\Mail\Mailable;
 use Illuminate\Support\Facades\Mail;
-use RuntimeException;
 use Throwable;
 
 class MailService {
@@ -17,7 +16,7 @@ class MailService {
         $logData = [
             'entity_id' => $entityId,
             'email_config_id' => $emailConfig->id,
-            'to_email' => $this->normalizeRecipients($to),
+            'to_email' => $this->normalize($to),
             'subject' => $this->resolveSubject($mailable),
         ];
 
@@ -54,14 +53,10 @@ class MailService {
             ->where('is_active', true)
             ->first();
 
-        if (! $emailConfig) {
-            throw new RuntimeException('No active email config found for the entity.');
-        }
-
         return $emailConfig;
     }
 
-    private function normalizeRecipients(string|array $to): string {
+    private function normalize(string|array $to): string {
         if (is_string($to)) {
             return $to;
         }
