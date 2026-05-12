@@ -167,16 +167,22 @@ Route::post('/members/{membership}/cancel', [AccountCancellationController::clas
 // Lockers
 Route::get('/members/{accountId}/lockers/create', [LockerAssignmentController::class, 'create'])
     ->name('members.lockers.create');
+Route::post('/lockers', [LockerAssignmentController::class, 'reserve'])
+    ->name('members.lockers.reserve');
+Route::post('lockers/change',[LockerAssignmentController::class, 'change'])
+    ->name('members.lockers.change');
+Route::delete('/members/lockers/{assignment}/remove', [LockerAssignmentController::class, 'remove'])
+    ->name('members.lockers.remove');
+
 Route::get('/lockers/assigned-by-account', [LockerController::class, 'assignedByAccount'])
     ->name('lockers.assigned.by.account');
 Route::get('/lockers/available', [LockerController::class, 'available'])
     ->name('lockers.available');
-Route::post('/lockers', [LockerAssignmentController::class, 'reserve'])
-        ->name('members.lockers.reserve');
 Route::delete('/members/lockers/{id}/cancel',[LockerController::class, 'cancel'])
         ->name('members.lockers.cancel');
-Route::delete('/members/lockers/{assignment}/remove', [LockerAssignmentController::class, 'remove'])
-        ->name('members.lockers.remove');
+Route::get('lockers/available-for-change',[LockerController::class, 'availableForChange'])
+        ->name('lockers.available.for.change');
+
 
 // Acts
 Route::prefix('acts')->group(function () {

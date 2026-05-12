@@ -5,7 +5,7 @@ import { ref, watch } from "vue";
 import { debounce } from "lodash";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import BaseButton from "@/Components/BaseButton.vue";
-
+import { required, allowedExtensions } from '@/constants/validationRules';
 interface RelationshipOption {
     id: number;
     name: string;
@@ -257,7 +257,7 @@ watch(
 
                         <template #item.relationships="{ item }">
                             <div v-if="item.relationships.length === 0" class="text-caption text-medium-emphasis">
-                                Todos
+                                N/A
                             </div>
                             <div v-else class="d-flex flex-wrap ga-1">
                                 <v-chip
@@ -347,6 +347,7 @@ watch(
                                     hint="Separadas por coma, sin punto. Ej: pdf, jpg, png"
                                     persistent-hint
                                     :error-messages="form.errors.allowed_extensions"
+                                    :rules="[required, allowedExtensions]"
                                 />
                             </v-col>
 
@@ -361,7 +362,7 @@ watch(
                                     multiple
                                     chips
                                     closable-chips
-                                    hint="Sin selección = aplica a todos los parentescos"
+                                    hint="Sin selección = no se requiere para ningún parentesco."
                                     persistent-hint
                                     :error-messages="form.errors.relationship_ids"
                                 />

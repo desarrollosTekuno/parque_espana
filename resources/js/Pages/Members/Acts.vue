@@ -7,6 +7,7 @@ import { ref, watch, computed } from "vue";
 import { debounce } from "lodash";
 import { customToastSwal } from "@/utils/swal";
 const page = usePage();
+const can = usePage().props.auth.permissions;
 interface Props {
     acts?: any;
     account?: any;
@@ -384,7 +385,7 @@ const removeFile = (index: number) => {
                 @click="router.visit(route('members.manage.show', props.membershipId))"
             />
         </template>
-            <BaseButton
+            <BaseButton  v-if="can.includes('acts.store')"
                 :text="'Registrar multa'"
                 :icon-only="false"
                 icon="mdi-plus"
@@ -433,7 +434,7 @@ const removeFile = (index: number) => {
 
             <!-- Acciones -->
             <template #item.actions="{ item }">
-                <BaseButton
+                <BaseButton  v-if="can.includes('acts.update')"
                     icon="mdi-pencil"
                     action="edit"
                     @click="edit(item)"

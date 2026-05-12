@@ -1128,16 +1128,14 @@ const handleNext = async (next: () => void) => {
 
     if (step.value === 3) {
         const { valid } = await documentsStepRef.value?.validate();
-        /* if (!valid) {
+        if (!valid) {
             // Show an error toast if validation fails
             customToastSwal({
                 text: "Revisa los documentos requeridos. Hay campos con errores o documentos faltantes.",
                 icon: "warning",
             });
             return;
-        } */
-        next();
-        return;
+        }
     }
 
     next();
