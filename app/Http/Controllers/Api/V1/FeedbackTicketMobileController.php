@@ -133,7 +133,7 @@ class FeedbackTicketMobileController extends Controller {
                     $this->storeFileAttachments($ticket, $attachments);
                 }
 
-                $this->sendTicketNotifications($mailService, $ticket, 'created');
+                $this->sendTicketNotifications($mailService, $ticket);
 
                 return response()->json([
                     'success' => true,
@@ -189,9 +189,6 @@ class FeedbackTicketMobileController extends Controller {
                         'status_id' => $cancelledStatus->id,
                         'closed_at' => now(),
                     ]);
-
-                    $updatedTicket = Ticket::query()->findOrFail($ticketQuery->id);
-                    $this->sendTicketNotifications($mailService, $updatedTicket, 'cancelled');
 
                     return response()->json([
                         'success' => true,

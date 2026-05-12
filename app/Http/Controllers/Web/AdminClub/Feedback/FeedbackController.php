@@ -194,7 +194,7 @@ class FeedbackController extends Controller {
                 $this->storeFileAttachments($ticket, $attachments);
             }
 
-            $this->sendTicketNotifications($mailService, $ticket, 'created');
+            $this->sendTicketNotifications($mailService, $ticket);
 
             return back()->with('success', 'Queja o sugerencia creada correctamente');
 
@@ -288,9 +288,6 @@ class FeedbackController extends Controller {
                 'status_id' => $cancelledStatus->id,
                 'closed_at' => now(),
             ]);
-
-            $updatedTicket = Ticket::query()->findOrFail($feedback->id);
-            $this->sendTicketNotifications($mailService, $updatedTicket, 'cancelled');
 
             return back()->with('success', 'Ticket cancelado correctamente');
         } catch (\Exception $e) {

@@ -7,8 +7,6 @@ use App\Models\Feedback\Comment;
 use App\Models\Feedback\Status;
 use App\Models\Feedback\StatusHistory;
 use App\Models\Feedback\Ticket;
-use App\Services\Email\MailService;
-use App\Traits\SendsFeedbackTicketNotifications;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
@@ -16,8 +14,6 @@ use Illuminate\Routing\Controller;
 use Inertia\Inertia;
 
 class FeedbackManagementController extends Controller {
-    use SendsFeedbackTicketNotifications;
-
     public function __construct() {
         $this->middleware('permission:feedback-management.index')->only('index');
         $this->middleware('permission:feedback-management.update')->only('update');
@@ -91,7 +87,7 @@ class FeedbackManagementController extends Controller {
         ]);
     }
 
-    public function update(Request $request, Ticket $feedback, MailService $mailService) {
+    public function update(Request $request, Ticket $feedback) {
         $validated = $request->validate([
             'action' => 'required|string',
             'rejection_reason' => 'required_if:action,reject|string|max:1000',
@@ -118,11 +114,6 @@ class FeedbackManagementController extends Controller {
                     'comment' => $validated['comment'],
                     'is_internal' => (bool) ($validated['is_internal'] ?? false),
                 ]);
-
-                if (!(bool) ($validated['is_internal'] ?? false)) {
-                    $updatedTicket = Ticket::query()->findOrFail($feedback->id);
-                    $this->sendTicketCommentNotification($mailService, $updatedTicket);
-                }
 
                 return back()->with('success', 'Comentario agregado correctamente.');
             }
@@ -186,14 +177,6 @@ class FeedbackManagementController extends Controller {
                     }
                 });
 
-                $updatedTicket = Ticket::query()->findOrFail($feedback->id);
-
-                if (strtoupper((string) $newStatus->code) === 'RESOLVED') {
-                    $this->sendTicketResolvedNotification($mailService, $updatedTicket);
-                } else {
-                    $this->sendTicketStatusNotification($mailService, $updatedTicket);
-                }
-
                 return back()->with('success', 'Estatus actualizado correctamente.');
             }
 
@@ -230,9 +213,6 @@ class FeedbackManagementController extends Controller {
                     'is_internal' => true,
                 ]);
             });
-
-            $updatedTicket = Ticket::query()->findOrFail($feedback->id);
-            $this->sendTicketRejectedNotification($mailService, $updatedTicket);
 
             return back()->with('success', 'Ticket rechazado correctamente.');
         } catch (\Exception $e) {
