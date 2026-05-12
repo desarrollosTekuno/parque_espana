@@ -42,7 +42,6 @@ class FirebaseTestController extends Controller {
     }
 
     public function ping(): JsonResponse {
-
         try {
 
             $messaging = app('firebase.messaging');
