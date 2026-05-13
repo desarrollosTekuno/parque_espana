@@ -19,6 +19,7 @@ class MembershipAccount extends Model
 
     protected $casts = [
         'cancelled_at' => 'datetime',
+        'cancellation_type' => 'string',
     ];
 
     protected $table = 'memberships.accounts';
@@ -67,6 +68,17 @@ class MembershipAccount extends Model
     public function cancelledBy()
     {
         return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
+    public function reactivations()
+    {
+        return $this->hasMany(AccountReactivation::class, 'membership_account_id');
+    }
+
+    public function latestReactivation()
+    {
+        return $this->hasOne(AccountReactivation::class, 'membership_account_id')
+            ->latestOfMany('reactivated_at');
     }
 
     public function members()

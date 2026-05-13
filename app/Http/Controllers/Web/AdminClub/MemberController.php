@@ -159,9 +159,81 @@ class MemberController extends Controller
                 })
                 ->appends($request->all());
 
+            $cancelledAccounts = ['data' => [], 'total' => 0];
+
+            if (auth()->user()?->can('members.reactivate')) {
+                $cancelledPrefix = 'cancelled';
+                $cancelledSearch = $request->input("{$cancelledPrefix}_search");
+                $cancelledSort = $request->input("{$cancelledPrefix}_sort", 'id');
+                $cancelledOrder = $request->input("{$cancelledPrefix}_order", 'desc');
+                $cancelledSortColumn = $sortMap[$cancelledSort] ?? 'id';
+
+                $cancelledQuery = MembershipAccount::query()
+                    ->with([
+                        'club',
+                        'primaryHolder.member',
+                        'memberships' => fn ($q) => $q
+                            ->with(['membershipType', 'club'])
+                            ->where('is_primary', true),
+                    ])
+                    ->withCount('accountMembers')
+                    ->where('status', 'cancelled')
+                    ->where('cancellation_type', 'voluntary')
+                    ->whereHas('memberships', function (Builder $q) use ($clubId) {
+                        $q->where('club_id', $clubId)->where('is_primary', true);
+                    })
+                    ->whereHas('primaryHolder.member');
+
+                if ($cancelledSearch) {
+                    $like = $driver === 'pgsql' ? 'ilike' : 'like';
+                    $cancelledQuery->where(function (Builder $b) use ($cancelledSearch, $like) {
+                        $b->where('membership_number', $like, "%{$cancelledSearch}%")
+                            ->orWhereHas('primaryHolder.member', function (Builder $mq) use ($cancelledSearch, $like) {
+                                $mq->where('first_name', $like, "%{$cancelledSearch}%")
+                                    ->orWhere('last_name', $like, "%{$cancelledSearch}%")
+                                    ->orWhere('second_last_name', $like, "%{$cancelledSearch}%")
+                                    ->orWhere('email', $like, "%{$cancelledSearch}%");
+                            });
+                    });
+                }
+
+                $cancelledAccounts = $cancelledQuery
+                    ->orderBy($cancelledSortColumn, $cancelledOrder)
+                    ->paginate(
+                        $request->input("{$cancelledPrefix}_per_page", 10),
+                        ['*'],
+                        "{$cancelledPrefix}_page",
+                        $request->input("{$cancelledPrefix}_page", 1)
+                    )
+                    ->through(function (MembershipAccount $account) use ($clubId) {
+                        $holder = $account->primaryHolder?->member;
+                        $primaryMembership = $account->memberships
+                            ->where('club_id', (int) $clubId)
+                            ->where('is_primary', true)
+                            ->first();
+
+                        return [
+                            'id' => $account->id,
+                            'membership_id' => $primaryMembership?->id,
+                            'membership_number' => $account->membership_number,
+                            'holder_name' => trim(collect([
+                                $holder?->first_name,
+                                $holder?->last_name,
+                                $holder?->second_last_name,
+                            ])->filter()->implode(' ')),
+                            'email' => $holder?->email,
+                            'membership_type_name' => $primaryMembership?->membershipType?->name,
+                            'cancelled_at' => $account->cancelled_at,
+                            'members_count' => (int) $account->account_members_count,
+                        ];
+                    })
+                    ->appends($request->all());
+            }
+
             return Inertia::render('Members/Index', [
                 'members' => $members,
                 'pendingMembersCount' => $pendingMembersCount,
+                'cancelledAccounts' => $cancelledAccounts,
             ]);
         } catch (\Exception $e) {
             report($e);
@@ -172,6 +244,10 @@ class MemberController extends Controller
                     'total' => 0,
                 ],
                 'pendingMembersCount' => 0,
+                'cancelledAccounts' => [
+                    'data' => [],
+                    'total' => 0,
+                ],
                 'messageError' => $e->getMessage(),
             ]);
         }

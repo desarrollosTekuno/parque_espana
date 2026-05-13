@@ -25,6 +25,7 @@ use App\Http\Controllers\Web\AdminClub\Feedback\FeedbackTicketTypeController;
 use App\Http\Controllers\Web\AdminClub\ReservationGuestListController;
 use App\Http\Controllers\Web\AdminClub\SurveyResultController;
 use App\Http\Controllers\Web\AdminClub\AccountCancellationController;
+use App\Http\Controllers\Web\AdminClub\AccountReactivationController;
 use App\Http\Controllers\Web\AdminClub\MemberDocumentController;
 use App\Http\Controllers\Web\AdminClub\LockerAssignmentController;
 use App\Http\Controllers\Web\AdminClub\LockerController;
@@ -167,6 +168,12 @@ Route::get('/members/{membership}/cancel/create', [AccountCancellationController
     ->name('members.cancel.create');
 Route::post('/members/{membership}/cancel', [AccountCancellationController::class, 'store'])
     ->name('members.cancel.store');
+
+// Reactivación de cuenta
+Route::get('/members/{membership}/reactivate/create', [AccountReactivationController::class, 'create'])
+    ->name('members.reactivate.create');
+Route::post('/members/{membership}/reactivate', [AccountReactivationController::class, 'store'])
+    ->name('members.reactivate.store');
 
 
 // Lockers

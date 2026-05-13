@@ -151,6 +151,7 @@ class AccountCancellationController extends Controller
                 'cancelled_at' => $now,
                 'cancelled_by' => auth()->id(),
                 'cancellation_letter_path' => $letterPath,
+                'cancellation_type' => 'voluntary',
             ]);
 
             $account->memberships()->update([

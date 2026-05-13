@@ -40,6 +40,7 @@ class AdminClubSeeder extends Seeder
             'members.edit',
             'members.update',
             'members.destroy',
+            'members.reactivate',
             'billing.index',
             'billing.store',
             'blockedPeriods.index',

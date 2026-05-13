@@ -84,9 +84,9 @@ const routes: Routing[] = [
         groupItems: [
             {
                 name: "members.index",
-                title: "Membresías activas",
+                title: "Membresías",
                 icon: "mdi-account-group-outline",
-                value: "membresias-activas",
+                value: "membresias",
             },
             {
                 name: "members.create",
