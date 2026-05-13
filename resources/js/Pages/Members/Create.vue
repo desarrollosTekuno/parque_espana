@@ -2106,11 +2106,7 @@ const memberLabel = (member: MemberForm) => {
                                                                 'birth_country_id',
                                                             )
                                                         "
-                                                        :disabled="
-                                                            isIdentityLocked(
-                                                                member,
-                                                            )
-                                                        "
+                                                        
                                                         clearable
                                                         @update:modelValue="
                                                             onBirthCountryChange(
@@ -2151,9 +2147,7 @@ const memberLabel = (member: MemberForm) => {
                                                             )
                                                         "
                                                         :disabled="
-                                                            isIdentityLocked(
-                                                                member,
-                                                            ) ||
+                                                            
                                                             !member.birth_country_id
                                                         "
                                                         clearable
@@ -2198,9 +2192,7 @@ const memberLabel = (member: MemberForm) => {
                                                             )
                                                         "
                                                         :disabled="
-                                                            isIdentityLocked(
-                                                                member,
-                                                            ) ||
+                                                           
                                                             !member.birth_state_id
                                                         "
                                                         clearable
@@ -2233,11 +2225,7 @@ const memberLabel = (member: MemberForm) => {
                                                         item-title="title"
                                                         item-value="id"
                                                         label="Nacionalidad"
-                                                        :disabled="
-                                                            isIdentityLocked(
-                                                                member,
-                                                            )
-                                                        "
+                                                        
                                                         clearable
                                                         auto-select-first
                                                         :rules="[

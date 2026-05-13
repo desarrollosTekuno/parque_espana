@@ -1383,11 +1383,28 @@ class MemberController extends Controller
                 ->value('id');
             $reason = $validated['reason'] ?? 'Separación de integrante a cuenta nueva';
 
-            DB::transaction(function () use ($membership, $accountMember, $targetMembershipType, $selectedTargetOption, $titularRelationshipId, $reason) {
+            // If the member being separated already holds their own primary membership in
+            // another club, reuse their existing account group so synchronizeMembershipFees
+            // can distribute the interclub fee across both accounts (50/50 split).
+            $existingPrimaryMembership = Membership::query()
+                ->where('status', 'active')
+                ->where('is_primary', true)
+                ->where('club_id', '!=', $membership->club_id)
+                ->whereHas('account.accountMembers', function (Builder $q) use ($accountMember) {
+                    $q->where('member_id', $accountMember->member_id)
+                      ->where('is_primary_holder', true);
+                })
+                ->with('account.accountGroup')
+                ->first();
+
+            $existingAccountGroup = $existingPrimaryMembership?->account?->accountGroup;
+
+            DB::transaction(function () use ($membership, $accountMember, $targetMembershipType, $selectedTargetOption, $titularRelationshipId, $reason, $existingAccountGroup) {
                 $newAccount = $this->createMembershipAccount(
                     club: $membership->club,
                     accountType: $targetMembershipType->allows_multiple_members ? 'family' : 'individual',
                     status: 'active',
+                    accountGroup: $existingAccountGroup,
                     originAccountId: $membership->membership_account_id,
                     separationReason: $reason
                 );
@@ -1429,7 +1446,7 @@ class MemberController extends Controller
                 $this->membershipChargeService->createInitialCharges(
                     membership: $newMembership,
                     monthlyFee: (float) $selectedTargetOption['monthly_fee'],
-                    inscriptionFee: (float) ($selectedTargetOption['inscription_fee'] ?? 0),
+                    inscriptionFee: 0.0, // separations are internal transfers, not new enrollments
                     metadata: [
                         'charge_origin' => 'member_separation',
                         'source_membership_id' => $membership->id,
@@ -2821,9 +2838,32 @@ class MemberController extends Controller
                     ? Carbon::parse($accountMember->member->birthdate)->age
                     : null;
 
+                $hasOtherClub = $this->memberHasOtherActiveClubMembership(
+                    $accountMember->member_id,
+                    $membership->club_id
+                );
+
+                $otherClubName = null;
+                if ($hasOtherClub) {
+                    $otherClubName = Membership::query()
+                        ->where('status', 'active')
+                        ->where('is_primary', true)
+                        ->where('club_id', '!=', $membership->club_id)
+                        ->whereHas('account.accountMembers', function (Builder $q) use ($accountMember) {
+                            $q->where('member_id', $accountMember->member_id)
+                              ->where('is_primary_holder', true);
+                        })
+                        ->with('club:id,name')
+                        ->first()
+                        ?->club
+                        ?->name;
+                }
+
                 return [
                     ...$memberPayload,
                     'age' => $age,
+                    'has_other_club_membership' => $hasOtherClub,
+                    'other_club_name' => $otherClubName,
                     'target_membership_options' => $this->buildSeparationTargetOptions($membership, $accountMember)
                         ->values(),
                 ];
@@ -2844,29 +2884,57 @@ class MemberController extends Controller
 
         $hasMultipleClubs = $this->memberHasOtherActiveClubMembership($accountMember->member_id, $membership->club_id);
 
+        // When the member being separated already holds their own primary membership in
+        // another club, the interclub rule lookup must use that membership as the "source"
+        // (not the family account being separated from). This way resolveInterclubPackageRule
+        // can find rules like: source=Park1/Family → target=Park2/Individual = $3,650.
+        $interclubSourceMembership = null;
+        if ($hasMultipleClubs) {
+            $interclubSourceMembership = Membership::query()
+                ->where('status', 'active')
+                ->where('is_primary', true)
+                ->where('club_id', '!=', $membership->club_id)
+                ->whereHas('account.accountMembers', function (Builder $q) use ($accountMember) {
+                    $q->where('member_id', $accountMember->member_id)
+                      ->where('is_primary_holder', true);
+                })
+                ->with(['club', 'membershipType'])
+                ->first();
+        }
+
+        $effectiveSourceClub         = $interclubSourceMembership?->club         ?? $membership->club;
+        $effectiveFromMembershipType = $interclubSourceMembership?->membershipType ?? $fromMembershipType;
+
         $targetMembershipTypes = MembershipType::query()
             ->where('club_id', $membership->club_id)
             ->where('allows_multiple_members', false)
-            ->whereHas('pricingRules', function (Builder $query) use ($fromMembershipType) {
-                $query->where('from_membership_type_id', $fromMembershipType->id);
+            ->where(function (Builder $q) use ($fromMembershipType, $effectiveFromMembershipType) {
+                $q->whereHas('pricingRules', function (Builder $inner) use ($fromMembershipType) {
+                    $inner->where('from_membership_type_id', $fromMembershipType->id);
+                })->orWhereHas('interclubPackageRulesAsTarget', function (Builder $inner) use ($effectiveFromMembershipType) {
+                    $inner->where('source_membership_type_id', $effectiveFromMembershipType->id)
+                          ->where('is_active', true);
+                });
             })
             ->orderBy('name')
             ->get();
 
+        $effectiveStartDate = $interclubSourceMembership?->start_date ?? $membership->start_date;
+
         return $targetMembershipTypes
-            ->map(function (MembershipType $targetMembershipType) use ($fromMembershipType, $membership, $age, $hasMultipleClubs) {
+            ->map(function (MembershipType $targetMembershipType) use ($effectiveFromMembershipType, $effectiveSourceClub, $effectiveStartDate, $membership, $age, $hasMultipleClubs) {
                 try {
                     $pricing = $this->resolveApplicablePricing(
                         targetClubId: (int) $membership->club_id,
                         membershipType: $targetMembershipType,
-                        fromMembershipType: $fromMembershipType,
-                        sourceClub: $membership->club,
+                        fromMembershipType: $effectiveFromMembershipType,
+                        sourceClub: $effectiveSourceClub,
                         age: $age,
                         hasMultipleClubs: $hasMultipleClubs,
                         sourceMembershipIsActive: true,
-                        yearsInSourceClub: $membership->start_date
-                        ? Carbon::parse($membership->start_date)->diffInYears(now())
-                        : null
+                        yearsInSourceClub: $effectiveStartDate
+                            ? Carbon::parse($effectiveStartDate)->diffInYears(now())
+                            : null
                     );
 
                     return [
@@ -2874,7 +2942,7 @@ class MemberController extends Controller
                         'code' => $targetMembershipType->code,
                         'name' => $targetMembershipType->name,
                         'monthly_fee' => (float) $pricing['monthly_fee'],
-                        'inscription_fee' => (float) ($pricing['inscription_fee'] ?? 0),
+                        'inscription_fee' => 0.0, // separations are internal transfers, not new enrollments
                         'billing_split_mode' => $pricing['billing_split_mode'] ?? 'single',
                     ];
                 } catch (ValidationException $e) {
@@ -2887,11 +2955,16 @@ class MemberController extends Controller
 
     protected function memberHasOtherActiveClubMembership(int $memberId, int $currentClubId): bool
     {
+        // Only counts memberships where the person is the primary holder of that account.
+        // Being a dependent/family member on someone else's interclub account does not
+        // qualify the person for interclub pricing on their own separate membership.
         return Membership::query()
             ->where('status', 'active')
+            ->where('is_primary', true)
             ->where('club_id', '!=', $currentClubId)
             ->whereHas('account.accountMembers', function (Builder $query) use ($memberId) {
-                $query->where('member_id', $memberId);
+                $query->where('member_id', $memberId)
+                      ->where('is_primary_holder', true);
             })
             ->exists();
     }
@@ -3114,16 +3187,18 @@ class MemberController extends Controller
     ): ?PricingRule {
         $attempts = [];
 
-        if ($fromMembershipTypeId) {
-            if ($hasMultipleClubs) {
+        // When interclub applies, exhaust ALL interclub rules before falling back
+        // to standalone. Without this, a standalone from-type rule (e.g. familiar→individual
+        // standalone) would be found before the generic interclub rule, producing the wrong fee.
+        if ($hasMultipleClubs) {
+            if ($fromMembershipTypeId) {
                 $attempts[] = [$fromMembershipTypeId, true];
             }
-
-            $attempts[] = [$fromMembershipTypeId, false];
+            $attempts[] = [null, true];
         }
 
-        if ($hasMultipleClubs) {
-            $attempts[] = [null, true];
+        if ($fromMembershipTypeId) {
+            $attempts[] = [$fromMembershipTypeId, false];
         }
 
         $attempts[] = [null, false];

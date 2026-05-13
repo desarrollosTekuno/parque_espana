@@ -103,15 +103,18 @@ class MembershipPricingService
     ): ?PricingRule {
         $attempts = [];
 
-        if ($fromMembershipTypeId) {
-            if ($hasMultipleClubs) {
+        // When interclub applies, exhaust ALL interclub rules before falling back
+        // to standalone. Without this, a standalone from-type rule (e.g. familiar→individual
+        // standalone) would be found before the generic interclub rule, producing the wrong fee.
+        if ($hasMultipleClubs) {
+            if ($fromMembershipTypeId) {
                 $attempts[] = [$fromMembershipTypeId, true];
             }
-            $attempts[] = [$fromMembershipTypeId, false];
+            $attempts[] = [null, true];
         }
 
-        if ($hasMultipleClubs) {
-            $attempts[] = [null, true];
+        if ($fromMembershipTypeId) {
+            $attempts[] = [$fromMembershipTypeId, false];
         }
 
         $attempts[] = [null, false];
