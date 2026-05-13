@@ -128,10 +128,8 @@ class AccountCancellationController extends Controller
             $now = now();
 
             $file = $request->file('cancellation_letter');
-            $clubCode = $membership->club?->code ?? 'sin-club';
-            $membershipNumber = $account->membership_number;
             $docTypeSlug = $cartaBajaType ? Str::slug($cartaBajaType->name) : 'carta-baja';
-            $directory = "{$clubCode}/{$membershipNumber}/{$primaryHolder->id}/{$docTypeSlug}";
+            $directory = "members/{$primaryHolder->id}/{$docTypeSlug}";
             $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
 
             $uploaded = Storage::disk('spaces')->putFileAs($directory, $file, $filename);

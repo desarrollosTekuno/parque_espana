@@ -201,13 +201,13 @@ const edit = (data: any) => {
     form.reservation_type = data.reservation_type;
     form.is_active = data.is_active;
     form.icon = null;
-    form.icon_path = data.icon || null;
+    form.icon_path = data.icon_url || null;
     form.remove_icon = false;
     form.background_image = null;
     form.remove_background_image = false;
-    form.background_image_path = data.background_image || null;
-    iconPreview.value = data.icon ? `/storage/${data.icon}` : null;
-    imagePreview.value = data.background_image ? `/storage/${data.background_image}` : null;
+    form.background_image_path = data.background_image_url || null;
+    iconPreview.value = data.icon_url ?? null;
+    imagePreview.value = data.background_image_url ?? null;
     showModal.value = true;
 };
 const schedule = () => {
@@ -331,7 +331,7 @@ watch(() => form.icon, (file) => {
     if (file instanceof File) {
         iconPreview.value = URL.createObjectURL(file);
     } else if (file && form.icon_path) {
-        iconPreview.value = `/storage/${form.icon_path}`;
+        iconPreview.value = form.icon_path;
     } else {
         iconPreview.value = null;
     }
@@ -841,7 +841,7 @@ watch(
                                         max-width="30" class="rounded-lg" />
                                 </template>-->
                                 <template #item.background_image="{ item }">
-                                    <v-img v-if="item.background_image" :src="`/storage/${item.background_image}`"
+                                    <v-img v-if="item.background_image_url" :src="item.background_image_url"
                                         max-height="80" max-width="80" class="rounded-lg" />
                                 </template>
                                 <template #item.reservation_type="{ item }">

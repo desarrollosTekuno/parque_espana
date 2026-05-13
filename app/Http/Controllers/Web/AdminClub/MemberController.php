@@ -639,10 +639,8 @@ class MemberController extends Controller
 
                 $file = $request->file('absence_permit_document');
                 $docType = \App\Models\Catalogs\DocumentType::where('code', 'documento_permiso_ausencia')->first();
-                $clubCode = $membership->club?->code ?? 'sin-club';
-                $membershipNumber = $membership->account?->membership_number;
                 $docTypeSlug = $docType ? Str::slug($docType->name) : 'documento-permiso-ausencia';
-                $directory = "{$clubCode}/{$membershipNumber}/{$primaryHolder->member_id}/{$docTypeSlug}";
+                $directory = "members/{$primaryHolder->member_id}/{$docTypeSlug}";
                 $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
 
                 $uploaded = Storage::disk('spaces')->putFileAs($directory, $file, $filename);
@@ -1859,9 +1857,7 @@ class MemberController extends Controller
 
             // ── Upload documents to Spaces after transaction commits ──────────
             $this->uploadMemberDocuments(
-                clubCode:         $club->code,
-                membershipNumber: $savedMembershipAccount->membership_number,
-                memberDocuments:  $savedMemberDocuments,
+                memberDocuments: $savedMemberDocuments,
             );
 
             return redirect()
@@ -1881,14 +1877,12 @@ class MemberController extends Controller
      * Upload member documents to Spaces and persist records in members.documents.
      * File failures are logged but do not abort the response.
      *
-     * Path: {club_code}/{membership_number}/{member_id}/{document_type_slug}/{uuid}.{ext}
+     * Path: members/{member_id}/{document_type_slug}/{uuid}.{ext}
      *
      * @param array<int, array> $memberDocuments  [member_id => documents[]]
      */
     protected function uploadMemberDocuments(
-        string $clubCode,
-        string $membershipNumber,
-        array  $memberDocuments,
+        array $memberDocuments,
     ): void {
         if (empty($memberDocuments)) {
             return;
@@ -1913,7 +1907,7 @@ class MemberController extends Controller
                 }
 
                 $docTypeSlug = $docTypeSlugCache[$documentTypeId];
-                $directory   = "{$clubCode}/{$membershipNumber}/{$memberId}/{$docTypeSlug}";
+                $directory   = "members/{$memberId}/{$docTypeSlug}";
 
                 foreach ($files as $file) {
                     if (!($file instanceof \Illuminate\Http\UploadedFile)) {
@@ -1999,6 +1993,7 @@ class MemberController extends Controller
             'account.accountMembers.member.birthState',
             'account.accountMembers.member.birthCity',
             'account.accountMembers.member.maritalStatus',
+            'account.accountMembers.member.documents',
             'membershipType',
             'club',
             'account.memberships.membershipType',
@@ -2227,6 +2222,15 @@ class MemberController extends Controller
                         'company_address' => $employment?->company_address,
                         'company_phone' => $employment?->company_phone,
                     ],
+                    'existing_documents' => $member?->documents
+                        ->sortByDesc('created_at')
+                        ->map(fn ($doc) => [
+                            'id' => $doc->id,
+                            'document_type_id' => $doc->document_type_id,
+                            'uploaded_at' => $doc->created_at?->toDateString(),
+                        ])
+                        ->unique('document_type_id')
+                        ->values(),
                 ];
             })
             ->values();
@@ -2258,6 +2262,7 @@ class MemberController extends Controller
                 'member.birthState',
                 'member.birthCity',
                 'member.maritalStatus',
+                'member.documents',
             ])
             ->whereHas('membershipAccount', function (Builder $query) use ($accountGroupId) {
                 $query->where('account_group_id', $accountGroupId)

@@ -259,7 +259,7 @@ const edit = (item: any) => {
             id: file.id,
             name: file.path.split('/').pop(),
             type: file.mime_type || file.path,
-            url: `/storage/${file.path}`,
+            url: file.url,
             isExisting: true
         }));
 

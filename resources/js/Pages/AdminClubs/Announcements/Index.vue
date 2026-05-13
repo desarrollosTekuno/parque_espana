@@ -96,8 +96,8 @@ const formatToPicker = (val: string | null) => {
         form.is_active = item.is_active;
 
         form.image = null;
-        form.image_path = item.image;
-        imagePreview.value = item.image ? `/storage/${item.image}` : null;
+        form.image_path = item.image_url;
+        imagePreview.value = item.image_url ?? null;
 
         showModal.value = true;
     };
@@ -596,7 +596,7 @@ watch(
                         {{ item.detail?.resource?.name }}
                     </template>
                     <template #item.image="{ item }">
-                        <v-img v-if="item.image" :src="`/storage/${item.image}`" max-height="70" max-width="100"
+                        <v-img v-if="item.image_url" :src="item.image_url" max-height="70" max-width="100"
                             class="rounded" />
                     </template>
                     <template #item.event_date="{ item }">
@@ -741,7 +741,7 @@ watch(
                         :key="img.id"
                         class="ma-2 position-relative"
                         width="110">
-                        <v-img :src="`/storage/${img.image}`"
+                        <v-img :src="img.image_url"
                             height="90"
                             cover/>
                         <v-btn

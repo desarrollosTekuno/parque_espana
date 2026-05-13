@@ -25,6 +25,7 @@ use App\Http\Controllers\Web\AdminClub\Feedback\FeedbackTicketTypeController;
 use App\Http\Controllers\Web\AdminClub\ReservationGuestListController;
 use App\Http\Controllers\Web\AdminClub\SurveyResultController;
 use App\Http\Controllers\Web\AdminClub\AccountCancellationController;
+use App\Http\Controllers\Web\AdminClub\MemberDocumentController;
 use App\Http\Controllers\Web\AdminClub\LockerAssignmentController;
 use App\Http\Controllers\Web\AdminClub\LockerController;
 use App\Http\Controllers\Web\AdminClub\CashCutController;
@@ -156,6 +157,10 @@ Route::get('/members/{membership}/member/{member}/edit', [MemberController::clas
 Route::put('/members/{membership}/member/{member}', [MemberController::class, 'updateMember'])
     ->name('members.member.update');
 Route::resource('/members', MemberController::class)->only(['index', 'create', 'store', 'edit', 'update'])->names('members');
+
+// Documentos
+Route::get('/member-documents/{document}/url', [MemberDocumentController::class, 'temporaryUrl'])
+    ->name('member-documents.url');
 
 // Baja de cuenta
 Route::get('/members/{membership}/cancel/create', [AccountCancellationController::class, 'create'])
