@@ -12,10 +12,27 @@ const firebaseConfig = {
 
 const firebaseVapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
 
-const app = initializeApp(firebaseConfig);
-const messaging = getMessaging(app);
+const hasFirebaseConfig =
+    !!firebaseConfig.apiKey &&
+    !!firebaseConfig.authDomain &&
+    !!firebaseConfig.projectId &&
+    !!firebaseConfig.storageBucket &&
+    !!firebaseConfig.messagingSenderId &&
+    !!firebaseConfig.appId;
+
+const app = hasFirebaseConfig ? initializeApp(firebaseConfig) : null;
+const messaging = app ? getMessaging(app) : null;
 
 export async function requestFirebaseNotificationPermission() {
+    if (!hasFirebaseConfig || !messaging) {
+        console.warn("Firebase no configurado: notificaciones desactivadas");
+        return null;
+    }
+
+    if (typeof window === "undefined" || !("Notification" in window)) {
+        return null;
+    }
+
     try {
         const permission = await Notification.requestPermission();
 
@@ -36,6 +53,10 @@ export async function requestFirebaseNotificationPermission() {
 }
 
 export function listenFirebaseMessages(callback = null) {
+    if (!hasFirebaseConfig || !messaging) {
+        return;
+    }
+
     onMessage(messaging, (payload) => {
         if (typeof callback === "function") {
             callback(payload);
