@@ -38,7 +38,8 @@ use Inertia\Inertia;
 class MemberController extends Controller
 {
     public function __construct(
-        protected MembershipChargeService $membershipChargeService
+        protected MembershipChargeService $membershipChargeService,
+        protected \App\Services\Billing\MembershipPricingService $membershipPricingService
     ) {
     }
 
@@ -422,7 +423,7 @@ class MemberController extends Controller
                 ]);
             }
 
-            if ($this->shouldApplyAgeFilter($membershipType) && $age === null) {
+            if ($this->membershipPricingService->shouldApplyAgeFilter($membershipType) && $age === null) {
                 throw ValidationException::withMessages([
                     'age' => 'Captura la fecha de nacimiento del titular para calcular el precio de esta membresía.',
                 ]);
@@ -2873,10 +2874,10 @@ class MemberController extends Controller
             yearsInSourceClub: $yearsInSourceClub
         );
 
-        $pricingRule = $this->resolvePricingRule(
+        $pricingRule = $this->membershipPricingService->resolvePricingRule(
             membershipTypeId: $membershipType->id,
             fromMembershipTypeId: $fromMembershipType?->id,
-            age: $this->shouldApplyAgeFilter($membershipType) ? $age : null,
+            age: $this->membershipPricingService->shouldApplyAgeFilter($membershipType) ? $age : null,
             hasMultipleClubs: $hasMultipleClubs
         );
 

@@ -7,6 +7,8 @@ use App\Models\Members\LockerAssignment;
 use App\Models\Members\MemberDocument;
 use App\Models\Memberships\Membership;
 use App\Models\Memberships\MembershipAccountMember;
+use App\Services\Billing\MembershipChargeService;
+use App\Services\Billing\MembershipPricingService;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
@@ -18,8 +20,10 @@ use Spatie\Permission\PermissionRegistrar;
 
 class AccountCancellationController extends Controller
 {
-    public function __construct()
-    {
+    public function __construct(
+        protected MembershipChargeService $membershipChargeService,
+        protected MembershipPricingService $membershipPricingService
+    ) {
         $this->middleware('permission:members.cancel');
     }
 
@@ -187,6 +191,13 @@ class AccountCancellationController extends Controller
             }
 
             app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+            // Recalculate fees for any active membership in the same account group
+            // so they revert from the interclub/split rate to their standalone price.
+            $this->membershipPricingService->recalculateGroupFeesAfterCancellation(
+                $account,
+                $this->membershipChargeService
+            );
 
             DB::commit();
 

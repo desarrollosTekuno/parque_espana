@@ -1202,8 +1202,8 @@ const handleNext = async (next: () => void) => {
             return;
             
         }
-        next();
-        return;
+        // next();
+        // return;
     }
 
     if (step.value === 3) {
@@ -1216,6 +1216,8 @@ const handleNext = async (next: () => void) => {
             });
             return;
         }
+    //    next();
+    //     return;
     }
 
     next();
@@ -2689,7 +2691,7 @@ const memberLabel = (member: MemberForm) => {
 
                                                         <CustomFileUploadField
                                                             v-model="doc.files"
-                                                            :label="doc.name"
+                                                            :label="`${doc.allow_multiple ?  doc.number_files + ' x ' : ''} ${doc.name}`"
                                                             :hint="doc.allowed_extensions.join(', ')"
                                                             :accept="doc.allowed_extensions.map((ext) => `.${ext}`).join(',')"
                                                             :multiple="doc.allow_multiple"

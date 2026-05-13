@@ -18,7 +18,7 @@ class RelationshipDocumentTypesSeeder extends Seeder
         $relationshipDocumentTypes = [
             [
                 'relationship' => 'Titular',
-                'documents' => ['acta_nacimiento_espanola', 'acta_matrimonio', 'acta_nacimiento', 'fotografia_infantil', 'constancia_trabajo', 'carta_recomendacion', 'ine', 'comprobante_domicilio', 'carta_no_adeudo', 'recibo_pe1_sin_adeudo'],
+                'documents' => ['acta_nacimiento_espanola', 'acta_matrimonio', 'acta_nacimiento', 'fotografia_infantil', 'constancia_trabajo', 'carta_recomendacion', 'ine', 'comprobante_domicilio', 'carta_no_adeudo', 'recibo_pe1_sin_adeudo', 'carta_doctor_activo'],
             ],
             [
                 'relationship' => 'Cónyuge',

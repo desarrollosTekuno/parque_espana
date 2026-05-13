@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import BaseButton from "@/Components/BaseButton.vue";
+import CustomFileUploadField from "@/Components/CustomFileUploadField.vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
+import { fileMaxSizeRule, fileTypeRule, requiredFileRule } from "@/constants/validationRules";
 import { customToastSwal } from "@/utils/swal";
 import { Head, router, useForm, usePage } from "@inertiajs/vue3";
 import { ref } from "vue";
@@ -36,18 +38,21 @@ const form = useForm({
     cancellation_letter: null as File | null,
 });
 
-const fileInput = ref<HTMLInputElement | null>(null);
-const fileName = ref<string>("");
+const letterFiles = ref<File[] | null>(null);
 const confirmed = ref(false);
+const formRef = ref<{ validate(): Promise<{ valid: boolean }> } | null>(null);
 
-const onFileChange = (e: Event) => {
-    const input = e.target as HTMLInputElement;
-    const file = input.files?.[0] ?? null;
-    form.cancellation_letter = file;
-    fileName.value = file?.name ?? "";
-};
+const letterRules = [
+    requiredFileRule,
+    fileTypeRule(["pdf", "jpg", "jpeg", "png"]),
+    fileMaxSizeRule(2),
+];
 
-const submit = () => {
+const submit = async () => {
+    const result = await formRef.value?.validate();
+    if (!result?.valid) return;
+
+    form.cancellation_letter = letterFiles.value?.[0] ?? null;
     form.post(route("members.cancel.store", props.membership.id), {
         forceFormData: true,
         preserveScroll: true,
@@ -161,69 +166,39 @@ const submit = () => {
                             </ul>
                         </v-alert>
 
-                        <v-form @submit.prevent="submit">
+                        <v-form ref="formRef" @submit.prevent="submit">
                             <v-card class="pa-4">
                                 <div class="text-subtitle-1 font-weight-bold mb-3">
                                     Documentación requerida
                                 </div>
 
                                 <!-- Carga de carta de baja -->
-                                <v-card
-                                    variant="outlined"
-                                    class="pa-4 mb-4"
-                                    :color="form.errors.cancellation_letter ? 'error' : undefined"
-                                >
+                                <div class="mb-4">
                                     <div class="font-weight-medium mb-1">
                                         Carta de baja firmada por el titular
                                         <span class="text-error">*</span>
                                     </div>
-                                    <div class="text-caption text-medium-emphasis mb-3">
-                                        Formatos aceptados: PDF, JPG, PNG. Tamaño máximo: 5 MB.
-                                    </div>
-
-                                    <input
-                                        ref="fileInput"
-                                        type="file"
+                                    <CustomFileUploadField
+                                        v-model="letterFiles"
+                                        label="Seleccionar carta de baja"
+                                        hint="PDF, JPG o PNG · máx. 2 MB"
                                         accept=".pdf,.jpg,.jpeg,.png"
-                                        style="display: none"
-                                        @change="onFileChange"
+                                        :rules="letterRules"
                                     />
-
-                                    <div class="d-flex align-center ga-3">
-                                        <v-btn
-                                            variant="outlined"
-                                            prepend-icon="mdi-upload"
-                                            @click="fileInput?.click()"
-                                        >
-                                            Seleccionar archivo
-                                        </v-btn>
-                                        <span
-                                            v-if="fileName"
-                                            class="text-body-2 text-success"
-                                        >
-                                            {{ fileName }}
-                                        </span>
-                                        <span
-                                            v-else
-                                            class="text-body-2 text-medium-emphasis"
-                                        >
-                                            Ningún archivo seleccionado
-                                        </span>
-                                    </div>
-
                                     <div
                                         v-if="form.errors.cancellation_letter"
-                                        class="text-error text-caption mt-2"
+                                        class="text-error text-caption mt-1"
                                     >
                                         {{ form.errors.cancellation_letter }}
                                     </div>
-                                </v-card>
+                                </div>
 
                                 <!-- Confirmación -->
                                 <v-checkbox
                                     v-model="confirmed"
                                     color="error"
                                     class="mb-2"
+                                    :rules="[(v: boolean) => v || 'Debes confirmar antes de continuar']"
                                 >
                                     <template #label>
                                         <span class="text-body-2">
@@ -242,9 +217,8 @@ const submit = () => {
                                     </v-btn>
                                     <v-btn
                                         color="error"
-                                        :disabled="!form.cancellation_letter || !confirmed"
+                                        type="submit"
                                         :loading="form.processing"
-                                        @click="submit"
                                     >
                                         Confirmar baja de cuenta
                                     </v-btn>

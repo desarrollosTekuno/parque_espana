@@ -7,6 +7,8 @@ use App\Models\Billing\ChargeConcept;
 use App\Models\Memberships\AccountReactivation;
 use App\Models\Memberships\Membership;
 use App\Models\Memberships\MembershipAccountMember;
+use App\Services\Billing\MembershipChargeService;
+use App\Services\Billing\MembershipPricingService;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
@@ -15,8 +17,10 @@ use Inertia\Inertia;
 
 class AccountReactivationController extends Controller
 {
-    public function __construct()
-    {
+    public function __construct(
+        protected MembershipChargeService $membershipChargeService,
+        protected MembershipPricingService $membershipPricingService
+    ) {
         $this->middleware('permission:members.reactivate');
     }
 
@@ -201,6 +205,38 @@ class AccountReactivationController extends Controller
                 'status' => 'active',
                 'end_date' => null,
             ]);
+
+            // Recalculate group fees so the interclub/split rate is re-established
+            // if this account belongs to a group with other active memberships.
+            $reactivatedPrimaryMembership = $account->memberships()
+                ->where('is_primary', true)
+                ->where('status', 'active')
+                ->first();
+
+            if ($reactivatedPrimaryMembership) {
+                $this->membershipPricingService->recalculateGroupFeesAfterReactivation(
+                    $reactivatedPrimaryMembership,
+                    $this->membershipChargeService
+                );
+
+                // After fee recalculation, generate an adjustment charge for the current
+                // month if the new group total exceeds what was already billed this period.
+                // Example: Park 2 had been cancelled, Park 1 was billed 3,600 standalone.
+                // On reactivation the interclub rate is 3,700 → generates a 100 adjustment.
+                $reactivatedPrimaryMembership->refresh();
+                $newGroupTotal = (float) $reactivatedPrimaryMembership->resolved_monthly_fee_total;
+
+                if ($newGroupTotal > 0) {
+                    $this->membershipChargeService->createInitialCharges(
+                        membership: $reactivatedPrimaryMembership,
+                        monthlyFee: $newGroupTotal,
+                        inscriptionFee: 0,
+                        metadata: ['charge_origin' => 'account_reactivation'],
+                        chargeDate: $now,
+                        reconcileExistingMonthlyCharge: true
+                    );
+                }
+            }
 
             // Apply enrollment fee charge if requested
             if ($request->boolean('apply_enrollment_fee') && $request->filled('enrollment_fee_amount')) {
