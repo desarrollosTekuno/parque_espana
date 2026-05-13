@@ -20,7 +20,6 @@ class NotificationChannelSeeder extends Seeder
                 ['code' => $channel['code']],
                 [
                     'name' => $channel['name'],
-                    'is_active' => true,
                     'updated_at' => now(),
                     'created_at' => now(),
                 ]
