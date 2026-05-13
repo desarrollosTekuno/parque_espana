@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Exceptions\BusinessRuleException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreGuestListRequest;
+use App\Models\AdminClub\GuestListVariable;
 use App\Models\AdminClub\ReservationGuestList;
 use App\Models\AdminClub\ReservationGuestListItem;
 use App\Rules\ExistsInSchema;
@@ -86,11 +87,23 @@ class ReservationGuestController extends Controller {
 
     public function priceCalculator(array $data)
     {
-        $club_id = $data['club_id'];
         $guests = $data['guests'];
 
-        $normalPrice = $club_id == 1 ? 300 : 400; // Invitados de 7 años o más
-        $specialPrice = $club_id == 1 ? 150 : 200; // Invitados de 3 a 6 años
+        // $normalPrice = $club_id == 1 ? 300 : 400; // Invitados de 7 años o más
+        // $specialPrice = $club_id == 1 ? 150 : 200; // Invitados de 3 a 6 años
+
+        $normalPrice = GuestListVariable::where('code', 'NORMAL_PRICE')
+            ->where('club_id', $data['club_id'])
+            ->value('value');
+
+        $specialPrice = GuestListVariable::where('code', 'SPECIAL_PRICE')
+            ->where('club_id', $data['club_id'])
+            ->value('value');
+
+        if (is_null($normalPrice) || is_null($specialPrice))
+        {
+            throw new BusinessRuleException('No se han configurado los precios para el club');
+        }
 
         $totalGuests = count($guests);
         $totalNormalGuests = count(array_filter($guests, function($guest) {
