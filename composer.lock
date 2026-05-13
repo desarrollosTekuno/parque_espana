@@ -1637,16 +1637,16 @@
         },
         {
             "name": "google/cloud-core",
-            "version": "v1.72.0",
+            "version": "v1.72.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/googleapis/google-cloud-php-core.git",
-                "reference": "62cf5d2243af167c75019743c5aebcf25c3905ca"
+                "reference": "aa7869016cb9e87e95071bb92579fd22146ababb"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/googleapis/google-cloud-php-core/zipball/62cf5d2243af167c75019743c5aebcf25c3905ca",
-                "reference": "62cf5d2243af167c75019743c5aebcf25c3905ca",
+                "url": "https://api.github.com/repos/googleapis/google-cloud-php-core/zipball/aa7869016cb9e87e95071bb92579fd22146ababb",
+                "reference": "aa7869016cb9e87e95071bb92579fd22146ababb",
                 "shasum": ""
             },
             "require": {
@@ -1698,9 +1698,9 @@
             ],
             "description": "Google Cloud PHP shared dependency, providing functionality useful to all components.",
             "support": {
-                "source": "https://github.com/googleapis/google-cloud-php-core/tree/v1.72.0"
+                "source": "https://github.com/googleapis/google-cloud-php-core/tree/v1.72.1"
             },
-            "time": "2026-04-09T21:01:46+00:00"
+            "time": "2026-05-12T19:06:48+00:00"
         },
         {
             "name": "google/cloud-storage",
@@ -11423,16 +11423,16 @@
         },
         {
             "name": "laravel/sail",
-            "version": "v1.58.0",
+            "version": "v1.59.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/laravel/sail.git",
-                "reference": "2e5e968138ca52ed87d712449697a8364d73b466"
+                "reference": "a41abad557e487eaefde6c9873085ed086fdf47a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/laravel/sail/zipball/2e5e968138ca52ed87d712449697a8364d73b466",
-                "reference": "2e5e968138ca52ed87d712449697a8364d73b466",
+                "url": "https://api.github.com/repos/laravel/sail/zipball/a41abad557e487eaefde6c9873085ed086fdf47a",
+                "reference": "a41abad557e487eaefde6c9873085ed086fdf47a",
                 "shasum": ""
             },
             "require": {
@@ -11482,7 +11482,7 @@
                 "issues": "https://github.com/laravel/sail/issues",
                 "source": "https://github.com/laravel/sail"
             },
-            "time": "2026-04-27T13:38:34+00:00"
+            "time": "2026-05-13T14:02:20+00:00"
         },
         {
             "name": "mockery/mockery",

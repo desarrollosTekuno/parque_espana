@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('notification_recipients', function (Blueprint $table) {
             $table->id();
 
-            $table->string('destination', 255)->nullable(); // token o email
+            $table->string('destination', 255)->nullable(); // token o correo
             $table->string('status', 20)->default('scheduled'); // scheduled, sent, failed, cancelled
             $table->text('error_message')->nullable();
             $table->tinyInteger('attempts')->nullable();
