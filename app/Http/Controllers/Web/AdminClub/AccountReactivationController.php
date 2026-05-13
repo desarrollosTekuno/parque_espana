@@ -201,10 +201,28 @@ class AccountReactivationController extends Controller
             ]);
 
             // Restore all cancelled memberships for this account back to active
+            $cancelledMemberships = $account->memberships()->where('status', 'cancelled')->get();
+
             $account->memberships()->where('status', 'cancelled')->update([
                 'status' => 'active',
                 'end_date' => null,
             ]);
+
+            foreach ($cancelledMemberships as $m) {
+                DB::table('memberships.membership_history')->insert([
+                    'membership_id'          => $m->id,
+                    'old_membership_type_id' => $m->membership_type_id,
+                    'new_membership_type_id' => $m->membership_type_id,
+                    'changed_by'             => auth()->id(),
+                    'effective_date'         => $now->toDateString(),
+                    'reason'                 => 'Reactivación de cuenta',
+                    'previous_monthly_fee'   => null,
+                    'new_monthly_fee'        => (float) $m->monthly_fee,
+                    'metadata'               => json_encode(['reactivation_origin' => 'manual']),
+                    'created_at'             => $now,
+                    'updated_at'             => $now,
+                ]);
+            }
 
             // Recalculate group fees so the interclub/split rate is re-established
             // if this account belongs to a group with other active memberships.

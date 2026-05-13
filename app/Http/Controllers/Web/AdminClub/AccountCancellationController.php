@@ -158,10 +158,28 @@ class AccountCancellationController extends Controller
                 'cancellation_type' => 'voluntary',
             ]);
 
+            $activeMemberships = $account->memberships()->where('status', 'active')->get();
+
             $account->memberships()->update([
                 'status' => 'cancelled',
                 'end_date' => $now->toDateString(),
             ]);
+
+            foreach ($activeMemberships as $m) {
+                DB::table('memberships.membership_history')->insert([
+                    'membership_id'          => $m->id,
+                    'old_membership_type_id' => $m->membership_type_id,
+                    'new_membership_type_id' => $m->membership_type_id,
+                    'changed_by'             => auth()->id(),
+                    'effective_date'         => $now->toDateString(),
+                    'reason'                 => 'Baja voluntaria de cuenta',
+                    'previous_monthly_fee'   => (float) $m->monthly_fee,
+                    'new_monthly_fee'        => null,
+                    'metadata'               => json_encode(['cancellation_type' => 'voluntary']),
+                    'created_at'             => $now,
+                    'updated_at'             => $now,
+                ]);
+            }
 
             foreach ($account->accountMembers as $accountMember) {
                 $member = $accountMember->member;

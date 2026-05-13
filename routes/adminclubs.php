@@ -26,6 +26,7 @@ use App\Http\Controllers\Web\AdminClub\ReservationGuestListController;
 use App\Http\Controllers\Web\AdminClub\SurveyResultController;
 use App\Http\Controllers\Web\AdminClub\AccountCancellationController;
 use App\Http\Controllers\Web\AdminClub\AccountReactivationController;
+use App\Http\Controllers\Web\AdminClub\CancellationHistoryController;
 use App\Http\Controllers\Web\AdminClub\MemberDocumentController;
 use App\Http\Controllers\Web\AdminClub\LockerAssignmentController;
 use App\Http\Controllers\Web\AdminClub\LockerController;
@@ -135,6 +136,8 @@ Route::get('/members/location-catalogs/cities', [MemberController::class, 'locat
     ->name('members.location-catalogs.cities');
 Route::get('/members/{membership}/manage', [MemberController::class, 'show'])
     ->name('members.manage.show');
+Route::get('/members/{membership}/history', [MemberController::class, 'membershipHistory'])
+    ->name('members.manage.history');
 Route::post('/members/{membership}/absence-permits', [MemberController::class, 'storeAbsencePermit'])
     ->name('members.absence-permits.store');
 Route::patch('/members/{membership}/absence-permits/{absencePermit}/cancel', [MemberController::class, 'cancelAbsencePermit'])
@@ -174,6 +177,14 @@ Route::get('/members/{membership}/reactivate/create', [AccountReactivationContro
     ->name('members.reactivate.create');
 Route::post('/members/{membership}/reactivate', [AccountReactivationController::class, 'store'])
     ->name('members.reactivate.store');
+
+// Historial de bajas
+Route::get('/cancellations', [CancellationHistoryController::class, 'index'])
+    ->name('members.cancellations.index');
+Route::get('/cancellations/export', [CancellationHistoryController::class, 'export'])
+    ->name('members.cancellations.export');
+Route::get('/cancellations/{account}/letter-url', [CancellationHistoryController::class, 'letterUrl'])
+    ->name('members.cancellations.letter-url');
 
 
 // Lockers

@@ -618,13 +618,65 @@ class MemberController extends Controller
         }
 
         return Inertia::render('Members/Show', [
-            'membership' => $this->buildSourceMembershipPayload($membership),
-            'account' => $this->buildMembershipAccountPayload($membership),
+            'membership'       => $this->buildSourceMembershipPayload($membership),
+            'account'          => $this->buildMembershipAccountPayload($membership),
             'canAddFamilyMembers' => (bool) $membership->membershipType?->allows_multiple_members,
             'canChangePrimaryHolder' => (bool) $membership->membershipType?->allows_multiple_members
                 && $membership->account->accountMembers->count() > 1,
             'canSeparateMembers' => (bool) $membership->membershipType?->allows_multiple_members
                 && $membership->account->accountMembers->where('is_primary_holder', false)->isNotEmpty(),
+        ]);
+    }
+
+    public function membershipHistory(Request $request, Membership $membership)
+    {
+        $clubId = session('club_id');
+
+        if ((int) $membership->club_id !== (int) $clubId) {
+            abort(404);
+        }
+
+        $perPage = min((int) $request->input('per_page', 10), 50);
+        $page    = max((int) $request->input('page', 1), 1);
+
+        $membership->loadMissing('account.memberships');
+        $accountMembershipIds = $membership->account->memberships->pluck('id');
+
+        $query = DB::table('memberships.membership_history as mh')
+            ->leftJoin('memberships.types as old_type', 'mh.old_membership_type_id', '=', 'old_type.id')
+            ->join('memberships.types as new_type', 'mh.new_membership_type_id', '=', 'new_type.id')
+            ->leftJoin('users as u', 'mh.changed_by', '=', 'u.id')
+            ->whereIn('mh.membership_id', $accountMembershipIds)
+            ->orderByDesc('mh.effective_date')
+            ->orderByDesc('mh.created_at')
+            ->select([
+                'mh.id',
+                'mh.effective_date',
+                'mh.reason',
+                'mh.previous_monthly_fee',
+                'mh.new_monthly_fee',
+                'old_type.name as old_membership_type_name',
+                'new_type.name as new_membership_type_name',
+                'u.name as changed_by_name',
+            ]);
+
+        $total = $query->count();
+        $rows  = $query->offset(($page - 1) * $perPage)->limit($perPage)->get();
+
+        $items = $rows->map(fn ($row) => [
+            'id'                       => $row->id,
+            'effective_date'           => $row->effective_date,
+            'reason'                   => $row->reason,
+            'previous_monthly_fee'     => $row->previous_monthly_fee !== null ? (float) $row->previous_monthly_fee : null,
+            'new_monthly_fee'          => $row->new_monthly_fee !== null ? (float) $row->new_monthly_fee : null,
+            'old_membership_type_name' => $row->old_membership_type_name,
+            'new_membership_type_name' => $row->new_membership_type_name,
+            'changed_by_name'          => $row->changed_by_name,
+        ]);
+
+        return response()->json([
+            'data'  => $items,
+            'total' => $total,
         ]);
     }
 
@@ -1902,6 +1954,23 @@ class MemberController extends Controller
                         ? now()->addMonthsNoOverflow($membershipType->validity_months)->toDateString()
                         : null,
                     'status' => 'active',
+                ]);
+
+                DB::table('memberships.membership_history')->insert([
+                    'membership_id'          => $newMembership->id,
+                    'old_membership_type_id' => $sourceMembership?->membership_type_id ?? null,
+                    'new_membership_type_id' => $membershipType->id,
+                    'changed_by'             => auth()->id(),
+                    'effective_date'         => now()->toDateString(),
+                    'reason'                 => $sourceMembership ? 'Membresía adicional / traslado interclub' : 'Alta de membresía',
+                    'previous_monthly_fee'   => $sourceMembership ? (float) $sourceMembership->monthly_fee : null,
+                    'new_monthly_fee'        => (float) $pricing['monthly_fee'],
+                    'metadata'               => json_encode([
+                        'charge_origin'          => $sourceMembership ? 'additional_membership' : 'membership_registration',
+                        'source_membership_id'   => $sourceMembership?->id,
+                    ]),
+                    'created_at'             => now(),
+                    'updated_at'             => now(),
                 ]);
 
                 $newMembership = $this->membershipChargeService

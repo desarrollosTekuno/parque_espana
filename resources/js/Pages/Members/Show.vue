@@ -5,7 +5,7 @@ import AppLayout from "@/Layouts/AppLayout.vue";
 import { Head, router, useForm, usePage  } from "@inertiajs/vue3";
 import Swal from "sweetalert2";
 import { customToastSwal } from "@/utils/swal";
-import { computed, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 
 interface SourceMembership {
     id: number;
@@ -100,6 +100,17 @@ interface MembershipAccount {
     active_memberships: ActiveMembershipItem[];
 }
 
+interface MembershipHistoryItem {
+    id: number;
+    effective_date: string;
+    reason: string | null;
+    previous_monthly_fee: number | null;
+    new_monthly_fee: number | null;
+    old_membership_type_name: string | null;
+    new_membership_type_name: string;
+    changed_by_name: string | null;
+}
+
 interface Props {
     membership: SourceMembership;
     account: MembershipAccount;
@@ -115,6 +126,31 @@ const props = withDefaults(defineProps<Props>(), {
     canChangePrimaryHolder: false,
     canSeparateMembers: false,
 });
+
+// Membership history (server-side paginated)
+const historyItems = ref<MembershipHistoryItem[]>([]);
+const historyTotal = ref(0);
+const historyLoading = ref(false);
+const historyPage = ref(1);
+const historyPerPage = ref(10);
+
+const fetchHistory = async () => {
+    historyLoading.value = true;
+    try {
+        const res = await axios.get(
+            route('members.manage.history', props.membership.id),
+            { params: { page: historyPage.value, per_page: historyPerPage.value } }
+        );
+        historyItems.value = res.data.data;
+        historyTotal.value  = res.data.total;
+    } catch {
+        // silent — table will stay empty
+    } finally {
+        historyLoading.value = false;
+    }
+};
+
+onMounted(fetchHistory);
 
 const showAbsencePermitDialog = ref(false);
 const absencePermitFileInput = ref<HTMLInputElement | null>(null);
@@ -966,6 +1002,55 @@ watch(editLockerSearch, () => {
                                 </v-col>
                             </v-row>
                         </v-card>
+                        <!-- Historial de membresía -->
+                        <v-card class="pa-4 mt-4">
+                            <div class="text-subtitle-1 font-weight-bold mb-4">
+                                Historial de membresía
+                            </div>
+
+                            <v-data-table-server
+                                :items="historyItems"
+                                :items-length="historyTotal"
+                                :loading="historyLoading"
+                                v-model:page="historyPage"
+                                v-model:items-per-page="historyPerPage"
+                                :items-per-page-options="[5, 10, 25]"
+                                density="compact"
+                                no-data-text="Sin eventos registrados."
+                                @update:options="fetchHistory"
+                                :headers="[
+                                    { title: 'Fecha',          key: 'effective_date',           sortable: false },
+                                    { title: 'Evento',         key: 'reason',                   sortable: false },
+                                    { title: 'Tipo anterior',  key: 'old_membership_type_name', sortable: false },
+                                    { title: 'Tipo nuevo',     key: 'new_membership_type_name', sortable: false },
+                                    { title: 'Cuota anterior', key: 'previous_monthly_fee',     sortable: false, align: 'end' },
+                                    { title: 'Cuota nueva',    key: 'new_monthly_fee',          sortable: false, align: 'end' },
+                                    { title: 'Realizado por',  key: 'changed_by_name',          sortable: false },
+                                ]"
+                            >
+                                <template #item.effective_date="{ item }">
+                                    <span class="text-no-wrap">{{ formatDate(item.effective_date) }}</span>
+                                </template>
+                                <template #item.reason="{ item }">
+                                    {{ item.reason ?? '-' }}
+                                </template>
+                                <template #item.old_membership_type_name="{ item }">
+                                    <span class="text-medium-emphasis">{{ item.old_membership_type_name ?? '-' }}</span>
+                                </template>
+                                <template #item.previous_monthly_fee="{ item }">
+                                    <span class="text-medium-emphasis">
+                                        {{ item.previous_monthly_fee !== null ? currencyFormatter.format(item.previous_monthly_fee) : '-' }}
+                                    </span>
+                                </template>
+                                <template #item.new_monthly_fee="{ item }">
+                                    {{ item.new_monthly_fee !== null ? currencyFormatter.format(item.new_monthly_fee) : '-' }}
+                                </template>
+                                <template #item.changed_by_name="{ item }">
+                                    <span class="text-medium-emphasis">{{ item.changed_by_name ?? 'Sistema' }}</span>
+                                </template>
+                            </v-data-table-server>
+                        </v-card>
+
                     </v-container>
                 </v-col>
             </v-row>

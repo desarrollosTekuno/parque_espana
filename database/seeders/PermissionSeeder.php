@@ -92,6 +92,7 @@ class PermissionSeeder extends Seeder
             ['module' => 'Membresías', 'name' => 'members.destroy', 'description' => 'Eliminar usuarios del club', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.cancel', 'description' => 'Dar de baja una cuenta', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.reactivate', 'description' => 'Reactivar una cuenta dada de baja voluntaria', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'members.cancellations.index', 'description' => 'Ver historial de bajas', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.lockers.create', 'description' => 'Crear reservación de casillero', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.lockers.store', 'description' => 'Guardar reservación de casillero', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.lockers.change', 'description' => 'Cambiar casillero', 'contexts' => ['web']],

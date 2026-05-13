@@ -76,6 +76,7 @@ const routes: Routing[] = [
             "members.manage.show",
             "members.family-members.create",
             "member-access.index",
+            "members.cancellations.index",
         ],
         title: "Membresías",
         icon: "mdi-account-group-outline",
@@ -93,6 +94,12 @@ const routes: Routing[] = [
                 title: "Nueva membresía",
                 icon: "mdi-account-plus-outline",
                 value: "nueva-membresia",
+            },
+            {
+                name: "members.cancellations.index",
+                title: "Historial de bajas",
+                icon: "mdi-account-off-outline",
+                value: "historial-bajas",
             },
             {
                 name: "member-access.index",

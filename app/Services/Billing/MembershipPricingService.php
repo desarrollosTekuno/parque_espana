@@ -71,7 +71,8 @@ class MembershipPricingService
                 membership: $membership,
                 groupTotalMonthlyFee: $standaloneFee,
                 effectiveDate: null,
-                billingSplitMode: 'single'
+                billingSplitMode: 'single',
+                historyReason: 'Recálculo de cuota: baja de cuenta en grupo'
             );
         }
     }
@@ -89,7 +90,8 @@ class MembershipPricingService
         // it finds all active memberships in the group, picks the max total fee,
         // and re-applies the split mode stored on the reactivated membership.
         $chargeService->synchronizeMembershipFees(
-            membership: $reactivatedMembership
+            membership: $reactivatedMembership,
+            historyReason: 'Recálculo de cuota: reactivación de cuenta en grupo'
         );
     }
 
