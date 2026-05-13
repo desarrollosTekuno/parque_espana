@@ -95,4 +95,14 @@ class MembershipAccount extends Model
     {
         return $this->belongsTo(Membership::class, 'membership_account_id');
     }
+
+    public function originAccount()
+    {
+        return $this->belongsTo(MembershipAccount::class, 'origin_account_id');
+    }
+
+    public function derivedAccounts()
+    {
+        return $this->hasMany(MembershipAccount::class, 'origin_account_id');
+    }
 }

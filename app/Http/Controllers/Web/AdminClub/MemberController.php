@@ -617,14 +617,25 @@ class MemberController extends Controller
             ]);
         }
 
+        $account = $membership->account;
+        $account->loadMissing([
+            'originAccount.primaryHolder.member',
+            'originAccount.memberships' => fn ($q) => $q->where('is_primary', true),
+            'derivedAccounts.primaryHolder.member',
+            'derivedAccounts.memberships' => fn ($q) => $q->where('is_primary', true),
+        ]);
+
+        $accountTree = $this->buildAccountTree($account);
+
         return Inertia::render('Members/Show', [
             'membership'       => $this->buildSourceMembershipPayload($membership),
             'account'          => $this->buildMembershipAccountPayload($membership),
+            'accountTree'      => $accountTree,
             'canAddFamilyMembers' => (bool) $membership->membershipType?->allows_multiple_members,
             'canChangePrimaryHolder' => (bool) $membership->membershipType?->allows_multiple_members
-                && $membership->account->accountMembers->count() > 1,
+                && $account->accountMembers->count() > 1,
             'canSeparateMembers' => (bool) $membership->membershipType?->allows_multiple_members
-                && $membership->account->accountMembers->where('is_primary_holder', false)->isNotEmpty(),
+                && $account->accountMembers->where('is_primary_holder', false)->isNotEmpty(),
         ]);
     }
 
@@ -1376,7 +1387,9 @@ class MemberController extends Controller
                 $newAccount = $this->createMembershipAccount(
                     club: $membership->club,
                     accountType: $targetMembershipType->allows_multiple_members ? 'family' : 'individual',
-                    status: 'active'
+                    status: 'active',
+                    originAccountId: $membership->membership_account_id,
+                    separationReason: $reason
                 );
 
                 MembershipAccountMember::create([
@@ -3400,17 +3413,75 @@ class MemberController extends Controller
         Club $club,
         string $accountType,
         string $status = 'pending',
-        ?MembershipAccountGroup $accountGroup = null
+        ?MembershipAccountGroup $accountGroup = null,
+        ?int $originAccountId = null,
+        ?string $separationReason = null
     ): MembershipAccount {
         $group = $accountGroup ?? $this->createAccountGroup();
 
         return MembershipAccount::create([
-            'account_group_id' => $group->id,
-            'club_id' => $club->id,
+            'account_group_id'  => $group->id,
+            'club_id'           => $club->id,
             'membership_number' => $this->generateMembershipNumber($club),
-            'account_type' => $accountType,
-            'status' => $status,
+            'account_type'      => $accountType,
+            'status'            => $status,
+            'origin_account_id' => $originAccountId,
+            'separation_reason' => $separationReason,
         ]);
+    }
+
+    protected function buildAccountTree(MembershipAccount $account): ?array
+    {
+        $formatAccount = function (MembershipAccount $acc) {
+            $primary = $acc->memberships->first();
+            $holder  = $acc->primaryHolder?->member;
+            return [
+                'id'                   => $acc->id,
+                'membership_id'        => $primary?->id,
+                'membership_number'    => $acc->membership_number,
+                'holder_name'          => trim(collect([
+                    $holder?->first_name,
+                    $holder?->last_name,
+                    $holder?->second_last_name,
+                ])->filter()->implode(' ')),
+                'membership_type_name' => $primary?->membershipType?->name,
+                'status'               => $acc->status,
+                'separation_reason'    => $acc->separation_reason,
+            ];
+        };
+
+        $origin  = $account->originAccount ? $formatAccount($account->originAccount) : null;
+        $derived = $account->derivedAccounts
+            ->map(fn ($d) => $this->buildDerivedNode($d, $formatAccount))
+            ->values()
+            ->all();
+
+        if (!$origin && empty($derived)) {
+            return null;
+        }
+
+        return [
+            'origin'  => $origin,
+            'derived' => $derived,
+        ];
+    }
+
+    private function buildDerivedNode(MembershipAccount $account, callable $formatAccount): array
+    {
+        $account->loadMissing([
+            'primaryHolder.member',
+            'memberships' => fn ($q) => $q->where('is_primary', true),
+            'derivedAccounts.primaryHolder.member',
+            'derivedAccounts.memberships' => fn ($q) => $q->where('is_primary', true),
+        ]);
+
+        $node = $formatAccount($account);
+        $node['derived'] = $account->derivedAccounts
+            ->map(fn ($child) => $this->buildDerivedNode($child, $formatAccount))
+            ->values()
+            ->all();
+
+        return $node;
     }
 
     protected function validationExceptionResponse(ValidationException $e)

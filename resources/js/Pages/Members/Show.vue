@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AccountTreeNode from "@/Components/AccountTreeNode.vue";
 import BaseButton from "@/Components/BaseButton.vue";
 import MonthPicker from "@/Components/MonthPicker.vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
@@ -111,9 +112,26 @@ interface MembershipHistoryItem {
     changed_by_name: string | null;
 }
 
+interface AccountTreeNode {
+    id: number;
+    membership_id: number | null;
+    membership_number: string | null;
+    holder_name: string;
+    membership_type_name: string | null;
+    status: string;
+    separation_reason: string | null;
+    derived?: AccountTreeNode[];
+}
+
+interface AccountTree {
+    origin: AccountTreeNode | null;
+    derived: AccountTreeNode[];
+}
+
 interface Props {
     membership: SourceMembership;
     account: MembershipAccount;
+    accountTree?: AccountTree | null;
     canAddFamilyMembers?: boolean;
     canChangePrimaryHolder?: boolean;
     canSeparateMembers?: boolean;
@@ -122,6 +140,7 @@ interface Props {
 const can = usePage().props.auth.permissions;
 
 const props = withDefaults(defineProps<Props>(), {
+    accountTree: null,
     canAddFamilyMembers: false,
     canChangePrimaryHolder: false,
     canSeparateMembers: false,
@@ -1002,6 +1021,59 @@ watch(editLockerSearch, () => {
                                 </v-col>
                             </v-row>
                         </v-card>
+                        <!-- Árbol de cuentas relacionadas -->
+                        <v-card
+                            v-if="props.accountTree && (props.accountTree.origin || props.accountTree.derived.length)"
+                            class="pa-4 mt-4"
+                        >
+                            <div class="text-subtitle-1 font-weight-bold mb-4">
+                                Cuentas relacionadas
+                            </div>
+
+                            <!-- Cuenta de origen -->
+                            <div v-if="props.accountTree.origin" class="mb-4">
+                                <div class="text-caption text-medium-emphasis mb-1 text-uppercase">
+                                    Cuenta de origen
+                                </div>
+                                <v-card
+                                    variant="tonal"
+                                    color="primary"
+                                    class="pa-3 cursor-pointer"
+                                    @click="props.accountTree!.origin!.membership_id && router.visit(route('members.manage.show', props.accountTree!.origin!.membership_id))"
+                                >
+                                    <div class="d-flex align-center gap-2">
+                                        <v-icon size="small">mdi-account-arrow-up</v-icon>
+                                        <div>
+                                            <span class="font-weight-medium">
+                                                #{{ props.accountTree.origin.membership_number }}
+                                            </span>
+                                            — {{ props.accountTree.origin.holder_name }}
+                                            <span v-if="props.accountTree.origin.membership_type_name" class="text-medium-emphasis">
+                                                ({{ props.accountTree.origin.membership_type_name }})
+                                            </span>
+                                        </div>
+                                        <v-spacer />
+                                        <v-chip size="x-small" :color="props.accountTree.origin.status === 'active' ? 'success' : 'default'">
+                                            {{ statusLabel(props.accountTree.origin.status) }}
+                                        </v-chip>
+                                    </div>
+                                </v-card>
+                            </div>
+
+                            <!-- Cuentas derivadas -->
+                            <div v-if="props.accountTree.derived.length">
+                                <div class="text-caption text-medium-emphasis mb-2 text-uppercase">
+                                    Cuentas derivadas ({{ props.accountTree.derived.length }})
+                                </div>
+                                <AccountTreeNode
+                                    v-for="node in props.accountTree.derived"
+                                    :key="node.id"
+                                    :node="node"
+                                    class="mb-2"
+                                />
+                            </div>
+                        </v-card>
+
                         <!-- Historial de membresía -->
                         <v-card class="pa-4 mt-4">
                             <div class="text-subtitle-1 font-weight-bold mb-4">
