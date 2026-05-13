@@ -22,70 +22,13 @@ import VueSweetalert2 from "vue-sweetalert2";
 import "sweetalert2/dist/sweetalert2.min.css";
 import vue3Spinner from "vue3-spinner";
 import { isLoading } from "./loading";
-import { requestFirebaseNotificationPermission } from "./firebase";
 import { registerFirebaseForegroundListener } from "./services/firebaseNotificationService";
-import { customToastSwal } from "./utils/swal";
 
 const appName = import.meta.env.VITE_APP_NAME || "Laravel";
 
 const options = {
     confirmButtonColor: "#41b882",
     cancelButtonColor: "#ff7674",
-};
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api/v1";
-const SANCTUM_TEST_TOKEN = import.meta.env.VITE_SANCTUM_TEST_TOKEN || "";
-
-const sendFirebasePushTest = async () => {
-    try {
-        const token = await requestFirebaseNotificationPermission();
-
-        if (!token) {
-            customToastSwal({
-                icon: "warning",
-                title: "Firebase",
-                text: "No se pudo generar el token FCM.",
-            });
-            return;
-        }
-
-        const headers = {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-        };
-
-        if (SANCTUM_TEST_TOKEN) {
-            headers.Authorization = `Bearer ${SANCTUM_TEST_TOKEN}`;
-        }
-
-        const response = await fetch(`${API_BASE_URL}/firebase/test`, {
-            method: "POST",
-            headers,
-            body: JSON.stringify({
-                token,
-                title: "Prueba Firebase",
-                body: "Push enviada desde app.js",
-                data: {
-                    type: "manual_test",
-                },
-            }),
-        });
-
-        const json = await response.json();
-
-        customToastSwal({
-            icon: json.success ? "success" : "error",
-            title: json.success ? "Firebase OK" : "Firebase Error",
-            text: json.message || "Respuesta recibida",
-        });
-    } catch (error) {
-        customToastSwal({
-            icon: "error",
-            title: "Firebase Error",
-            text: "Ocurrio un error enviando la prueba.",
-        });
-        console.error(error);
-    }
 };
 
 const vuetify = createVuetify({
@@ -169,28 +112,6 @@ createInertiaApp({
         Inertia.on("finish", () => (isLoading.value = false));
 
         registerFirebaseForegroundListener();
-
-        window.addEventListener("load", () => {
-            const button = document.createElement("button");
-
-            button.innerText = "Probar Firebase";
-            button.style.position = "fixed";
-            button.style.right = "20px";
-            button.style.bottom = "20px";
-            button.style.zIndex = "99999";
-            button.style.padding = "12px 18px";
-            button.style.background = "#0097B2";
-            button.style.color = "#fff";
-            button.style.border = "none";
-            button.style.borderRadius = "8px";
-            button.style.cursor = "pointer";
-
-            button.addEventListener("click", () => {
-                sendFirebasePushTest();
-            });
-
-            document.body.appendChild(button);
-        });
 
         return vueApp.mount(el);
     },

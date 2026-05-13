@@ -24,6 +24,8 @@ class DatabaseSeeder extends Seeder
             ClubSeeder::class,
             UserSeeder::class,
             SystemVariableSeeder::class,
+            NotificationChannelSeeder::class,
+            NotificationStatusCatalogSeeder::class,
             EmailConfigSeeder::class,
             ReservationStatusSeeder::class,
             DocumentTypeSeeder::class,
