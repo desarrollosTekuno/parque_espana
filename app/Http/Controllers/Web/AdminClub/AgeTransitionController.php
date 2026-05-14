@@ -4,10 +4,13 @@ namespace App\Http\Controllers\Web\AdminClub;
 
 use App\Http\Controllers\Controller;
 use App\Models\Catalogs\Relationship;
+use App\Models\Members\Member;
 use App\Models\Memberships\Membership;
 use App\Models\Memberships\MembershipAccountGroup;
 use App\Models\Memberships\MembershipAccountMember;
+use App\Models\Memberships\MembershipType;
 use App\Models\Memberships\PendingAgeTransition;
+use App\Models\Memberships\PricingRule;
 use App\Services\Billing\MembershipChargeService;
 use App\Services\Billing\MembershipPricingService;
 use Carbon\Carbon;
@@ -56,10 +59,6 @@ class AgeTransitionController extends Controller
                 );
             }
 
-            if ($transitionType = $request->input("{$prefix}_transition_type")) {
-                $query->where('transition_type', $transitionType);
-            }
-
             $transitions = $query
                 ->orderByRaw("CASE WHEN status = 'pending' THEN 0 ELSE 1 END")
                 ->orderBy('identified_at', 'desc')
@@ -75,9 +74,8 @@ class AgeTransitionController extends Controller
             return Inertia::render('Members/AgeTransitions', [
                 'transitions' => $transitions,
                 'filters' => [
-                    'search'          => $request->input("{$prefix}_search"),
-                    'status'          => $statusFilter,
-                    'transition_type' => $request->input("{$prefix}_transition_type"),
+                    'search' => $request->input("{$prefix}_search"),
+                    'status' => $statusFilter,
                 ],
             ]);
         } catch (\Exception $e) {
@@ -196,15 +194,27 @@ class AgeTransitionController extends Controller
             ->where('name', 'Titular')
             ->value('id');
 
+        // Re-evaluar has_multiple_clubs al momento de promover.
+        // El comando pudo haber creado este registro antes de que se promoviera
+        // una transición en otro club, por lo que el valor almacenado puede estar desactualizado.
+        [$hasMultipleClubs, $monthlyFee] = $this->resolveCurrentFeeForFamilyTransition(
+            $transition,
+            $familyMembership,
+            $member
+        );
+
         // Reuse existing account group if the member already holds another club primary
         $existingAccountGroup = $this->findExistingAccountGroup(
             $member->id,
             $familyMembership->club_id
         );
 
+        $billingMode = $hasMultipleClubs ? 'equal_split' : 'single';
+
         DB::transaction(function () use (
             $transition, $familyMembership, $member, $targetType,
-            $accountMember, $titularRelationshipId, $existingAccountGroup
+            $accountMember, $titularRelationshipId, $existingAccountGroup,
+            $hasMultipleClubs, $monthlyFee, $billingMode
         ) {
             $group = $existingAccountGroup ?? MembershipAccountGroup::create([
                 'status' => 'active',
@@ -234,10 +244,10 @@ class AgeTransitionController extends Controller
                 'origin_membership_type_id' => $familyMembership->membership_type_id,
                 'is_primary'               => true,
                 'is_billable'              => true,
-                'monthly_fee'              => $transition->monthly_fee,
-                'monthly_fee_total'        => $transition->monthly_fee,
-                'monthly_fee_share'        => $transition->monthly_fee,
-                'billing_split_mode'       => 'single',
+                'monthly_fee'              => $monthlyFee,
+                'monthly_fee_total'        => $monthlyFee,
+                'monthly_fee_share'        => $monthlyFee,
+                'billing_split_mode'       => $billingMode,
                 'start_date'               => now()->toDateString(),
                 'end_date'                 => $targetType->validity_months
                     ? now()->addMonthsNoOverflow($targetType->validity_months)->toDateString()
@@ -245,20 +255,34 @@ class AgeTransitionController extends Controller
                 'status'                   => 'active',
             ]);
 
+            // Cargar account para que synchronizeMembershipFees encuentre el grupo
+            // y actualice billing_split_mode en todas las membresías hermanas.
+            $newMembership->load('account');
+
             $newMembership = $this->chargeService
                 ->synchronizeMembershipFees(
                     $newMembership,
-                    (float) $transition->monthly_fee,
+                    $monthlyFee,
                     null,
-                    'single',
+                    $billingMode,
                     'Promoción por edad — ' . $targetType->name
                 )
                 ->firstWhere('id', $newMembership->id)
                 ?? $newMembership->fresh(['membershipType', 'account.primaryHolder']);
 
+            // Respaldo: si el grupo no se resolvió por sync (e.g. account_group_id null),
+            // actualizar las hermanas manualmente.
+            if ($hasMultipleClubs && $existingAccountGroup) {
+                $this->switchSiblingMembershipsToEqualSplit(
+                    $existingAccountGroup->id,
+                    $familyMembership->club_id,
+                    $monthlyFee
+                );
+            }
+
             $this->chargeService->createInitialCharges(
                 membership: $newMembership,
-                monthlyFee: (float) $transition->monthly_fee,
+                monthlyFee: $monthlyFee,
                 inscriptionFee: 0.0,
                 metadata: [
                     'charge_origin'             => 'age_transition',
@@ -278,7 +302,7 @@ class AgeTransitionController extends Controller
                 'effective_date'        => now()->toDateString(),
                 'reason'                => 'Promoción por edad desde cuenta familiar',
                 'previous_monthly_fee'  => null,
-                'new_monthly_fee'       => $transition->monthly_fee,
+                'new_monthly_fee'       => $monthlyFee,
                 'metadata'              => json_encode([
                     'transition_kind'           => 'age_transition_family_to_solidaria',
                     'source_membership_id'      => $familyMembership->id,
@@ -289,11 +313,74 @@ class AgeTransitionController extends Controller
             ]);
 
             $transition->update([
-                'status'      => 'promoted',
-                'promoted_at' => now(),
-                'promoted_by' => auth()->id(),
+                'status'             => 'promoted',
+                'promoted_at'        => now(),
+                'promoted_by'        => auth()->id(),
+                'has_multiple_clubs' => $hasMultipleClubs,
+                'monthly_fee'        => $monthlyFee,
             ]);
         });
+    }
+
+    /**
+     * Re-evalúa si el integrante tiene membresía activa en otro club al momento de promover
+     * y resuelve la cuota correcta según las reglas de precio vigentes.
+     *
+     * @return array{bool, float} [$hasMultipleClubs, $monthlyFee]
+     */
+    private function resolveCurrentFeeForFamilyTransition(
+        PendingAgeTransition $transition,
+        Membership $familyMembership,
+        \App\Models\Members\Member $member
+    ): array {
+        $hasMultipleClubs = Membership::query()
+            ->where('status', 'active')
+            ->where('is_primary', true)
+            ->where('club_id', '!=', $familyMembership->club_id)
+            ->whereHas('account.primaryHolder', fn (Builder $q) =>
+                $q->where('member_id', $member->id)
+            )
+            ->exists();
+
+        // Si el estado no cambió respecto al registro guardado, usar la cuota almacenada
+        if ($hasMultipleClubs === (bool) $transition->has_multiple_clubs) {
+            return [$hasMultipleClubs, (float) $transition->monthly_fee];
+        }
+
+        // El estado cambió (otro club fue promovido antes): re-calcular la regla de precio
+        $age = $member->birthdate
+            ? Carbon::parse($member->birthdate)->age
+            : null;
+
+        $candidateTargetIds = MembershipType::query()
+            ->where('club_id', $familyMembership->membershipType->club_id)
+            ->where('requires_origin_family', true)
+            ->where('allows_multiple_members', false)
+            ->pluck('id');
+
+        $attempts = $hasMultipleClubs ? [true, false] : [false];
+
+        foreach ($attempts as $requiresMultipleClubs) {
+            $rule = PricingRule::query()
+                ->whereIn('membership_type_id', $candidateTargetIds)
+                ->where('from_membership_type_id', $familyMembership->membership_type_id)
+                ->when(
+                    $age !== null,
+                    fn (Builder $q) => $q
+                        ->where(fn (Builder $a) => $a->whereNull('min_age')->orWhere('min_age', '<=', $age))
+                        ->where(fn (Builder $a) => $a->whereNull('max_age')->orWhere('max_age', '>=', $age))
+                )
+                ->where('requires_multiple_clubs', $requiresMultipleClubs)
+                ->orderBy('priority')
+                ->first();
+
+            if ($rule) {
+                return [$hasMultipleClubs, (float) $rule->monthly_fee];
+            }
+        }
+
+        // Fallback: usar la cuota almacenada si no se encuentra una regla actualizada
+        return [$hasMultipleClubs, (float) $transition->monthly_fee];
     }
 
     private function promoteSolidariaToIndividual(PendingAgeTransition $transition): void
@@ -367,6 +454,62 @@ class AgeTransitionController extends Controller
         });
     }
 
+    /**
+     * Actualiza las membresías activas del mismo grupo (otro club) a equal_split
+     * cuando se confirma que el integrante ahora tiene membresías en múltiples clubs.
+     */
+    private function switchSiblingMembershipsToEqualSplit(
+        int $accountGroupId,
+        int $newClubId,
+        float $splitFee
+    ): void {
+        $siblings = Membership::query()
+            ->where('status', 'active')
+            ->where('is_primary', true)
+            ->where('club_id', '!=', $newClubId)
+            ->whereHas('account', fn (Builder $q) =>
+                $q->where('account_group_id', $accountGroupId)
+            )
+            ->get();
+
+        foreach ($siblings as $sibling) {
+            $previousFee = (float) $sibling->monthly_fee;
+
+            $sibling->update([
+                'billing_split_mode' => 'equal_split',
+                'monthly_fee'        => $splitFee,
+                'monthly_fee_total'  => $splitFee,
+                'monthly_fee_share'  => $splitFee,
+            ]);
+
+            $this->chargeService->synchronizeMembershipFees(
+                $sibling,
+                $splitFee,
+                null,
+                'equal_split',
+                'Actualización a equal_split por promoción interclub'
+            );
+
+            DB::table('memberships.membership_history')->insert([
+                'membership_id'         => $sibling->id,
+                'old_membership_type_id' => $sibling->membership_type_id,
+                'new_membership_type_id' => $sibling->membership_type_id,
+                'changed_by'            => auth()->id(),
+                'effective_date'        => now()->toDateString(),
+                'reason'                => 'Cambio a equal_split por alta de membresía en otro club',
+                'previous_monthly_fee'  => $previousFee,
+                'new_monthly_fee'       => $splitFee,
+                'metadata'              => json_encode([
+                    'transition_kind'    => 'billing_split_update',
+                    'account_group_id'   => $accountGroupId,
+                    'triggered_by_club'  => $newClubId,
+                ]),
+                'created_at'  => now(),
+                'updated_at'  => now(),
+            ]);
+        }
+    }
+
     private function findExistingAccountGroup(int $memberId, int $currentClubId): ?MembershipAccountGroup
     {
         $existing = Membership::query()
@@ -398,26 +541,24 @@ class AgeTransitionController extends Controller
             ? trim(collect([$member->first_name, $member->last_name, $member->second_last_name])->filter()->implode(' '))
             : 'N/D';
 
+        $age = $member?->birthdate
+            ? Carbon::parse($member->birthdate)->age
+            : null;
+
         return [
-            'id'                      => $t->id,
-            'member_id'               => $t->member_id,
-            'member_name'             => $name,
-            'membership_id'           => $t->membership_id,
-            'membership_account_id'   => $t->membership_account_id,
-            'club_code'               => $t->membership?->club?->code,
-            'from_membership_type'    => $t->membership?->membershipType?->name,
-            'target_membership_type'  => $t->targetMembershipType?->name,
-            'target_membership_type_id' => $t->target_membership_type_id,
-            'transition_type'         => $t->transition_type,
-            'monthly_fee'             => (float) $t->monthly_fee,
-            'has_multiple_clubs'      => (bool) $t->has_multiple_clubs,
-            'status'                  => $t->status,
-            'identified_at'           => $t->identified_at?->toDateTimeString(),
-            'promoted_at'             => $t->promoted_at?->toDateTimeString(),
-            'promoted_by_name'        => $t->promotedBy?->name,
-            'dismissed_at'            => $t->dismissed_at?->toDateTimeString(),
-            'dismissed_by_name'       => $t->dismissedBy?->name,
-            'dismissal_reason'        => $t->dismissal_reason,
+            'id'                    => $t->id,
+            'member_id'             => $t->member_id,
+            'member_name'           => $name,
+            'age'                   => $age,
+            'membership_id'         => $t->membership_id,
+            'membership_account_id' => $t->membership_account_id,
+            'status'                => $t->status,
+            'identified_at'         => $t->identified_at?->toDateTimeString(),
+            'promoted_at'           => $t->promoted_at?->toDateTimeString(),
+            'promoted_by_name'      => $t->promotedBy?->name,
+            'dismissed_at'          => $t->dismissed_at?->toDateTimeString(),
+            'dismissed_by_name'     => $t->dismissedBy?->name,
+            'dismissal_reason'      => $t->dismissal_reason,
         ];
     }
 }

@@ -153,6 +153,7 @@ class PermissionSeeder extends Seeder
             ['module' => 'Encuestas', 'name' => 'surveys.questions.reorder', 'description' => 'Reordenar preguntas de encuesta', 'contexts' => ['web']],
 
             // Publicidad
+            ['module' => 'Publicidad', 'name' => 'business-ads.index', 'description' => 'Ver publicidad de negocios', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-ads.approve', 'description' => 'Aprobar publicidad de negocios', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-ads.reject', 'description' => 'Rechazar publicidad de negocios', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-categories.index', 'description' => 'Ver categorías de negocios', 'contexts' => ['web']],

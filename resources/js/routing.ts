@@ -107,6 +107,7 @@ const routes: Routing[] = [
                 title: "Transiciones por edad",
                 icon: "mdi-account-clock-outline",
                 value: "transiciones-edad",
+                showBadge: true,
             },
             {
                 name: "member-access.index",

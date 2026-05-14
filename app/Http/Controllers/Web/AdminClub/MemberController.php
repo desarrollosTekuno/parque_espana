@@ -2003,6 +2003,12 @@ class MemberController extends Controller
                     'updated_at'             => now(),
                 ]);
 
+                // Cargar account para que synchronizeMembershipFees pueda encontrar
+                // el account_group_id y actualizar todas las membresías del grupo.
+                // Sin esto, el servicio trata la nueva membresía como standalone y
+                // sobreescribe billing_split_mode a 'single'.
+                $newMembership->load('account');
+
                 $newMembership = $this->membershipChargeService
                     ->synchronizeMembershipFees(
                         $newMembership,

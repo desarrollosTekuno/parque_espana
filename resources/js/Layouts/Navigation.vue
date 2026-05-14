@@ -9,6 +9,7 @@ const can = usePage().props.auth.permissions;
 const auth = usePage().props.auth;
 const page = usePage<any>();
 const pendingAds = computed(() => page.props.pendingBusinessAds ?? 0);
+const pendingAgeTransitions = computed(() => (page.props as any).pendingAgeTransitions ?? 0);
 const clubs = page.props.auth?.clubs ?? [];
 const selectedClub = ref(page.props.auth?.currentClub ?? null);
 
@@ -293,8 +294,17 @@ const isInLockersFlow = computed(() => {
                                 "
                                 :active="route().current(groupItem.name)"
                                 :prepend-icon="groupItem.icon"
-                                :title="groupItem.title"
-                            />
+                            >
+                                <v-list-item-title class="d-flex align-center gap-2">
+                                    {{ groupItem.title }}
+                                    <v-badge
+                                        v-if="groupItem.showBadge && pendingAgeTransitions > 0"
+                                        :content="pendingAgeTransitions > 9 ? '9+' : pendingAgeTransitions"
+                                        color="#D4172A"
+                                        inline
+                                    />
+                                </v-list-item-title>
+                            </v-list-item>
                         </Link>
                     </v-list-group>
                 </template>
