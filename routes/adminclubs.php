@@ -26,6 +26,7 @@ use App\Http\Controllers\Web\AdminClub\ReservationGuestListController;
 use App\Http\Controllers\Web\AdminClub\SurveyResultController;
 use App\Http\Controllers\Web\AdminClub\AccountCancellationController;
 use App\Http\Controllers\Web\AdminClub\AccountReactivationController;
+use App\Http\Controllers\Web\AdminClub\AgeTransitionController;
 use App\Http\Controllers\Web\AdminClub\CancellationHistoryController;
 use App\Http\Controllers\Web\AdminClub\MemberDocumentController;
 use App\Http\Controllers\Web\AdminClub\LockerAssignmentController;
@@ -177,6 +178,14 @@ Route::get('/members/{membership}/reactivate/create', [AccountReactivationContro
     ->name('members.reactivate.create');
 Route::post('/members/{membership}/reactivate', [AccountReactivationController::class, 'store'])
     ->name('members.reactivate.store');
+
+// Transiciones de edad pendientes
+Route::get('/age-transitions', [AgeTransitionController::class, 'index'])
+    ->name('members.age-transitions.index');
+Route::patch('/age-transitions/{ageTransition}/promote', [AgeTransitionController::class, 'promote'])
+    ->name('members.age-transitions.promote');
+Route::patch('/age-transitions/{ageTransition}/dismiss', [AgeTransitionController::class, 'dismiss'])
+    ->name('members.age-transitions.dismiss');
 
 // Historial de bajas
 Route::get('/cancellations', [CancellationHistoryController::class, 'index'])
