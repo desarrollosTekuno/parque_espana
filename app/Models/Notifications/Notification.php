@@ -37,4 +37,9 @@ class Notification extends Model
     {
         return $this->hasMany(NotificationRecipient::class, 'notification_id');
     }
+
+    public function attachments()
+    {
+        return $this->hasMany(NotificationAttachment::class, 'notification_id');
+    }
 }
