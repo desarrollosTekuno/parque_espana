@@ -2,6 +2,7 @@
 
 namespace App\Models\Notifications;
 
+use App\Models\Administrator\Club;
 use App\Models\User;
 use App\Traits\SerializesDates;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -21,6 +22,11 @@ class Notification extends Model
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function club()
+    {
+        return $this->belongsTo(Club::class, 'club_id');
     }
 
     public function channel()

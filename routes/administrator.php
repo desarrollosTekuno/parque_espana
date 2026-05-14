@@ -18,7 +18,8 @@ Route::resource('/permissions', PermissionController::class)->names('permissions
 Route::resource('/users', UserController::class)->names('users');
 Route::resource('/clubs', ClubController::class)->names('clubs');
 Route::resource('/email-configs', EmailConfigController::class)->only(['index', 'store', 'update', 'destroy'])->names('email-configs');
-Route::resource('/email-notifications', EmailNotificationController::class)->only(['index'])->names('email-notifications');
+Route::resource('/email-notifications', EmailNotificationController::class)->only(['index', 'store', 'update', 'destroy'])->names('email-notifications');
+Route::get('/email-notifications/recipients-preview', [EmailNotificationController::class, 'recipientsPreview'])->name('email-notifications.recipients-preview');
 Route::post('/change-club', [ClubController::class, 'changeClub'])->name('change.club');
 
 // Accesos app móvil
