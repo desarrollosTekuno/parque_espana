@@ -77,6 +77,29 @@ Este proyecto usa Laravel + Inertia + Vue 3 + Vuetify. La forma correcta de dar 
 - Seeders: `php artisan db:seed`
 - Revisar flujo web/API completo: listar, crear, editar, eliminar, permisos, errores.
 
+## 2.1) Instruccion rapida: "iniciar modulo"
+
+Cuando se pida iniciar un modulo (solo dejar entrada funcional sin logica de negocio), realizar unicamente estos pasos minimos:
+
+1. Crear permisos base del modulo
+- Agregar al menos permiso `modulo.index` en `PermissionSeeder.php`.
+- Asignar el permiso al rol inicial requerido (por ejemplo en `SuperAdminSeeder.php`).
+
+2. Registrar ruta web del modulo
+- Registrar `Route::resource(...)->only(['index'])->names('modulo')` en el archivo de rutas que corresponda (`routes/adminclubs.php` o `routes/administrator.php`).
+
+3. Crear controlador minimo
+- Crear controlador web con `index()` y middleware de permiso en `__construct()`.
+- Retornar `Inertia::render('.../Index')`.
+
+4. Crear vista minima
+- Crear `Index.vue` simple con `Head`, `AppLayout` y texto tipo "Modulo en construccion" para validar acceso.
+
+5. Registrar en navegacion
+- Agregar opcion en `resources/js/routing.ts` con titulo e icono.
+
+Objetivo de esta instruccion: poder entrar al modulo desde menu con control de permisos, sin implementar CRUD ni logica adicional.
+
 ## 3) Estructura recomendada de controlador
 
 Para modulos CRUD web, se recomienda:
