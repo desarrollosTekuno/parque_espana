@@ -50,6 +50,7 @@ Route::resource('/system-variables', SystemVariableController::class)->only(['in
 
 Route::resource('/guest-lists', ReservationGuestListController::class)->only(['index', 'update'])->names('guest-lists');
 Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
+Route::get('/billing/charges', [BillingController::class, 'chargesList'])->name('billing.charges.index');
 Route::post('/billing/payments', [BillingController::class, 'storePayment'])->name('billing.payments.store');
 
 // cash cuts

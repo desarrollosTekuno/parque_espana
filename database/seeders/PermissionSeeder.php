@@ -118,7 +118,9 @@ class PermissionSeeder extends Seeder
             ['module' => 'Membresías', 'name' => 'member-access.destroy', 'description' => 'Revocar acceso a miembros', 'contexts' => ['web']],
             // Cobranza
             ['module' => 'Cobranza', 'name' => 'billing.index', 'description' => 'Ver módulo de cobranza', 'contexts' => ['web']],
+            ['module' => 'Cobranza', 'name' => 'billing.charges.index', 'description' => 'Ver desglose de cargos pendientes', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'billing.store', 'description' => 'Registrar cobros', 'contexts' => ['web']],
+            ['module' => 'Cobranza', 'name' => 'billing.payments.non-cash-cut', 'description' => 'Usar métodos de pago que no afectan corte de caja', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'billing-concepts.index', 'description' => 'Ver conceptos de cobro', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'billing-concepts.store', 'description' => 'Crear conceptos de cobro', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'billing-concepts.update', 'description' => 'Actualizar conceptos de cobro', 'contexts' => ['web']],

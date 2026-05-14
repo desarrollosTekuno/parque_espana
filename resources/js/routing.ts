@@ -121,6 +121,7 @@ const routes: Routing[] = [
     {
         name: [
             "billing.index",
+            "billing.charges.index",
             "billing-concepts.index",
             "payment-methods.index",
             "cash-cuts.index",
@@ -150,6 +151,12 @@ const routes: Routing[] = [
                 title: "Cargos pendientes",
                 icon: "mdi-receipt-text-outline",
                 value: "cargos-pendientes",
+            },
+            {
+                name: "billing.charges.index",
+                title: "Desglose de cargos",
+                icon: "mdi-format-list-bulleted",
+                value: "desglose-cargos",
             },
             {
                 name: "cash-cuts.index",
