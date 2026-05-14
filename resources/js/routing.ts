@@ -183,6 +183,13 @@ const routes: Routing[] = [
         value: "usuarios",
         group: null,
     },
+    {
+        name: ["email-notifications.index"],
+        title: "Correo a socios",
+        icon: "mdi-email-outline",
+        value: "correo-socios",
+        group: null,
+    },
     // Amenidades
     {
         name: ["amenities.index", "blockedPeriods.index"],

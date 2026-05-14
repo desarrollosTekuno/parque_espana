@@ -56,6 +56,7 @@ class PermissionSeeder extends Seeder
             ['module' => 'Comunicación', 'name' => 'announcements.store', 'description' => 'Crear anuncios', 'contexts' => ['web']],
             ['module' => 'Comunicación', 'name' => 'announcements.update', 'description' => 'Actualizar anuncios', 'contexts' => ['web']],
             ['module' => 'Comunicación', 'name' => 'announcements.destroy', 'description' => 'Eliminar anuncios', 'contexts' => ['web']],
+            ['module' => 'Comunicación', 'name' => 'email-notifications.index', 'description' => 'Ver notificaciones por correo', 'contexts' => ['web']],
 
             // Sistema
             ['module' => 'Sistema', 'name' => 'system-variables.index', 'description' => 'Ver variables de sistema', 'contexts' => ['web']],

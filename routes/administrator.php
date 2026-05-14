@@ -2,6 +2,7 @@
 // routes/Administrator.php
 
 use App\Http\Controllers\Web\Administrator\ClubController;
+use App\Http\Controllers\Web\Administrator\EmailNotificationController;
 use App\Http\Controllers\Web\Administrator\MemberAccessController;
 use App\Http\Controllers\Web\Administrator\PermissionController;
 use App\Http\Controllers\Web\Administrator\RoleController;
@@ -15,6 +16,7 @@ Route::post('/roles/duplicate', [RoleController::class, 'duplicate'])->name('rol
 Route::resource('/permissions', PermissionController::class)->names('permissions');
 Route::resource('/users', UserController::class)->names('users');
 Route::resource('/clubs', ClubController::class)->names('clubs');
+Route::resource('/email-notifications', EmailNotificationController::class)->only(['index'])->names('email-notifications');
 Route::post('/change-club', [ClubController::class, 'changeClub'])->name('change.club');
 
 // Accesos app móvil
