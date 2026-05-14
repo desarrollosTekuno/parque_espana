@@ -184,8 +184,15 @@ const routes: Routing[] = [
         group: null,
     },
     {
+        name: ["email-configs.index"],
+        title: "Configuración correo",
+        icon: "mdi mdi-email-newsletter",
+        value: "configuracion-correo",
+        group: null,
+    },
+    {
         name: ["email-notifications.index"],
-        title: "Correo a socios",
+        title: "Envío de correos",
         icon: "mdi-email-outline",
         value: "correo-socios",
         group: null,

@@ -24,7 +24,6 @@ return new class extends Migration
             $table->string('from_name', 150);
             $table->boolean('is_active')->default(true);
 
-            $table->unique('entity_id');
             $table->index('is_active');
 
             $table->unsignedBigInteger('entity_id');
