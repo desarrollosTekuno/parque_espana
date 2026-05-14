@@ -54,7 +54,7 @@ const options = ref({
 });
 
 const headers = computed(() => [
-    { title: "ID", key: "id" },
+    // { title: "ID", key: "id" },
     { title: "Concepto", key: "name" },
     { title: "Monto base", key: "default_amount" },
     {

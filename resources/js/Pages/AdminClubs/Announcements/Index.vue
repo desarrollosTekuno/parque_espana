@@ -65,23 +65,40 @@
     };
     const formatDateForInput = (val: string | null) => {
         if (!val) return null;
-        return val
-            .replace(' ', 'T')
-            .slice(0, 16);
+            if (val.includes('T')) {
+                return val.slice(0, 16);
+            }
+        return val.replace(' ', 'T').slice(0, 16);
     };
+const formatToPicker = (val: string | null) => {
+    if (!val) return null;
+
+    // 👉 elimina milisegundos y zona
+    let clean = val.replace('T', ' ').split('.')[0];
+
+    // 👉 si trae Z o timezone lo quitamos
+    clean = clean.replace('Z', '');
+
+    return clean;
+};
     const edit = (item: any) => {
         form.reset();
+
         form.id = item.id;
         form.title = item.title;
         form.content = item.content;
         form.type = item.type;
         form.status = item.status;
-        form.publish_at = formatDateForInput(item.publish_at);
-        form.expires_at = formatDateForInput(item.expires_at);
+
+        form.publish_at = formatToPicker(item.publish_at);  
+        form.expires_at = formatToPicker(item.expires_at); 
+
         form.is_active = item.is_active;
+
         form.image = null;
         form.image_path = item.image;
         imagePreview.value = item.image ? `/storage/${item.image}` : null;
+
         showModal.value = true;
     };
     const save = () => {
@@ -647,11 +664,12 @@ watch(
                                     </div>
                                 </v-col>
                                 <v-col cols="6">
-                                    <FormDateTimePicker v-model="form.publish_at" label="Fecha publicación" :rules="[required, publishNotInPast]" />
+                                    <FormDateTimePicker v-model="form.publish_at" label="Fecha de publicación" :rules="[required, publishNotInPast]" />
                                 </v-col>
                                 <v-col cols="6">
                                     <FormDateTimePicker 
                                         v-model="form.expires_at" 
+                                        label="Fecha de expiración"
                                         prepend-inner-icon="mdi-calendar-remove" 
                                         :error="!!form.errors.expires_at"
                                         :error-messages="form.errors.expires_at"

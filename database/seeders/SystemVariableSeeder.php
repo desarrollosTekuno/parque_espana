@@ -6,14 +6,13 @@ use App\Models\AdminClub\SystemVariable;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
-class SystemVariableSeeder extends Seeder
-{
+class SystemVariableSeeder extends Seeder {
     /**
      * Run the database seeds.
      */
     public function run(): void
     {
-        $system_variables = [
+        $systemVariables = [
             [
                 'name' => 'dias_para_crear_reserva',
                 'value' => '2',
@@ -32,10 +31,31 @@ class SystemVariableSeeder extends Seeder
                 'description' => 'Total de horas de suspensión para reservar',
                 'club_id' => 1
             ],
+            [
+                'name' => 'feedback_notification_email',
+                'value' => 'notificaciones@parquesespana.com',
+                'description' => 'Correo del Club PE1 que recibe notificaciones de nuevas quejas/sugerencias y cancelaciones',
+                'club_id' => 1
+            ],
+            [
+                'name' => 'feedback_notification_email',
+                'value' => 'notificaciones@parquesespana.com',
+                'description' => 'Correo del Club PE2 que recibe notificaciones de nuevas quejas/sugerencias y cancelaciones',
+                'club_id' => 2
+            ],
         ];
 
-        foreach ($system_variables as $system_variable) {
-            SystemVariable::create($system_variable);
+        foreach ($systemVariables as $systemVariable) {
+            SystemVariable::updateOrCreate(
+                [
+                    'name' => $systemVariable['name'],
+                    'club_id' => $systemVariable['club_id'],
+                ],
+                [
+                    'value' => $systemVariable['value'],
+                    'description' => $systemVariable['description'],
+                ]
+            );
         }
 
     }

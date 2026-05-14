@@ -69,6 +69,7 @@ const edit = (item:any) => {
 
 const removeImage = () => {
   form.value.image = null;
+  form.value.remove_image = true;
   imagePreview.value = null;
 };
 
@@ -88,7 +89,10 @@ const toggleStatus = (item:any, value:boolean) => {
 const save = () => {
   const data = new FormData();
   data.append("name", form.value.name);
-
+  data.append("is_active", form.value.is_active ? "1" : "0");
+  if (form.value.remove_image) {
+    data.append("remove_image", "1");
+  }
   if (form.value.image) {
     const file = Array.isArray(form.value.image) ? form.value.image[0] : form.value.image;
     data.append("image", file);
@@ -102,6 +106,13 @@ const save = () => {
         customToastSwal({ title: page.props.flash.success, icon: "success"});
         showModal.value = false;
         fetchItems();
+      },
+      onError: (errors) => {
+        console.log(errors);
+        customToastSwal({
+          title: "Error al guardar",
+          icon: "error"
+        });
       }
     });
   } else {
@@ -111,6 +122,13 @@ const save = () => {
         customToastSwal({ title: page.props.flash.success, icon: "success" });
         showModal.value = false;
         fetchItems();
+      },
+      onError: (errors) => {
+        console.log(errors);
+        customToastSwal({
+          title: "Error al guardar",
+          icon: "error"
+        });
       }
     });
   }
@@ -136,15 +154,6 @@ const remove = (item:any) => {
     });
 };
 
-watch(() => form.value.image, (file) => {
-  if (!file || (Array.isArray(file) && file.length === 0)) {
-    imagePreview.value = null;
-    return;
-  }
-
-  const selected = Array.isArray(file) ? file[0] : file;
-  imagePreview.value = URL.createObjectURL(selected);
-});
 watch(() => form.value.image, (file) => {
   if (!file) return;
 
@@ -275,8 +284,12 @@ watch(() => form.value.image, (file) => {
         <v-spacer></v-spacer>
         <BaseButton :text="'Cancelar'" variant="tonal" :icon-only="false" action="cancel"
             @click="showModal = false" />
-        <BaseButton :text="form.id ? 'Actualizar' : 'Guardar'" variant="flat" :icon-only="false"
-            type="submit" action="save" @click="save"/>
+        <BaseButton :text="form.id ? 'Actualizar' : 'Guardar'"
+          variant="flat"
+          :icon-only="false"
+          action="save"
+          @click="save"
+        />
     </v-card-actions>
 
   </v-card>
@@ -295,7 +308,7 @@ watch(() => form.value.image, (file) => {
   object-fit: cover;    
   z-index: 999;
   border-radius: 16px;
-  box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.25); 
 
   pointer-events: none;
 }

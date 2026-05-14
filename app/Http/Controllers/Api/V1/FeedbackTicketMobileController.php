@@ -3,15 +3,19 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreFeedbackTicketRequest;
 use App\Models\Administrator\Club;
 use App\Models\Feedback\Status;
 use App\Models\Feedback\Ticket;
 use App\Models\Members\Member;
+use App\Services\Email\MailService;
 use App\Traits\HandlesFeedbackTickets;
+use App\Traits\SendsFeedbackTicketNotifications;
 use Illuminate\Http\Request;
 
 class FeedbackTicketMobileController extends Controller {
     use HandlesFeedbackTickets;
+    use SendsFeedbackTicketNotifications;
 
     public function index(Request $request, Club $club) {
         try {
@@ -83,18 +87,7 @@ class FeedbackTicketMobileController extends Controller {
         }
     }
 
-    public function store(Request $request, Club $club) {
-        $request->validate([
-            'ticket_type_id' => 'required',
-            'category_id' => 'required',
-            'priority_id' => 'required',
-            'title' => 'required|string|max:200',
-            'description' => 'required|string',
-            'is_anonymous' => 'nullable|boolean',
-            'attachments' => 'nullable|array|max:5',
-            'attachments.*' => 'file|mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx|max:10240',
-        ]);
-
+    public function store(StoreFeedbackTicketRequest $request, Club $club, MailService $mailService) {
         try {
             $status = Status::where('code', 'SUBMITTED')->first();
             $member = Member::where('user_id', $request->user()->id)->first();
@@ -134,9 +127,13 @@ class FeedbackTicketMobileController extends Controller {
                     'submitted_at' => now(),
                 ]);
 
-                if ($request->hasFile('attachments')) {
-                    $this->storeTicketAttachments($ticket, $request->file('attachments'));
+                $attachments = $this->getAttachmentFiles($request);
+
+                if (!empty($attachments)) {
+                    $this->storeFileAttachments($ticket, $attachments);
                 }
+
+                $this->sendTicketNotifications($mailService, $ticket);
 
                 return response()->json([
                     'success' => true,
@@ -153,7 +150,7 @@ class FeedbackTicketMobileController extends Controller {
         }
     }
 
-    public function cancel(Request $request, Club $club, Ticket $ticket) {
+    public function cancel(Request $request, Club $club, Ticket $ticket, MailService $mailService) {
         try {
             $member = Member::where('user_id', $request->user()->id)->first();
 
@@ -207,4 +204,5 @@ class FeedbackTicketMobileController extends Controller {
             ], 500);
         }
     }
+
 }

@@ -2,16 +2,24 @@
 <script setup lang="ts">
 import BaseButton from "@/Components/BaseButton.vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
-import { Head, router } from "@inertiajs/vue3";
+import { Head, router, usePage } from "@inertiajs/vue3";
 import { ref, watch, computed } from "vue";
 import { debounce } from "lodash";
-
+import { customToastSwal } from "@/utils/swal";
+const page = usePage();
 interface Props {
     acts?: any;
     account?: any;
+    membershipId: Number,
 }
-
-const props = defineProps<Props>();
+const previews = ref<any[]>([]);
+const fileInput = ref<HTMLInputElement | null>(null);
+const props = defineProps({
+    acts: Object,
+    account_id: Number,
+    account: Object,
+    membershipId: Number
+});
 
 // Tabla
 const headers = ref([
@@ -42,11 +50,14 @@ const showModal = ref(false);
 
 const form = ref({
     id: null,
+    member_id: null,
+    club_id: null,
     violation_type: null,
     other_violation: "",
     description: "",
     date: null,
     time: null,
+    folio: null,
 
     hasFine: false,
     amount: null,
@@ -67,11 +78,14 @@ const memberOptions = computed(() => {
         value: m.id
     })) || [];
 });
-
+const date = new Date();
 const openCreate = () => {
+    previews.value = [];
     form.value = {
         id: null,
         member_id: null,
+        club_id: props.account?.club_id || null,
+        folio: `ACT-${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${Math.floor(Math.random()*9999)}`,
 
         violation_type: null,
         other_violation: "",
@@ -96,21 +110,46 @@ const openCreate = () => {
     showModal.value = true;
 };
 const save = () => {
+    const payload = {
+        ...form.value,
+        account_id: props.account?.id,
+        club_id: form.value.club_id || props.account?.club_id || null,
+        date: form.value.date || null,
+        time: form.value.time || null,
+        hasFine: !!form.value.hasFine,
+        has_suspension: !!form.value.has_suspension,
+    };
+
+    if (!payload.hasFine) {
+        payload.amount = null;
+        payload.concept = null;
+        payload.due_date = null;
+    }
+
     const routeName = form.value.id
         ? route("acts.update", form.value.id)
         : route("acts.store");
 
-    const method = form.value.id ? "post" : "post";
-
-    router[method](routeName, {
-        ...form.value,
-        _method: form.value.id ? "PUT" : "POST",
-        account_id: props.account?.id
+    router.post(routeName, {
+        ...payload,
+        _method: form.value.id ? 'PUT' : 'POST'
     }, {
         forceFormData: true,
+
         onSuccess: () => {
+            customToastSwal({
+                title: form.value.id ? "Acta actualizada" : "Acta registrada",
+                icon: "success"
+            });
             showModal.value = false;
             fetchItems();
+        },
+
+        onError: (errors: any) => {
+            customToastSwal({
+                title: errors.messageError || 'Error al guardar',
+                icon: "error",
+            });
         }
     });
 };
@@ -120,7 +159,7 @@ const fetchItems = () => {
     loading.value = true;
 
     router.get(
-        route("acts.index"),
+        route("acts.index", props.account_id),
         {
             page: options.value.page,
             per_page: options.value.itemsPerPage,
@@ -134,7 +173,9 @@ const fetchItems = () => {
     );
 };
 
-
+const folioPreview = computed(() => {
+    return form.value.folio || 'ACT-XXXX';
+});
 // Watch datos
 watch(
     () => props.acts,
@@ -155,15 +196,13 @@ watch(search, debounce(() => {
 watch([options], debounce(fetchItems, 400), { deep: true });
 
 // Funciones
-const viewDetail = (item: any) => {
-    selectedAct.value = item;
-};
-
 const edit = (item: any) => {
+    previews.value = [];
     form.value = {
         id: item.id,
 
         member_id: item.member_id,
+        club_id: item.club_id,
 
         violation_type: item.violation_type,
         other_violation: "",
@@ -184,13 +223,93 @@ const edit = (item: any) => {
 
         files: []
     };
-
+    // cargar archivos existentes del backend
+    if (item.files?.length) {
+        previews.value = item.files.map((file: any) => ({
+            name: file.path.split('/').pop(),
+            type: 'image/*',
+            url: `/storage/${file.path}`, 
+            isExisting: true 
+        }));
+    }
     showModal.value = true;
 };
 
 const formatDate = (val: string | null) => {
     if (!val) return "-";
     return new Date(val).toLocaleDateString("es-MX");
+};
+watch(() => form.value.has_suspension, (val) => {
+    if (!val) {
+        form.value.suspension_start = null;
+        form.value.suspension_end = null;
+    }
+});
+
+// Funciones para manejo de archivos
+const MAX_SIZE = 2 * 1024 * 1024; // 2MB
+
+const handleFiles = (files: File[] | FileList) => {
+    const fileArray = Array.from(files);
+    const validFiles = fileArray.filter(file => {
+        if (file.size > MAX_SIZE) {
+            customToastSwal({
+                title: `El archivo ${file.name} excede 2MB`,
+                icon: "error"
+            });
+            return false;
+        }
+        return true;
+    });
+    form.value.files = [
+        ...(form.value.files || []),
+        ...validFiles
+    ];
+    const newPreviews = validFiles.map(file => ({
+        name: file.name,
+        type: file.type,
+        url: file.type.startsWith("image/")
+            ? URL.createObjectURL(file)
+            : null,
+        isExisting: false
+    }));
+    previews.value = [
+        ...previews.value,
+        ...newPreviews
+    ];
+};
+const isDragging = ref(false);
+
+const onDrop = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    isDragging.value = false;
+
+    if (e.dataTransfer?.files?.length) {
+        handleFiles(e.dataTransfer.files);
+    }
+};
+
+const onDragOver = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    isDragging.value = true;
+};
+
+const onDragLeave = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    isDragging.value = false;
+};
+const removeFile = (index: number) => {
+    const file = previews.value[index];
+
+    // limpiar memoria
+    if (file.url) URL.revokeObjectURL(file.url);
+
+    previews.value.splice(index, 1);
+    form.value.files.splice(index, 1);
 };
 </script>
 
@@ -217,7 +336,7 @@ const formatDate = (val: string | null) => {
                 :icon-only="false"
                 action="cancel"
                 icon="mdi-chevron-left"
-                @click="router.visit(route('members.manage.show', props.account?.membership_id))"
+                @click="router.visit(route('members.manage.show', props.membershipId))"
             />
         </template>
             <BaseButton
@@ -270,11 +389,6 @@ const formatDate = (val: string | null) => {
             <!-- Acciones -->
             <template #item.actions="{ item }">
                 <BaseButton
-                    action="view"
-                    @click="viewDetail(item)"
-                />
-
-                <BaseButton
                     icon="mdi-pencil"
                     action="edit"
                     @click="edit(item)"
@@ -285,10 +399,56 @@ const formatDate = (val: string | null) => {
         <!-- MODAL -->
         <v-dialog v-model="showModal" max-width="650" persistent>
             <v-form @submit.prevent="save">
-                <v-card :title="form.id ? 'Editar acta' : 'Nueva acta'">
+                <v-card>
+                    <template #title>
+                        <div class="d-flex align-center gap-2">
+                            <v-icon size="22">
+                                {{ form.id ? 'mdi-pencil' : 'mdi-file-document-plus-outline' }}
+                            </v-icon>
 
+                            <span>
+                                {{ form.id ? 'Editar acta' : 'Nueva acta' }}
+                            </span>
+                        </div>
+
+                        <div class="text-caption text-medium-emphasis">
+                            {{ form.id ? 'Modifica la información de la incidencia' : 'Registra una nueva incidencia' }}
+                        </div>
+                    </template>
                     <v-card-text style="max-height:70vh; overflow:auto">
                         <v-row>
+                             <v-col cols="12">
+                                <strong>Vista previa:</strong>
+
+                                <v-card class="mt-2" elevation="3">
+                                    <v-card-text>
+
+                                        <div class="text-caption text-grey">
+                                            {{ folioPreview }}
+                                        </div>
+
+                                        <div class="text-h6 font-weight-bold">
+                                            {{ form.violation_type || 'Tipo de falta' }}
+                                        </div>
+
+                                        <div class="text-body-2 mb-2">
+                                            {{ form.description || 'Descripción de la incidencia...' }}
+                                        </div>
+
+                                        <v-chip v-if="form.warning_type" color="orange" size="small">
+                                            {{ form.warning_type }}
+                                        </v-chip>
+
+                                        <v-chip v-if="form.hasFine" color="red" size="small">
+                                            ${{ form.amount || 0 }}
+                                        </v-chip>
+
+                                        <div class="text-caption mt-2">
+                                            {{ form.date || 'Fecha' }} {{ form.time || '' }}
+                                        </div>
+                                    </v-card-text>
+                                </v-card>
+                            </v-col>
                             <v-col cols="12">
                                 <v-select
                                     v-model="form.member_id"
@@ -344,17 +504,19 @@ const formatDate = (val: string | null) => {
                                 <v-switch v-model="form.hasFine" label="¿Aplica multa?" />
                             </v-col>
 
-                            <v-col cols="4" v-if="form.amount">
-                                <v-text-field v-model="form.amount" label="Monto" type="number" />
-                            </v-col>
+                            <v-row v-if="form.hasFine">
+                                <v-col cols="4">
+                                    <v-text-field v-model="form.amount" label="Monto" type="number" />
+                                </v-col>
 
-                            <v-col cols="4" v-if="form.amount">
-                                <v-text-field v-model="form.concept" label="Concepto" />
-                            </v-col>
+                                <v-col cols="4">
+                                    <v-text-field v-model="form.concept" label="Concepto" />
+                                </v-col>
 
-                            <v-col cols="4" v-if="form.amount">
-                                <v-text-field v-model="form.due_date" type="date" label="Fecha límite" />
-                            </v-col>
+                                <v-col cols="4">
+                                    <v-text-field v-model="form.due_date" type="date" label="Fecha límite" />
+                                </v-col>
+                            </v-row>
 
                             <!-- Advertencia -->
                             <v-col cols="12">
@@ -370,33 +532,101 @@ const formatDate = (val: string | null) => {
                             </v-col>
 
                             <!-- Suspensión -->
-                            <v-col cols="12">
-                                <v-switch v-model="form.has_suspension" label="¿Suspensión?" />
+                             <v-col cols="12">
+                                <v-switch
+                                    v-model="form.has_suspension"
+                                    inset
+                                    color="warning"
+                                >
+                                    <template #label>
+                                        <div class="d-flex align-center gap-2">
+                                            <v-icon size="18">mdi-account-off</v-icon>
+                                            <span>¿Aplica suspensión?</span>
+                                        </div>
+                                    </template>
+                                </v-switch>
                             </v-col>
+                            <v-row v-if="form.has_suspension">
+                                <v-col cols="6">
+                                    <v-text-field
+                                        v-model="form.suspension_start"
+                                        type="date"
+                                        label="Inicio de suspensión"
+                                    />
+                                </v-col>
 
-                            <v-col cols="6" v-if="form.has_suspension">
-                                <v-text-field v-model="form.suspension_start" type="date" label="Inicio" />
-                            </v-col>
-
-                            <v-col cols="6" v-if="form.has_suspension">
-                                <v-text-field v-model="form.suspension_end" type="date" label="Fin" />
-                            </v-col>
+                                <v-col cols="6">
+                                    <v-text-field
+                                        v-model="form.suspension_end"
+                                        type="date"
+                                        label="Fin de suspensión"
+                                    />
+                                </v-col>
+                            </v-row>
 
                             <!-- Archivos -->
                             <v-col cols="12">
-                                <v-file-input
-                                    v-model="form.files"
-                                    label="Evidencia"
-                                    multiple
-                                />
+                                <div
+                                    class="drop-zone"
+                                    :class="{ dragging: isDragging }"
+                                    @drop="onDrop"
+                                    @dragover="onDragOver"
+                                    @dragleave="onDragLeave"
+                                    @click="fileInput?.click()"
+                                >
+                                    <v-icon size="40" class="mb-2">mdi-cloud-upload</v-icon>
+                                    <div class="text-body-2" @click="fileInput?.click()">
+                                        Arrastra archivos aquí o da clic
+                                    </div>
+                                    <input
+                                        ref="fileInput"
+                                        type="file"
+                                        multiple
+                                        class="hidden-input"
+                                        @change="(e:any) => handleFiles(e.target.files)"; e.target.value = null;
+                                    />
+                                </div>
                             </v-col>
+                            <v-col cols="12" v-if="previews.length">
+                                <v-row>
+                                    <v-col
+                                        v-for="(file, i) in previews"
+                                        :key="i"
+                                        cols="4"
+                                    >
+                                        <v-card class="pa-2 text-center">
 
+                                            <!-- Imagen -->
+                                            <v-img
+                                                v-if="file.url"
+                                                :src="file.url"
+                                                height="100"
+                                                cover
+                                            />
+
+                                            <!-- Archivo no imagen -->
+                                            <div v-else>
+                                                <v-icon size="30">mdi-file</v-icon>
+                                                <div class="text-caption">
+                                                    {{ file.name }}
+                                                </div>
+                                            </div>
+                                            <v-btn
+                                                icon="mdi-close"
+                                                size="x-small"
+                                                color="red"
+                                                class="position-absolute"
+                                                style="top: 5px; right: 5px;"
+                                                @click="removeFile(i)"
+                                            />
+                                        </v-card>
+                                    </v-col>
+                                </v-row>
+                            </v-col>
                         </v-row>
                     </v-card-text>
-
                     <v-card-actions>
                         <v-spacer />
-
                         <BaseButton
                             text="Cancelar"
                             action="cancel"
@@ -404,18 +634,35 @@ const formatDate = (val: string | null) => {
                             variant="tonal"
                             @click="showModal = false"
                         />
-
                         <BaseButton
                             :text="form.id ? 'Actualizar' : 'Guardar'"
                             :icon-only="false"
                             variant="tonal"
                             action="save"
-                            type="submit"
+                            @click="save" 
                         />
                     </v-card-actions>
-
                 </v-card>
             </v-form>
         </v-dialog>
     </AppLayout>
 </template>
+<style scoped>
+    .drop-zone {
+        border: 2px dashed #ccc;
+        border-radius: 12px;
+        padding: 30px;
+        text-align: center;
+        cursor: pointer;
+        transition: 0.2s;
+    }
+
+    .drop-zone.dragging {
+        border-color: #1976d2;
+        background: #e3f2fd;
+    }
+
+    .hidden-input {
+        display: none;
+    }
+</style>

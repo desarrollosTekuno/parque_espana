@@ -182,7 +182,7 @@ watch(
                 action="cancel"
                 :icon-only="false"
                 icon="mdi-chevron-left"
-                 @click="router.visit(route('members.manage.show', props.membershipId))"
+                @click="router.visit(route('members.manage.show', props.membershipId))"
             />
         </template>
 

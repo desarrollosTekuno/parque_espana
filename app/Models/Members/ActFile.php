@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ActFile extends Model {
     use HasFactory, SoftDeletes;
-    protected $table = 'members.actFile';
+    protected $table = 'members.act_files';
     protected $fillable = [
         'act_id',
         'path'

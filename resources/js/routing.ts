@@ -31,6 +31,44 @@ const routes: Routing[] = [
     },
     {
         name: [
+            "membership-types.index",
+            "document-types.index",
+            "pricing-rules.index",
+            "interclub-package-rules.index",
+        ],
+        title: "Configuración de membresías",
+        icon: "mdi-cog-outline",
+        value: "configuracionMembresiasMenu",
+        group: "Configuración de membresías",
+        groupItems: [
+            {
+                name: "document-types.index",
+                title: "Tipos de documento",
+                icon: "mdi-file-document-outline",
+                value: "tipos-documento",
+            },
+            {
+                name: "membership-types.index",
+                title: "Tipos de membresía",
+                icon: "mdi-card-account-details-outline",
+                value: "tipos-membresia",
+            },
+            {
+                name: "pricing-rules.index",
+                title: "Reglas de precio",
+                icon: "mdi-currency-usd",
+                value: "reglas-precio",
+            },
+            {
+                name: "interclub-package-rules.index",
+                title: "Paquetes interclub",
+                icon: "mdi-swap-horizontal",
+                value: "paquetes-interclub",
+            },
+        ],
+    },
+    {
+        name: [
             "members.index",
             "members.create",
             "members.edit",
@@ -56,29 +94,42 @@ const routes: Routing[] = [
                 icon: "mdi-account-plus-outline",
                 value: "nueva-membresia",
             },
+            {
+                name: "member-access.index",
+                title: "Accesos App Móvil",
+                icon: "mdi-cellphone-key",
+                value: "accesos-app",
+            },
         ],
     },
+
     {
-        name: ["member-access.index"],
-        title: "Accesos App Móvil",
-        icon: "mdi-cellphone-key",
-        value: "accesos-app",
-        group: null,
-    },
-    {
-        name: ["billing-concepts.index"],
-        title: "Conceptos de cobro",
-        icon: "mdi-receipt-text-outline",
-        value: "conceptos-cobro",
-        group: null,
-    },
-    {
-        name: ["billing.index", "cash-cuts.index", "cash-cuts.show", "global-cash-cuts.index", "global-cash-cuts.show"],
+        name: [
+            "billing.index",
+            "billing-concepts.index",
+            "payment-methods.index",
+            "cash-cuts.index",
+            "cash-cuts.show",
+            "global-cash-cuts.index",
+            "global-cash-cuts.show",
+        ],
         title: "Cobranza",
         icon: "mdi-cash-multiple",
         value: "cobranzaMenu",
         group: "Cobranza",
         groupItems: [
+            {
+                name: "billing-concepts.index",
+                title: "Conceptos de cobro",
+                icon: "mdi-receipt-text-outline",
+                value: "conceptos-cobro",
+            },
+            {
+                name: "payment-methods.index",
+                title: "Métodos de pago",
+                icon: "mdi-credit-card-outline",
+                value: "metodos-pago",
+            },
             {
                 name: "billing.index",
                 title: "Cargos pendientes",
@@ -132,6 +183,13 @@ const routes: Routing[] = [
         value: "usuarios",
         group: null,
     },
+    {
+        name: ["email-notifications.index"],
+        title: "Correo a socios",
+        icon: "mdi-email-outline",
+        value: "correo-socios",
+        group: null,
+    },
     // Amenidades
     {
         name: ["amenities.index", "blockedPeriods.index"],
@@ -180,12 +238,6 @@ const routes: Routing[] = [
                 icon: "mdi-cog",
                 value: "variables-sistema",
             },
-            {
-                name: "system-variables.index",
-                title: "Variables del Sistema",
-                icon: "mdi-cog",
-                value: "variables-sistema",
-            }
         ],
     },
     // Anuncios
@@ -221,14 +273,6 @@ const routes: Routing[] = [
     },
     // Encuestas
     {
-        name: "surveys.index",
-        title: "Encuestas",
-        icon: "mdi-poll",
-        value: "surveys",
-        group: null
-    },
-    // Encuestas
-    {
         name: ["surveys.index", "surveys.create", "surveys.edit"],
         title: "Encuestas",
         icon: "mdi-clipboard-list-outline",
@@ -237,28 +281,57 @@ const routes: Routing[] = [
     },
 
     {
-        name: ["pricing-rules.index"],
-        title: "Reglas de precio",
-        icon: "mdi-currency-usd",
-        value: "reglas-precio",
-        group: null,
+        name: [
+            "feedback.index",
+            "feedback-management.index",
+            "feedback-categories.index",
+            "feedback-ticket-types.index",
+            "feedback-statuses.index",
+            "feedback-priorities.index",
+        ],
+        title: "Quejas y sugerencias",
+        icon: "mdi-message-alert-outline",
+        value: "feedbackMenu",
+        group: "Quejas y sugerencias",
+        groupItems: [
+            {
+                name: "feedback-categories.index",
+                title: "Categorías",
+                icon: "mdi-tag-outline",
+                value: "feedback-categories",
+            },
+            {
+                name: "feedback-ticket-types.index",
+                title: "Tipos de ticket",
+                icon: "mdi-shape-outline",
+                value: "feedback-ticket-types",
+            },
+            {
+                name: "feedback-statuses.index",
+                title: "Estatus",
+                icon: "mdi-progress-check",
+                value: "feedback-statuses",
+            },
+            {
+                name: "feedback-priorities.index",
+                title: "Prioridades",
+                icon: "mdi-flag-checkered",
+                value: "feedback-priorities",
+            },
+            {
+                name: "feedback.index",
+                title: "Captura de tickets",
+                icon: "mdi-message-text-outline",
+                value: "feedback",
+            },
+            {
+                name: "feedback-management.index",
+                title: "Gestion de casos",
+                icon: "mdi-briefcase-edit-outline",
+                value: "feedback-management",
+            },
+        ],
     },
-    {
-        name: ["interclub-package-rules.index"],
-        title: "Paquetes interclub",
-        icon: "mdi-swap-horizontal",
-        value: "paquetes-interclub",
-        group: null,
-    },
-    // Encuestas
-    {
-        name: "surveys.index",
-        title: "Encuestas",
-        icon: "mdi-clipboard-list-outline",
-        value: "encuestas",
-        group: null,
-    }
-
     /*
     {
         name: ["dashboard"],
