@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Web\Administrator;
 
-use App\Http\Controllers\Controller;
+use Illuminate\Routing\Controller;
 use Inertia\Inertia;
 
 class EmailNotificationController extends Controller
