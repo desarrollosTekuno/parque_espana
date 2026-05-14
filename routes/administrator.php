@@ -17,7 +17,7 @@ Route::post('/roles/duplicate', [RoleController::class, 'duplicate'])->name('rol
 Route::resource('/permissions', PermissionController::class)->names('permissions');
 Route::resource('/users', UserController::class)->names('users');
 Route::resource('/clubs', ClubController::class)->names('clubs');
-Route::resource('/email-configs', EmailConfigController::class)->only(['index'])->names('email-configs');
+Route::resource('/email-configs', EmailConfigController::class)->only(['index', 'store', 'update', 'destroy'])->names('email-configs');
 Route::resource('/email-notifications', EmailNotificationController::class)->only(['index'])->names('email-notifications');
 Route::post('/change-club', [ClubController::class, 'changeClub'])->name('change.club');
 
