@@ -17,7 +17,7 @@ class BusinessCategoryController extends Controller
         $this->middleware('permission:business-categories.index')->only('index');
         $this->middleware('permission:business-categories.store')->only('store');
         $this->middleware('permission:business-categories.update')->only('update');
-        $this->middleware('permission:business-categories.delete')->only('delete');
+        $this->middleware('permission:business-categories.destroy')->only('destroy'); 
     }
 
     public function index(Request $request)

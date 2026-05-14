@@ -3,6 +3,7 @@ import axios from "axios";
 import '@/../css/amenities.css';
 import BaseButton from "@/Components/BaseButton.vue";
 import FormDescripcion from "@/Components/Form/FormDescripcion.vue";
+import AmenityCalendar from "@/Components/Amenities/AmenityCalendar.vue";
 import FormIcon from "@/Components/Form/FormIcon.vue";
 import FormImage from "@/Components/Form/FormImage.vue";
 import FormName from "@/Components/Form/FormName.vue";
@@ -13,6 +14,7 @@ import AppLayout from "@/Layouts/AppLayout.vue";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import { Form, Head, router, useForm, usePage } from "@inertiajs/vue3";
 import { debounce } from "lodash";
+import Swal from "sweetalert2";
 import { ref, watch, computed, reactive } from "vue";
 
 const page = usePage();
@@ -20,6 +22,28 @@ const can = usePage().props.auth.permissions;
 const imageRef = ref<any>(null);
 const iconRef = ref<any>(null);
 const tab = ref('amenities')
+
+// Modal calendario
+const showCalendarModal = ref(false);
+const calendarEvents = ref([]);
+const selectedAmenityCalendar = ref<any>(null);
+
+const openCalendar = async (resource:any) => {
+    selectedAmenityCalendar.value = resource
+    try {
+        const response = await axios.get(
+            route('amenityResource.calendar', resource.id)
+        )
+        calendarEvents.value = response.data
+        showCalendarModal.value = true
+    } catch (error) {
+        console.error(error)
+        customToastSwal({
+            title: 'Error al cargar reservaciones',
+            icon: 'error'
+        })
+    }
+}
 
 //    Computeds
 const isSaveDisabled = computed(() => {
@@ -138,61 +162,86 @@ const create = () => {
     iconPreview.value = null;
     showModal.value = true;
 };
-const save = () => {
-    formSendRef.value?.validate().then(({ valid }) => {
-        if (!valid) return;
-        form
-            .transform((data) => {
+const savingAmenity = ref(false)
 
-                const payload: any = { ...data };
+const save = async () => {
 
-                if (form.id) {
-                    payload._method = "PUT";
-                }
-                if (!data.icon && !data.remove_icon) {
-                    delete payload.icon;
-                }
+    const { valid } = await formSendRef.value?.validate()
 
-                if (!data.background_image && !data.remove_background_image) {
-                    delete payload.background_image;
-                }
+    if (!valid) return
 
-                return payload;
-            })
-            .post(
-                form.id
-                    ? route("amenities.update", form.id)
-                    : route("amenities.store"),
-                {
-                    forceFormData: true,
-                    onSuccess: () => {
+    const result = await customConfirmSwal({
+        title: form.id 
+            ? "¿Actualizar amenidad?" 
+            : "¿Guardar amenidad?",
+        text: form.id
+            ? "Se actualizarán los datos de la amenidad"
+            : "Se creará una nueva amenidad"
+    })
 
-                        customToastSwal({
-                            title: page.props.flash.success || "",
-                            icon: "success"
-                        });
+    if (!result.isConfirmed) return
 
-                        showModal.value = false;
-                        form.reset();
-                        form.transform(data => data);
+    if (savingAmenity.value) return
+    savingAmenity.value = true
 
-                        imagePreview.value = null;
-                        iconPreview.value = null;
-                        fetchItems();
-                    },
-                    onError: () => {
+    form
+        .transform((data) => {
 
-                        customToastSwal({
-                            title: `Error: ${form.errors.messageError}`,
-                            text: `${form.errors.exception}`,
-                            icon: "error",
-                        });
+            const payload: any = { ...data }
 
-                    },
-                }
-            );
-    });
-};
+            if (form.id) {
+                payload._method = "PUT"
+            }
+
+            if (!data.icon && !data.remove_icon) {
+                delete payload.icon
+            }
+
+            if (!data.background_image && !data.remove_background_image) {
+                delete payload.background_image
+            }
+
+            return payload
+        })
+        .post(
+            form.id
+                ? route("amenities.update", form.id)
+                : route("amenities.store"),
+            {
+                forceFormData: true,
+
+                onSuccess: () => {
+
+                    customToastSwal({
+                        title: page.props.flash.success || "",
+                        icon: "success"
+                    })
+
+                    showModal.value = false
+                    form.reset()
+                    form.transform(data => data)
+
+                    imagePreview.value = null
+                    iconPreview.value = null
+
+                    fetchItems()
+
+                    savingAmenity.value = false
+                },
+
+                onError: () => {
+
+                    customToastSwal({
+                        title: `Error: ${form.errors.messageError}`,
+                        text: `${form.errors.exception}`,
+                        icon: "error",
+                    })
+
+                    savingAmenity.value = false
+                },
+            }
+        )
+}
 
 const edit = (data: any) => {
     form.id = data.id;
@@ -210,7 +259,7 @@ const edit = (data: any) => {
     imagePreview.value = data.background_image_url ?? null;
     showModal.value = true;
 };
-const schedule = () => {
+const schedule = async () => {
     const current = JSON.stringify(
         normalizeSchedule(formSchedule.days)
     )
@@ -247,6 +296,21 @@ const schedule = () => {
 
     if (hasError) return;
     
+    const result = await Swal.fire({
+        title: '¿Desea guardar los cambios?',
+        text: 'Se actualizará el horario de la amenidad seleccionada',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, cambiar',
+        cancelButtonText: 'Cancelar',
+        reverseButtons: true,
+        allowOutsideClick: false,
+        target: document.body
+    });
+
+    if (!result.isConfirmed) {
+        return;
+    }
 
     const schedules = formSchedule.days
         .filter(day => day.active)
@@ -640,51 +704,68 @@ const editResource = (resource: any) => {
 
 }
 const saveResource = () => {
-    resourceForm
-        .transform((data) => {
-            const payload: any = { ...data }
-            if (!showSlotDuration.value) {
-                payload.slot_duration_minutes = null
-            }
-            if (!showCapacity.value) {
-                payload.capacity = 1
-            }
-            if (resourceForm.id) {
-                payload._method = "PUT"
-            }
-            return payload
-        })
-        .post(
-            resourceForm.id
-                ? route('amenityResource.update', resourceForm.id)
-                : route('amenityResource.store'),
-            {
-                onSuccess: (page) => {
-                    const flash = page.props.flash || {}
-                    if(flash.messageError){
+
+    customConfirmSwal({
+        title: resourceForm.id 
+            ? "¿Actualizar recurso?" 
+            : "¿Guardar recurso?",
+        text: "Confirma para continuar"
+    }).then((result) => {
+
+        if (!result.isConfirmed) return
+
+        resourceForm
+            .transform((data) => {
+                const payload: any = { ...data }
+
+                if (!showSlotDuration.value) {
+                    payload.slot_duration_minutes = null
+                }
+
+                if (!showCapacity.value) {
+                    payload.capacity = 1
+                }
+
+                if (resourceForm.id) {
+                    payload._method = "PUT"
+                }
+
+                return payload
+            })
+            .post(
+                resourceForm.id
+                    ? route('amenityResource.update', resourceForm.id)
+                    : route('amenityResource.store'),
+                {
+                    onSuccess: (page) => {
+                        const flash = page.props.flash || {}
+
+                        if (flash.messageError) {
+                            customToastSwal({
+                                title: flash.messageError,
+                                icon: "error"
+                            })
+                            return
+                        }
+
                         customToastSwal({
-                            title: flash.messageError,
+                            title: flash.success || "Recurso guardado",
+                            icon: "success"
+                        })
+
+                        resourceForm.reset()
+                        showResourceModal.value = false
+                        fetchResources()
+                    },
+
+                    onError: (errors) => {
+                        customToastSwal({
+                            title: errors.messageError || "Error al guardar recurso",
                             icon: "error"
                         })
-                        return
                     }
-                    customToastSwal({
-                        title: flash.success || "Recurso guardado",
-                        icon: "success"
-                    })
-                    resourceForm.reset()
-                    showResourceModal.value = false
-                    fetchResources()
-                },
-                onError: (errors) => {
-                    customToastSwal({
-                        title: errors.messageError || "Error al guardar recurso",
-                        icon: "error"
-                    })
-
-                }
-            })
-
+                })
+    })
 }
 const deleteResource = (item: any) => {
     customConfirmSwal({
@@ -878,10 +959,10 @@ watch(
                                 <template #item.actions="{ item }">
                                     <span class="action-slot">
                                         <BaseButton text="Agregar horario" action="add" icon="mdi-calendar-month"
-                                            @click="openScheduleModal(item)" />
+                                            @click="openScheduleModal(item)" v-if="can.includes('amenitySchedule.store')" />
                                     </span>
                                     <BaseButton action="edit" @click="edit(item)"
-                                        v-if="can.includes('amenities.update')" />
+                                        v-if="can.includes('amenities.update')" /> 
 
                                     <BaseButton action="delete" @click="destroy(item)"
                                         v-if="can.includes('amenities.destroy')" />
@@ -928,8 +1009,9 @@ watch(
                                     />
                                 </template>
                                 <template #item.actions="{ item }">
-                                    <BaseButton action="edit" @click="editResource(item)" />
-                                    <BaseButton action="delete" @click="deleteResource(item)" />
+                                    <BaseButton v-if="can.includes('amenityResource.calendar')" text="Calendario" icon="mdi-calendar-month" action="view" @click="openCalendar(item)" />
+                                    <BaseButton v-if="can.includes('amenityResource.update')" action="edit" @click="editResource(item)" />
+                                    <BaseButton v-if="can.includes('amenityResource.destroy')" action="delete" @click="deleteResource(item)" />
                                 </template>
                             </v-data-table-server>
                         </v-col>
@@ -1158,5 +1240,47 @@ watch(
                 </v-card>
             </v-form>
         </v-dialog>
+        <v-dialog
+            v-model="showCalendarModal"
+            max-width="1200"
+        >
+            <v-card>
+
+                <v-card-title class="d-flex align-center ga-2">
+                    <v-icon>
+                        mdi-calendar
+                    </v-icon>
+
+                    Reservaciones ·
+                    {{ selectedAmenityCalendar?.name }}
+                </v-card-title>
+
+                <v-card-text>
+
+                    <AmenityCalendar
+                        :events="calendarEvents"
+                    />
+
+                </v-card-text>
+
+                <v-card-actions>
+                    <v-spacer />
+
+                    <BaseButton
+                        text="Cerrar"
+                        action="cancel"
+                        variant="tonal"
+                        :icon-only="false"
+                        @click="showCalendarModal = false"
+                    />
+                </v-card-actions>
+
+            </v-card>
+        </v-dialog>
     </AppLayout>
 </template>
+<style>
+.swal2-container {
+    z-index: 9999 !important;
+}
+</style>

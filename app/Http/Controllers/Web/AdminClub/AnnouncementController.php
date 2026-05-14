@@ -23,6 +23,9 @@ class AnnouncementController extends Controller
         $this->middleware('permission:announcements.store')->only('store');
         $this->middleware('permission:announcements.update')->only('update');
         $this->middleware('permission:announcements.destroy')->only('destroy');
+        $this->middleware('permission:announcements.storeGallery')->only('storeGallery');
+        $this->middleware('permission:announcements.getGallery')->only('getGallery');
+        $this->middleware('permission:announcements.destroyGalleryImage')->only('destroyGalleryImage');
     }
 
     public function index(Request $request)

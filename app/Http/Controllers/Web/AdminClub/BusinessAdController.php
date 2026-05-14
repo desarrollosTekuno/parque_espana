@@ -19,9 +19,6 @@ class BusinessAdController extends Controller {
         $this->middleware('permission:business-ads.index')->only('index');
         $this->middleware('permission:business-ads.approve')->only('approve');
         $this->middleware('permission:business-ads.reject')->only('reject');
-        $this->middleware('permission:business-ads.confirm-payment')->only('confirmPayment');
-        $this->middleware('permission:business-ads.publish')->only('publish');
-        $this->middleware('permission:business-ads.destroy')->only('destroy');
     }
 
     public function index(Request $request){
