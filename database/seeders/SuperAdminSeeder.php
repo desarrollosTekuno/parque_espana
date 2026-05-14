@@ -46,14 +46,6 @@ class SuperAdminSeeder extends Seeder
             'clubs.store',
             'clubs.update',
             'clubs.destroy',
-            'email-configs.index',
-            'email-configs.store',
-            'email-configs.update',
-            'email-configs.destroy',
-            'email-notifications.index',
-            'email-notifications.store',
-            'email-notifications.update',
-            'email-notifications.destroy',
         );
         $superadmin->syncPermissions($superadminPermissions);
     }

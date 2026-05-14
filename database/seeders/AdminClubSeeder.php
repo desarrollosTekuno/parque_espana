@@ -111,6 +111,15 @@ class AdminClubSeeder extends Seeder
             'surveys.questions.destroy',
             'surveys.questions.reorder',
 
+            'email-configs.index',
+            'email-configs.store',
+            'email-configs.update',
+            'email-configs.destroy',
+            'email-notifications.index',
+            'email-notifications.store',
+            'email-notifications.update',
+            'email-notifications.destroy',
+
         );
         $adminClubRole = Role::updateOrCreate([
             'name' => 'admin_club',

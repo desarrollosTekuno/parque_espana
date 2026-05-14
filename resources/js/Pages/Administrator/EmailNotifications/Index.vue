@@ -24,6 +24,7 @@ interface Props {
         total: number;
     };
     clubs: { id: number; name: string }[];
+    email_configs: { id: number; entity_id: number; profile_name: string; from_address: string; is_active: boolean }[];
 }
 
 const can = usePage().props.auth.permissions;
@@ -43,6 +44,7 @@ const recipientsPerPage = 20;
 const form = useForm({
     scope: "all" as "all" | "by_club",
     club_id: null as number | null,
+    smtp_config_id: null as number | null,
 });
 
 const headers = [
@@ -111,6 +113,7 @@ const openSendModal = () => {
     form.clearErrors();
     form.scope = "all";
     form.club_id = null;
+    form.smtp_config_id = null;
     extraEmails.value = [];
     showModal.value = true;
     loadRecipientsPreview();
@@ -121,10 +124,14 @@ const onScopeChange = () => {
         form.club_id = null;
     }
 
+    form.smtp_config_id = null;
+
     loadRecipientsPreview();
 };
 
 const onClubChange = () => {
+    form.smtp_config_id = null;
+
     if (form.scope !== "by_club") {
         return;
     }
@@ -189,6 +196,28 @@ const pagedRecipients = computed(() => {
 });
 
 const selectedRecipientsCount = computed(() => selectedRecipientIds.value.length);
+
+const smtpOptions = computed(() => {
+    const configs = props.email_configs ?? [];
+
+    if (form.scope === "by_club") {
+        if (!form.club_id) {
+            return [];
+        }
+
+        return configs.filter((config) => config.entity_id === form.club_id);
+    }
+
+    return configs;
+});
+
+const smtpRequiredRule = (value: number | null) => {
+    if (smtpOptions.value.length === 0) {
+        return "No hay servidores SMTP disponibles";
+    }
+
+    return !!value || "Selecciona un servidor SMTP";
+};
 
 const toggleRecipient = (id: number, checked: boolean | null) => {
     if (checked) {
@@ -313,49 +342,77 @@ const saveStepOne = () => {
             </v-row>
         </div>
 
-        <v-dialog v-model="showModal" max-width="600" persistent>
+        <v-dialog v-model="showModal" max-width="700" persistent>
             <v-form ref="formSendRef" @submit.prevent="saveStepOne">
                 <v-card title="Enviar correo masivo">
                     <v-card-text>
-                        <v-radio-group
-                            v-model="form.scope"
-                            label="Alcance"
-                            inline
-                            @update:model-value="onScopeChange"
-                        >
-                            <v-radio label="Todos" value="all" />
-                            <v-radio label="Por parque" value="by_club" />
-                        </v-radio-group>
-
-                        <v-select
-                            v-if="form.scope === 'by_club'"
-                            v-model="form.club_id"
-                            :items="props.clubs"
-                            item-title="name"
-                            item-value="id"
-                            label="Selecciona el parque"
-                            :rules="[required]"
-                            required
-                            @update:model-value="onClubChange"
-                        />
-
-                        <v-alert class="mt-3" type="info" variant="tonal">
-                            <div class="flex flex-row justify-between">
-                                <div>
-                                    Correos seleccionados: <strong>{{ selectedRecipientsCount }} / {{ recipientsCount }}</strong>
-                                </div>
-                                <div class="justify-end mt-2 d-flex">
-                                    <a
-                                        href="#"
-                                        class="text-primary text-decoration-underline"
-                                        :style="recipientsCount === 0 ? 'pointer-events:none;opacity:0.5;' : ''"
-                                        @click.prevent="openRecipientsModal"
-                                    >
-                                        Ver correos
-                                    </a>
-                                </div>
+                        <div class="p-1 mb-3 bg-red-500">
+                            <div class="mb-2 text-subtitle-2">Selecciona a quienes se les enviara el correo</div>
+                            <v-btn-toggle
+                                v-model="form.scope"
+                                color="primary"
+                                mandatory
+                                divided
+                                @update:model-value="onScopeChange"
+                            >
+                                <v-btn value="all" prepend-icon="mdi-earth">Todos</v-btn>
+                                <v-btn value="by_club" prepend-icon="mdi-map-marker">Por parque</v-btn>
+                            </v-btn-toggle>
+                            <div class="mt-1 text-caption text-medium-emphasis">
+                                {{ form.scope === 'all' ? 'Se incluiran usuarios de todos los parques.' : 'Selecciona un parque especifico.' }}
                             </div>
-                        </v-alert>
+                        </div>
+
+                        <v-row>
+                            <v-col v-if="form.scope === 'by_club'" cols="12" md="6">
+                                <v-select
+                                    v-model="form.club_id"
+                                    :items="props.clubs"
+                                    item-title="name"
+                                    item-value="id"
+                                    label="Selecciona el parque"
+                                    :rules="[required]"
+                                    required
+                                    @update:model-value="onClubChange"
+                                />
+                            </v-col>
+                            <v-col cols="12" :md="form.scope === 'by_club' ? 6 : 12">
+                                <v-select
+                                    v-model="form.smtp_config_id"
+                                    :items="smtpOptions"
+                                    item-title="profile_name"
+                                    item-value="id"
+                                    label="Servidor SMTP"
+                                    :rules="[smtpRequiredRule]"
+                                    :hint="form.scope === 'by_club' ? 'Servidores del parque seleccionado' : 'Servidores activos'"
+                                    persistent-hint
+                                    required
+                                >
+                                    <template #item="{ props: itemProps, item }">
+                                        <v-list-item
+                                            v-bind="itemProps"
+                                            :title="item.raw.profile_name"
+                                            :subtitle="item.raw.from_address"
+                                        />
+                                    </template>
+                                </v-select>
+                            </v-col>
+                        </v-row>
+
+                        <div class="px-1 mt-2 d-flex justify-space-between align-center">
+                            <div class="text-caption text-medium-emphasis">
+                                Seleccionados: <strong>{{ selectedRecipientsCount }}</strong> de {{ recipientsCount }}
+                            </div>
+                            <a
+                                v-if="selectedRecipientsCount > 0"
+                                href="#"
+                                class="text-primary text-decoration-underline text-caption"
+                                :style="recipientsCount === 0 ? 'pointer-events:none;opacity:0.5;' : ''"
+                                @click.prevent="openRecipientsModal"
+                            >
+                                Ver correos
+                            </a>
+                        </div>
 
                         <v-combobox
                             v-model="extraEmails"

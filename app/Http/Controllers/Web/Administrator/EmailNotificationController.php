@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web\Administrator;
 
 use App\Models\Administrator\Club;
+use App\Models\Notifications\EmailConfig;
 use App\Models\Notifications\Notification;
 use App\Models\Notifications\NotificationChannel;
 use App\Models\Notifications\NotificationStatusCatalog;
@@ -30,6 +31,11 @@ class EmailNotificationController extends Controller {
         return Inertia::render('Administrator/EmailNotifications/Index', [
             'email_notifications' => $notifications,
             'clubs' => $clubs,
+            'email_configs' => EmailConfig::query()
+                ->select('id', 'entity_id', 'profile_name', 'from_address', 'is_active')
+                ->where('is_active', true)
+                ->orderBy('profile_name')
+                ->get(),
         ]);
     }
 
