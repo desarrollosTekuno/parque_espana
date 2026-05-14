@@ -35,9 +35,10 @@ use Illuminate\Support\Facades\Route;
 
 // amenities
 Route::resource('/amenities', AmenityController::class)->names('amenities');
-Route::resource('/amenityResource', AmenityResourceController::class)->names('amenityResource');
-Route::resource('/amenitySchedule', AmenityScheduleController::class)->names('amenitySchedule');
+Route::resource('/amenityResource', AmenityResourceController::class)->names('amenityResource'); 
+Route::post('/amenitySchedule', [AmenityScheduleController::class, 'store'])->name('amenitySchedule.store');
 Route::resource('/blockedPeriods', BlockedPeriodController::class)->names('blockedPeriods');
+Route::get('/amenity-resource/{resource}/calendar', [AmenityResourceController::class, 'calendar'])->name('amenityResource.calendar');
 
 Route::resource('/reservations', ReservationController::class)->only(['index', 'update'])->names('reservations');
 Route::resource('/system-variables', SystemVariableController::class)->only(['index', 'store', 'update', 'destroy'])->names('system-variables');
@@ -98,7 +99,7 @@ Route::delete('/business-ads/{id}', [BusinessAdController::class, 'destroy'])->n
 Route::prefix('business-categories')->name('business-categories.')->group(function () {
     Route::get('/', [BusinessCategoryController::class, 'index'])->name('index');
     Route::post('/', [BusinessCategoryController::class, 'store'])->name('store');
-    Route::put('{id}', [BusinessCategoryController::class, 'update'])->name('update');
+    Route::post('{id}', [BusinessCategoryController::class, 'update'])->name('update');
     Route::delete('{id}', [BusinessCategoryController::class, 'destroy'])->name('destroy');
 });
 

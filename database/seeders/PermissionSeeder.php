@@ -42,10 +42,12 @@ class PermissionSeeder extends Seeder
             ['module' => 'Amenidades', 'name' => 'amenityResource.store', 'description' => 'Crear recursos de la amenidad', 'contexts' => ['web']],
             ['module' => 'Amenidades', 'name' => 'amenityResource.update', 'description' => 'Actualizar recursos de la amenidad', 'contexts' => ['web']],
             ['module' => 'Amenidades', 'name' => 'amenityResource.destroy', 'description' => 'Eliminar recursos de la amenidad', 'contexts' => ['web']],
+            ['module' => 'Amenidades', 'name' => 'amenityResource.calendar', 'description' => 'Ver reservaciones del recurso', 'contexts' => ['web']],
             ['module' => 'Amenidades', 'name' => 'blockedPeriods.index', 'description' => 'Ver bloqueos', 'contexts' => ['web']],
             ['module' => 'Amenidades', 'name' => 'blockedPeriods.store', 'description' => 'Crear bloqueos', 'contexts' => ['web']],
             ['module' => 'Amenidades', 'name' => 'blockedPeriods.update', 'description' => 'Actualizar bloqueos', 'contexts' => ['web']],
             ['module' => 'Amenidades', 'name' => 'blockedPeriods.destroy', 'description' => 'Eliminar bloqueos', 'contexts' => ['web']],
+            ['module' => 'Amenidades', 'name' => 'amenitySchedule.store', 'description' => 'Crear horarios de amenidad', 'contexts' => ['web']],    
 
             // Reservaciones
             ['module' => 'Reservaciones', 'name' => 'reservations.index', 'description' => 'Ver reservaciones', 'contexts' => ['web']],
@@ -56,6 +58,9 @@ class PermissionSeeder extends Seeder
             ['module' => 'Comunicación', 'name' => 'announcements.store', 'description' => 'Crear anuncios', 'contexts' => ['web']],
             ['module' => 'Comunicación', 'name' => 'announcements.update', 'description' => 'Actualizar anuncios', 'contexts' => ['web']],
             ['module' => 'Comunicación', 'name' => 'announcements.destroy', 'description' => 'Eliminar anuncios', 'contexts' => ['web']],
+            ['module' => 'Comunicación', 'name' => 'announcements.storeGallery', 'description' => 'Agregar imagen a galería de anuncio', 'contexts' => ['web']],
+            ['module' => 'Comunicación', 'name' => 'announcements.getGallery', 'description' => 'Ver galería de anuncio', 'contexts' => ['web']],
+            ['module' => 'Comunicación', 'name' => 'announcements.destroyGalleryImage', 'description' => 'Eliminar imagen de galería de anuncio', 'contexts' => ['web']],
 
             // Sistema
             ['module' => 'Sistema', 'name' => 'system-variables.index', 'description' => 'Ver variables de sistema', 'contexts' => ['web']],
@@ -142,13 +147,8 @@ class PermissionSeeder extends Seeder
             ['module' => 'Encuestas', 'name' => 'surveys.questions.reorder', 'description' => 'Reordenar preguntas de encuesta', 'contexts' => ['web']],
 
             // Publicidad
-            ['module' => 'Publicidad', 'name' => 'business-ads.index', 'description' => 'Ver publicidad de negocios', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-ads.approve', 'description' => 'Aprobar publicidad de negocios', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-ads.reject', 'description' => 'Rechazar publicidad de negocios', 'contexts' => ['web']],
-            ['module' => 'Publicidad', 'name' => 'business-ads.confirm-payment', 'description' => 'Confirmar pago de publicidad', 'contexts' => ['web']],
-            ['module' => 'Publicidad', 'name' => 'business-ads.publish', 'description' => 'Publicar publicidad de negocios', 'contexts' => ['web']],
-            ['module' => 'Publicidad', 'name' => 'business-ads.update', 'description' => 'Actualizar publicidad de negocios', 'contexts' => ['web']],
-            ['module' => 'Publicidad', 'name' => 'business-ads.destroy', 'description' => 'Eliminar publicidad de negocios', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-categories.index', 'description' => 'Ver categorías de negocios', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-categories.store', 'description' => 'Crear categorías de negocios', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-categories.update', 'description' => 'Actualizar categorías de negocios', 'contexts' => ['web']],

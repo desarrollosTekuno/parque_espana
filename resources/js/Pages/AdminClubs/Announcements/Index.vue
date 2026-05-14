@@ -73,10 +73,10 @@
 const formatToPicker = (val: string | null) => {
     if (!val) return null;
 
-    // 👉 elimina milisegundos y zona
+    // elimina milisegundos y zona
     let clean = val.replace('T', ' ').split('.')[0];
 
-    // 👉 si trae Z o timezone lo quitamos
+    // si trae Z o timezone lo quitamos
     clean = clean.replace('Z', '');
 
     return clean;
@@ -101,80 +101,103 @@ const formatToPicker = (val: string | null) => {
 
         showModal.value = true;
     };
-    const save = () => {
-        formSendRef.value
-            ?.validate()
-            .then(({ valid }) => {
-                if (!valid) return;
-                const publish = normalizeDate(form.publish_at);
-                const expires = normalizeDate(form.expires_at);
-                const now = Date.now();
+  const savingAnnouncement = ref(false)
 
-                if (!publish) {
-                    customToastSwal({ title: "Fecha de publicación inválida", icon: "error" });
-                    return;
-                }
+const save = async () => {
 
-                if (publish < now) {
-                    customToastSwal({ title: "La publicación no puede ser en el pasado", icon: "error" });
-                    return;
-                }
+    const { valid } = await formSendRef.value?.validate()
+    if (!valid) return
 
-                if (!expires) {
-                    customToastSwal({ title: "Fecha de expiración inválida", icon: "error" });
-                    return;
-                }
+    const publish = normalizeDate(form.publish_at)
+    const expires = normalizeDate(form.expires_at)
+    const now = Date.now()
 
-                if (expires <= publish) {
-                    customToastSwal({ title: "La expiración debe ser mayor a publicación", icon: "error" });
-                    return;
+    if (!publish) {
+        customToastSwal({ title: "Fecha de publicación inválida", icon: "error" })
+        return
+    }
+
+    if (publish < now) {
+        customToastSwal({ title: "La publicación no puede ser en el pasado", icon: "error" })
+        return
+    }
+
+    if (!expires) {
+        customToastSwal({ title: "Fecha de expiración inválida", icon: "error" })
+        return
+    }
+
+    if (expires <= publish) {
+        customToastSwal({ title: "La expiración debe ser mayor a publicación", icon: "error" })
+        return
+    }
+
+    const result = await customConfirmSwal({
+        title: form.id 
+            ? "¿Actualizar anuncio?" 
+            : "¿Crear anuncio?",
+        text: form.id
+            ? "Se actualizará el anuncio"
+            : "Se publicará el anuncio"
+    })
+
+    if (!result.isConfirmed) return
+
+    if (savingAnnouncement.value) return
+    savingAnnouncement.value = true
+
+    form
+        .transform((data: any) => {
+            let payload: any = { ...data }
+
+            if (!(data.image instanceof File)) {
+                delete payload.image
+            }
+
+            if (form.id) {
+                payload._method = "PUT"
+            }
+
+            return payload
+        })
+        .post(
+            form.id
+                ? route("announcements.update", form.id)
+                : route("announcements.store"),
+            {
+                forceFormData: true,
+
+                onSuccess: () => {
+                    customToastSwal({
+                        title: page.props.flash.success || "",
+                        icon: "success"
+                    })
+
+                    showModal.value = false
+                    form.reset()
+                    imagePreview.value = null
+                    fetchItems()
+
+                    savingAnnouncement.value = false
+                },
+
+                onError: () => {
+                    console.log("ERRORES", form.errors)
+
+                    const firstError = Object.values(form.errors)[0]
+
+                    customToastSwal({
+                        title: "Error al guardar anuncio",
+                        text: firstError,
+                        icon: "error",
+                        timer: 8000
+                    })
+
+                    savingAnnouncement.value = false
                 }
-                form.transform((data: any) => {
-                let payload:any = {
-                    ...data,
-                };
-                if (!(data.image instanceof File)) {
-                    delete payload.image;
-                }
-                if (form.id) {
-                    payload._method = "PUT";
-                }
-                return payload;
-                }).post(
-                    form.id
-                        ? route(
-                            "announcements.update",
-                            form.id
-                        ) : route(
-                            "announcements.store"
-                        ),
-                    {
-                        forceFormData: true,
-                        onSuccess: () => {
-                            customToastSwal({
-                                title: page.props.flash.success || "",
-                                icon: "success"
-                            });
-                            showModal.value = false;
-                            form.reset();
-                            imagePreview.value = null;
-                            fetchItems();
-                        },
-                        onError: () => {
-                            console.log("ERRORES", form.errors);
-                            const firstError =
-                                Object.values(form.errors)[0];
-                            customToastSwal({
-                                title: "Horario no disponible",
-                                text: firstError,
-                                icon: "error",
-                                timer: 8000
-                            });
-                        }
-                    }
-                );
-            });
-    };
+            }
+        )
+};
     const destroy = (item: any) => {
         customConfirmSwal({
             title: "¿Eliminar anuncio?"
@@ -411,7 +434,7 @@ const MAX_MB = 2 * 1024 * 1024;
 const handleImagesSelected = (files:any[]) => {
     if(!files) return;
     const MAX_MB = 2 * 1024 * 1024;
-    const MAX_FILES = 5;
+    //const MAX_FILES = 5;
     let validFiles:any[] = [];
     for(const file of files){
         if(file.size > MAX_MB){
@@ -423,7 +446,7 @@ const handleImagesSelected = (files:any[]) => {
         }
         validFiles.push(file);
     }
-    const availableSlots =
+    /*const availableSlots =
         MAX_FILES
         - galleryForm.existing_images.length;
     if(validFiles.length > availableSlots){
@@ -433,34 +456,54 @@ const handleImagesSelected = (files:any[]) => {
             title: "Máximo 5 imágenes por anuncio",
             icon:"warning"
         });
-    }
+    }*/
     galleryForm.images = validFiles;
 
 };
-const saveGallery = () => {
+const savingGallery = ref(false)
+
+const saveGallery = async () => {
+
+    const result = await customConfirmSwal({
+        title: "¿Guardar imágenes?",
+        text: "Se agregarán a la galería del anuncio"
+    })
+
+    if (!result.isConfirmed) return
+
+    if (savingGallery.value) return
+    savingGallery.value = true
+
     galleryForm
         .post(
             route("announcements.gallery.store"),
             {
                 forceFormData: true,
+
                 onSuccess: () => {
                     customToastSwal({
                         title: page.props.flash.success || "",
                         icon: "success"
-                    });
-                    showGalleryModal.value = false;
-                    galleryForm.reset();
-                    fetchItems();
+                    })
+
+                    showGalleryModal.value = false
+                    galleryForm.reset()
+                    fetchItems()
+
+                    savingGallery.value = false
                 },
+
                 onError: () => {
                     customToastSwal({
-                        title: `Error: ${form.errors.messageError}`,
-                        text: `${form.errors.exception}`,
+                        title: `Error: ${galleryForm.errors.messageError}`,
+                        text: `${galleryForm.errors.exception}`,
                         icon: "error",
-                    });
+                    })
+
+                    savingGallery.value = false
                 }
             }
-        );
+        )
 };
 const removeExistingImage = (img:any) => {
     galleryForm.remove_images.push(img.id);
@@ -472,12 +515,12 @@ const removeExistingImage = (img:any) => {
 const removeNewImage = (index:number) => {
     galleryForm.images.splice(index,1);
 };
-const totalImages = computed(()=>{
+/*const totalImages = computed(()=>{
     return (
         galleryForm.images.length
         + galleryForm.existing_images.length
     );
-});
+});*/
 const hasGalleryChanges = computed(()=>{
     return (
         galleryForm.images.length > 0
@@ -608,11 +651,11 @@ watch(
                     <template #item.actions="{ item }">
                         <v-tooltip text="Agregar galería">
                             <template #activator="{ props }">
-                                <BaseButton v-bind="props" icon="mdi-camera" color="green" @click="openGallery(item)"/>
+                                <BaseButton v-if="can.includes('announcements.getGallery')" v-bind="props" icon="mdi-camera" color="green" @click="openGallery(item)"/>
                             </template>
                         </v-tooltip>
-                        <BaseButton action="edit" @click="edit(item)" v-if="can.includes('announcements.update')" />
-                        <BaseButton action="delete" @click="destroy(item)" v-if="can.includes('announcements.destroy')" />
+                        <BaseButton v-if="can.includes('announcements.update')" action="edit" @click="edit(item)" />
+                        <BaseButton v-if="can.includes('announcements.destroy')" action="delete" @click="destroy(item)" />
                     </template>
                 </v-data-table-server>
             </div>
@@ -744,7 +787,7 @@ watch(
                         <v-img :src="`/storage/${img.image}`"
                             height="90"
                             cover/>
-                        <v-btn
+                        <v-btn v-if="can.includes('announcements.destroyGalleryImage')" 
                             icon="mdi-close"
                             size="x-small"
                             color="error"
@@ -771,7 +814,7 @@ watch(
                     <v-card-actions>
                         <v-spacer/>
                         <BaseButton text="Cancelar" action="cancel" variant="flat" @click="showGalleryModal=false" :icon-only="false" />
-                        <BaseButton :text="'Guardar'" action="save" @click="saveGallery" :icon-only="false" :disabled="totalImages > 5 || !hasGalleryChanges" variant="flat"/>
+                        <BaseButton v-if="can.includes('announcements.storeGallery')" :text="'Guardar'" action="save" @click="saveGallery" :icon-only="false" :disabled="!hasGalleryChanges" variant="flat"/>
                     </v-card-actions>
                 </v-card>
             </v-dialog>

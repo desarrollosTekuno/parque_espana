@@ -236,13 +236,15 @@ watch(
                 />
                 <!-- pending -->
                 <BaseButton
-                    v-if="item.status?.name === 'Pendiente'" icon="mdi-check"
+                    v-if="can.includes('business-ads.approve') && item.status?.name === 'Pendiente'"
+                    icon="mdi-check"
                     action="Aprobar"
                     @click="approve(item)"
                 />
 
                 <BaseButton
-                    v-if="item.status?.name === 'Pendiente'" icon="mdi-close"
+                    v-if="can.includes('business-ads.reject') && item.status?.name === 'Pendiente'"
+                    icon="mdi-close"
                     action="Rechazar"
                     color="red"
                     @click="reject(item)"

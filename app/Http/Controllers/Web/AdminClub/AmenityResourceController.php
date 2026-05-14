@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Models\AdminClub\Reservation;
 use App\Models\AdminClub\AmenityResource;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
@@ -20,6 +21,7 @@ class AmenityResourceController extends Controller {
         $this->middleware('permission:amenityResource.store')->only('store');
         $this->middleware('permission:amenityResource.update')->only('update');
         $this->middleware('permission:amenityResource.destroy')->only('destroy');
+        $this->middleware('permission:amenityResource.calendar')->only('calendar');
     }
 
     public function index(Request $request)
@@ -91,6 +93,7 @@ class AmenityResourceController extends Controller {
             return back()->with('messageError','No se pudo crear el recurso');
         }
     }
+
     public function update(Request $request, AmenityResource $amenityResource)
     {
         DB::beginTransaction();
@@ -107,6 +110,7 @@ class AmenityResourceController extends Controller {
             return back()->with('messageError','No se pudo actualizar el recurso');
         }
     }
+
     public function destroy(AmenityResource $amenityResource)
     {
         DB::beginTransaction();
@@ -125,4 +129,43 @@ class AmenityResourceController extends Controller {
         }
 
     }
+
+    public function calendar(AmenityResource $resource)
+    {
+        $reservations = Reservation::with(['user', 'amenityResource'])
+            ->where('amenity_resource_id', $resource->id)
+            ->get();
+
+        $statusMap = [
+                1 => 'Activa',
+                2 => 'Cancelada',
+                3 => 'Finalizada',
+                4 => 'Inasistencia',
+        ];
+        $colorMap = [
+                1 => '#42a5f5', 
+                2 => '#ef5350', 
+                3 => '#66bb6a', 
+                4 => '#ffa726', 
+        ];
+    
+        return $reservations->map(function ($reservation) use ($statusMap, $colorMap){
+            $userName = $reservation->user->name ?? 'Usuario';
+            $statusId = $reservation->reservation_status_id;
+            /*$start = $reservation->start_datetime;
+            $end = $reservation->end_datetime;*/
+            return [
+                'title' => $userName,
+                'start' => $reservation->start_datetime->format('Y-m-d\TH:i:s'),
+                'end'   => $reservation->end_datetime->format('Y-m-d\TH:i:s'),
+                'color' => $colorMap[$statusId] ?? '#9e9e9e',
+                'extendedProps' => [
+                    'status' => $statusMap[$statusId] ?? 'Desconocido',
+                    'start_time' => $reservation->start_datetime->format('H:i'),
+                    'end_time' => $reservation->end_datetime->format('H:i'),
+                ]
+            ];
+        });
+    }
+    
 }
