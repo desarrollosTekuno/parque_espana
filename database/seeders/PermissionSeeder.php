@@ -51,11 +51,15 @@ class PermissionSeeder extends Seeder
             ['module' => 'Reservaciones', 'name' => 'reservations.index', 'description' => 'Ver reservaciones', 'contexts' => ['web']],
             ['module' => 'Reservaciones', 'name' => 'reservations.update', 'description' => 'Cancelar reservaciones', 'contexts' => ['web']],
 
+            array('name' => 'guest-lists.index', 'description' => 'Ver listas de invitados', 'contexts' => ['web']),
+            array('name' => 'guest-lists.update', 'description' => 'Actualizar estatus de lista de invitados', 'contexts' => ['web']),
+
             // Comunicación
             ['module' => 'Comunicación', 'name' => 'announcements.index', 'description' => 'Ver anuncios', 'contexts' => ['web']],
             ['module' => 'Comunicación', 'name' => 'announcements.store', 'description' => 'Crear anuncios', 'contexts' => ['web']],
             ['module' => 'Comunicación', 'name' => 'announcements.update', 'description' => 'Actualizar anuncios', 'contexts' => ['web']],
             ['module' => 'Comunicación', 'name' => 'announcements.destroy', 'description' => 'Eliminar anuncios', 'contexts' => ['web']],
+            ['module' => 'Comunicación', 'name' => 'email-notifications.index', 'description' => 'Ver notificaciones por correo', 'contexts' => ['web']],
 
             // Sistema
             ['module' => 'Sistema', 'name' => 'system-variables.index', 'description' => 'Ver variables de sistema', 'contexts' => ['web']],

@@ -1,0 +1,386 @@
+{
+    "info": {
+        "_postman_id": "e0434b6e-63af-4df8-a114-3a9c7c191c42",
+        "name": "Parque España",
+        "description": "Colección de Api para clubs de parque españa",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+        "_exporter_id": "47016106"
+    },
+    "item": [
+        {
+            "name": "Auth",
+            "item": [
+                {
+                    "name": "Login",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"email\": \"antoniotoxquisosa@hotmail.com\",\n  \"password\": \"Pa$$w0rd\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/login",
+                            "host": ["{{base_url}}"],
+                            "path": ["login"]
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Feedback Tickets",
+            "item": [
+                {
+                    "name": "GetTickets",
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{token}}",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/clubs/{{club_id}}/feedback/tickets",
+                            "host": ["{{base_url}}"],
+                            "path": [
+                                "clubs",
+                                "{{club_id}}",
+                                "feedback",
+                                "tickets"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "CreateTicket",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test('Ticket creado', function () { pm.response.to.have.status(201); });",
+                                    "const json = pm.response.json();",
+                                    "if (json.ticket && json.ticket.id) { pm.collectionVariables.set('ticket_id', json.ticket.id); }"
+                                ],
+                                "type": "text/javascript",
+                                "packages": {}
+                            }
+                        }
+                    ],
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{token}}",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "ticket_type_id",
+                                    "value": "1",
+                                    "type": "text",
+                                    "id": 0
+                                },
+                                {
+                                    "key": "category_id",
+                                    "value": "1",
+                                    "type": "text",
+                                    "id": 1
+                                },
+                                {
+                                    "key": "priority_id",
+                                    "value": "1",
+                                    "type": "text",
+                                    "id": 2
+                                },
+                                {
+                                    "key": "title",
+                                    "value": "COMPREN PATOS",
+                                    "type": "text",
+                                    "id": 3
+                                },
+                                {
+                                    "key": "description",
+                                    "value": "",
+                                    "type": "text",
+                                    "id": 4
+                                },
+                                {
+                                    "key": "is_anonymous",
+                                    "value": "0",
+                                    "type": "text",
+                                    "id": 5
+                                },
+                                {
+                                    "key": "attachments[]",
+                                    "type": "file",
+                                    "fileUploadError": "",
+                                    "id": 6,
+                                    "description": "Archivo 1. Puedes agregar más campos attachments[] si necesitas más archivos.",
+                                    "src": [
+                                        "c:\\Users\\OsirisTK\\Documents\\EjemplosArchivos\\Foto1.png"
+                                    ]
+                                },
+                                {
+                                    "key": "attachments[]",
+                                    "type": "file",
+                                    "fileUploadError": "",
+                                    "id": 7,
+                                    "description": "Archivo 2. Puedes agregar más campos attachments[] si necesitas más archivos.",
+                                    "src": "c:\\Users\\OsirisTK\\Documents\\EjemplosArchivos\\imagen_test.jpg"
+                                },
+                                {
+                                    "key": "attachments[]",
+                                    "type": "file",
+                                    "fileUploadError": "",
+                                    "id": 8,
+                                    "description": "Archivo 3. Puedes agregar más campos attachments[] si necesitas más archivos.",
+                                    "src": "c:\\Users\\OsirisTK\\Documents\\EjemplosArchivos\\documento_test.docx"
+                                }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/clubs/{{club_id}}/feedback/tickets",
+                            "host": ["{{base_url}}"],
+                            "path": [
+                                "clubs",
+                                "{{club_id}}",
+                                "feedback",
+                                "tickets"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "CancelTicket",
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{token}}",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/clubs/{{club_id}}/feedback/tickets/{{ticket_id}}/cancel",
+                            "host": ["{{base_url}}"],
+                            "path": [
+                                "clubs",
+                                "{{club_id}}",
+                                "feedback",
+                                "tickets",
+                                "{{ticket_id}}",
+                                "cancel"
+                            ]
+                        },
+                        "description": "Cancela un ticket propio. Solo aplica si el ticket está en estatus SUBMITTED."
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Email",
+            "item": [
+                {
+                    "name": "SendTestEmail",
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{token}}",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"entity_id\": {{club_id}},\n  \"to\": \"{{test_email_to}}\",\n  \"subject\": \"Prueba SMTP entidad {{club_id}}\",\n  \"message\": \"Este correo valida el envio SMTP dinamico por entidad.\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/email/test",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "email",
+                                "test"
+                            ]
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Firebase",
+            "item": [
+                {
+                    "name": "SendTestPush",
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{token}}",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"token\": \"{{fcm_token}}\",\n  \"title\": \"Prueba Firebase\",\n  \"body\": \"Notificacion enviada desde API Laravel\",\n  \"data\": {\n    \"type\": \"test\",\n    \"source\": \"postman\"\n  }\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/firebase/test",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "firebase",
+                                "test"
+                            ]
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        }
+    ],
+    "event": [
+        {
+            "listen": "prerequest",
+            "script": {
+                "type": "text/javascript",
+                "requests": {},
+                "exec": [""]
+            }
+        },
+        {
+            "listen": "test",
+            "script": {
+                "type": "text/javascript",
+                "requests": {},
+                "exec": [""]
+            }
+        }
+    ],
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://127.0.0.1:8000/api/v1"
+        },
+        {
+            "key": "token",
+            "value": "1|LmlpPFDCwzC4GQXaIB74ohxv5UJt9FUT0xMQFB52649243db"
+        },
+        {
+            "key": "club_id",
+            "value": "1"
+        },
+        {
+            "key": "ticket_id",
+            "value": "1"
+        },
+        {
+            "key": "test_email_to",
+            "value": "mailtrap@example.com"
+        },
+        {
+            "key": "fcm_token",
+            "value": ""
+        }
+    ]
+}

@@ -541,7 +541,7 @@ watch([options, search, statusFilter, priorityFilter], debounce(fetchItems, 400)
                                     <v-list-item
                                         v-for="file in selectedTicket.attachments ?? []"
                                         :key="file.id"
-                                        :href="`/storage/${file.file_path}`"
+                                        :href="file.file_url || `/storage/${file.storage_path || file.file_path}`"
                                         target="_blank"
                                         rel="noopener"
                                         rounded="lg"

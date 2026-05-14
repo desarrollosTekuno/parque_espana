@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { required } from "@/constants/validationRules";
 import AppLayout from "@/Layouts/AppLayout.vue";
+import { requestFirebaseNotificationPermission } from "@/firebase";
+import { customToastSwal } from "@/utils/swal";
 import { Head, useForm, usePage } from "@inertiajs/vue3";
 import { ref } from "vue";
 const can = usePage().props.auth.permissions;
@@ -23,6 +25,7 @@ const props = withDefaults(defineProps<Props>(), {
 /* refs */
 let showModal = ref(false);
 const formSendRef = ref();
+const firebaseToken = ref("");
 
 /* forms */
 const form = useForm<Category>({
@@ -70,6 +73,27 @@ const close = () => {
     form.reset();
     showModal.value = false;
 };
+
+const testNotifications = async () => {
+    const token = await requestFirebaseNotificationPermission();
+
+    if (!token) {
+        customToastSwal({
+            icon: "warning",
+            title: "Notificaciones no disponibles",
+            text: "Faltan credenciales Firebase o el permiso fue denegado.",
+        });
+        return;
+    }
+
+    firebaseToken.value = token;
+
+    customToastSwal({
+        icon: "success",
+        title: "Notificaciones listas",
+        text: "Token Firebase obtenido correctamente.",
+    });
+};
 // rules validation example
 // const rules = {
 //     name: [
@@ -91,9 +115,15 @@ const close = () => {
         <template #header> Inicio </template>
 
         <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-            <!-- <div class="p-6 border-b border-gray-200"> -->
-            
-            <!-- </div> -->
+            <div class="p-6 border-b border-gray-200">
+                <v-btn color="primary" @click="testNotifications">
+                    Probar notificaciones
+                </v-btn>
+
+                <div v-if="firebaseToken" class="mt-3 text-caption text-medium-emphasis">
+                    Token Firebase generado correctamente.
+                </div>
+            </div>
         </div>
         <v-dialog v-model="showModal" max-width="600" persistent>
             <v-form @submit.prevent="save" ref="formSendRef">

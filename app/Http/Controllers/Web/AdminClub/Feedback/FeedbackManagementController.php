@@ -14,7 +14,6 @@ use Illuminate\Routing\Controller;
 use Inertia\Inertia;
 
 class FeedbackManagementController extends Controller {
-
     public function __construct() {
         $this->middleware('permission:feedback-management.index')->only('index');
         $this->middleware('permission:feedback-management.update')->only('update');
