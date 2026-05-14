@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\V1\AmenityController;
 use App\Http\Controllers\Api\V1\FeedbackTicketMobileController;
 use App\Http\Controllers\Api\V1\LoginController;
 use App\Http\Controllers\Api\V1\LockerApiController;
+use App\Http\Controllers\Api\V1\MemberDocumentController;
 use App\Http\Controllers\Api\V1\ReservationController;
 use App\Http\Controllers\Api\V1\BusinessAdController;
 use App\Http\Controllers\Api\V1\ReservationGuestController;
@@ -41,6 +42,9 @@ Route::prefix('v1')->group(function () {
         Route::post('/feedback/tickets', [FeedbackTicketMobileController::class, 'store']);
         Route::patch('/feedback/tickets/{ticket}/cancel', [FeedbackTicketMobileController::class, 'cancel']);
     });
+
+    // Documents
+    Route::get('/my-documents', [MemberDocumentController::class, 'index'])->middleware('auth:sanctum');
 
     // Lockers
     Route::get('/lockers/index', [LockerApiController::class, 'index'])->middleware('auth:sanctum');

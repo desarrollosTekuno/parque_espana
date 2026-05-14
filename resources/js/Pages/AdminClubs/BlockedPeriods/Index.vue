@@ -84,50 +84,76 @@ const edit = (item:any) => {
     showModal.value = true;
 };
 
-const save = () => {
-    formSendRef.value
-        ?.validate()
-        .then(({ valid }) => {
-            if (!valid) return;
-            form.transform((data:any)=>{
-                const normalize = (val:any)=>
-                    val ? val.replace("T"," ") + ":00" : null;
-                let payload:any = {
-                    ...data,
-                    start_time: normalize(data.start_time),
-                    end_time: normalize(data.end_time)
-                };
-                if(form.id){
-                    payload._method="PUT";
+const savingBlocked = ref(false)
+
+const save = async () => {
+
+    const { valid } = await formSendRef.value?.validate()
+    if (!valid) return
+
+    const result = await customConfirmSwal({
+        title: form.id 
+            ? "¿Actualizar bloqueo?" 
+            : "¿Crear bloqueo?",
+        text: "Se guardará el periodo bloqueado"
+    })
+
+    if (!result.isConfirmed) return
+
+    if (savingBlocked.value) return
+    savingBlocked.value = true
+
+    form
+        .transform((data: any) => {
+
+            const normalize = (val: any) =>
+                val ? val.replace("T", " ") + ":00" : null
+
+            let payload: any = {
+                ...data,
+                start_time: normalize(data.start_time),
+                end_time: normalize(data.end_time)
+            }
+
+            if (form.id) {
+                payload._method = "PUT"
+            }
+
+            return payload
+        })
+        .post(
+            form.id
+                ? route("blockedPeriods.update", form.id)
+                : route("blockedPeriods.store"),
+            {
+                onSuccess: () => {
+
+                    customToastSwal({
+                        title: page.props.flash.success,
+                        icon: "success",
+                    })
+
+                    showModal.value = false
+                    fetchItems()
+
+                    savingBlocked.value = false
+                },
+
+                onError: () => {
+
+                    const firstError = Object.values(form.errors)[0]
+
+                    customToastSwal({
+                        title: "Horario no disponible",
+                        text: firstError,
+                        icon: "error",
+                        timer: 8000
+                    })
+
+                    savingBlocked.value = false
                 }
-                return payload;
-            })
-            .post(
-                form.id
-                    ? route("blockedPeriods.update",form.id)
-                    : route("blockedPeriods.store"),
-                {
-                    onSuccess:()=>{
-                        customToastSwal({
-                            title: page.props.flash.success,
-                            icon:"success",
-                        });
-                        showModal.value=false;
-                        fetchItems();
-                    },
-                    onError:()=>{
-                        const firstError =
-                            Object.values(form.errors)[0];
-                        customToastSwal({
-                            title:"Horario no disponible",
-                            text:firstError,
-                            icon:"error",
-                            timer: 8000
-                        });
-                    }
-               }
-            );
-        });
+            }
+        )
 };
 
 const destroy = (item:any) => {
@@ -220,7 +246,7 @@ watch(
     <Head title="Bloqueos" />
     <AppLayout>
         <template #options>
-            <BaseButton :text="'Nuevo bloqueo'" action="add" @click="create" :icon-only="false" variant="elevated" />
+            <BaseButton v-if="can.includes('blockedPeriods.store')" :text="'Nuevo bloqueo'" action="add" @click="create" :icon-only="false" variant="elevated" />
         </template>
         <template #header>
             Bloqueo de horarios
@@ -242,8 +268,8 @@ watch(
                 {{ formatDateTable(item.end_time) }}
             </template>
             <template #item.actions="{ item }">
-                <BaseButton action="edit" @click="edit(item)" />
-                <BaseButton action="delete" @click="destroy(item)" />
+                <BaseButton v-if="can.includes('blockedPeriods.update')" action="edit" @click="edit(item)" />
+                <BaseButton v-if="can.includes('blockedPeriods.destroy')" action="delete" @click="destroy(item)" />
             </template>
         </v-data-table-server>
         <v-dialog v-model="showModal" max-width="600">

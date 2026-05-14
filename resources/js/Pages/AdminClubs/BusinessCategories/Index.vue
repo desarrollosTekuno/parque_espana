@@ -74,64 +74,123 @@ const removeImage = () => {
 };
 
 const toggleStatus = (item:any, value:boolean) => {
-  router.post(route("business-categories.update", item.id), {
-    _method: 'PUT',
-    name: item.name,
-    is_active: value
-  }, {
-    preserveState: true,
-    onSuccess: () => {
-      item.is_active = value;
-    }
+
+  customConfirmSwal({
+    title: value 
+      ? "¿Activar categoría?" 
+      : "¿Desactivar categoría?",
+    text: "Confirma para continuar"
+  }).then((result) => {
+
+    if (!result.isConfirmed) return
+
+    router.post(route("business-categories.update", item.id), {
+      name: item.name,
+      is_active: value
+    }, {
+      preserveState: true,
+      onSuccess: () => {
+        item.is_active = value;
+
+        customToastSwal({
+          title: value 
+            ? "Categoría activada" 
+            : "Categoría desactivada",
+          icon: "success"
+        });
+      },
+      onError: () => {
+        customToastSwal({
+          title: "Error al actualizar",
+          icon: "error"
+        });
+      }
+    });
+
   });
 };
 
-const save = () => {
-  const data = new FormData();
-  data.append("name", form.value.name);
-  data.append("is_active", form.value.is_active ? "1" : "0");
+const savingCategory = ref(false)
+
+const save = async () => {
+
+  const result = await customConfirmSwal({
+    title: form.value.id 
+      ? "¿Actualizar categoría?" 
+      : "¿Crear categoría?",
+    text: "Confirma para continuar"
+  })
+
+  if (!result.isConfirmed) return
+
+  if (savingCategory.value) return
+  savingCategory.value = true
+
+  const data = new FormData()
+  data.append("name", form.value.name)
+  data.append("is_active", form.value.is_active ? "1" : "0")
+
   if (form.value.remove_image) {
-    data.append("remove_image", "1");
-  }
-  if (form.value.image) {
-    const file = Array.isArray(form.value.image) ? form.value.image[0] : form.value.image;
-    data.append("image", file);
+    data.append("remove_image", "1")
   }
 
-  if (form.value.id) {
-    data.append("_method", "PUT");
-    router.post(route("business-categories.update", form.value.id), data, {
-      forceFormData: true,
-      onSuccess: () => {
-        customToastSwal({ title: page.props.flash.success, icon: "success"});
-        showModal.value = false;
-        fetchItems();
-      },
-      onError: (errors) => {
-        console.log(errors);
-        customToastSwal({
-          title: "Error al guardar",
-          icon: "error"
-        });
-      }
-    });
-  } else {
-    router.post(route("business-categories.store"), data, {
-      forceFormData: true,
-      onSuccess: () => {
-        customToastSwal({ title: page.props.flash.success, icon: "success" });
-        showModal.value = false;
-        fetchItems();
-      },
-      onError: (errors) => {
-        console.log(errors);
-        customToastSwal({
-          title: "Error al guardar",
-          icon: "error"
-        });
-      }
-    });
+  if (form.value.image) {
+    const file = Array.isArray(form.value.image) 
+      ? form.value.image[0] 
+      : form.value.image
+
+    data.append("image", file)
   }
+
+  const request = form.value.id
+    ? router.post(route("business-categories.update", form.value.id), data, {
+        forceFormData: true,
+        onSuccess: () => {
+          customToastSwal({
+            title: page.props.flash.success,
+            icon: "success"
+          })
+
+          showModal.value = false
+          fetchItems()
+
+          savingCategory.value = false
+        },
+        onError: (errors) => {
+          console.log(errors)
+
+          customToastSwal({
+            title: "Error al guardar",
+            icon: "error"
+          })
+
+          savingCategory.value = false
+        }
+      })
+    : router.post(route("business-categories.store"), data, {
+        forceFormData: true,
+        onSuccess: () => {
+          customToastSwal({
+            title: page.props.flash.success,
+            icon: "success"
+          })
+
+          showModal.value = false
+          fetchItems()
+
+          savingCategory.value = false
+        },
+        onError: (errors) => {
+          console.log(errors)
+
+          customToastSwal({
+            title: "Error al guardar",
+            icon: "error"
+          })
+
+          savingCategory.value = false
+        }
+      })
 };
 
 const remove = (item:any) => {
@@ -247,8 +306,8 @@ watch(() => form.value.image, (file) => {
       <!-- ACTIONS -->
       <template #item.actions="{ item }">
             <div class="d-flex gap-1">
-                <BaseButton action="edit" @click="edit(item)" />
-                <BaseButton action="delete" @click="remove(item)" />
+                <BaseButton v-if="can.includes('business-categories.update')" action="edit" @click="edit(item)" />
+                <BaseButton v-if="can.includes('business-categories.destroy')" action="delete" @click="remove(item)" />
             </div>
        </template>
 

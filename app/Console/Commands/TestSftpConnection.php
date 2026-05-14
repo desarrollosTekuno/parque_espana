@@ -58,12 +58,12 @@ class TestSftpConnection extends Command
             $this->warn('No se pudo leer el archivo: ' . $e->getMessage());
         }
 
-        try {
-            Storage::disk('spaces')->delete($testPath);
-            $this->line('  Limpieza del archivo    →  ✓ eliminado');
-        } catch (\Throwable $e) {
-            $this->warn('No se pudo eliminar el archivo de prueba: ' . $e->getMessage());
-        }
+        // try {
+        //     Storage::disk('spaces')->delete($testPath);
+        //     $this->line('  Limpieza del archivo    →  ✓ eliminado');
+        // } catch (\Throwable $e) {
+        //     $this->warn('No se pudo eliminar el archivo de prueba: ' . $e->getMessage());
+        // }
 
         $this->newLine();
         $this->info('¡Conexión con DigitalOcean Spaces funcionando correctamente!');

@@ -34,6 +34,8 @@ interface CandidateMember {
     email: string | null;
     phone: string | null;
     age: number | null;
+    has_other_club_membership: boolean;
+    other_club_name: string | null;
     target_membership_options: TargetMembershipOption[];
 }
 
@@ -227,6 +229,25 @@ const submit = () => {
                                             )
                                         }}
                                     </p>
+
+                                    <v-alert
+                                        v-if="selectedMember?.has_other_club_membership"
+                                        type="info"
+                                        variant="tonal"
+                                        density="compact"
+                                        class="mt-3"
+                                        icon="mdi-information-outline"
+                                    >
+                                        <span v-if="selectedMember?.other_club_name">
+                                            {{ selectedMember.full_name }} ya es titular en
+                                            <strong>{{ selectedMember.other_club_name }}</strong>,
+                                            por lo que la tarifa mostrada considera el paquete interclub.
+                                        </span>
+                                        <span v-else>
+                                            {{ selectedMember.full_name }} ya es titular en otro parque,
+                                            por lo que la tarifa mostrada considera el paquete interclub.
+                                        </span>
+                                    </v-alert>
                                 </v-card>
 
                                 <v-textarea

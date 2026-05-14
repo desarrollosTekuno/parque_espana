@@ -24,6 +24,11 @@ use App\Http\Controllers\Web\AdminClub\Feedback\FeedbackStatusController;
 use App\Http\Controllers\Web\AdminClub\Feedback\FeedbackTicketTypeController;
 use App\Http\Controllers\Web\AdminClub\ReservationGuestListController;
 use App\Http\Controllers\Web\AdminClub\SurveyResultController;
+use App\Http\Controllers\Web\AdminClub\AccountCancellationController;
+use App\Http\Controllers\Web\AdminClub\AccountReactivationController;
+use App\Http\Controllers\Web\AdminClub\AgeTransitionController;
+use App\Http\Controllers\Web\AdminClub\CancellationHistoryController;
+use App\Http\Controllers\Web\AdminClub\MemberDocumentController;
 use App\Http\Controllers\Web\AdminClub\LockerAssignmentController;
 use App\Http\Controllers\Web\AdminClub\LockerController;
 use App\Http\Controllers\Web\AdminClub\CashCutController;
@@ -35,9 +40,10 @@ use Illuminate\Support\Facades\Route;
 
 // amenities
 Route::resource('/amenities', AmenityController::class)->names('amenities');
-Route::resource('/amenityResource', AmenityResourceController::class)->names('amenityResource');
-Route::resource('/amenitySchedule', AmenityScheduleController::class)->names('amenitySchedule');
+Route::resource('/amenityResource', AmenityResourceController::class)->names('amenityResource'); 
+Route::post('/amenitySchedule', [AmenityScheduleController::class, 'store'])->name('amenitySchedule.store');
 Route::resource('/blockedPeriods', BlockedPeriodController::class)->names('blockedPeriods');
+Route::get('/amenity-resource/{resource}/calendar', [AmenityResourceController::class, 'calendar'])->name('amenityResource.calendar');
 
 Route::resource('/reservations', ReservationController::class)->only(['index', 'update'])->names('reservations');
 Route::resource('/system-variables', SystemVariableController::class)->only(['index', 'store', 'update', 'destroy'])->names('system-variables');
@@ -98,7 +104,7 @@ Route::delete('/business-ads/{id}', [BusinessAdController::class, 'destroy'])->n
 Route::prefix('business-categories')->name('business-categories.')->group(function () {
     Route::get('/', [BusinessCategoryController::class, 'index'])->name('index');
     Route::post('/', [BusinessCategoryController::class, 'store'])->name('store');
-    Route::put('{id}', [BusinessCategoryController::class, 'update'])->name('update');
+    Route::post('{id}', [BusinessCategoryController::class, 'update'])->name('update');
     Route::delete('{id}', [BusinessCategoryController::class, 'destroy'])->name('destroy');
 });
 
@@ -132,6 +138,8 @@ Route::get('/members/location-catalogs/cities', [MemberController::class, 'locat
     ->name('members.location-catalogs.cities');
 Route::get('/members/{membership}/manage', [MemberController::class, 'show'])
     ->name('members.manage.show');
+Route::get('/members/{membership}/history', [MemberController::class, 'membershipHistory'])
+    ->name('members.manage.history');
 Route::post('/members/{membership}/absence-permits', [MemberController::class, 'storeAbsencePermit'])
     ->name('members.absence-permits.store');
 Route::patch('/members/{membership}/absence-permits/{absencePermit}/cancel', [MemberController::class, 'cancelAbsencePermit'])
@@ -156,20 +164,58 @@ Route::put('/members/{membership}/member/{member}', [MemberController::class, 'u
     ->name('members.member.update');
 Route::resource('/members', MemberController::class)->only(['index', 'create', 'store', 'edit', 'update'])->names('members');
 
+// Documentos
+Route::get('/member-documents/{document}/url', [MemberDocumentController::class, 'temporaryUrl'])
+    ->name('member-documents.url');
+
+// Baja de cuenta
+Route::get('/members/{membership}/cancel/create', [AccountCancellationController::class, 'create'])
+    ->name('members.cancel.create');
+Route::post('/members/{membership}/cancel', [AccountCancellationController::class, 'store'])
+    ->name('members.cancel.store');
+
+// Reactivación de cuenta
+Route::get('/members/{membership}/reactivate/create', [AccountReactivationController::class, 'create'])
+    ->name('members.reactivate.create');
+Route::post('/members/{membership}/reactivate', [AccountReactivationController::class, 'store'])
+    ->name('members.reactivate.store');
+
+// Transiciones de edad pendientes
+Route::get('/age-transitions', [AgeTransitionController::class, 'index'])
+    ->name('members.age-transitions.index');
+Route::patch('/age-transitions/{ageTransition}/promote', [AgeTransitionController::class, 'promote'])
+    ->name('members.age-transitions.promote');
+Route::patch('/age-transitions/{ageTransition}/dismiss', [AgeTransitionController::class, 'dismiss'])
+    ->name('members.age-transitions.dismiss');
+
+// Historial de bajas
+Route::get('/cancellations', [CancellationHistoryController::class, 'index'])
+    ->name('members.cancellations.index');
+Route::get('/cancellations/export', [CancellationHistoryController::class, 'export'])
+    ->name('members.cancellations.export');
+Route::get('/cancellations/{account}/letter-url', [CancellationHistoryController::class, 'letterUrl'])
+    ->name('members.cancellations.letter-url');
+
 
 // Lockers
 Route::get('/members/{accountId}/lockers/create', [LockerAssignmentController::class, 'create'])
     ->name('members.lockers.create');
+Route::post('/lockers', [LockerAssignmentController::class, 'reserve'])
+    ->name('members.lockers.reserve');
+Route::post('lockers/change',[LockerAssignmentController::class, 'change'])
+    ->name('members.lockers.change');
+Route::delete('/members/lockers/{assignment}/remove', [LockerAssignmentController::class, 'remove'])
+    ->name('members.lockers.remove');
+
 Route::get('/lockers/assigned-by-account', [LockerController::class, 'assignedByAccount'])
     ->name('lockers.assigned.by.account');
 Route::get('/lockers/available', [LockerController::class, 'available'])
     ->name('lockers.available');
-Route::post('/lockers', [LockerAssignmentController::class, 'reserve'])
-        ->name('members.lockers.reserve');
 Route::delete('/members/lockers/{id}/cancel',[LockerController::class, 'cancel'])
         ->name('members.lockers.cancel');
-Route::delete('/members/lockers/{assignment}/remove', [LockerAssignmentController::class, 'remove'])
-        ->name('members.lockers.remove');
+Route::get('lockers/available-for-change',[LockerController::class, 'availableForChange'])
+        ->name('lockers.available.for.change');
+
 
 // Acts
 Route::prefix('acts')->group(function () {

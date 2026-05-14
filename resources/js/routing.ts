@@ -76,6 +76,8 @@ const routes: Routing[] = [
             "members.manage.show",
             "members.family-members.create",
             "member-access.index",
+            "members.cancellations.index",
+            "members.age-transitions.index",
         ],
         title: "Membresías",
         icon: "mdi-account-group-outline",
@@ -84,15 +86,27 @@ const routes: Routing[] = [
         groupItems: [
             {
                 name: "members.index",
-                title: "Membresías activas",
+                title: "Membresías",
                 icon: "mdi-account-group-outline",
-                value: "membresias-activas",
+                value: "membresias",
             },
             {
                 name: "members.create",
                 title: "Nueva membresía",
                 icon: "mdi-account-plus-outline",
                 value: "nueva-membresia",
+            },
+            {
+                name: "members.cancellations.index",
+                title: "Historial de bajas",
+                icon: "mdi-account-off-outline",
+                value: "historial-bajas",
+            },
+            {
+                name: "members.age-transitions.index",
+                title: "Transiciones por edad",
+                icon: "mdi-account-clock-outline",
+                value: "transiciones-edad",
             },
             {
                 name: "member-access.index",

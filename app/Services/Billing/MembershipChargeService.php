@@ -9,6 +9,7 @@ use App\Models\Memberships\Membership;
 use App\Models\Memberships\MembershipAccount;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class MembershipChargeService
 {
@@ -16,7 +17,8 @@ class MembershipChargeService
         Membership $membership,
         ?float $groupTotalMonthlyFee = null,
         ?Carbon $effectiveDate = null,
-        ?string $billingSplitMode = null
+        ?string $billingSplitMode = null,
+        ?string $historyReason = null
     ): Collection {
         $referenceDate = ($effectiveDate ?? now())->copy()->startOfDay();
         $groupMemberships = $this->resolveGroupPrimaryMemberships($membership, $referenceDate);
@@ -24,6 +26,7 @@ class MembershipChargeService
 
         if ($groupMemberships->isEmpty()) {
             $singleTotal = round($groupTotalMonthlyFee ?? $this->resolveMembershipMonthlyFeeTotal($membership), 2);
+            $previousFee = round((float) $membership->monthly_fee, 2);
 
             $membership->update([
                 'monthly_fee' => $singleTotal,
@@ -32,6 +35,10 @@ class MembershipChargeService
                 'billing_split_mode' => 'single',
                 'is_billable' => $singleTotal > 0,
             ]);
+
+            if ($historyReason && abs($singleTotal - $previousFee) > 0.01) {
+                $this->insertFeeHistory($membership, $previousFee, $singleTotal, $historyReason);
+            }
 
             return collect([$membership->fresh(['membershipType', 'account.primaryHolder.member', 'club'])]);
         }
@@ -52,6 +59,7 @@ class MembershipChargeService
                     : $splitAmount;
 
                 $allocated = round($allocated + $share, 2);
+                $previousFee = round((float) $groupMembership->monthly_fee, 2);
 
                 $groupMembership->update([
                     'monthly_fee' => $groupTotal,
@@ -60,6 +68,10 @@ class MembershipChargeService
                     'billing_split_mode' => 'equal_split',
                     'is_billable' => $share > 0,
                 ]);
+
+                if ($historyReason && abs($groupTotal - $previousFee) > 0.01) {
+                    $this->insertFeeHistory($groupMembership, $previousFee, $groupTotal, $historyReason);
+                }
             }
 
             return $groupMemberships->map(fn (Membership $groupMembership) => $groupMembership->fresh(['membershipType', 'account.primaryHolder.member', 'club']));
@@ -72,6 +84,7 @@ class MembershipChargeService
                     : $this->resolveMembershipMonthlyFeeTotal($groupMembership),
                 2
             );
+            $previousFee = round((float) $groupMembership->monthly_fee, 2);
 
             $groupMembership->update([
                 'monthly_fee' => $total,
@@ -80,9 +93,30 @@ class MembershipChargeService
                 'billing_split_mode' => 'single',
                 'is_billable' => $total > 0,
             ]);
+
+            if ($historyReason && abs($total - $previousFee) > 0.01) {
+                $this->insertFeeHistory($groupMembership, $previousFee, $total, $historyReason);
+            }
         }
 
         return $groupMemberships->map(fn (Membership $groupMembership) => $groupMembership->fresh(['membershipType', 'account.primaryHolder.member', 'club']));
+    }
+
+    private function insertFeeHistory(Membership $membership, float $previousFee, float $newFee, string $reason): void
+    {
+        DB::table('memberships.membership_history')->insert([
+            'membership_id'          => $membership->id,
+            'old_membership_type_id' => $membership->membership_type_id,
+            'new_membership_type_id' => $membership->membership_type_id,
+            'changed_by'             => auth()->id(),
+            'effective_date'         => now()->toDateString(),
+            'reason'                 => $reason,
+            'previous_monthly_fee'   => $previousFee,
+            'new_monthly_fee'        => $newFee,
+            'metadata'               => json_encode(['fee_recalculation' => true]),
+            'created_at'             => now(),
+            'updated_at'             => now(),
+        ]);
     }
 
     public function createRecurringMonthlyCharge(

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Administrator\Club;
 use App\Models\Catalogs\City;
 use App\Models\Catalogs\Country;
+use App\Models\Catalogs\DocumentType;
 use App\Models\Catalogs\MaritalStatus;
 use App\Models\Catalogs\Relationship;
 use App\Models\Catalogs\State;
@@ -16,6 +17,7 @@ use App\Models\Members\MemberDocument;
 use App\Models\Memberships\AbsencePermit;
 use App\Models\Memberships\InterclubPackageRule;
 use App\Models\Memberships\Membership;
+use App\Models\Members\LockerAssignment;
 use App\Models\Memberships\MembershipAccount;
 use App\Models\Memberships\MembershipAccountGroup;
 use App\Models\Memberships\MembershipAccountMember;
@@ -36,7 +38,8 @@ use Inertia\Inertia;
 class MemberController extends Controller
 {
     public function __construct(
-        protected MembershipChargeService $membershipChargeService
+        protected MembershipChargeService $membershipChargeService,
+        protected \App\Services\Billing\MembershipPricingService $membershipPricingService
     ) {
     }
 
@@ -157,9 +160,81 @@ class MemberController extends Controller
                 })
                 ->appends($request->all());
 
+            $cancelledAccounts = ['data' => [], 'total' => 0];
+
+            if (auth()->user()?->can('members.reactivate')) {
+                $cancelledPrefix = 'cancelled';
+                $cancelledSearch = $request->input("{$cancelledPrefix}_search");
+                $cancelledSort = $request->input("{$cancelledPrefix}_sort", 'id');
+                $cancelledOrder = $request->input("{$cancelledPrefix}_order", 'desc');
+                $cancelledSortColumn = $sortMap[$cancelledSort] ?? 'id';
+
+                $cancelledQuery = MembershipAccount::query()
+                    ->with([
+                        'club',
+                        'primaryHolder.member',
+                        'memberships' => fn ($q) => $q
+                            ->with(['membershipType', 'club'])
+                            ->where('is_primary', true),
+                    ])
+                    ->withCount('accountMembers')
+                    ->where('status', 'cancelled')
+                    ->where('cancellation_type', 'voluntary')
+                    ->whereHas('memberships', function (Builder $q) use ($clubId) {
+                        $q->where('club_id', $clubId)->where('is_primary', true);
+                    })
+                    ->whereHas('primaryHolder.member');
+
+                if ($cancelledSearch) {
+                    $like = $driver === 'pgsql' ? 'ilike' : 'like';
+                    $cancelledQuery->where(function (Builder $b) use ($cancelledSearch, $like) {
+                        $b->where('membership_number', $like, "%{$cancelledSearch}%")
+                            ->orWhereHas('primaryHolder.member', function (Builder $mq) use ($cancelledSearch, $like) {
+                                $mq->where('first_name', $like, "%{$cancelledSearch}%")
+                                    ->orWhere('last_name', $like, "%{$cancelledSearch}%")
+                                    ->orWhere('second_last_name', $like, "%{$cancelledSearch}%")
+                                    ->orWhere('email', $like, "%{$cancelledSearch}%");
+                            });
+                    });
+                }
+
+                $cancelledAccounts = $cancelledQuery
+                    ->orderBy($cancelledSortColumn, $cancelledOrder)
+                    ->paginate(
+                        $request->input("{$cancelledPrefix}_per_page", 10),
+                        ['*'],
+                        "{$cancelledPrefix}_page",
+                        $request->input("{$cancelledPrefix}_page", 1)
+                    )
+                    ->through(function (MembershipAccount $account) use ($clubId) {
+                        $holder = $account->primaryHolder?->member;
+                        $primaryMembership = $account->memberships
+                            ->where('club_id', (int) $clubId)
+                            ->where('is_primary', true)
+                            ->first();
+
+                        return [
+                            'id' => $account->id,
+                            'membership_id' => $primaryMembership?->id,
+                            'membership_number' => $account->membership_number,
+                            'holder_name' => trim(collect([
+                                $holder?->first_name,
+                                $holder?->last_name,
+                                $holder?->second_last_name,
+                            ])->filter()->implode(' ')),
+                            'email' => $holder?->email,
+                            'membership_type_name' => $primaryMembership?->membershipType?->name,
+                            'cancelled_at' => $account->cancelled_at,
+                            'members_count' => (int) $account->account_members_count,
+                        ];
+                    })
+                    ->appends($request->all());
+            }
+
             return Inertia::render('Members/Index', [
                 'members' => $members,
                 'pendingMembersCount' => $pendingMembersCount,
+                'cancelledAccounts' => $cancelledAccounts,
             ]);
         } catch (\Exception $e) {
             report($e);
@@ -170,6 +245,10 @@ class MemberController extends Controller
                     'total' => 0,
                 ],
                 'pendingMembersCount' => 0,
+                'cancelledAccounts' => [
+                    'data' => [],
+                    'total' => 0,
+                ],
                 'messageError' => $e->getMessage(),
             ]);
         }
@@ -344,7 +423,7 @@ class MemberController extends Controller
                 ]);
             }
 
-            if ($this->shouldApplyAgeFilter($membershipType) && $age === null) {
+            if ($this->membershipPricingService->shouldApplyAgeFilter($membershipType) && $age === null) {
                 throw ValidationException::withMessages([
                     'age' => 'Captura la fecha de nacimiento del titular para calcular el precio de esta membresía.',
                 ]);
@@ -538,14 +617,77 @@ class MemberController extends Controller
             ]);
         }
 
+        $account = $membership->account;
+        $account->loadMissing([
+            'originAccount.primaryHolder.member',
+            'originAccount.memberships' => fn ($q) => $q->where('is_primary', true),
+            'derivedAccounts.primaryHolder.member',
+            'derivedAccounts.memberships' => fn ($q) => $q->where('is_primary', true),
+        ]);
+
+        $accountTree = $this->buildAccountTree($account);
+
         return Inertia::render('Members/Show', [
-            'membership' => $this->buildSourceMembershipPayload($membership),
-            'account' => $this->buildMembershipAccountPayload($membership),
+            'membership'       => $this->buildSourceMembershipPayload($membership),
+            'account'          => $this->buildMembershipAccountPayload($membership),
+            'accountTree'      => $accountTree,
             'canAddFamilyMembers' => (bool) $membership->membershipType?->allows_multiple_members,
             'canChangePrimaryHolder' => (bool) $membership->membershipType?->allows_multiple_members
-                && $membership->account->accountMembers->count() > 1,
+                && $account->accountMembers->count() > 1,
             'canSeparateMembers' => (bool) $membership->membershipType?->allows_multiple_members
-                && $membership->account->accountMembers->where('is_primary_holder', false)->isNotEmpty(),
+                && $account->accountMembers->where('is_primary_holder', false)->isNotEmpty(),
+        ]);
+    }
+
+    public function membershipHistory(Request $request, Membership $membership)
+    {
+        $clubId = session('club_id');
+
+        if ((int) $membership->club_id !== (int) $clubId) {
+            abort(404);
+        }
+
+        $perPage = min((int) $request->input('per_page', 10), 50);
+        $page    = max((int) $request->input('page', 1), 1);
+
+        $membership->loadMissing('account.memberships');
+        $accountMembershipIds = $membership->account->memberships->pluck('id');
+
+        $query = DB::table('memberships.membership_history as mh')
+            ->leftJoin('memberships.types as old_type', 'mh.old_membership_type_id', '=', 'old_type.id')
+            ->join('memberships.types as new_type', 'mh.new_membership_type_id', '=', 'new_type.id')
+            ->leftJoin('users as u', 'mh.changed_by', '=', 'u.id')
+            ->whereIn('mh.membership_id', $accountMembershipIds)
+            ->orderByDesc('mh.effective_date')
+            ->orderByDesc('mh.created_at')
+            ->select([
+                'mh.id',
+                'mh.effective_date',
+                'mh.reason',
+                'mh.previous_monthly_fee',
+                'mh.new_monthly_fee',
+                'old_type.name as old_membership_type_name',
+                'new_type.name as new_membership_type_name',
+                'u.name as changed_by_name',
+            ]);
+
+        $total = $query->count();
+        $rows  = $query->offset(($page - 1) * $perPage)->limit($perPage)->get();
+
+        $items = $rows->map(fn ($row) => [
+            'id'                       => $row->id,
+            'effective_date'           => $row->effective_date,
+            'reason'                   => $row->reason,
+            'previous_monthly_fee'     => $row->previous_monthly_fee !== null ? (float) $row->previous_monthly_fee : null,
+            'new_monthly_fee'          => $row->new_monthly_fee !== null ? (float) $row->new_monthly_fee : null,
+            'old_membership_type_name' => $row->old_membership_type_name,
+            'new_membership_type_name' => $row->new_membership_type_name,
+            'changed_by_name'          => $row->changed_by_name,
+        ]);
+
+        return response()->json([
+            'data'  => $items,
+            'total' => $total,
         ]);
     }
 
@@ -572,6 +714,11 @@ class MemberController extends Controller
                 'end_month'   => ['required', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/'],
                 'charge_percentage' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
                 'notes' => ['nullable', 'string', 'max:1000'],
+                'absence_permit_document' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+            ], [
+                'absence_permit_document.required' => 'El documento de solicitud de permiso por ausencia es obligatorio.',
+                'absence_permit_document.mimes' => 'El documento debe ser un archivo PDF, JPG o PNG.',
+                'absence_permit_document.max' => 'El documento no debe superar los 5 MB.',
             ]);
 
             $startDate = Carbon::createFromFormat('Y-m', $validated['start_month'])->startOfMonth()->startOfDay();
@@ -614,20 +761,40 @@ class MemberController extends Controller
                 ]);
             }
 
-            AbsencePermit::create([
-                'account_group_id' => $accountGroup->id,
-                'membership_account_id' => $membership->membership_account_id,
-                'primary_member_id' => $primaryHolder->member_id,
-                'start_date' => $startDate->toDateString(),
-                'end_date' => $endDate->toDateString(),
-                'charge_percentage' => (float) ($validated['charge_percentage'] ?? 25),
-                'status' => $this->resolveAbsencePermitStatus($startDate, $endDate),
-                'blocks_facility_access' => true,
-                'blocks_reservations' => true,
-                'notes' => $validated['notes'] ?? null,
-                'approved_by' => $request->user()?->id,
-                'approved_at' => now(),
-            ]);
+            DB::transaction(function () use ($request, $membership, $accountGroup, $primaryHolder, $startDate, $endDate, $validated) {
+                AbsencePermit::create([
+                    'account_group_id' => $accountGroup->id,
+                    'membership_account_id' => $membership->membership_account_id,
+                    'primary_member_id' => $primaryHolder->member_id,
+                    'start_date' => $startDate->toDateString(),
+                    'end_date' => $endDate->toDateString(),
+                    'charge_percentage' => (float) ($validated['charge_percentage'] ?? 25),
+                    'status' => $this->resolveAbsencePermitStatus($startDate, $endDate),
+                    'blocks_facility_access' => true,
+                    'blocks_reservations' => true,
+                    'notes' => $validated['notes'] ?? null,
+                    'approved_by' => $request->user()?->id,
+                    'approved_at' => now(),
+                ]);
+
+                $file = $request->file('absence_permit_document');
+                $docType = \App\Models\Catalogs\DocumentType::where('code', 'documento_permiso_ausencia')->first();
+                $docTypeSlug = $docType ? Str::slug($docType->name) : 'documento-permiso-ausencia';
+                $directory = "members/{$primaryHolder->member_id}/{$docTypeSlug}";
+                $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
+
+                $uploaded = Storage::disk('spaces')->putFileAs($directory, $file, $filename);
+
+                if ($uploaded === false) {
+                    throw new \RuntimeException('No se pudo subir el documento del permiso por ausencia.');
+                }
+
+                MemberDocument::create([
+                    'member_id'        => $primaryHolder->member_id,
+                    'document_type_id' => $docType?->id,
+                    'file_path'        => "{$directory}/{$filename}",
+                ]);
+            });
 
             return redirect()
                 ->route('members.manage.show', $membership)
@@ -1216,11 +1383,30 @@ class MemberController extends Controller
                 ->value('id');
             $reason = $validated['reason'] ?? 'Separación de integrante a cuenta nueva';
 
-            DB::transaction(function () use ($membership, $accountMember, $targetMembershipType, $selectedTargetOption, $titularRelationshipId, $reason) {
+            // If the member being separated already holds their own primary membership in
+            // another club, reuse their existing account group so synchronizeMembershipFees
+            // can distribute the interclub fee across both accounts (50/50 split).
+            $existingPrimaryMembership = Membership::query()
+                ->where('status', 'active')
+                ->where('is_primary', true)
+                ->where('club_id', '!=', $membership->club_id)
+                ->whereHas('account.accountMembers', function (Builder $q) use ($accountMember) {
+                    $q->where('member_id', $accountMember->member_id)
+                      ->where('is_primary_holder', true);
+                })
+                ->with('account.accountGroup')
+                ->first();
+
+            $existingAccountGroup = $existingPrimaryMembership?->account?->accountGroup;
+
+            DB::transaction(function () use ($membership, $accountMember, $targetMembershipType, $selectedTargetOption, $titularRelationshipId, $reason, $existingAccountGroup) {
                 $newAccount = $this->createMembershipAccount(
                     club: $membership->club,
                     accountType: $targetMembershipType->allows_multiple_members ? 'family' : 'individual',
-                    status: 'active'
+                    status: 'active',
+                    accountGroup: $existingAccountGroup,
+                    originAccountId: $membership->membership_account_id,
+                    separationReason: $reason
                 );
 
                 MembershipAccountMember::create([
@@ -1260,7 +1446,7 @@ class MemberController extends Controller
                 $this->membershipChargeService->createInitialCharges(
                     membership: $newMembership,
                     monthlyFee: (float) $selectedTargetOption['monthly_fee'],
-                    inscriptionFee: (float) ($selectedTargetOption['inscription_fee'] ?? 0),
+                    inscriptionFee: 0.0, // separations are internal transfers, not new enrollments
                     metadata: [
                         'charge_origin' => 'member_separation',
                         'source_membership_id' => $membership->id,
@@ -1587,9 +1773,10 @@ class MemberController extends Controller
                 : [];
 
             // Collect [member_id => documents[]] inside the transaction to upload after commit
-            $savedMemberDocuments = [];
+            $savedMemberDocuments    = [];
+            $savedMembershipAccount  = null;
 
-            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership, $sameClubTransition, $sourceAccountMembersById, $reusableSourceMemberIds, &$savedMemberDocuments) {
+            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership, $sameClubTransition, $sourceAccountMembersById, $reusableSourceMemberIds, &$savedMemberDocuments, &$savedMembershipAccount) {
                 $sourceAccount = $sourceMembership?->account;
 
                 $membershipAccount = $sameClubTransition
@@ -1603,6 +1790,8 @@ class MemberController extends Controller
                         status: 'pending',
                         accountGroup: $sourceAccount?->accountGroup
                     );
+
+                $savedMembershipAccount = $membershipAccount;
 
                 $submittedMemberIds = [];
 
@@ -1797,6 +1986,23 @@ class MemberController extends Controller
                     'status' => 'active',
                 ]);
 
+                DB::table('memberships.membership_history')->insert([
+                    'membership_id'          => $newMembership->id,
+                    'old_membership_type_id' => $sourceMembership?->membership_type_id ?? null,
+                    'new_membership_type_id' => $membershipType->id,
+                    'changed_by'             => auth()->id(),
+                    'effective_date'         => now()->toDateString(),
+                    'reason'                 => $sourceMembership ? 'Membresía adicional / traslado interclub' : 'Alta de membresía',
+                    'previous_monthly_fee'   => $sourceMembership ? (float) $sourceMembership->monthly_fee : null,
+                    'new_monthly_fee'        => (float) $pricing['monthly_fee'],
+                    'metadata'               => json_encode([
+                        'charge_origin'          => $sourceMembership ? 'additional_membership' : 'membership_registration',
+                        'source_membership_id'   => $sourceMembership?->id,
+                    ]),
+                    'created_at'             => now(),
+                    'updated_at'             => now(),
+                ]);
+
                 $newMembership = $this->membershipChargeService
                     ->synchronizeMembershipFees(
                         $newMembership,
@@ -1825,8 +2031,10 @@ class MemberController extends Controller
                 }
             });
 
-            // ── Upload documents to SFTP after transaction commits ────────────
-            $this->uploadMemberDocuments($savedMemberDocuments);
+            // ── Upload documents to Spaces after transaction commits ──────────
+            $this->uploadMemberDocuments(
+                memberDocuments: $savedMemberDocuments,
+            );
 
             return redirect()
                 ->back()
@@ -1842,16 +2050,21 @@ class MemberController extends Controller
     }
 
     /**
-     * Upload member documents to SFTP and persist records in members.documents.
+     * Upload member documents to Spaces and persist records in members.documents.
      * File failures are logged but do not abort the response.
+     *
+     * Path: members/{member_id}/{document_type_slug}/{uuid}.{ext}
      *
      * @param array<int, array> $memberDocuments  [member_id => documents[]]
      */
-    protected function uploadMemberDocuments(array $memberDocuments): void
-    {
+    protected function uploadMemberDocuments(
+        array $memberDocuments,
+    ): void {
         if (empty($memberDocuments)) {
             return;
         }
+
+        $docTypeSlugCache = [];
 
         foreach ($memberDocuments as $memberId => $documents) {
             foreach ($documents as $docData) {
@@ -1862,6 +2075,16 @@ class MemberController extends Controller
                     continue;
                 }
 
+                if (!isset($docTypeSlugCache[$documentTypeId])) {
+                    $docType = DocumentType::find($documentTypeId);
+                    $docTypeSlugCache[$documentTypeId] = $docType
+                        ? Str::slug($docType->name)
+                        : (string) $documentTypeId;
+                }
+
+                $docTypeSlug = $docTypeSlugCache[$documentTypeId];
+                $directory   = "members/{$memberId}/{$docTypeSlug}";
+
                 foreach ($files as $file) {
                     if (!($file instanceof \Illuminate\Http\UploadedFile)) {
                         continue;
@@ -1869,9 +2092,7 @@ class MemberController extends Controller
 
                     try {
                         $extension = $file->getClientOriginalExtension();
-                        $baseName  = Str::slug(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME));
-                        $filename  = now()->format('YmdHis') . '_' . $baseName . '.' . $extension;
-                        $directory = "members/{$memberId}/{$documentTypeId}";
+                        $filename  = Str::uuid() . '.' . $extension;
 
                         $uploaded = Storage::disk('spaces')->putFileAs($directory, $file, $filename);
 
@@ -1948,6 +2169,7 @@ class MemberController extends Controller
             'account.accountMembers.member.birthState',
             'account.accountMembers.member.birthCity',
             'account.accountMembers.member.maritalStatus',
+            'account.accountMembers.member.documents',
             'membershipType',
             'club',
             'account.memberships.membershipType',
@@ -2176,6 +2398,15 @@ class MemberController extends Controller
                         'company_address' => $employment?->company_address,
                         'company_phone' => $employment?->company_phone,
                     ],
+                    'existing_documents' => $member?->documents
+                        ->sortByDesc('created_at')
+                        ->map(fn ($doc) => [
+                            'id' => $doc->id,
+                            'document_type_id' => $doc->document_type_id,
+                            'uploaded_at' => $doc->created_at?->toDateString(),
+                        ])
+                        ->unique('document_type_id')
+                        ->values(),
                 ];
             })
             ->values();
@@ -2207,6 +2438,7 @@ class MemberController extends Controller
                 'member.birthState',
                 'member.birthCity',
                 'member.maritalStatus',
+                'member.documents',
             ])
             ->whereHas('membershipAccount', function (Builder $query) use ($accountGroupId) {
                 $query->where('account_group_id', $accountGroupId)
@@ -2538,6 +2770,12 @@ class MemberController extends Controller
         $address = $member?->primaryAddress;
         $employment = $member?->employmentInfo;
 
+        $lockerAssignment = LockerAssignment::with('locker')
+            ->where('member_id', $member?->id)
+            ->where('year', now()->year)
+            ->whereNull('deleted_at')
+            ->first();
+
         return [
             ...$this->buildAccountMemberPayload($accountMember),
             'relationship_id' => $accountMember->relationship_id,
@@ -2564,6 +2802,12 @@ class MemberController extends Controller
                 'company_address' => $employment?->company_address,
                 'company_phone' => $employment?->company_phone,
             ],
+            'locker' => $lockerAssignment ? [
+                'assignment_id' => $lockerAssignment->id,
+                'number' => $lockerAssignment->locker?->number,
+                'status' => $lockerAssignment->locker?->status,
+                'category' => $lockerAssignment->locker?->category,
+            ] : null,
         ];
     }
 
@@ -2594,9 +2838,32 @@ class MemberController extends Controller
                     ? Carbon::parse($accountMember->member->birthdate)->age
                     : null;
 
+                $hasOtherClub = $this->memberHasOtherActiveClubMembership(
+                    $accountMember->member_id,
+                    $membership->club_id
+                );
+
+                $otherClubName = null;
+                if ($hasOtherClub) {
+                    $otherClubName = Membership::query()
+                        ->where('status', 'active')
+                        ->where('is_primary', true)
+                        ->where('club_id', '!=', $membership->club_id)
+                        ->whereHas('account.accountMembers', function (Builder $q) use ($accountMember) {
+                            $q->where('member_id', $accountMember->member_id)
+                              ->where('is_primary_holder', true);
+                        })
+                        ->with('club:id,name')
+                        ->first()
+                        ?->club
+                        ?->name;
+                }
+
                 return [
                     ...$memberPayload,
                     'age' => $age,
+                    'has_other_club_membership' => $hasOtherClub,
+                    'other_club_name' => $otherClubName,
                     'target_membership_options' => $this->buildSeparationTargetOptions($membership, $accountMember)
                         ->values(),
                 ];
@@ -2617,29 +2884,57 @@ class MemberController extends Controller
 
         $hasMultipleClubs = $this->memberHasOtherActiveClubMembership($accountMember->member_id, $membership->club_id);
 
+        // When the member being separated already holds their own primary membership in
+        // another club, the interclub rule lookup must use that membership as the "source"
+        // (not the family account being separated from). This way resolveInterclubPackageRule
+        // can find rules like: source=Park1/Family → target=Park2/Individual = $3,650.
+        $interclubSourceMembership = null;
+        if ($hasMultipleClubs) {
+            $interclubSourceMembership = Membership::query()
+                ->where('status', 'active')
+                ->where('is_primary', true)
+                ->where('club_id', '!=', $membership->club_id)
+                ->whereHas('account.accountMembers', function (Builder $q) use ($accountMember) {
+                    $q->where('member_id', $accountMember->member_id)
+                      ->where('is_primary_holder', true);
+                })
+                ->with(['club', 'membershipType'])
+                ->first();
+        }
+
+        $effectiveSourceClub         = $interclubSourceMembership?->club         ?? $membership->club;
+        $effectiveFromMembershipType = $interclubSourceMembership?->membershipType ?? $fromMembershipType;
+
         $targetMembershipTypes = MembershipType::query()
             ->where('club_id', $membership->club_id)
             ->where('allows_multiple_members', false)
-            ->whereHas('pricingRules', function (Builder $query) use ($fromMembershipType) {
-                $query->where('from_membership_type_id', $fromMembershipType->id);
+            ->where(function (Builder $q) use ($fromMembershipType, $effectiveFromMembershipType) {
+                $q->whereHas('pricingRules', function (Builder $inner) use ($fromMembershipType) {
+                    $inner->where('from_membership_type_id', $fromMembershipType->id);
+                })->orWhereHas('interclubPackageRulesAsTarget', function (Builder $inner) use ($effectiveFromMembershipType) {
+                    $inner->where('source_membership_type_id', $effectiveFromMembershipType->id)
+                          ->where('is_active', true);
+                });
             })
             ->orderBy('name')
             ->get();
 
+        $effectiveStartDate = $interclubSourceMembership?->start_date ?? $membership->start_date;
+
         return $targetMembershipTypes
-            ->map(function (MembershipType $targetMembershipType) use ($fromMembershipType, $membership, $age, $hasMultipleClubs) {
+            ->map(function (MembershipType $targetMembershipType) use ($effectiveFromMembershipType, $effectiveSourceClub, $effectiveStartDate, $membership, $age, $hasMultipleClubs) {
                 try {
                     $pricing = $this->resolveApplicablePricing(
                         targetClubId: (int) $membership->club_id,
                         membershipType: $targetMembershipType,
-                        fromMembershipType: $fromMembershipType,
-                        sourceClub: $membership->club,
+                        fromMembershipType: $effectiveFromMembershipType,
+                        sourceClub: $effectiveSourceClub,
                         age: $age,
                         hasMultipleClubs: $hasMultipleClubs,
                         sourceMembershipIsActive: true,
-                        yearsInSourceClub: $membership->start_date
-                        ? Carbon::parse($membership->start_date)->diffInYears(now())
-                        : null
+                        yearsInSourceClub: $effectiveStartDate
+                            ? Carbon::parse($effectiveStartDate)->diffInYears(now())
+                            : null
                     );
 
                     return [
@@ -2647,7 +2942,7 @@ class MemberController extends Controller
                         'code' => $targetMembershipType->code,
                         'name' => $targetMembershipType->name,
                         'monthly_fee' => (float) $pricing['monthly_fee'],
-                        'inscription_fee' => (float) ($pricing['inscription_fee'] ?? 0),
+                        'inscription_fee' => 0.0, // separations are internal transfers, not new enrollments
                         'billing_split_mode' => $pricing['billing_split_mode'] ?? 'single',
                     ];
                 } catch (ValidationException $e) {
@@ -2660,11 +2955,16 @@ class MemberController extends Controller
 
     protected function memberHasOtherActiveClubMembership(int $memberId, int $currentClubId): bool
     {
+        // Only counts memberships where the person is the primary holder of that account.
+        // Being a dependent/family member on someone else's interclub account does not
+        // qualify the person for interclub pricing on their own separate membership.
         return Membership::query()
             ->where('status', 'active')
+            ->where('is_primary', true)
             ->where('club_id', '!=', $currentClubId)
             ->whereHas('account.accountMembers', function (Builder $query) use ($memberId) {
-                $query->where('member_id', $memberId);
+                $query->where('member_id', $memberId)
+                      ->where('is_primary_holder', true);
             })
             ->exists();
     }
@@ -2729,10 +3029,10 @@ class MemberController extends Controller
             yearsInSourceClub: $yearsInSourceClub
         );
 
-        $pricingRule = $this->resolvePricingRule(
+        $pricingRule = $this->membershipPricingService->resolvePricingRule(
             membershipTypeId: $membershipType->id,
             fromMembershipTypeId: $fromMembershipType?->id,
-            age: $this->shouldApplyAgeFilter($membershipType) ? $age : null,
+            age: $this->membershipPricingService->shouldApplyAgeFilter($membershipType) ? $age : null,
             hasMultipleClubs: $hasMultipleClubs
         );
 
@@ -2887,16 +3187,18 @@ class MemberController extends Controller
     ): ?PricingRule {
         $attempts = [];
 
-        if ($fromMembershipTypeId) {
-            if ($hasMultipleClubs) {
+        // When interclub applies, exhaust ALL interclub rules before falling back
+        // to standalone. Without this, a standalone from-type rule (e.g. familiar→individual
+        // standalone) would be found before the generic interclub rule, producing the wrong fee.
+        if ($hasMultipleClubs) {
+            if ($fromMembershipTypeId) {
                 $attempts[] = [$fromMembershipTypeId, true];
             }
-
-            $attempts[] = [$fromMembershipTypeId, false];
+            $attempts[] = [null, true];
         }
 
-        if ($hasMultipleClubs) {
-            $attempts[] = [null, true];
+        if ($fromMembershipTypeId) {
+            $attempts[] = [$fromMembershipTypeId, false];
         }
 
         $attempts[] = [null, false];
@@ -3186,17 +3488,75 @@ class MemberController extends Controller
         Club $club,
         string $accountType,
         string $status = 'pending',
-        ?MembershipAccountGroup $accountGroup = null
+        ?MembershipAccountGroup $accountGroup = null,
+        ?int $originAccountId = null,
+        ?string $separationReason = null
     ): MembershipAccount {
         $group = $accountGroup ?? $this->createAccountGroup();
 
         return MembershipAccount::create([
-            'account_group_id' => $group->id,
-            'club_id' => $club->id,
+            'account_group_id'  => $group->id,
+            'club_id'           => $club->id,
             'membership_number' => $this->generateMembershipNumber($club),
-            'account_type' => $accountType,
-            'status' => $status,
+            'account_type'      => $accountType,
+            'status'            => $status,
+            'origin_account_id' => $originAccountId,
+            'separation_reason' => $separationReason,
         ]);
+    }
+
+    protected function buildAccountTree(MembershipAccount $account): ?array
+    {
+        $formatAccount = function (MembershipAccount $acc) {
+            $primary = $acc->memberships->first();
+            $holder  = $acc->primaryHolder?->member;
+            return [
+                'id'                   => $acc->id,
+                'membership_id'        => $primary?->id,
+                'membership_number'    => $acc->membership_number,
+                'holder_name'          => trim(collect([
+                    $holder?->first_name,
+                    $holder?->last_name,
+                    $holder?->second_last_name,
+                ])->filter()->implode(' ')),
+                'membership_type_name' => $primary?->membershipType?->name,
+                'status'               => $acc->status,
+                'separation_reason'    => $acc->separation_reason,
+            ];
+        };
+
+        $origin  = $account->originAccount ? $formatAccount($account->originAccount) : null;
+        $derived = $account->derivedAccounts
+            ->map(fn ($d) => $this->buildDerivedNode($d, $formatAccount))
+            ->values()
+            ->all();
+
+        if (!$origin && empty($derived)) {
+            return null;
+        }
+
+        return [
+            'origin'  => $origin,
+            'derived' => $derived,
+        ];
+    }
+
+    private function buildDerivedNode(MembershipAccount $account, callable $formatAccount): array
+    {
+        $account->loadMissing([
+            'primaryHolder.member',
+            'memberships' => fn ($q) => $q->where('is_primary', true),
+            'derivedAccounts.primaryHolder.member',
+            'derivedAccounts.memberships' => fn ($q) => $q->where('is_primary', true),
+        ]);
+
+        $node = $formatAccount($account);
+        $node['derived'] = $account->derivedAccounts
+            ->map(fn ($child) => $this->buildDerivedNode($child, $formatAccount))
+            ->values()
+            ->all();
+
+        return $node;
     }
 
     protected function validationExceptionResponse(ValidationException $e)

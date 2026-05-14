@@ -7,6 +7,7 @@ use App\Models\Administrator\Club;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Storage;
 
 class Amenity extends Model
 {
@@ -25,6 +26,22 @@ class Amenity extends Model
         'club_id',
     ];
     protected $dates = ['deleted_at'];
+
+    protected $appends = ['icon_url', 'background_image_url'];
+
+    public function getIconUrlAttribute(): ?string
+    {
+        return $this->icon
+            ? Storage::disk('spaces')->url($this->icon)
+            : null;
+    }
+
+    public function getBackgroundImageUrlAttribute(): ?string
+    {
+        return $this->background_image
+            ? Storage::disk('spaces')->url($this->background_image)
+            : null;
+    }
 
     public function club()
     {

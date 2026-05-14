@@ -1,9 +1,12 @@
 <script setup lang="ts">
+import AccountTreeNode from "@/Components/AccountTreeNode.vue";
 import BaseButton from "@/Components/BaseButton.vue";
 import MonthPicker from "@/Components/MonthPicker.vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
-import { Head, router, useForm } from "@inertiajs/vue3";
-import { computed, ref } from "vue";
+import { Head, router, useForm, usePage  } from "@inertiajs/vue3";
+import Swal from "sweetalert2";
+import { customToastSwal } from "@/utils/swal";
+import { computed, onMounted, ref, watch } from "vue";
 
 interface SourceMembership {
     id: number;
@@ -98,26 +101,85 @@ interface MembershipAccount {
     active_memberships: ActiveMembershipItem[];
 }
 
+interface MembershipHistoryItem {
+    id: number;
+    effective_date: string;
+    reason: string | null;
+    previous_monthly_fee: number | null;
+    new_monthly_fee: number | null;
+    old_membership_type_name: string | null;
+    new_membership_type_name: string;
+    changed_by_name: string | null;
+}
+
+interface AccountTreeNode {
+    id: number;
+    membership_id: number | null;
+    membership_number: string | null;
+    holder_name: string;
+    membership_type_name: string | null;
+    status: string;
+    separation_reason: string | null;
+    derived?: AccountTreeNode[];
+}
+
+interface AccountTree {
+    origin: AccountTreeNode | null;
+    derived: AccountTreeNode[];
+}
+
 interface Props {
     membership: SourceMembership;
     account: MembershipAccount;
+    accountTree?: AccountTree | null;
     canAddFamilyMembers?: boolean;
     canChangePrimaryHolder?: boolean;
     canSeparateMembers?: boolean;
 }
 
+const can = usePage().props.auth.permissions;
+
 const props = withDefaults(defineProps<Props>(), {
+    accountTree: null,
     canAddFamilyMembers: false,
     canChangePrimaryHolder: false,
     canSeparateMembers: false,
 });
 
+// Membership history (server-side paginated)
+const historyItems = ref<MembershipHistoryItem[]>([]);
+const historyTotal = ref(0);
+const historyLoading = ref(false);
+const historyPage = ref(1);
+const historyPerPage = ref(10);
+
+const fetchHistory = async () => {
+    historyLoading.value = true;
+    try {
+        const res = await axios.get(
+            route('members.manage.history', props.membership.id),
+            { params: { page: historyPage.value, per_page: historyPerPage.value } }
+        );
+        historyItems.value = res.data.data;
+        historyTotal.value  = res.data.total;
+    } catch {
+        // silent — table will stay empty
+    } finally {
+        historyLoading.value = false;
+    }
+};
+
+onMounted(fetchHistory);
+
 const showAbsencePermitDialog = ref(false);
+const absencePermitFileInput = ref<HTMLInputElement | null>(null);
+const absencePermitFileName = ref("");
 const absencePermitForm = useForm({
     start_month: "",
     end_month: "",
     charge_percentage: 25,
     notes: "",
+    absence_permit_document: null as File | null,
 });
 
 const currentMonth = computed(() => {
@@ -200,16 +262,26 @@ const openAbsencePermitDialog = () => {
     absencePermitForm.reset();
     absencePermitForm.clearErrors();
     absencePermitForm.charge_percentage = 25;
+    absencePermitFileName.value = "";
     showAbsencePermitDialog.value = true;
+};
+
+const onAbsencePermitFileChange = (e: Event) => {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    absencePermitForm.absence_permit_document = file;
+    absencePermitFileName.value = file?.name ?? "";
 };
 
 const submitAbsencePermit = () => {
     absencePermitForm.post(route("members.absence-permits.store", props.membership.id), {
+        forceFormData: true,
         preserveScroll: true,
         onSuccess: () => {
             showAbsencePermitDialog.value = false;
             absencePermitForm.reset();
             absencePermitForm.charge_percentage = 25;
+            absencePermitFileName.value = "";
         },
     });
 };
@@ -226,6 +298,154 @@ const cancelAbsencePermit = (absencePermitId: number) => {
         },
     );
 };
+// Locker actions
+const showEditLockerModal = ref(false);
+const editingMember = ref(null);
+const editSelectedLocker = ref(null);
+const availableEditLockers = ref([]);
+const editLockerSearch = ref('');
+const editCurrentPage = ref(1);
+const editPerPage = ref(30);
+const editTotal = ref(0);
+const editTotalPages = ref(1);
+
+const editLocker = async (member: any) => {
+    editingMember.value = member;
+    editSelectedLocker.value = null;
+    editCurrentPage.value = 1;
+    showEditLockerModal.value = true;
+    await loadAvailableEditLockers();
+};
+const loadAvailableEditLockers = async () => {
+    try {
+        const res = await axios.get(
+            route('lockers.available.for.change'),
+            {
+                params: {
+                    membership_id: props.membership.id,
+                    current_locker_id: editingMember.value.locker.id,
+                    category: editingMember.value.locker.category,
+                    page: editCurrentPage.value,
+                    lockers_per_page: editPerPage.value,
+                    lockers_search: editLockerSearch.value,
+                }
+            }
+        );
+        availableEditLockers.value = res.data.data;
+        editTotal.value = res.data.total;
+        editTotalPages.value = res.data.last_page;
+    } catch (e) {
+        console.error(e);
+    }
+};
+const updateLocker = async () => {
+    if (!editSelectedLocker.value) {
+        customToastSwal({
+            title: 'Selecciona un casillero',
+            icon: 'warning'
+        });
+        return;
+    }
+
+    const result = await Swal.fire({
+        title: '¿Cambiar casillero?',
+        text: 'El integrante será asignado al nuevo casillero seleccionado.',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, cambiar',
+        cancelButtonText: 'Cancelar',
+        reverseButtons: true,
+        allowOutsideClick: false
+    });
+
+    if (!result.isConfirmed) {
+        return;
+    }
+
+    router.post(
+        route('members.lockers.change'),
+        {
+            member_id: editingMember.value.member_id,
+            old_locker_id: editingMember.value.locker.id,
+            new_locker_id: editSelectedLocker.value,
+        },
+        {
+            preserveScroll: true,
+
+            onSuccess: () => {
+
+                showEditLockerModal.value = false;
+
+                customToastSwal({
+                    title: 'Casillero actualizado',
+                    icon: 'success'
+                });
+
+                router.reload({
+                    only: ['account']
+                });
+            },
+
+            onError: (errors) => {
+
+                console.error(errors);
+
+                customToastSwal({
+                    title: 'No se pudo actualizar el casillero',
+                    icon: 'error'
+                });
+            }
+        }
+    );
+};
+const removeLocker = async (id: number) => {
+    const result = await Swal.fire({
+        title: '¿Dar de baja el casillero?',
+        text: 'El casillero volverá a estar disponible.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, dar de baja',
+        cancelButtonText: 'Cancelar',
+        reverseButtons: true
+    });
+    if (!result.isConfirmed) {
+        return;
+    }
+    router.delete(route('members.lockers.remove', { assignment: id }), {
+        onSuccess: () => {
+            customToastSwal({
+                title: 'Casillero dado de baja',
+                icon: 'success'
+            });
+
+           // loadMyLockers();
+        },
+        onError: () => {
+            customToastSwal({
+                title: 'No se pudo dar de baja',
+                icon: 'error'
+            });
+        }
+    });
+};
+watch(editCurrentPage, () => {
+    if (!editingMember.value) {
+        return;
+    }
+    loadAvailableEditLockers();
+});
+
+let lockerSearchTimeout: any = null;
+watch(editLockerSearch, () => {
+    if (!editingMember.value) {
+        return;
+    }
+    clearTimeout(lockerSearchTimeout);
+    lockerSearchTimeout = setTimeout(() => {
+        editCurrentPage.value = 1;
+        loadAvailableEditLockers();
+    }, 400);
+});
 </script>
 
 <template>
@@ -330,7 +550,7 @@ const cancelAbsencePermit = (absencePermitId: number) => {
                                 </div>
 
                                 <div class="d-flex flex-wrap ga-2">
-                                    <v-btn
+                                    <v-btn v-if="can.includes('members.lockers.create')"
                                         color="primary"
                                         variant="tonal"
                                         @click="
@@ -344,7 +564,7 @@ const cancelAbsencePermit = (absencePermitId: number) => {
                                     >
                                         Asignar casillero
                                     </v-btn>
-                                    <v-btn
+                                    <v-btn v-if="can.includes('acts.index')"
                                         color="primary"
                                         variant="tonal"
                                         @click="router.visit(route('acts.index', props.account.id))"
@@ -697,39 +917,94 @@ const cancelAbsencePermit = (absencePermitId: number) => {
                                                 Titular
                                             </v-chip>
                                         </div>
+                                        <v-row>
+                                            <v-col cols="12" md="9">
+                                                <div class="text-body-2">
+                                                    <strong>Edad:</strong>
+                                                    {{ member.age ?? "-" }}
+                                                </div>
+                                                <div class="text-body-2">
+                                                    <strong>Nacimiento:</strong>
+                                                    {{ formatDate(member.birthdate) }}
+                                                </div>
+                                                <div class="text-body-2">
+                                                    <strong>Correo:</strong>
+                                                    {{ member.email || "-" }}
+                                                </div>
+                                                <div class="text-body-2">
+                                                    <strong>Teléfono:</strong>
+                                                    {{ member.phone || "-" }}
+                                                </div>
+                                                <div class="text-body-2">
+                                                    <strong>Nacionalidad:</strong>
+                                                    {{ member.nationality || "-" }}
+                                                </div>
+                                                <div class="text-body-2">
+                                                    <strong>Estado civil:</strong>
+                                                    {{ member.marital_status || "-" }}
+                                                </div>
+                                                <div class="text-body-2">
+                                                    <strong>Ocupación:</strong>
+                                                    {{ member.occupation || member.school_name || "-" }}
+                                                </div>
+                                                <div class="text-body-2">
+                                                    <strong>Domicilio:</strong>
+                                                    {{ addressSummary(member) || "-" }}
+                                                </div>
+                                            </v-col>
+                                            <v-col cols="12" md="3" class="mt-3">
+                                                <v-card v-if="member.locker"
+                                                    class="pa-2 text-center"
+                                                    color="primary"
+                                                    variant="tonal"
+                                                >
+                                                     <v-btn
+                                                        icon
+                                                        size="x-small"
+                                                        variant="text"
+                                                        color="primary"
+                                                        class="position-absolute top-0 left-0 ma-1"
+                                                        @click.stop="editLocker(member)"
+                                                    >
+                                                        <v-icon size="18">
+                                                            mdi-pencil
+                                                        </v-icon>
 
-                                        <div class="text-body-2">
-                                            <strong>Edad:</strong>
-                                            {{ member.age ?? "-" }}
-                                        </div>
-                                        <div class="text-body-2">
-                                            <strong>Nacimiento:</strong>
-                                            {{ formatDate(member.birthdate) }}
-                                        </div>
-                                        <div class="text-body-2">
-                                            <strong>Correo:</strong>
-                                            {{ member.email || "-" }}
-                                        </div>
-                                        <div class="text-body-2">
-                                            <strong>Teléfono:</strong>
-                                            {{ member.phone || "-" }}
-                                        </div>
-                                        <div class="text-body-2">
-                                            <strong>Nacionalidad:</strong>
-                                            {{ member.nationality || "-" }}
-                                        </div>
-                                        <div class="text-body-2">
-                                            <strong>Estado civil:</strong>
-                                            {{ member.marital_status || "-" }}
-                                        </div>
-                                        <div class="text-body-2">
-                                            <strong>Ocupación:</strong>
-                                            {{ member.occupation || member.school_name || "-" }}
-                                        </div>
-                                        <div class="text-body-2">
-                                            <strong>Domicilio:</strong>
-                                            {{ addressSummary(member) || "-" }}
-                                        </div>
+                                                        <v-tooltip activator="parent" location="top">
+                                                            Editar casillero
+                                                        </v-tooltip>
+                                                    </v-btn>
+                                                    <v-btn
+                                                        icon
+                                                        size="x-small"
+                                                        variant="text"
+                                                        color="error"
+                                                        class="position-absolute top-0 right-0 ma-1"
+                                                        @click.stop="removeLocker(member.locker.assignment_id)"
+                                                    >
+                                                        <v-icon size="18">
+                                                            mdi-close
+                                                        </v-icon>
+
+                                                        <v-tooltip activator="parent" location="top">
+                                                            Dar de baja
+                                                        </v-tooltip>
+                                                    </v-btn>
+                                                    <v-icon size="22" class="mt-5">
+                                                        mdi-locker
+                                                    </v-icon>
+
+                                                    <div class="text-caption">
+                                                        Casillero
+                                                    </div>
+
+                                                    <div class="text-h6 font-weight-bold">
+                                                        {{ member.locker.number }}
+                                                    </div>
+                                                </v-card>
+                                            </v-col>
+                                        </v-row>
+                                        
 
                                         <div class="d-flex justify-end mt-3">
                                             <v-btn
@@ -746,72 +1021,430 @@ const cancelAbsencePermit = (absencePermitId: number) => {
                                 </v-col>
                             </v-row>
                         </v-card>
+                        <!-- Árbol de cuentas relacionadas -->
+                        <v-card
+                            v-if="props.accountTree && (props.accountTree.origin || props.accountTree.derived.length)"
+                            class="pa-4 mt-4"
+                        >
+                            <div class="text-subtitle-1 font-weight-bold mb-4">
+                                Cuentas relacionadas
+                            </div>
+
+                            <!-- Cuenta de origen -->
+                            <div v-if="props.accountTree.origin" class="mb-4">
+                                <div class="text-caption text-medium-emphasis mb-1 text-uppercase">
+                                    Cuenta de origen
+                                </div>
+                                <v-card
+                                    variant="tonal"
+                                    color="primary"
+                                    class="pa-3 cursor-pointer"
+                                    @click="props.accountTree!.origin!.membership_id && router.visit(route('members.manage.show', props.accountTree!.origin!.membership_id))"
+                                >
+                                    <div class="d-flex align-center gap-2">
+                                        <v-icon size="small">mdi-account-arrow-up</v-icon>
+                                        <div>
+                                            <span class="font-weight-medium">
+                                                #{{ props.accountTree.origin.membership_number }}
+                                            </span>
+                                            — {{ props.accountTree.origin.holder_name }}
+                                            <span v-if="props.accountTree.origin.membership_type_name" class="text-medium-emphasis">
+                                                ({{ props.accountTree.origin.membership_type_name }})
+                                            </span>
+                                        </div>
+                                        <v-spacer />
+                                        <v-chip size="x-small" :color="props.accountTree.origin.status === 'active' ? 'success' : 'default'">
+                                            {{ statusLabel(props.accountTree.origin.status) }}
+                                        </v-chip>
+                                    </div>
+                                </v-card>
+                            </div>
+
+                            <!-- Cuentas derivadas -->
+                            <div v-if="props.accountTree.derived.length">
+                                <div class="text-caption text-medium-emphasis mb-2 text-uppercase">
+                                    Cuentas derivadas ({{ props.accountTree.derived.length }})
+                                </div>
+                                <AccountTreeNode
+                                    v-for="node in props.accountTree.derived"
+                                    :key="node.id"
+                                    :node="node"
+                                    class="mb-2"
+                                />
+                            </div>
+                        </v-card>
+
+                        <!-- Historial de membresía -->
+                        <v-card class="pa-4 mt-4">
+                            <div class="text-subtitle-1 font-weight-bold mb-4">
+                                Historial de membresía
+                            </div>
+
+                            <v-data-table-server
+                                :items="historyItems"
+                                :items-length="historyTotal"
+                                :loading="historyLoading"
+                                v-model:page="historyPage"
+                                v-model:items-per-page="historyPerPage"
+                                :items-per-page-options="[5, 10, 25]"
+                                density="compact"
+                                no-data-text="Sin eventos registrados."
+                                @update:options="fetchHistory"
+                                :headers="[
+                                    { title: 'Fecha',          key: 'effective_date',           sortable: false },
+                                    { title: 'Evento',         key: 'reason',                   sortable: false },
+                                    { title: 'Tipo anterior',  key: 'old_membership_type_name', sortable: false },
+                                    { title: 'Tipo nuevo',     key: 'new_membership_type_name', sortable: false },
+                                    { title: 'Cuota anterior', key: 'previous_monthly_fee',     sortable: false, align: 'end' },
+                                    { title: 'Cuota nueva',    key: 'new_monthly_fee',          sortable: false, align: 'end' },
+                                    { title: 'Realizado por',  key: 'changed_by_name',          sortable: false },
+                                ]"
+                            >
+                                <template #item.effective_date="{ item }">
+                                    <span class="text-no-wrap">{{ formatDate(item.effective_date) }}</span>
+                                </template>
+                                <template #item.reason="{ item }">
+                                    {{ item.reason ?? '-' }}
+                                </template>
+                                <template #item.old_membership_type_name="{ item }">
+                                    <span class="text-medium-emphasis">{{ item.old_membership_type_name ?? '-' }}</span>
+                                </template>
+                                <template #item.previous_monthly_fee="{ item }">
+                                    <span class="text-medium-emphasis">
+                                        {{ item.previous_monthly_fee !== null ? currencyFormatter.format(item.previous_monthly_fee) : '-' }}
+                                    </span>
+                                </template>
+                                <template #item.new_monthly_fee="{ item }">
+                                    {{ item.new_monthly_fee !== null ? currencyFormatter.format(item.new_monthly_fee) : '-' }}
+                                </template>
+                                <template #item.changed_by_name="{ item }">
+                                    <span class="text-medium-emphasis">{{ item.changed_by_name ?? 'Sistema' }}</span>
+                                </template>
+                            </v-data-table-server>
+                        </v-card>
+
                     </v-container>
                 </v-col>
             </v-row>
         </div>
     </AppLayout>
 
-    <v-dialog v-model="showAbsencePermitDialog" max-width="640">
-        <v-card>
-            <v-card-title class="text-h6">Registrar permiso por ausencia</v-card-title>
-            <v-card-text>
-                <v-row>
+    <v-dialog
+        v-model="showEditLockerModal"
+        max-width="850"
+    >
+        <v-card rounded="xl">
+
+            <!-- HEADER -->
+            <div class="d-flex align-center justify-space-between px-6 py-4 border-b">
+
+                <div class="d-flex align-center ga-3">
+
+                    <v-avatar
+                        color="primary"
+                        variant="tonal"
+                        size="42"
+                    >
+                        <v-icon>
+                            mdi-locker
+                        </v-icon>
+                    </v-avatar>
+
+                    <div>
+
+                        <div class="text-h6 font-weight-bold">
+                            Cambiar casillero
+                        </div>
+
+                        <div class="text-caption text-medium-emphasis">
+                            Selecciona un nuevo casillero disponible
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <v-btn
+                    icon
+                    variant="text"
+                    @click="showEditLockerModal = false"
+                >
+                    <v-icon>
+                        mdi-close
+                    </v-icon>
+                </v-btn>
+
+            </div>
+
+            <!-- BODY -->
+            <v-card-text class="pa-6">
+
+                <!-- INFO -->
+                <v-row class="mb-6">
+
                     <v-col cols="12" md="6">
-                        <MonthPicker
-                            v-model="absencePermitForm.start_month"
-                            label="Mes de inicio"
-                            :min="currentMonth"
-                            :error-messages="absencePermitForm.errors.start_month"
-                        />
+
+                        <v-card
+                            variant="tonal"
+                            color="primary"
+                            class="pa-4 h-100"
+                        >
+                            <div class="text-caption text-medium-emphasis mb-1">
+                                Integrante
+                            </div>
+
+                            <div class="text-subtitle-1 font-weight-bold">
+                                {{ editingMember?.full_name }}
+                            </div>
+                        </v-card>
+
                     </v-col>
 
                     <v-col cols="12" md="6">
-                        <MonthPicker
-                            v-model="absencePermitForm.end_month"
-                            label="Mes de fin"
-                            :min="minEndMonth"
-                            :error-messages="absencePermitForm.errors.end_month"
-                        />
+
+                        <v-card
+                            variant="tonal"
+                            color="grey"
+                            class="pa-4 h-100"
+                        >
+                            <div class="text-caption text-medium-emphasis mb-1">
+                                Casillero actual
+                            </div>
+
+                            <div class="text-h5 font-weight-bold">
+                                {{ editingMember?.locker?.number }}
+                            </div>
+                        </v-card>
+
                     </v-col>
 
+                </v-row>
+
+                <!-- TITLE -->
+                <div class="d-flex align-center justify-space-between mb-4">
+
+                    <div class="text-subtitle-1 font-weight-bold">
+                        Casilleros disponibles
+                    </div>
+
+                </div>
+                <v-row class="mb-4">
                     <v-col cols="12" md="6">
                         <v-text-field
-                            v-model="absencePermitForm.charge_percentage"
-                            label="Porcentaje a cobrar"
-                            type="number"
-                            min="0.01"
-                            max="100"
-                            step="0.01"
-                            :error-messages="
-                                absencePermitForm.errors.charge_percentage
-                            "
+                            v-model="editLockerSearch"
+                            label="Buscar casillero"
+                            prepend-inner-icon="mdi-magnify"
+                            variant="outlined"
+                            density="comfortable"
+                            hide-details
                         />
+                    </v-col>
+                    <v-col
+                        cols="12"
+                        md="6"
+                        class="d-flex justify-end align-center"
+                    >
+                        <v-chip
+                            variant="outlined"
+                            size="small"
+                        >
+                            {{ editTotal }} disponibles
+                        </v-chip>
                     </v-col>
 
                     <v-col cols="12">
-                        <v-textarea
-                            v-model="absencePermitForm.notes"
-                            label="Notas"
-                            rows="3"
-                            auto-grow
-                            :error-messages="absencePermitForm.errors.notes"
-                        />
+                        <v-card
+                            variant="outlined"
+                            class="pa-3"
+                            :color="absencePermitForm.errors.absence_permit_document ? 'error' : undefined"
+                        >
+                            <div class="font-weight-medium text-body-2 mb-1">
+                                Documento de solicitud
+                                <span class="text-error">*</span>
+                            </div>
+                            <div class="text-caption text-medium-emphasis mb-3">
+                                Adjunta el documento firmado que respalda la solicitud. PDF, JPG o PNG, máx. 5 MB.
+                            </div>
+
+                            <input
+                                ref="absencePermitFileInput"
+                                type="file"
+                                accept=".pdf,.jpg,.jpeg,.png"
+                                style="display: none"
+                                @change="onAbsencePermitFileChange"
+                            />
+
+                            <div class="d-flex align-center ga-3">
+                                <v-btn
+                                    size="small"
+                                    variant="outlined"
+                                    prepend-icon="mdi-upload"
+                                    @click="absencePermitFileInput?.click()"
+                                >
+                                    Seleccionar archivo
+                                </v-btn>
+                                <span
+                                    v-if="absencePermitFileName"
+                                    class="text-body-2 text-success"
+                                >
+                                    {{ absencePermitFileName }}
+                                </span>
+                                <span
+                                    v-else
+                                    class="text-body-2 text-medium-emphasis"
+                                >
+                                    Ningún archivo seleccionado
+                                </span>
+                            </div>
+
+                            <div
+                                v-if="absencePermitForm.errors.absence_permit_document"
+                                class="text-error text-caption mt-2"
+                            >
+                                {{ absencePermitForm.errors.absence_permit_document }}
+                            </div>
+                        </v-card>
                     </v-col>
                 </v-row>
+
+                <!-- GRID -->
+                <div class="edit-locker-grid">
+
+                    <v-card
+                        v-for="locker in availableEditLockers"
+                        :key="locker.id"
+                        class="locker-option text-center"
+                        :class="{
+                            'locker-selected': editSelectedLocker === locker.id
+                        }"
+                        :elevation="editSelectedLocker === locker.id ? 8 : 1"
+                        @click="editSelectedLocker = locker.id"
+                    >
+
+                        <v-icon
+                            size="28"
+                            class="mb-2"
+                            :color="editSelectedLocker === locker.id ? 'white' : 'primary'"
+                        >
+                            mdi-locker
+                        </v-icon>
+
+                        <div
+                            class="text-subtitle-1 font-weight-bold"
+                        >
+                            {{ locker.number }}
+                        </div>
+
+                        <v-icon
+                            v-if="editSelectedLocker === locker.id"
+                            size="18"
+                            class="mt-2"
+                        >
+                            mdi-check-circle
+                        </v-icon>
+
+                    </v-card>
+
+                </div>
+                <div class="d-flex align-center justify-space-between mt-6">
+                    <div class="text-caption text-medium-emphasis">
+                        Mostrando
+                        {{ ((editCurrentPage - 1) * editPerPage) + 1 }}
+                        -
+                        {{
+                            Math.min(
+                                editCurrentPage * editPerPage,
+                                editTotal
+                            )
+                        }}
+                        de {{ editTotal }}
+                    </div>
+                    <v-pagination
+                        v-model="editCurrentPage"
+                        :length="editTotalPages"
+                        density="comfortable"
+                        rounded="circle"
+                        :total-visible="7"
+                    />
+                </div>
             </v-card-text>
-            <v-card-actions class="justify-end">
-                <v-btn variant="text" @click="showAbsencePermitDialog = false">
-                    Cerrar
+
+            <!-- FOOTER -->
+            <v-card-actions class="px-6 py-4 border-t">
+
+                <v-spacer />
+
+                <v-btn
+                    variant="text"
+                    @click="showEditLockerModal = false"
+                >
+                    Cancelar
                 </v-btn>
+
                 <v-btn
                     color="primary"
-                    :loading="absencePermitForm.processing"
-                    @click="submitAbsencePermit"
+                    :disabled="!editSelectedLocker"
+                    @click="updateLocker"
                 >
-                    Guardar
+                    Guardar cambios
                 </v-btn>
+
             </v-card-actions>
+
         </v-card>
     </v-dialog>
 </template>
+<style>
+.locker-option {
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 2px solid transparent;
+}
+
+.locker-option:hover {
+    transform: translateY(-2px);
+}
+
+.locker-selected {
+    background: rgb(var(--v-theme-primary));
+    color: white;
+    border-color: rgb(var(--v-theme-primary));
+}
+.edit-locker-grid {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: 12px;
+}
+
+@media (max-width: 1400px) {
+
+    .edit-locker-grid {
+        grid-template-columns: repeat(8, 1fr);
+    }
+}
+
+@media (max-width: 1100px) {
+
+    .edit-locker-grid {
+        grid-template-columns: repeat(6, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+
+    .edit-locker-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+@media (max-width: 500px) {
+
+    .edit-locker-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+.swal2-container {
+    z-index: 999999 !important;
+}
+</style>

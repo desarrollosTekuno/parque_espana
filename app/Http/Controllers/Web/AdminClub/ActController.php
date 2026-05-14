@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Web\AdminClub;
 
-use App\Http\Controllers\Controller;
+use Illuminate\Routing\Controller;
 use Illuminate\Http\Request;
 use App\Models\Members\Act;
 use App\Models\Members\Fine;
@@ -15,11 +15,19 @@ use App\Models\Memberships\Membership;
 use App\Models\Memberships\MembershipAccount;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 
 class ActController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('permission:acts.index')->only('index');
+        $this->middleware('permission:acts.store')->only('store');
+        $this->middleware('permission:acts.update')->only('update');
+    }
+
     public function index(Request $request, $account_id)
     {
         $query = Act::where('account_id', $account_id)
@@ -115,15 +123,18 @@ class ActController extends Controller
 
             // ARCHIVOS
             if ($request->hasFile('files')) {
+                $clubCode = \App\Models\Administrator\Club::find($request->club_id)?->code ?? $request->club_id;
 
                 foreach ($request->file('files') as $file) {
+                    $directory = "clubs/{$clubCode}/acts/{$act->id}";
+                    $filename  = Str::uuid() . '.' . $file->getClientOriginalExtension();
 
-                    $path = $file->store('acts', 'public');
+                    Storage::disk('spaces')->putFileAs($directory, $file, $filename);
 
                     ActFile::create([
-                        'act_id' => $act->id,
-                        'path' => $path,
-                        'mime_type' => $file->getMimeType()
+                        'act_id'    => $act->id,
+                        'path'      => "{$directory}/{$filename}",
+                        'mime_type' => $file->getMimeType(),
                     ]);
                 }
             }
@@ -238,23 +249,26 @@ class ActController extends Controller
                 ->get();
 
             foreach ($filesToDelete as $file) {
-
-                Storage::disk('public')->delete($file->path);
-
+                if ($file->path && Storage::disk('spaces')->exists($file->path)) {
+                    Storage::disk('spaces')->delete($file->path);
+                }
                 $file->delete();
             }
 
             // agregar nuevos
             if ($request->hasFile('files')) {
+                $clubCode = \App\Models\Administrator\Club::find($request->club_id)?->code ?? $request->club_id;
 
                 foreach ($request->file('files') as $file) {
+                    $directory = "clubs/{$clubCode}/acts/{$act->id}";
+                    $filename  = Str::uuid() . '.' . $file->getClientOriginalExtension();
 
-                    $path = $file->store('acts', 'public');
+                    Storage::disk('spaces')->putFileAs($directory, $file, $filename);
 
                     ActFile::create([
-                        'act_id' => $act->id,
-                        'path' => $path,
-                        'mime_type' => $file->getMimeType()
+                        'act_id'    => $act->id,
+                        'path'      => "{$directory}/{$filename}",
+                        'mime_type' => $file->getMimeType(),
                     ]);
                 }
             }
