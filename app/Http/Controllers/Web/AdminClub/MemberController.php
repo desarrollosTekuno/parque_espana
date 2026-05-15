@@ -1787,7 +1787,7 @@ class MemberController extends Controller
                     : $this->createMembershipAccount(
                         club: $club,
                         accountType: $membershipType->allows_multiple_members ? 'family' : 'individual',
-                        status: 'pending',
+                        status: 'active',
                         accountGroup: $sourceAccount?->accountGroup
                     );
 

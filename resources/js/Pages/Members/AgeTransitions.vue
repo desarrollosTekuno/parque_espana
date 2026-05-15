@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import AppLayout from "@/Layouts/AppLayout.vue";
-import { customToastSwal, customConfirmSwal } from "@/utils/swal";
+import { customToastSwal } from "@/utils/swal";
 import { Head, router } from "@inertiajs/vue3";
 import { ref, watch } from "vue";
 
@@ -46,7 +46,6 @@ const statusFilter = ref(props.filters.status ?? "pending");
 const items = ref<AgeTransitionItem[]>(props.transitions.data);
 const totalItems = ref(props.transitions.total);
 const loading = ref(false);
-const promotingId = ref<number | null>(null);
 const dismissingItem = ref<AgeTransitionItem | null>(null);
 const dismissalReason = ref("");
 const dismissDialog = ref(false);
@@ -128,35 +127,8 @@ function fetchItems() {
 
 watch([options, search, statusFilter], fetchItems, { deep: true });
 
-async function promoteTransition(item: AgeTransitionItem) {
-    const confirmed = await customConfirmSwal({
-        title: "¿Promover esta transición?",
-        text: `Se procesará la transición de membresía para ${item.member_name}. Esta acción no se puede deshacer.`,
-        confirmButtonText: "Sí, promover",
-    });
-
-    if (!confirmed.isConfirmed) return;
-
-    promotingId.value = item.id;
-    router.patch(
-        route("members.age-transitions.promote", item.id),
-        {},
-        {
-            preserveState: true,
-            preserveScroll: true,
-            onSuccess: () => {
-                customToastSwal({ title: "Transición promovida correctamente.", icon: "success" });
-                fetchItems();
-            },
-            onError: (errors: Record<string, string>) => {
-                const msg = errors.messageError ?? "Ocurrió un error al promover la transición.";
-                customToastSwal({ title: msg, icon: "error" });
-            },
-            onFinish: () => {
-                promotingId.value = null;
-            },
-        }
-    );
+function promoteTransition(item: AgeTransitionItem) {
+    router.visit(route("members.age-transitions.promote.create", item.id));
 }
 
 function openDismissDialog(item: AgeTransitionItem) {
@@ -282,7 +254,6 @@ function confirmDismiss() {
                                         color="success"
                                         size="small"
                                         variant="text"
-                                        :loading="promotingId === item.id"
                                         @click="promoteTransition(item)"
                                     />
                                 </template>
