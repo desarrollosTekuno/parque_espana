@@ -141,6 +141,8 @@ Route::get('/members/{membership}/manage', [MemberController::class, 'show'])
     ->name('members.manage.show');
 Route::get('/members/{membership}/history', [MemberController::class, 'membershipHistory'])
     ->name('members.manage.history');
+Route::post('/members/{membership}/documents', [MemberController::class, 'storeDocument'])
+    ->name('members.documents.store');
 Route::post('/members/{membership}/absence-permits', [MemberController::class, 'storeAbsencePermit'])
     ->name('members.absence-permits.store');
 Route::patch('/members/{membership}/absence-permits/{absencePermit}/cancel', [MemberController::class, 'cancelAbsencePermit'])

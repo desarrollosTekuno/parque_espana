@@ -99,6 +99,7 @@ class PermissionSeeder extends Seeder
             ['module' => 'Membresías', 'name' => 'members.reactivate', 'description' => 'Reactivar una cuenta dada de baja voluntaria', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.cancellations.index', 'description' => 'Ver historial de bajas', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.age-transitions.index', 'description' => 'Ver transiciones por edad pendientes', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'members.documents.store', 'description' => 'Subir documentos a integrantes de una cuenta', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.age-transitions.promote', 'description' => 'Promover transición por edad', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.age-transitions.dismiss', 'description' => 'Descartar transición por edad', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.lockers.create', 'description' => 'Crear reservación de casillero', 'contexts' => ['web']],
