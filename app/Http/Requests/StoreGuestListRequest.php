@@ -25,6 +25,8 @@ class StoreGuestListRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'title' => 'required|string|max:100',
+            'description' => 'required|string',
             'club_id' => ['required', new ExistsInSchema('clubs', 'clubs', 'id')],
             'reservation_id' => ['nullable', new ExistsInSchema('reservations', 'reservations', 'id')],
             'guests' => 'required|array|min:1',
@@ -32,13 +34,19 @@ class StoreGuestListRequest extends FormRequest
             'guests.*.last_name' => 'required|string|max:200',
             'guests.*.email' => 'required|email',
             'guests.*.phone' => 'required|string|max:15|regex:/^\+?[0-9]{8,15}$/',
-            'guests.*.age' => 'required|integer',
+            'guests.*.age' => 'required|integer|min:3|max:100',
+            'guests.*.is_billable_to_member' => 'required|boolean'
         ];
     }
 
     public function messages()
     {
         return [
+            'title.required' => 'El título es obligatorio.',
+            'title.string' => 'El título debe ser una cadena de texto.',
+            'title.max' => 'El título no puede exceder los 100 caracteres.',
+            'description.required' => 'La descripción es obligatoria.',
+            'description.string' => 'La descripción debe ser una cadena de texto.',
             'club_id.required' => 'El club es obligatorio.',
             'club_id.exists_in_schema' => 'El club proporcionado es inválido.',
             'reservation_id.exists_in_schema' => 'La  reservación es inválida.',
@@ -59,6 +67,10 @@ class StoreGuestListRequest extends FormRequest
             'guests.*.phone.regex' => 'El teléfono debe ser un número válido.',
             'guests.*.age.required' => 'La edad es obligatoria.',
             'guests.*.age.integer' => 'La edad debe ser un número entero.',
+            'guests.*.age.min' => 'La edad debe ser mayor a 2.',
+            'guests.*.age.max' => 'La edad debe ser menor o igual a 100.',
+            'guests.*.is_billable_to_member.required' => 'El campo genera cobro al miembro es obligatorio.',
+            'guests.*.is_billable_to_member.boolean' => 'El campo es genera cobro al miembro debe ser verdadero o falso.'
         ];
     }
 
@@ -68,6 +80,6 @@ class StoreGuestListRequest extends FormRequest
             'success' => false,
             'error' => 'Error de validación',
             'error_details' => $validator->errors()
-        ], 200));
+        ], 422));
     }
 }

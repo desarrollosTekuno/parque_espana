@@ -41,7 +41,7 @@ class ReservationGuestListController extends Controller {
 
                 $q->where('status', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
                     ->orWhere('total_guests', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
-                    ->orWhere('subtotal', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
+                    ->orWhere('billable_subtotal', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
                     ->orWhere('discount', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
                     ->orWhere('total', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
                 // $q->orWhereHas('reservation', function ($q2) use ($driver, $search){

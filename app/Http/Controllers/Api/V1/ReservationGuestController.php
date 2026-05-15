@@ -35,6 +35,8 @@ class ReservationGuestController extends Controller {
 
             $validated = $request->validated();
 
+            // return $validated;
+
             $context = new GuestListContext(
                 data: $validated
             );
@@ -60,6 +62,7 @@ class ReservationGuestController extends Controller {
                     'email' => $guest['email'],
                     'phone' => $guest['phone'],
                     'age' => $guest['age'],
+                    'is_billable_to_member' => $guest['is_billable_to_member'],
                     'guest_list_id' => $guestList->id
                 ]);
             }
@@ -68,14 +71,14 @@ class ReservationGuestController extends Controller {
             return response()->json([
                 'success' => true,
                 'message' => 'Lista de invitados creada correctamente'
-            ], 200);
+            ], 201);
 
         } catch (BusinessRuleException $e){
             return response()->json([
                 'success' => false,
                 'error' => 'Error de regla',
                 'error_details' => $e->getMessage()
-            ]);
+            ], 422);
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
@@ -88,9 +91,6 @@ class ReservationGuestController extends Controller {
     public function priceCalculator(array $data)
     {
         $guests = $data['guests'];
-
-        // $normalPrice = $club_id == 1 ? 300 : 400; // Invitados de 7 años o más
-        // $specialPrice = $club_id == 1 ? 150 : 200; // Invitados de 3 a 6 años
 
         $normalPrice = GuestListVariable::where('code', 'NORMAL_PRICE')
             ->where('club_id', $data['club_id'])
@@ -106,12 +106,26 @@ class ReservationGuestController extends Controller {
         }
 
         $totalGuests = count($guests);
-        $totalNormalGuests = count(array_filter($guests, function($guest) {
-            return $guest['age'] >= 7;
-        }));
-        $totalSpecialGuests = count(array_filter($guests, function($guest) {
-            return $guest['age'] >= 3 && $guest['age'] < 7;
-        }));
+        // $totalNormalGuests = count(array_filter($guests, function($guest) {
+        //     return $guest['age'] >= 7;
+        // }));
+        // $totalSpecialGuests = count(array_filter($guests, function($guest) {
+        //     return $guest['age'] >= 3 && $guest['age'] < 7;
+        // }));
+        // $totalBillableGuests = count(array_filter($guests, function($guest){
+        //     return $guest['is_billable_to_member'];
+        // }));
+
+        $totalNormalGuests = 0;
+        $totalSpecialGuests = 0;
+        // $
+
+        // foreach ($guests as $guest) {
+        //     if ($guest['age'] >= 7)
+
+        // }
+
+        // $billableSubtotal = $normalPrice *
 
         $subtotal = $normalPrice * $totalNormalGuests + $specialPrice * $totalSpecialGuests;
 

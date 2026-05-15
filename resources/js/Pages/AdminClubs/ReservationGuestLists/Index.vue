@@ -31,7 +31,7 @@ interface GuestList {
     total_guests: number;
     total_adults: number;
     total_children: number;
-    subtotal: number;
+    billable_subtotal: number;
     discount_percentage: number;
     discount: number;
     total: number;
@@ -49,7 +49,7 @@ const form = useForm<GuestList>({
     total_guests: 0,
     total_adults: 0,
     total_children: 0,
-    subtotal: 0,
+    billable_subtotal: 0,
     discount_percentage: 0,
     discount: 0,
     total: 0,
@@ -65,7 +65,7 @@ const edit = (data: any) => {
     form.id = data.id;
     form.status = data.status;
     form.total_guests = data.total_guests;
-    form.subtotal = data.subtotal;
+    form.billable_subtotal = data.billable_subtotal;
     form.reservation_id = data.reservation_id;
     form.guest_list_items = data.guest_list_items;
     showModalApprove.value = true;
@@ -77,7 +77,7 @@ const detail = (data) => {
     form.total_guests = data.total_guests;
     form.total_adults = data.total_adults;
     form.total_children = data.total_children;
-    form.subtotal = data.subtotal;
+    form.billable_subtotal = data.billable_subtotal;
     form.discount = data.discount;
     form.total = data.total;
     form.comments = data.comments;
@@ -93,11 +93,11 @@ const Cerrar = () => {
 }
 
 const discountAmount = computed(() => {
-    return (form.subtotal * discount.value) / 100;
+    return (form.billable_subtotal * discount.value) / 100;
 });
 
 const totalAmount = computed(() => {
-    return form.subtotal - discountAmount.value;
+    return form.billable_subtotal - discountAmount.value;
 });
 
 function approveOrRejectList(){
@@ -147,7 +147,7 @@ const headers = [
     // { title: "Recurso", key: "reservation.amenity_resource.name" },
     // { title: "Fecha Reserva", key: "reservation.start_datetime" },
     { title: "Total Invitados", key: "total_guests" },
-    { title: "Subtotal", key: "subtotal" },
+    { title: "Subtotal", key: "billable_subtotal" },
     { title: "Descuento", key: "discount"},
     { title: "Total", key: "total"},
     { title: "Estatus", key: "status" },
@@ -175,8 +175,6 @@ const fetchItems = async () => {
         [`${prefix}_search`]: search.value,
         [`${prefix}_sort`]: options.value.sortBy?.[0]?.key ?? "id",
         [`${prefix}_order`]: options.value.sortBy?.[0]?.order ?? "desc",
-        // [`${prefix}_filter_date`]: filterDate.value,
-        // [`${prefix}_filter_status`]: filterStatus.value
     };
 
     router.get(route("guest-lists.index"), params, {
@@ -249,7 +247,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                         </template>
 
                         <template v-slot:item.subtotal="{ item }">
-                            {{ formatCurrency(item.subtotal)}}
+                            {{ formatCurrency(item.billable_subtotal)}}
                         </template>
 
                         <template v-slot:item.discount="{ item }">
@@ -337,7 +335,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                         <v-sheet class="pa-3 mt-2 rounded" color="grey-lighten-4">
                             <div class="d-flex justify-space-between">
                                 <span>Subtotal</span>
-                                <span>{{ formatCurrency(form.subtotal) }}</span>
+                                <span>{{ formatCurrency(form.billable_subtotal) }}</span>
                             </div>
                             <div class="d-flex justify-space-between">
                                 <span>Descuento ({{ discount }}%)</span>
@@ -452,7 +450,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                         <v-sheet class="pa-3 mt-2 rounded" color="grey-lighten-4">
                             <div class="d-flex justify-space-between">
                                 <span>Subtotal</span>
-                                <span>{{ formatCurrency(form.subtotal) }}</span>
+                                <span>{{ formatCurrency(form.billable_subtotal) }}</span>
                             </div>
                             <div class="d-flex justify-space-between">
                                 <span>Descuento</span>
