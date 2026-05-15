@@ -26,7 +26,8 @@ class EmailNotificationController extends Controller {
 
     public function index(Request $request) {
         $notifications = $this->getEmailNotifications($request);
-        $clubs = Club::get();
+        $clubIds = Auth::user()->clubs()->pluck('clubs.id');
+        $clubs = Club::query()->whereIn('id', $clubIds)->get();
 
         return Inertia::render('Administrator/EmailNotifications/Index', [
             'email_notifications' => $notifications,
@@ -34,6 +35,7 @@ class EmailNotificationController extends Controller {
             'email_configs' => EmailConfig::query()
                 ->select('id', 'entity_id', 'profile_name', 'from_address', 'is_active')
                 ->where('is_active', true)
+                ->whereIn('entity_id', $clubIds)
                 ->orderBy('profile_name')
                 ->get(),
         ]);
@@ -42,6 +44,8 @@ class EmailNotificationController extends Controller {
     private function getEmailNotifications(Request $request) {
         $driver = DB::getDriverName();
         $prefix = 'email_notifications';
+        $sessionClubId = session('club_id');
+        $requestedClubId = $request->input("{$prefix}_club_id", $request->input('club_id'));
 
         $query = Notification::query()
             ->with(['creator:id,name', 'status:id,name,code', 'club:id,name'])
@@ -55,6 +59,12 @@ class EmailNotificationController extends Controller {
                         $statusQuery->where('code', 'sent');
                     });
             });
+
+        if ($requestedClubId > 0) {
+            $query->where('club_id', $requestedClubId);
+        } elseif ($sessionClubId > 0) {
+            $query->where('club_id', $sessionClubId);
+        }
 
         if ($search = $request->input("{$prefix}_search")) {
             $operator = $driver === 'pgsql' ? 'ilike' : 'like';
@@ -117,7 +127,7 @@ class EmailNotificationController extends Controller {
     public function recipientsPreview(Request $request) {
         $validated = $request->validate([
             'scope' => ['required', 'in:all,by_club'],
-            'club_id' => ['nullable', 'integer', 'exists:clubs.clubs,id'],
+            'club_id' => ['nullable', 'integer'],
         ]);
 
         $query = User::query()
@@ -154,7 +164,7 @@ class EmailNotificationController extends Controller {
             'title' => ['required', 'string', 'max:150'],
             'subject' => ['required', 'string', 'max:255'],
             'body' => ['required', 'string'],
-            'club_id' => ['nullable', 'integer', 'exists:clubs.clubs,id'],
+            'club_id' => ['nullable', 'integer'],
         ]);
 
         $email_notification->update([

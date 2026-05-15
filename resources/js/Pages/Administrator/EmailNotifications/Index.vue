@@ -28,6 +28,7 @@ interface Props {
 }
 
 const can = usePage().props.auth.permissions;
+const page = usePage<any>();
 const props = defineProps<Props>();
 const prefix = "email_notifications";
 const showModal = ref(false);
@@ -42,10 +43,18 @@ const recipientsPage = ref(1);
 const recipientsPerPage = 20;
 
 const form = useForm({
-    scope: "all" as "all" | "by_club",
+    scope: "all" as "all" | "by_club" | "individual",
     club_id: null as number | null,
+    individual_email: "",
     smtp_config_id: null as number | null,
 });
+
+const assignedClubs = computed(() => page.props.auth?.clubs ?? []);
+const currentClubId = computed<number | null>(() => {
+    const value = page.props.auth?.currentClub;
+    return value ? Number(value) : null;
+});
+const hasMultipleAssignedClubs = computed(() => assignedClubs.value.length > 1);
 
 const headers = [
     { title: "Fecha", key: "sent_at" },
@@ -111,22 +120,33 @@ const getBodyPreview = (value: string) => {
 const openSendModal = () => {
     form.reset();
     form.clearErrors();
-    form.scope = "all";
-    form.club_id = null;
+    form.scope = "individual";
+    form.club_id = hasMultipleAssignedClubs.value ? null : currentClubId.value;
+    form.individual_email = "";
     form.smtp_config_id = null;
     extraEmails.value = [];
     showModal.value = true;
     loadRecipientsPreview();
+    setDefaultSmtpIfSingle();
 };
 
 const onScopeChange = () => {
+    if (form.scope === "individual") {
+        form.club_id = null;
+    }
+
     if (form.scope === "all") {
         form.club_id = null;
+    }
+
+    if (form.scope === "by_club" && !form.club_id && !hasMultipleAssignedClubs.value) {
+        form.club_id = currentClubId.value;
     }
 
     form.smtp_config_id = null;
 
     loadRecipientsPreview();
+    setDefaultSmtpIfSingle();
 };
 
 const onClubChange = () => {
@@ -137,9 +157,17 @@ const onClubChange = () => {
     }
 
     loadRecipientsPreview();
+    setDefaultSmtpIfSingle();
 };
 
 const loadRecipientsPreview = async () => {
+    if (form.scope === "individual") {
+        recipientsCount.value = 0;
+        recipientsItems.value = [];
+        selectedRecipientIds.value = [];
+        return;
+    }
+
     const params = new URLSearchParams();
     params.set("scope", form.scope);
     if (form.club_id) {
@@ -200,6 +228,10 @@ const selectedRecipientsCount = computed(() => selectedRecipientIds.value.length
 const smtpOptions = computed(() => {
     const configs = props.email_configs ?? [];
 
+    if (form.scope === "individual") {
+        return configs;
+    }
+
     if (form.scope === "by_club") {
         if (!form.club_id) {
             return [];
@@ -217,6 +249,14 @@ const smtpRequiredRule = (value: number | null) => {
     }
 
     return !!value || "Selecciona un servidor SMTP";
+};
+
+const setDefaultSmtpIfSingle = () => {
+    if (form.smtp_config_id || smtpOptions.value.length !== 1) {
+        return;
+    }
+
+    form.smtp_config_id = smtpOptions.value[0].id;
 };
 
 const toggleRecipient = (id: number, checked: boolean | null) => {
@@ -247,6 +287,20 @@ const validExtraEmails = (value: string[]) => {
     return !hasInvalid || "Hay correos extra con formato invalido";
 };
 
+const validIndividualEmail = (value: string) => {
+    if (form.scope !== "individual") {
+        return true;
+    }
+
+    const email = (value || "").trim();
+    if (!email) {
+        return "Ingresa un correo";
+    }
+
+    const pattern = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)*\.[a-zA-Z]{2,}$/;
+    return pattern.test(email) || "Correo invalido";
+};
+
 watch(recipientsSearch, () => {
     recipientsPage.value = 1;
 });
@@ -262,6 +316,10 @@ const closeModal = () => {
     form.clearErrors();
     showModal.value = false;
 };
+
+watch(smtpOptions, () => {
+    setDefaultSmtpIfSingle();
+});
 
 const saveStepOne = () => {
     formSendRef.value?.validate().then(({ valid: isValid }: { valid: boolean }) => {
@@ -346,7 +404,7 @@ const saveStepOne = () => {
             <v-form ref="formSendRef" @submit.prevent="saveStepOne">
                 <v-card title="Enviar correo masivo">
                     <v-card-text>
-                        <div class="p-1 mb-3 bg-red-500">
+                        <div class="p-1 mb-3 ">
                             <div class="mb-2 text-subtitle-2">Selecciona a quienes se les enviara el correo</div>
                             <v-btn-toggle
                                 v-model="form.scope"
@@ -355,11 +413,12 @@ const saveStepOne = () => {
                                 divided
                                 @update:model-value="onScopeChange"
                             >
-                                <v-btn value="all" prepend-icon="mdi-earth">Todos</v-btn>
+                                <v-btn value="individual" prepend-icon="mdi-account">Individual</v-btn>
                                 <v-btn value="by_club" prepend-icon="mdi-map-marker">Por parque</v-btn>
+                                <v-btn v-if="hasMultipleAssignedClubs" value="all" prepend-icon="mdi-earth">Todos</v-btn>
                             </v-btn-toggle>
                             <div class="mt-1 text-caption text-medium-emphasis">
-                                {{ form.scope === 'all' ? 'Se incluiran usuarios de todos los parques.' : 'Selecciona un parque especifico.' }}
+                                {{ form.scope === 'all' ? 'Se incluiran usuarios de todos los parques.' : form.scope === 'individual' ? 'Se enviara solo al correo indicado.' : 'Selecciona un parque especifico.' }}
                             </div>
                         </div>
 
@@ -367,16 +426,25 @@ const saveStepOne = () => {
                             <v-col v-if="form.scope === 'by_club'" cols="12" md="6">
                                 <v-select
                                     v-model="form.club_id"
-                                    :items="props.clubs"
+                                    :items="hasMultipleAssignedClubs ? assignedClubs : assignedClubs"
                                     item-title="name"
                                     item-value="id"
-                                    label="Selecciona el parque"
+                                    :label="hasMultipleAssignedClubs ? 'Selecciona el parque' : 'Parque asignado'"
                                     :rules="[required]"
+                                    :disabled="!hasMultipleAssignedClubs"
                                     required
                                     @update:model-value="onClubChange"
                                 />
                             </v-col>
-                            <v-col cols="12" :md="form.scope === 'by_club' ? 6 : 12">
+                            <v-col v-if="form.scope === 'individual'" cols="12" md="6">
+                                <v-text-field
+                                    v-model="form.individual_email"
+                                    label="Correo destino"
+                                    :rules="[validIndividualEmail]"
+                                    required
+                                />
+                            </v-col>
+                            <v-col cols="12" :md="form.scope === 'all' ? 12 : 6">
                                 <v-select
                                     v-model="form.smtp_config_id"
                                     :items="smtpOptions"
@@ -401,10 +469,10 @@ const saveStepOne = () => {
 
                         <div class="px-1 mt-2 d-flex justify-space-between align-center">
                             <div class="text-caption text-medium-emphasis">
-                                Seleccionados: <strong>{{ selectedRecipientsCount }}</strong> de {{ recipientsCount }}
+                                {{ form.scope === 'individual' ? 'Seleccionados: 1 de 1' : `Seleccionados: ${selectedRecipientsCount} de ${recipientsCount}` }}
                             </div>
                             <a
-                                v-if="selectedRecipientsCount > 0"
+                                v-if="form.scope !== 'individual' && selectedRecipientsCount > 0"
                                 href="#"
                                 class="text-primary text-decoration-underline text-caption"
                                 :style="recipientsCount === 0 ? 'pointer-events:none;opacity:0.5;' : ''"

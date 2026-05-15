@@ -184,18 +184,25 @@ const routes: Routing[] = [
         group: null,
     },
     {
-        name: ["email-configs.index"],
-        title: "Configuración correo",
-        icon: "mdi mdi-email-newsletter",
-        value: "configuracion-correo",
-        group: null,
-    },
-    {
-        name: ["email-notifications.index"],
-        title: "Envío de correos",
-        icon: "mdi-email-outline",
-        value: "correo-socios",
-        group: null,
+        name: ["email-configs.index", "email-notifications.index"],
+        title: "Notificaciones correo",
+        icon: "mdi-email-multiple-outline",
+        value: "notificaciones-correo",
+        group: "Notificaciones correo",
+        groupItems: [
+            {
+                name: "email-configs.index",
+                title: "Configuración SMTP",
+                icon: "mdi mdi-email-fast-outline",
+                value: "configuracion-correo",
+            },
+            {
+                name: "email-notifications.index",
+                title: "Envío de correos",
+                icon: "mdi-email-outline",
+                value: "correo-socios",
+            },
+        ],
     },
     // Amenidades
     {
