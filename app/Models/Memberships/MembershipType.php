@@ -41,7 +41,7 @@ class MembershipType extends Model
         )->withPivot([
             'is_required',
             'allow_multiple',
-            'number_files'
+            'number_files',
         ]);
     }
 }

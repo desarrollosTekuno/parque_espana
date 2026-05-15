@@ -196,10 +196,13 @@ class AgeTransitionController extends Controller
                 'id'                  => $dt->id,
                 'name'                => $dt->name,
                 'allowed_extensions'  => $dt->allowed_extensions,
+                'min_age'             => $dt->min_age !== null ? (int) $dt->min_age : null,
+                'max_age'             => $dt->max_age !== null ? (int) $dt->max_age : null,
+                'max_file_size_kb'    => $dt->max_file_size_kb !== null ? (int) $dt->max_file_size_kb : null,
                 'pivot' => [
-                    'is_required'   => (bool) $dt->pivot->is_required,
+                    'is_required'    => (bool) $dt->pivot->is_required,
                     'allow_multiple' => (bool) $dt->pivot->allow_multiple,
-                    'number_files'  => (int) $dt->pivot->number_files,
+                    'number_files'   => (int) $dt->pivot->number_files,
                 ],
                 'relationships' => $dt->relationships->map(fn ($r) => [
                     'id'   => $r->id,

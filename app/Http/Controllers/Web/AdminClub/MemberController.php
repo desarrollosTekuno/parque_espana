@@ -260,7 +260,7 @@ class MemberController extends Controller
         $membershipTypes = MembershipType::where('show_in_listing', true)
             ->select('id', 'club_id', 'code', 'name', 'description', 'allows_multiple_members', 'validity_months')
             ->with([
-                'documentTypes:id,name,allowed_extensions',
+                'documentTypes:id,name,allowed_extensions,min_age,max_age,max_file_size_kb',
                 'documentTypes.relationships:id,name',
             ])
             ->where('club_id', $clubId)
@@ -1054,6 +1054,25 @@ class MemberController extends Controller
                 ->values();
         }
 
+        $membershipDocumentTypes = $membership->membershipType?->documentTypes
+            ->map(fn ($dt) => [
+                'id'                 => $dt->id,
+                'name'               => $dt->name,
+                'allowed_extensions' => $dt->allowed_extensions,
+                'min_age'            => $dt->min_age !== null ? (int) $dt->min_age : null,
+                'max_age'            => $dt->max_age !== null ? (int) $dt->max_age : null,
+                'max_file_size_kb'   => $dt->max_file_size_kb !== null ? (int) $dt->max_file_size_kb : null,
+                'pivot' => [
+                    'is_required'    => (bool) $dt->pivot->is_required,
+                    'allow_multiple' => (bool) $dt->pivot->allow_multiple,
+                    'number_files'   => (int) $dt->pivot->number_files,
+                ],
+                'relationships' => $dt->relationships->map(fn ($r) => [
+                    'id'   => $r->id,
+                    'name' => $r->name,
+                ])->values(),
+            ])->values() ?? collect([]);
+
         return Inertia::render('Members/AddFamilyMember', [
             'membership' => $this->buildSourceMembershipPayload($membership),
             'account' => $this->buildMembershipAccountPayload($membership),
@@ -1063,7 +1082,8 @@ class MemberController extends Controller
                 ->get()
                 ->reject(fn(Relationship $relationship) => $this->isTitularRelationship($relationship->name))
                 ->values(),
-            'availableGroupMembers' => $availableGroupMembers,
+            'availableGroupMembers'    => $availableGroupMembers,
+            'membershipDocumentTypes'  => $membershipDocumentTypes,
         ]);
     }
 
@@ -1183,10 +1203,15 @@ class MemberController extends Controller
                 'employment.company_name' => ['nullable', 'string', 'max:255'],
                 'employment.company_address' => ['nullable', 'string', 'max:255'],
                 'employment.company_phone' => ['nullable', 'string', 'max:50'],
+                'documents' => ['nullable', 'array'],
+                'documents.*.document_type_id' => ['required_with:documents.*', 'integer'],
+                'documents.*.files' => ['nullable', 'array'],
+                'documents.*.files.*' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:2048'],
             ]);
 
-            $relationship = Relationship::query()->findOrFail($validated['relationship_id']);
-            $age = Carbon::parse($validated['birthdate'])->age;
+            $relationship  = Relationship::query()->findOrFail($validated['relationship_id']);
+            $age           = Carbon::parse($validated['birthdate'])->age;
+            $documentsRaw  = $validated['documents'] ?? [];
 
             if ($this->isTitularRelationship($relationship->name)) {
                 throw ValidationException::withMessages([
@@ -1206,7 +1231,9 @@ class MemberController extends Controller
                 ]);
             }
 
-            DB::transaction(function () use ($validated, $membership, $relationship) {
+            $createdMemberId = null;
+
+            DB::transaction(function () use ($validated, $membership, $relationship, &$createdMemberId) {
                 $birthLocationAttributes = $this->resolveBirthLocationFields(
                     $validated,
                     'birth_country_id',
@@ -1261,7 +1288,14 @@ class MemberController extends Controller
                     'relationship_id' => $relationship->id,
                     'is_primary_holder' => false,
                 ]);
+
+                $createdMemberId = $member->id;
             });
+
+            // Subir documentos fuera de la transacción para evitar rollbacks por fallos de storage
+            if ($createdMemberId && !empty($documentsRaw)) {
+                $this->uploadMemberDocuments([$createdMemberId => $documentsRaw]);
+            }
 
             return redirect()
                 ->route('members.manage.show', $membership)
@@ -2858,9 +2892,16 @@ class MemberController extends Controller
 
         $uploadedDocs = $member?->documents ?? collect();
         $relationshipId = $accountMember->is_primary_holder ? 1 : $accountMember->relationship_id;
+        $memberAge = $member?->birthdate ? Carbon::parse($member->birthdate)->age : null;
 
         $documents = collect($documentTypes ?? [])
             ->filter(fn ($docType) => $docType->relationships->contains('id', $relationshipId))
+            ->filter(function ($docType) use ($memberAge) {
+                if ($memberAge === null) return true;
+                if ($docType->min_age !== null && $memberAge < (int) $docType->min_age) return false;
+                if ($docType->max_age !== null && $memberAge > (int) $docType->max_age) return false;
+                return true;
+            })
             ->map(function ($docType) use ($uploadedDocs) {
                 $allowMultiple = (bool) $docType->pivot->allow_multiple;
                 $numberFiles   = (int) $docType->pivot->number_files;
@@ -2882,6 +2923,7 @@ class MemberController extends Controller
                     'allowed_extensions' => $docType->allowed_extensions
                         ? collect(explode(',', $docType->allowed_extensions))->map(fn ($e) => trim(strtolower($e)))->values()
                         : [],
+                    'max_file_size_kb'   => $docType->max_file_size_kb !== null ? (int) $docType->max_file_size_kb : null,
                     'is_required'        => (bool) $docType->pivot->is_required,
                     'allow_multiple'     => $allowMultiple,
                     'number_files'       => $numberFiles,

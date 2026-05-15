@@ -82,8 +82,14 @@ const shouldShowBadge = (ruta: any) => {
     }
     return ruta.name === "business-ads.index";
 };
-const isInLockersFlow = computed(() => {
-    return route().current("members.lockers.create");
+// const isInLockersFlow = computed(() => {
+//     return route().current("members.lockers.create")
+// });
+// const isInManagementAccount = computed(() => {
+//     return route().current("members.manage.show");
+// });
+const disabledSelectClub = computed(() => {
+    return route().current("members.lockers.create") || route().current("members.manage.show");
 });
 </script>
 
@@ -147,10 +153,10 @@ const isInLockersFlow = computed(() => {
                 color="#F4B403"
                 base-color="rgba(255,255,255,0.6)"
                 @update:modelValue="changeClub"
-                :disabled="isInLockersFlow"
+                :disabled="disabledSelectClub"
                 :hint="
-                    isInLockersFlow
-                        ? 'No puedes cambiar de club durante la asignación de casilleros'
+                    disabledSelectClub
+                        ? 'No puedes cambiar de club durante la asignación de casilleros o la gestión de miembros'
                         : ''
                 "
                 persistent-hint

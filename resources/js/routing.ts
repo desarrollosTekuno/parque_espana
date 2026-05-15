@@ -160,7 +160,7 @@ const routes: Routing[] = [
             },
             {
                 name: "cash-cuts.index",
-                title: "Mis cortes de caja",
+                title: "Cortes de caja",
                 icon: "mdi-cash-register",
                 value: "cortes-caja",
             },

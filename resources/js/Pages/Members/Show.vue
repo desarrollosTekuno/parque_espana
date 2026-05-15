@@ -75,6 +75,7 @@ interface MemberDocumentItem {
     document_type_id: number;
     name: string;
     allowed_extensions: string[];
+    max_file_size_kb: number | null;
     is_required: boolean;
     allow_multiple: boolean;
     number_files: number;
@@ -343,12 +344,14 @@ const documentForm = useForm({
     files: [] as File[],
 });
 
+const DEFAULT_MAX_FILE_SIZE_KB = 2048;
+
 const documentFileRules = computed(() => {
     const doc = documentModalDoc.value;
     const rules = [
         requiredFileRule,
         fileTypeRule(doc?.allowed_extensions ?? ["pdf", "jpg", "jpeg", "png"]),
-        fileMaxSizeRule(2),
+        fileMaxSizeRule((doc?.max_file_size_kb ?? DEFAULT_MAX_FILE_SIZE_KB) / 1024),
     ];
     if (doc?.allow_multiple && (doc.number_files ?? 0) > 0) {
         rules.push(fileExactCountRule(doc.number_files));

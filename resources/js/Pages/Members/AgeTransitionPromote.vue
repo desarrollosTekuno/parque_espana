@@ -55,6 +55,9 @@ interface DocumentType {
     id: number;
     name: string;
     allowed_extensions: string;
+    min_age: number | null;
+    max_age: number | null;
+    max_file_size_kb: number | null;
     pivot: {
         is_required: boolean;
         allow_multiple: boolean;
@@ -132,6 +135,9 @@ interface DocumentFormItem {
     is_required: boolean;
     allow_multiple: boolean;
     number_files: number;
+    max_file_size_kb: number | null;
+    min_age: number | null;
+    max_age: number | null;
     files: File[];
     document_id: number | null;
     already_uploaded: boolean;
@@ -339,34 +345,46 @@ const onBirthdateChange = () => {
 
 const TITULAR_RELATIONSHIP_NAME = "Titular";
 
-const titularDocumentTypes = computed(() =>
-    props.transition.target_membership_type.document_types.filter((dt) =>
-        dt.relationships.some((r) => r.name === TITULAR_RELATIONSHIP_NAME),
-    ),
-);
+/** Default max file size when the document type has no limit configured (2 MB in KB). */
+const DEFAULT_MAX_FILE_SIZE_KB = 2048;
 
-const buildDocuments = (): DocumentFormItem[] =>
-    titularDocumentTypes.value.map((dt) => {
+/**
+ * Pure helper — filters document types by relationship + age range.
+ * Does NOT reference `form` so it can be called before `form` is declared.
+ */
+const getDocumentTypesForAge = (age: number | null) =>
+    props.transition.target_membership_type.document_types.filter((dt) => {
+        if (!dt.relationships.some((r) => r.name === TITULAR_RELATIONSHIP_NAME)) return false;
+        if (age !== null) {
+            if (dt.min_age !== null && age < dt.min_age) return false;
+            if (dt.max_age !== null && age > dt.max_age) return false;
+        }
+        return true;
+    });
+
+const buildDocuments = (age: number | null): DocumentFormItem[] =>
+    getDocumentTypesForAge(age).map((dt) => {
         const existing =
             props.prefillMember.existing_documents?.find(
                 (e) => e.document_type_id === dt.id,
             ) ?? null;
         return {
-            document_type_id: dt.id,
-            name: dt.name,
+            document_type_id:  dt.id,
+            name:              dt.name,
             allowed_extensions: dt.allowed_extensions
-                ? dt.allowed_extensions
-                      .split(",")
-                      .map((e) => e.trim().toLowerCase())
+                ? dt.allowed_extensions.split(",").map((e) => e.trim().toLowerCase())
                 : [],
-            is_required: dt.pivot.is_required,
-            allow_multiple: dt.pivot.allow_multiple,
-            number_files: dt.pivot.number_files,
-            files: [],
-            document_id: existing?.id ?? null,
-            already_uploaded: existing !== null,
-            uploaded_at: existing?.uploaded_at ?? null,
-            update_mode: false,
+            is_required:       dt.pivot.is_required,
+            allow_multiple:    dt.pivot.allow_multiple,
+            number_files:      dt.pivot.number_files,
+            max_file_size_kb:  dt.max_file_size_kb,
+            min_age:           dt.min_age,
+            max_age:           dt.max_age,
+            files:             [],
+            document_id:       existing?.id ?? null,
+            already_uploaded:  existing !== null,
+            uploaded_at:       existing?.uploaded_at ?? null,
+            update_mode:       false,
         };
     });
 
@@ -406,8 +424,14 @@ const form = useForm<FormData>({
             company_phone:   p.employment?.company_phone ?? null,
         },
     },
-    documents: buildDocuments(),
+    documents: buildDocuments(calculateAge(p.birthdate ?? null)),
 });
+
+/**
+ * Reactive computed — safe here because `form` is already declared above.
+ * Used if we ever need to rebuild documents reactively in the template.
+ */
+const titularDocumentTypes = computed(() => getDocumentTypesForAge(form.member.age));
 
 // Preload location catalogs for prefilled values
 onMounted(async () => {
@@ -897,15 +921,33 @@ const submit = () => {
                                                             *
                                                         </span>
                                                     </span>
-                                                    <v-chip
-                                                        v-if="doc.already_uploaded && !doc.update_mode"
-                                                        size="x-small"
-                                                        color="success"
-                                                        variant="tonal"
-                                                        prepend-icon="mdi-check-circle"
-                                                    >
-                                                        Ya cargado{{ doc.uploaded_at ? ` · ${doc.uploaded_at}` : "" }}
-                                                    </v-chip>
+                                                    <div class="d-flex align-center ga-1">
+                                                        <v-chip
+                                                            v-if="doc.min_age !== null || doc.max_age !== null"
+                                                            size="x-small"
+                                                            color="info"
+                                                            variant="tonal"
+                                                        >
+                                                            <template v-if="doc.min_age !== null && doc.max_age !== null">
+                                                                {{ doc.min_age }}–{{ doc.max_age }} años
+                                                            </template>
+                                                            <template v-else-if="doc.min_age !== null">
+                                                                ≥ {{ doc.min_age }} años
+                                                            </template>
+                                                            <template v-else>
+                                                                ≤ {{ doc.max_age }} años
+                                                            </template>
+                                                        </v-chip>
+                                                        <v-chip
+                                                            v-if="doc.already_uploaded && !doc.update_mode"
+                                                            size="x-small"
+                                                            color="success"
+                                                            variant="tonal"
+                                                            prepend-icon="mdi-check-circle"
+                                                        >
+                                                            Ya cargado{{ doc.uploaded_at ? ` · ${doc.uploaded_at}` : "" }}
+                                                        </v-chip>
+                                                    </div>
                                                 </div>
 
                                                 <!-- Documento ya cargado — modo lectura -->
@@ -958,7 +1000,7 @@ const submit = () => {
                                                                 ? [requiredFileRule, fileExactCountRule(doc.number_files)]
                                                                 : []),
                                                             fileTypeRule(doc.allowed_extensions),
-                                                            fileMaxSizeRule(2),
+                                                            fileMaxSizeRule((doc.max_file_size_kb ?? DEFAULT_MAX_FILE_SIZE_KB) / 1024),
                                                         ]"
                                                         clearable
                                                     />
