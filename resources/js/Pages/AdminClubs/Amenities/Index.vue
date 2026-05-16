@@ -21,6 +21,22 @@ const page = usePage();
 const can = usePage().props.auth.permissions;
 const imageRef = ref<any>(null);
 const iconRef = ref<any>(null);
+const iconInputRef = ref<HTMLInputElement | null>(null);
+const imageInputRef = ref<HTMLInputElement | null>(null);
+
+const onIconFileChange = (e: Event) => {
+    const file = (e.target as HTMLInputElement).files?.[0] ?? null;
+    form.icon = file;
+    form.remove_icon = !file;
+};
+
+const onImageFileChange = (e: Event) => {
+    const file = (e.target as HTMLInputElement).files?.[0] ?? null;
+    form.background_image = file;
+};
+
+const triggerIconInput = () => iconInputRef.value?.click();
+const triggerImageInput = () => imageInputRef.value?.click();
 const tab = ref('amenities')
 
 // Modal calendario
@@ -46,18 +62,24 @@ const openCalendar = async (resource:any) => {
 }
 
 //    Computeds
-const isSaveDisabled = computed(() => {
-    const imageInvalid =
-        imageRef.value &&
-        form.background_image &&
-        imageRef.value.isValid === false;
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const MAX_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB
 
-    const iconInvalid =
-        iconRef.value &&
-        form.icon &&
-        iconRef.value.isValid === false;
-    return imageInvalid || iconInvalid;
+const iconError = computed(() => {
+    if (!form.icon) return null;
+    if (!ALLOWED_TYPES.includes(form.icon.type)) return 'Formato no permitido';
+    if (form.icon.size > MAX_SIZE_BYTES) return 'El archivo supera 2 MB';
+    return null;
 });
+
+const imageError = computed(() => {
+    if (!form.background_image) return null;
+    if (!ALLOWED_TYPES.includes(form.background_image.type)) return 'Formato no permitido';
+    if (form.background_image.size > MAX_SIZE_BYTES) return 'El archivo supera 2 MB';
+    return null;
+});
+
+const isSaveDisabled = computed(() => !!iconError.value || !!imageError.value);
 /*const isAmenities = computed(() => tab.value === 'amenities')
 const handleCreate = () => {
     if (isAmenities.value) {
@@ -1031,56 +1053,105 @@ watch(
                                     :rules="[required, maxLength(50)]" />
                             </v-col>
 
-                            <v-col cols="6">
-                                <FormIcon v-model="form.icon" 
-                                    label="Icono" 
-                                    ref="iconRef"
-                                    :rules="[
-                                        fileMaxSizeRule(2),
-                                        fileTypeRule(['jpg','jpeg','png','webp'])
-                                    ]" />
+                            <!-- ── Icono ── -->
+                            <v-col cols="12" sm="5">
+                                <div class="text-body-2 font-weight-medium mb-2">Icono</div>
 
-                                <v-card height="150" variant="outlined"
-                                    class="mt-2 pa-2 d-flex flex-column align-center justify-center imagePreview">
-                                    <v-img v-if="iconPreview" :src="iconPreview" width="90" height="60" cover
-                                        class="rounded" />
-                                    <v-icon v-else size="40" color="grey">
-                                        mdi-image-outline
-                                    </v-icon>
+                                <input
+                                    ref="iconInputRef"
+                                    type="file"
+                                    accept=".jpg,.jpeg,.png,.webp"
+                                    class="d-none"
+                                    @change="onIconFileChange"
+                                />
 
-                                    <v-btn v-if="iconPreview" size="x-small" color="error" variant="text" class="mt-2"
-                                        @click="removeIcon">
-                                        Eliminar
+                                <div
+                                    class="upload-zone upload-zone--square"
+                                    :class="{ 'upload-zone--filled': iconPreview }"
+                                    @click="triggerIconInput"
+                                >
+                                    <v-img
+                                        v-if="iconPreview"
+                                        :src="iconPreview"
+                                        cover
+                                        class="upload-zone__img"
+                                    />
+                                    <div v-else class="upload-zone__placeholder">
+                                        <v-icon size="38" color="grey-lighten-1">mdi-image-plus</v-icon>
+                                        <span class="text-caption text-medium-emphasis mt-1">Subir icono</span>
+                                    </div>
+                                    <div v-if="iconPreview" class="upload-zone__overlay">
+                                        <v-icon color="white" size="28">mdi-pencil</v-icon>
+                                    </div>
+                                </div>
+
+                                <div class="d-flex align-center justify-space-between mt-1">
+                                    <span
+                                        class="text-caption"
+                                        :class="iconError ? 'text-error' : 'text-medium-emphasis'"
+                                    >
+                                        {{ iconError ?? 'JPG, PNG, WEBP · máx. 2 MB' }}
+                                    </span>
+                                    <v-btn
+                                        v-if="iconPreview"
+                                        size="x-small"
+                                        color="error"
+                                        variant="text"
+                                        @click.stop="removeIcon"
+                                    >
+                                        <v-icon size="14" start>mdi-close</v-icon>Quitar
                                     </v-btn>
-                                </v-card>
-                                <div class="text-caption text-medium-emphasis">
-                                    Máximo 2MB · Formatos JPG, PNG
                                 </div>
                             </v-col>
-                            <v-col cols="6">
-                                <FormImage v-model="form.background_image" 
-                                    label="Imagen de fondo" 
-                                    ref="imageRef"
-                                    :rules="[
-                                        fileMaxSizeRule(2),
-                                        fileTypeRule(['jpg','jpeg','png','webp'])
-                                    ]" />
-                                <v-card height="150" variant="outlined"
-                                    class="mt-2 d-flex flex-column align-center justify-center imagePreview">
-                                    <v-img v-if="imagePreview" :src="imagePreview" height="90" width="200" cover
-                                        class="rounded" />
 
-                                    <v-icon v-else size="40" color="grey">
-                                        mdi-image-outline
-                                    </v-icon>
+                            <!-- ── Imagen de fondo ── -->
+                            <v-col cols="12" sm="7">
+                                <div class="text-body-2 font-weight-medium mb-2">Imagen de fondo</div>
 
-                                    <v-btn v-if="imagePreview" size="x-small" color="error" variant="text" class="mt-2"
-                                        @click="removeBackgroundImage">
-                                        Eliminar
+                                <input
+                                    ref="imageInputRef"
+                                    type="file"
+                                    accept=".jpg,.jpeg,.png,.webp"
+                                    class="d-none"
+                                    @change="onImageFileChange"
+                                />
+
+                                <div
+                                    class="upload-zone upload-zone--wide"
+                                    :class="{ 'upload-zone--filled': imagePreview }"
+                                    @click="triggerImageInput"
+                                >
+                                    <v-img
+                                        v-if="imagePreview"
+                                        :src="imagePreview"
+                                        cover
+                                        class="upload-zone__img"
+                                    />
+                                    <div v-else class="upload-zone__placeholder">
+                                        <v-icon size="38" color="grey-lighten-1">mdi-image-plus</v-icon>
+                                        <span class="text-caption text-medium-emphasis mt-1">Subir imagen de fondo</span>
+                                    </div>
+                                    <div v-if="imagePreview" class="upload-zone__overlay">
+                                        <v-icon color="white" size="28">mdi-pencil</v-icon>
+                                    </div>
+                                </div>
+
+                                <div class="d-flex align-center justify-space-between mt-1">
+                                    <span
+                                        class="text-caption"
+                                        :class="imageError ? 'text-error' : 'text-medium-emphasis'"
+                                    >
+                                        {{ imageError ?? 'JPG, PNG, WEBP · máx. 2 MB' }}
+                                    </span>
+                                    <v-btn
+                                        v-if="imagePreview"
+                                        size="x-small"
+                                        color="error"
+                                        variant="text"
+                                        @click.stop="removeBackgroundImage"
+                                    >
+                                        <v-icon size="14" start>mdi-close</v-icon>Quitar
                                     </v-btn>
-                                </v-card>
-                                <div class="text-caption text-medium-emphasis">
-                                    Máximo 2MB · Formatos JPG, PNG
                                 </div>
                             </v-col>
 
