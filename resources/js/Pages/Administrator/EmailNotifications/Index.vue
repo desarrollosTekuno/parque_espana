@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import BaseButton from "@/Components/BaseButton.vue";
-import { required } from "@/constants/validationRules";
+import FormQuillEditor from "@/Components/Form/FormQuillEditor.vue";
+import { fileMaxCountRule, fileMaxSizeRule, fileTypeRule, required } from "@/constants/validationRules";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { Head, useForm, usePage, router } from "@inertiajs/vue3";
 import { debounce } from "lodash";
@@ -43,9 +44,16 @@ const recipientsPage = ref(1);
 const recipientsPerPage = 20;
 
 const form = useForm({
+    title: "",
+    subject: "",
+    body: "",
     scope: "all" as "all" | "by_club" | "individual",
     club_id: null as number | null,
     individual_email: "",
+    send_type: "now" as "now" | "scheduled",
+    scheduled_date: "",
+    scheduled_time: "",
+    attachments: [] as File[],
     smtp_config_id: null as number | null,
 });
 
@@ -121,8 +129,15 @@ const openSendModal = () => {
     form.reset();
     form.clearErrors();
     form.scope = "individual";
+    form.title = "";
+    form.subject = "";
+    form.body = "";
     form.club_id = hasMultipleAssignedClubs.value ? null : currentClubId.value;
     form.individual_email = "";
+    form.send_type = "now";
+    form.scheduled_date = "";
+    form.scheduled_time = "";
+    form.attachments = [];
     form.smtp_config_id = null;
     extraEmails.value = [];
     showModal.value = true;
@@ -301,6 +316,22 @@ const validIndividualEmail = (value: string) => {
     return pattern.test(email) || "Correo invalido";
 };
 
+const scheduledDateRule = (value: string) => {
+    if (form.send_type !== "scheduled") {
+        return true;
+    }
+
+    return !!(value || "").trim() || "Selecciona fecha y hora";
+};
+
+const scheduledTimeRule = (value: string) => {
+    if (form.send_type !== "scheduled") {
+        return true;
+    }
+
+    return !!(value || "").trim() || "Selecciona fecha y hora";
+};
+
 watch(recipientsSearch, () => {
     recipientsPage.value = 1;
 });
@@ -400,7 +431,7 @@ const saveStepOne = () => {
             </v-row>
         </div>
 
-        <v-dialog v-model="showModal" max-width="700" persistent>
+        <v-dialog v-model="showModal" max-width="800" persistent>
             <v-form ref="formSendRef" @submit.prevent="saveStepOne">
                 <v-card title="Enviar correo masivo">
                     <v-card-text>
@@ -490,11 +521,106 @@ const saveStepOne = () => {
                             multiple
                             clearable
                             closable-chips
-                            hint="Escribe correo y presiona Enter"
+                            hint="Escribe correos separados por coma o presiona Enter (ej. correo@dom.com, otro@dom.com)"
                             persistent-hint
                             :rules="[validExtraEmails]"
                             @update:model-value="normalizeExtraEmails"
                         />
+
+                        <v-file-input
+                            v-model="form.attachments"
+                            class="mt-3"
+                            name="attachments[]"
+                            label="Adjuntos"
+                            multiple
+                            chips
+                            show-size
+                            counter
+                            clearable
+                            prepend-icon="mdi-paperclip"
+                            accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                            hint="Puedes adjuntar varios archivos (PDF, Office o imagen). Maximo 5 archivos de 10MB c/u."
+                            persistent-hint
+                            :rules="[
+                                fileMaxCountRule(5),
+                                fileTypeRule(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png']),
+                                fileMaxSizeRule(10),
+                            ]"
+                        />
+
+                        <v-divider class="my-4" />
+
+                        <div class="mb-2 text-subtitle-2">Contenido del correo</div>
+
+                        <v-row>
+                            <v-col cols="12">
+                                <v-text-field
+                                    v-model="form.title"
+                                    label="Titulo"
+                                    :rules="[required]"
+                                    required
+                                />
+                            </v-col>
+
+                            <v-col cols="12">
+                                <v-text-field
+                                    v-model="form.subject"
+                                    label="Asunto"
+                                    :rules="[required]"
+                                    required
+                                />
+                            </v-col>
+
+                            <v-col cols="12">
+                                <FormQuillEditor
+                                    v-model="form.body"
+                                    label="Descripcion"
+                                    placeholder="Escribe el contenido del correo..."
+                                    :required="true"
+                                    toolbar="essential"
+                                />
+                            </v-col>
+                        </v-row>
+
+                        <v-divider class="my-4" />
+
+                        <div class="mb-2 text-subtitle-2">Programacion de envio</div>
+
+                        <v-row>
+                            <v-col cols="12" md="4">
+                                <v-select
+                                    v-model="form.send_type"
+                                    :items="[
+                                        { title: 'Enviar ahora', value: 'now' },
+                                        { title: 'Programar envio', value: 'scheduled' },
+                                    ]"
+                                    item-title="title"
+                                    item-value="value"
+                                    label="Tipo de envio"
+                                    required
+                                />
+                            </v-col>
+
+                            <v-col cols="12" md="4" v-if="form.send_type === 'scheduled'">
+                                <v-text-field
+                                    v-model="form.scheduled_date"
+                                    type="date"
+                                    label="Fecha de envio"
+                                    :rules="[scheduledDateRule]"
+                                    required
+                                />
+                            </v-col>
+
+                            <v-col cols="12" md="4" v-if="form.send_type === 'scheduled'">
+                                <v-text-field
+                                    v-model="form.scheduled_time"
+                                    type="time"
+                                    label="Hora de envio"
+                                    :rules="[scheduledTimeRule]"
+                                    required
+                                />
+                            </v-col>
+                        </v-row>
 
 
                     </v-card-text>

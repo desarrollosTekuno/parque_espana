@@ -54,7 +54,7 @@ class EmailNotificationController extends Controller {
                 $channelQuery->where('code', 'email');
             })
             ->where(function ($historyQuery) {
-                $historyQuery->whereNotNull('sent_at')
+                $historyQuery->whereNotNull('sent_date')
                     ->orWhereHas('status', function ($statusQuery) {
                         $statusQuery->where('code', 'sent');
                     });
@@ -78,7 +78,7 @@ class EmailNotificationController extends Controller {
         $sort = $request->input("{$prefix}_sort", 'id');
         $order = $request->input("{$prefix}_order", 'desc');
 
-        $allowedSorts = ['id', 'title', 'subject', 'created_at', 'sent_at'];
+        $allowedSorts = ['id', 'title', 'subject', 'created_at', 'sent_date'];
         if (!in_array($sort, $allowedSorts, true)) {
             $sort = 'id';
         }

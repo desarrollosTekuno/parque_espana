@@ -17,8 +17,10 @@ return new class extends Migration
             $table->string('title', 150);
             $table->text('body');
             $table->unsignedTinyInteger('type')->default(0); // 0 manual, 1 automatic
-            $table->timestamp('scheduled_at')->nullable();
-            $table->timestamp('sent_at')->nullable();
+            $table->date('scheduled_date')->nullable();
+            $table->time('scheduled_time')->nullable();
+            $table->date('sent_date')->nullable();
+            $table->time('sent_time')->nullable();
 
             $table->unsignedBigInteger('channel_id');
             $table->foreign('channel_id')->references('id')->on('notification_channels');
