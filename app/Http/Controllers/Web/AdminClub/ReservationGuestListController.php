@@ -75,8 +75,8 @@ class ReservationGuestListController extends Controller {
 
             if ($action == 'approve' )
             {
-                $discount = ($guestList->subtotal * $request->discount_percentage) / 100;
-                $total = $guestList->subtotal - $discount;
+                $discount = ($guestList->billable_subtotal * $request->discount_percentage) / 100;
+                $total = $guestList->billable_subtotal - $discount;
                 $status = ReservationGuestList::APPROVED;
                 $comments = null;
             }else {

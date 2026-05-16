@@ -49,10 +49,14 @@ class ReservationGuestController extends Controller {
                 'total_guests' => $data['total_guests'],
                 'total_adults' => $data['total_normal_guests'],
                 'total_children' => $data['total_special_guests'],
-                'subtotal' => $data['subtotal'],
+                'billable_subtotal' => $data['billable_subtotal'],
                 'reservation_id' => $validated['reservation_id'] ?? null,
                 'club_id' => $validated['club_id'],
                 'user_id' => $request->user()->id,
+                'title' => $validated['title'],
+                'description' => $validated['description'],
+                'total_billable_guests' => $data['total_billable_guests'],
+                'non_billable_subtotal' => $data['non_billable_subtotal']
             ]);
 
             foreach ($validated['guests'] as $guest) {
@@ -62,8 +66,8 @@ class ReservationGuestController extends Controller {
                     'email' => $guest['email'],
                     'phone' => $guest['phone'],
                     'age' => $guest['age'],
-                    'is_billable_to_member' => $guest['is_billable_to_member'],
-                    'guest_list_id' => $guestList->id
+                    'guest_list_id' => $guestList->id,
+                    'is_billable_to_member' => $guest['is_billable_to_member']
                 ]);
             }
 
@@ -105,35 +109,48 @@ class ReservationGuestController extends Controller {
             throw new BusinessRuleException('No se han configurado los precios para el club');
         }
 
-        $totalGuests = count($guests);
-        // $totalNormalGuests = count(array_filter($guests, function($guest) {
-        //     return $guest['age'] >= 7;
-        // }));
-        // $totalSpecialGuests = count(array_filter($guests, function($guest) {
-        //     return $guest['age'] >= 3 && $guest['age'] < 7;
-        // }));
-        // $totalBillableGuests = count(array_filter($guests, function($guest){
-        //     return $guest['is_billable_to_member'];
-        // }));
+        $totalGuests = count($guests);  // total de invitados
+        $totalNormalGuests = 0;         // total de invitados normales
+        $totalSpecialGuests = 0;        // ttotal de invitados especiales
+        $totalBillableGuests = 0;       // total de invitados que pagara el socio
+        $totalNonBillableGuests = 0;    // total de invitados que no pagara el socio
+        $subtotalBillableGuests = 0;    // subtotal de lo que pagara el socio
+        $subtotalNonBillable = 0;       // subtotal de lo que no pagara el socio
 
-        $totalNormalGuests = 0;
-        $totalSpecialGuests = 0;
-        // $
-
-        // foreach ($guests as $guest) {
-        //     if ($guest['age'] >= 7)
-
-        // }
-
-        // $billableSubtotal = $normalPrice *
-
-        $subtotal = $normalPrice * $totalNormalGuests + $specialPrice * $totalSpecialGuests;
+        foreach ($guests as $guest) {
+            if ($guest['age'] >= 7)
+            {
+                $totalNormalGuests++;
+                if($guest['is_billable_to_member'])
+                {
+                    $totalBillableGuests++;
+                    $subtotalBillableGuests += $normalPrice;
+                } 
+                else {
+                    $totalNonBillableGuests++;
+                    $subtotalNonBillable += $normalPrice;
+                }
+            }else{
+                $totalSpecialGuests++;
+                if($guest['is_billable_to_member'])
+                {
+                    $totalBillableGuests++;
+                    $subtotalBillableGuests += $specialPrice;
+                }   
+                else {
+                    $totalNonBillableGuests++;
+                    $subtotalNonBillable += $specialPrice;
+                } 
+            }      
+        }
 
         return [
             'total_guests' => $totalGuests,
             'total_normal_guests' => $totalNormalGuests,
             'total_special_guests' => $totalSpecialGuests,
-            'subtotal' => $subtotal
+            'billable_subtotal' => $subtotalBillableGuests,
+            'non_billable_subtotal' => $subtotalNonBillable,
+            'total_billable_guests' => $totalBillableGuests
         ];
     }
 }
