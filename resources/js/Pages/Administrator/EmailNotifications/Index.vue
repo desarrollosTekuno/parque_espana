@@ -755,6 +755,7 @@ const saveStepOne = () => {
                             @click="closeModal"
                         />
                         <BaseButton
+                            v-if="can.includes('email-notifications.store')"
                             :icon-only="false"
                             text="Generar notificacion"
                             variant="flat"
@@ -988,6 +989,7 @@ const saveStepOne = () => {
                         @click="closePreviewModal"
                     />
                     <BaseButton
+                        v-if="can.includes('email-notifications.store')"
                         :icon-only="false"
                         text="Enviar"
                         variant="flat"
