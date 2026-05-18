@@ -527,27 +527,6 @@ const saveStepOne = () => {
                             @update:model-value="normalizeExtraEmails"
                         />
 
-                        <v-file-input
-                            v-model="form.attachments"
-                            class="mt-3"
-                            name="attachments[]"
-                            label="Adjuntos"
-                            multiple
-                            chips
-                            show-size
-                            counter
-                            clearable
-                            prepend-icon="mdi-paperclip"
-                            accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-                            hint="Puedes adjuntar varios archivos (PDF, Office o imagen). Maximo 5 archivos de 10MB c/u."
-                            persistent-hint
-                            :rules="[
-                                fileMaxCountRule(5),
-                                fileTypeRule(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png']),
-                                fileMaxSizeRule(10),
-                            ]"
-                        />
-
                         <v-divider class="my-4" />
 
                         <div class="mb-2 text-subtitle-2">Contenido del correo</div>
@@ -578,6 +557,30 @@ const saveStepOne = () => {
                                     placeholder="Escribe el contenido del correo..."
                                     :required="true"
                                     toolbar="essential"
+                                />
+                            </v-col>
+
+                            <v-col cols="12">
+                                <v-file-input
+                                    v-model="form.attachments"
+                                    class="mt-3"
+                                    name="attachments[]"
+                                    label="Adjuntos"
+                                    multiple
+                                    chips
+                                    show-size
+                                    counter
+                                    clearable
+                                    prepend-icon=""
+                                    append-inner-icon="mdi-paperclip"
+                                    accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                                    hint="Puedes adjuntar varios archivos (PDF, Office o imagen). Maximo 5 archivos de 10MB c/u."
+                                    persistent-hint
+                                    :rules="[
+                                        fileMaxCountRule(5),
+                                        fileTypeRule(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png']),
+                                        fileMaxSizeRule(10),
+                                    ]"
                                 />
                             </v-col>
                         </v-row>
