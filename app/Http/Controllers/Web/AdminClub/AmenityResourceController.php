@@ -149,21 +149,17 @@ class AmenityResourceController extends Controller {
                 4 => '#ffa726', 
         ];
     
-        return $reservations->map(function ($reservation) use ($statusMap, $colorMap){
-            $userName = $reservation->user->name ?? 'Usuario';
+        return $reservations->map(function ($reservation) use ($statusMap){
+            $userName = $reservation->member->full_name ?? 'Usuario';
             $statusId = $reservation->reservation_status_id;
-            /*$start = $reservation->start_datetime;
-            $end = $reservation->end_datetime;*/
+
             return [
+                'id' => $reservation->id,
                 'title' => $userName,
-                'start' => $reservation->start_datetime->format('Y-m-d\TH:i:s'),
-                'end'   => $reservation->end_datetime->format('Y-m-d\TH:i:s'),
-                'color' => $colorMap[$statusId] ?? '#9e9e9e',
-                'extendedProps' => [
-                    'status' => $statusMap[$statusId] ?? 'Desconocido',
-                    'start_time' => $reservation->start_datetime->format('H:i'),
-                    'end_time' => $reservation->end_datetime->format('H:i'),
-                ]
+                'start' => $reservation->start_datetime->format('Y-m-d\TH:i:sP'),
+                'end'   => $reservation->end_datetime->format('Y-m-d\TH:i:sP'),
+                'status' => $statusMap[$statusId] ?? 'Desconocido',
+                'reservation_status_id' => $statusId,
             ];
         });
     }

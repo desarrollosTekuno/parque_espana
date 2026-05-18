@@ -45,8 +45,10 @@ Route::post('/amenitySchedule', [AmenityScheduleController::class, 'store'])->na
 Route::resource('/blockedPeriods', BlockedPeriodController::class)->names('blockedPeriods');
 Route::get('/amenity-resource/{resource}/calendar', [AmenityResourceController::class, 'calendar'])->name('amenityResource.calendar');
 
-Route::resource('/reservations', ReservationController::class)->only(['index', 'update'])->names('reservations');
+Route::resource('/reservations', ReservationController::class)->only(['index', 'update', 'store'])->names('reservations');
 Route::resource('/system-variables', SystemVariableController::class)->only(['index', 'store', 'update', 'destroy'])->names('system-variables');
+Route::post('/reservations/{reservation}/cancel', [ReservationController::class, 'cancel'])
+    ->name('reservations.cancel');
 
 Route::resource('/guest-lists', ReservationGuestListController::class)->only(['index', 'update'])->names('guest-lists');
 Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');

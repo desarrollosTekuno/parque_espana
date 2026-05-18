@@ -10,12 +10,15 @@ use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 
 class ReservationController extends Controller {
 
     public function _construct()
     {
         $this->middleware('permission:reservations.index')->only('index');
+        $this->middleware('permission:reservations.store')->only('store');
+        $this->middleware('permission:reservations.cancel')->only('cancel');
         $this->middleware('permission:reservations.update')->only('update');
     }
 
@@ -79,18 +82,28 @@ class ReservationController extends Controller {
 
     }
 
-    public function store(Request $request) {
+    public function store(Request $request)
+    {
+        try {
+            $request->validate([
+                'member_id' => 'required|exists:members.members,id',
+                'amenity_resource_id' => 'required|exists:admin_club.amenity_resources,id',
+                'start' => 'required|date',
+                'end' => 'required|date|after:start',
+            ]);
 
-        //$validated = $request->validate([
-        //    'field1' => 'required|string|max:255',
-        //    'field2' => 'required|email|unique:table,column',
-        //]);
+            Reservation::create([
+                'member_id' => $request->member_id,
+                'amenity_resource_id' => $request->amenity_resource_id,
+                'start_datetime' => $request->start,
+                'end_datetime' => $request->end,
+                'reservation_status_id' => ReservationStatus::ACTIVA
+            ]);
 
-        //Model::create([
-        //    'column' => $request->input
-        //]);
-
-        return redirect()->back()->with('success', 'Message');
+            return back()->with('success', 'Reservación creada correctamente');
+        } catch (\Exception $e) {
+            return back()->withErrors(['messageError' => 'Ocurrió un error al crear la reservación: '.$e->getMessage()]);
+        }
     }
 
     /**
@@ -116,5 +129,20 @@ class ReservationController extends Controller {
      */
     public function destroy(string $id) {
         return redirect()->back()->with('success', 'Message');
+    }
+
+    public function cancel(Reservation $reservation) {
+        try {
+            $reservation->update([
+                'cancelled_at' => now(),
+                'reservation_status_id' => ReservationStatus::CANCELADA
+            ]);
+            return redirect()->back()->with('success', 'Reservación cancelada con éxito!');
+        } catch (\Exception $e) {
+            return redirect()->back()->withErrors([
+                'messageError' => 'Ocurrió un error al cancelar la reservación',
+                'exception' => $e->getMessage(),
+            ]);
+        }
     }
 }

@@ -15,35 +15,87 @@ import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import { Form, Head, router, useForm, usePage } from "@inertiajs/vue3";
 import { debounce } from "lodash";
 import Swal from "sweetalert2";
-import { ref, watch, computed, reactive } from "vue";
+import { ref, watch, computed, reactive, onMounted  } from "vue";
+import { Temporal } from '@js-temporal/polyfill';   
 
 const page = usePage();
 const can = usePage().props.auth.permissions;
 const imageRef = ref<any>(null);
 const iconRef = ref<any>(null);
 const tab = ref('amenities')
+const props = withDefaults(defineProps<Props>(), {
+    amenities: null,
+    events: Array
+});
 
 // Modal calendario
-const showCalendarModal = ref(false);
-const calendarEvents = ref([]);
-const selectedAmenityCalendar = ref<any>(null);
+const toTZ = (iso: string) =>
+  Temporal.Instant
+    .from(iso)
+    .toZonedDateTimeISO('America/Mexico_City')
+const formatEvents = (events: any[]) => {
+  return events.map(e => ({
+    id: String(e.id),
+    title: `${e.title} • ${e.status}`,
 
-const openCalendar = async (resource:any) => {
-    selectedAmenityCalendar.value = resource
-    try {
-        const response = await axios.get(
-            route('amenityResource.calendar', resource.id)
-        )
-        calendarEvents.value = response.data
-        showCalendarModal.value = true
-    } catch (error) {
-        console.error(error)
-        customToastSwal({
-            title: 'Error al cargar reservaciones',
-            icon: 'error'
-        })
-    }
+    start: toTZ(e.start),
+    end: toTZ(e.end),
+
+    calendarId: `status-${e.reservation_status_id}`,
+    status: e.status, 
+  }))
 }
+
+const calendarEvents = ref<any[]>([])
+
+const openCalendar = async (resource: any) => {
+    selectedAmenityCalendar.value = resource 
+  const { data } = await axios.get(
+    route('amenityResource.calendar', resource.id)
+  )
+  calendarEvents.value = formatEvents(data)
+  showCalendarModal.value = true
+}
+
+const showCalendarModal = ref(false)
+const selectedAmenityCalendar = ref<any>(null)
+
+// Cancelar reservación desde el modal del calendario
+const cancelReservation = (event: any) => {
+  if (event.calendarId !== 'status-1') {
+    customToastSwal({
+      title: 'Solo puedes cancelar reservaciones activas',
+      icon: 'warning'
+    })
+    return
+  }
+  customConfirmSwal({
+    title: '¿Cancelar reservación?',
+    text: event.title
+  }).then((result) => {
+    if (!result.isConfirmed) return
+    router.post(route('reservations.cancel', event.id), {}, {
+      preserveScroll: true,
+      onSuccess: (page) => {
+        const flash = page.props.flash || {}
+        if (flash.success) {
+          customToastSwal({
+            title: flash.success,
+            icon: 'success'
+          })
+        }
+        openCalendar(selectedAmenityCalendar.value)
+      },
+      onError: (errors) => {
+        customToastSwal({
+          title: errors.messageError || 'Error al cancelar',
+          icon: 'error'
+        })
+      }
+    })
+  })
+}
+
 
 //    Computeds
 const isSaveDisabled = computed(() => {
@@ -93,6 +145,7 @@ const bulkSchedule = reactive({
 
 interface Props {
     amenities?: any;
+    members?: any[];
 }
 
 interface Amenity {
@@ -108,10 +161,6 @@ interface Amenity {
     reservation_type: string;
     is_active: boolean;
 }
-
-const props = withDefaults(defineProps<Props>(), {
-    amenities: null,
-});
 
 let showModal = ref(false);
 const formSendRef = ref();
@@ -1240,39 +1289,29 @@ watch(
                 </v-card>
             </v-form>
         </v-dialog>
-        <v-dialog
-            v-model="showCalendarModal"
-            max-width="1200"
-        >
-            <v-card>
+        <v-dialog v-model="showCalendarModal" max-width="1200">
+            <v-card class="calendar-modal">
 
                 <v-card-title class="d-flex align-center ga-2">
-                    <v-icon>
-                        mdi-calendar
-                    </v-icon>
-
-                    Reservaciones ·
-                    {{ selectedAmenityCalendar?.name }}
+                <v-icon>mdi-calendar</v-icon>
+                Reservaciones · {{ selectedAmenityCalendar?.name }}
                 </v-card-title>
-
-                <v-card-text>
-
-                    <AmenityCalendar
-                        :events="calendarEvents"
+                <v-card-text class="calendar-content">
+                 <AmenityCalendar
+                    v-if="showCalendarModal"
+                    :events="calendarEvents"
+                    @cancel-reservation="cancelReservation"
                     />
-
                 </v-card-text>
-
-                <v-card-actions>
-                    <v-spacer />
-
-                    <BaseButton
-                        text="Cerrar"
-                        action="cancel"
-                        variant="tonal"
-                        :icon-only="false"
-                        @click="showCalendarModal = false"
-                    />
+                <v-card-actions class="calendar-footer">
+                <v-spacer />
+                <BaseButton
+                    text="Cerrar"
+                    action="cancel"
+                    variant="tonal"
+                    :icon-only="false"
+                    @click="showCalendarModal = false"
+                />
                 </v-card-actions>
 
             </v-card>
@@ -1282,5 +1321,22 @@ watch(
 <style>
 .swal2-container {
     z-index: 9999 !important;
+}
+.calendar-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto; 
+}
+.calendar-wrapper :deep(.sx__calendar) {
+  height: 100% !important;
+}
+.calendar-modal {
+  display: flex;
+  flex-direction: column;
+  height: 90vh;
+}
+.calendar-footer {
+  border-top: 1px solid #eee;
+  padding: 10px;
 }
 </style>
