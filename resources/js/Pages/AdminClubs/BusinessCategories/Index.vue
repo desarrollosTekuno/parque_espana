@@ -5,6 +5,7 @@ import BaseButton from "@/Components/BaseButton.vue";
 import { ref, watch, computed } from "vue";
 import { debounce } from "lodash";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
+import '../../../../css/amenities.css';
 const page = usePage();
 const can = usePage().props.auth.permissions;
 
@@ -20,6 +21,24 @@ const options = ref({ page: 1, itemsPerPage: 10 });
 const showModal = ref(false);
 const imagePreview = ref<string | null>(null);
 const hoverImage = ref<string | null>(null);
+const imageInputRef = ref<HTMLInputElement | null>(null);
+
+const triggerImageInput = () => imageInputRef.value?.click();
+
+const onImageFileChange = (e: Event) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+        customToastSwal({ title: 'La imagen no debe superar los 2 MB', icon: 'error' });
+        (e.target as HTMLInputElement).value = '';
+        return;
+    }
+
+    form.value.image = file;
+    form.value.remove_image = false;
+    imagePreview.value = URL.createObjectURL(file);
+};
 
 const form = ref<any>({ id: null, name: "", image: null, is_active: true });
 
@@ -135,11 +154,7 @@ const save = async () => {
   }
 
   if (form.value.image) {
-    const file = Array.isArray(form.value.image) 
-      ? form.value.image[0] 
-      : form.value.image
-
-    data.append("image", file)
+    data.append("image", form.value.image)
   }
 
   const request = form.value.id
@@ -213,25 +228,6 @@ const remove = (item:any) => {
     });
 };
 
-watch(() => form.value.image, (file) => {
-  if (!file) return;
-
-  const selected = Array.isArray(file) ? file[0] : file;
-
-  // 2MB = 2048 KB = 2 * 1024 * 1024 bytes
-  if (selected.size > 2 * 1024 * 1024) {
-    customToastSwal({
-      title: "La imagen no debe superar los 2MB",
-      icon: "error"
-    });
-
-    form.value.image = null;
-    imagePreview.value = null;
-    return;
-  }
-
-  imagePreview.value = URL.createObjectURL(selected);
-});
 </script>
 
 <template>
@@ -322,21 +318,51 @@ watch(() => form.value.image, (file) => {
     <v-card-text>
       <v-text-field v-model="form.name" label="Nombre" :error="!!formErrors.name" :error-messages="formErrors.name" />
 
-      <v-file-input
-        v-model="form.image"
-        label="Imagen"
-        accept="image/*"
-        :error="!!formErrors.image"
-        :error-messages="formErrors.image"
+      <!-- Input nativo oculto -->
+      <input
+        ref="imageInputRef"
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        class="d-none"
+        @change="onImageFileChange"
       />
-        <div class="text-caption text-medium-emphasis">
-            Máximo 2MB · Formatos JPG, PNG
-        </div>
-      <v-btn v-if="imagePreview" size="small" color="red" @click="removeImage">
-        Eliminar imagen
-      </v-btn>
 
-      <v-img v-if="imagePreview" :src="imagePreview" max-height="150" class="mt-2" />
+      <!-- Zona de carga integrada -->
+      <div
+        class="upload-zone upload-zone--square mt-3"
+        :class="{ 'upload-zone--filled': imagePreview }"
+        @click="triggerImageInput"
+      >
+        <!-- Preview -->
+        <v-img v-if="imagePreview" :src="imagePreview" cover class="upload-zone__img" />
+
+        <!-- Placeholder -->
+        <div v-else class="upload-zone__placeholder text-center">
+          <v-icon size="32" color="grey-lighten-1">mdi-image-plus</v-icon>
+          <span class="text-caption text-medium-emphasis mt-1">Subir imagen</span>
+          <span class="text-caption text-disabled">JPG, PNG · máx 2 MB</span>
+        </div>
+
+        <!-- Overlay editar -->
+        <div class="upload-zone__overlay">
+          <v-icon color="white" size="28">mdi-pencil</v-icon>
+        </div>
+
+        <!-- Botón eliminar -->
+        <v-btn
+          v-if="imagePreview"
+          icon="mdi-close"
+          size="x-small"
+          color="error"
+          class="position-absolute"
+          style="top: 6px; right: 6px; z-index: 2"
+          @click.stop="removeImage"
+        />
+      </div>
+
+      <div v-if="formErrors.image" class="text-caption text-error mt-1">
+        {{ formErrors.image }}
+      </div>
     </v-card-text>
 
     <v-card-actions>

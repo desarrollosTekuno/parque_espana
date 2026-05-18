@@ -9,6 +9,7 @@ const can = usePage().props.auth.permissions;
 const auth = usePage().props.auth;
 const page = usePage<any>();
 const pendingAds = computed(() => page.props.pendingBusinessAds ?? 0);
+const pendingAgeTransitions = computed(() => (page.props as any).pendingAgeTransitions ?? 0);
 const clubs = page.props.auth?.clubs ?? [];
 const selectedClub = ref(page.props.auth?.currentClub ?? null);
 
@@ -81,8 +82,14 @@ const shouldShowBadge = (ruta: any) => {
     }
     return ruta.name === "business-ads.index";
 };
-const isInLockersFlow = computed(() => {
-    return route().current("members.lockers.create");
+// const isInLockersFlow = computed(() => {
+//     return route().current("members.lockers.create")
+// });
+// const isInManagementAccount = computed(() => {
+//     return route().current("members.manage.show");
+// });
+const disabledSelectClub = computed(() => {
+    return route().current("members.lockers.create") || route().current("members.manage.show");
 });
 </script>
 
@@ -146,10 +153,10 @@ const isInLockersFlow = computed(() => {
                 color="#F4B403"
                 base-color="rgba(255,255,255,0.6)"
                 @update:modelValue="changeClub"
-                :disabled="isInLockersFlow"
+                :disabled="disabledSelectClub"
                 :hint="
-                    isInLockersFlow
-                        ? 'No puedes cambiar de club durante la asignación de casilleros'
+                    disabledSelectClub
+                        ? 'No puedes cambiar de club durante la asignación de casilleros o la gestión de miembros'
                         : ''
                 "
                 persistent-hint
@@ -293,8 +300,17 @@ const isInLockersFlow = computed(() => {
                                 "
                                 :active="route().current(groupItem.name)"
                                 :prepend-icon="groupItem.icon"
-                                :title="groupItem.title"
-                            />
+                            >
+                                <v-list-item-title class="d-flex align-center gap-2">
+                                    {{ groupItem.title }}
+                                    <v-badge
+                                        v-if="groupItem.showBadge && pendingAgeTransitions > 0"
+                                        :content="pendingAgeTransitions > 9 ? '9+' : pendingAgeTransitions"
+                                        color="#D4172A"
+                                        inline
+                                    />
+                                </v-list-item-title>
+                            </v-list-item>
                         </Link>
                     </v-list-group>
                 </template>

@@ -99,6 +99,7 @@ class PermissionSeeder extends Seeder
             ['module' => 'Membresías', 'name' => 'members.reactivate', 'description' => 'Reactivar una cuenta dada de baja voluntaria', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.cancellations.index', 'description' => 'Ver historial de bajas', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.age-transitions.index', 'description' => 'Ver transiciones por edad pendientes', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'members.documents.store', 'description' => 'Subir documentos a integrantes de una cuenta', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.age-transitions.promote', 'description' => 'Promover transición por edad', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.age-transitions.dismiss', 'description' => 'Descartar transición por edad', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.lockers.create', 'description' => 'Crear reservación de casillero', 'contexts' => ['web']],
@@ -118,7 +119,9 @@ class PermissionSeeder extends Seeder
             ['module' => 'Membresías', 'name' => 'member-access.destroy', 'description' => 'Revocar acceso a miembros', 'contexts' => ['web']],
             // Cobranza
             ['module' => 'Cobranza', 'name' => 'billing.index', 'description' => 'Ver módulo de cobranza', 'contexts' => ['web']],
+            ['module' => 'Cobranza', 'name' => 'billing.charges.index', 'description' => 'Ver desglose de cargos pendientes', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'billing.store', 'description' => 'Registrar cobros', 'contexts' => ['web']],
+            ['module' => 'Cobranza', 'name' => 'billing.payments.non-cash-cut', 'description' => 'Usar métodos de pago que no afectan corte de caja', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'billing-concepts.index', 'description' => 'Ver conceptos de cobro', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'billing-concepts.store', 'description' => 'Crear conceptos de cobro', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'billing-concepts.update', 'description' => 'Actualizar conceptos de cobro', 'contexts' => ['web']],
@@ -153,6 +156,7 @@ class PermissionSeeder extends Seeder
             ['module' => 'Encuestas', 'name' => 'surveys.questions.reorder', 'description' => 'Reordenar preguntas de encuesta', 'contexts' => ['web']],
 
             // Publicidad
+            ['module' => 'Publicidad', 'name' => 'business-ads.index', 'description' => 'Ver publicidad de negocios', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-ads.approve', 'description' => 'Aprobar publicidad de negocios', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-ads.reject', 'description' => 'Rechazar publicidad de negocios', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-categories.index', 'description' => 'Ver categorías de negocios', 'contexts' => ['web']],

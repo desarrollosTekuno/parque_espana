@@ -152,3 +152,69 @@ v-card-actions{
 .v-card {
     overflow: visible !important;
 }
+
+/* ── Upload zones (compartido: Amenidades y Anuncios) ─────────────────────── */
+.upload-zone {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    border: 2px dashed rgba(0, 0, 0, 0.18);
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    background: #fafafa;
+    transition: border-color 0.2s, background-color 0.2s;
+}
+
+.upload-zone:hover {
+    border-color: rgb(var(--v-theme-primary));
+    background: rgba(var(--v-theme-primary), 0.04);
+}
+
+.upload-zone--filled {
+    border-style: solid;
+    border-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Icono cuadrado 1:1 */
+.upload-zone--square {
+    aspect-ratio: 1 / 1;
+    max-height: 180px;
+}
+
+/* Imagen apaisada 16:9 */
+.upload-zone--wide {
+    aspect-ratio: 16 / 9;
+}
+
+.upload-zone__img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.upload-zone__placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    user-select: none;
+}
+
+.upload-zone__overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.38);
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.upload-zone:hover .upload-zone__overlay {
+    opacity: 1;
+}

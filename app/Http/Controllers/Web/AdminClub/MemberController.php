@@ -260,7 +260,7 @@ class MemberController extends Controller
         $membershipTypes = MembershipType::where('show_in_listing', true)
             ->select('id', 'club_id', 'code', 'name', 'description', 'allows_multiple_members', 'validity_months')
             ->with([
-                'documentTypes:id,name,allowed_extensions',
+                'documentTypes:id,name,allowed_extensions,min_age,max_age,max_file_size_kb',
                 'documentTypes.relationships:id,name',
             ])
             ->where('club_id', $clubId)
@@ -1054,6 +1054,25 @@ class MemberController extends Controller
                 ->values();
         }
 
+        $membershipDocumentTypes = $membership->membershipType?->documentTypes
+            ->map(fn ($dt) => [
+                'id'                 => $dt->id,
+                'name'               => $dt->name,
+                'allowed_extensions' => $dt->allowed_extensions,
+                'min_age'            => $dt->min_age !== null ? (int) $dt->min_age : null,
+                'max_age'            => $dt->max_age !== null ? (int) $dt->max_age : null,
+                'max_file_size_kb'   => $dt->max_file_size_kb !== null ? (int) $dt->max_file_size_kb : null,
+                'pivot' => [
+                    'is_required'    => (bool) $dt->pivot->is_required,
+                    'allow_multiple' => (bool) $dt->pivot->allow_multiple,
+                    'number_files'   => (int) $dt->pivot->number_files,
+                ],
+                'relationships' => $dt->relationships->map(fn ($r) => [
+                    'id'   => $r->id,
+                    'name' => $r->name,
+                ])->values(),
+            ])->values() ?? collect([]);
+
         return Inertia::render('Members/AddFamilyMember', [
             'membership' => $this->buildSourceMembershipPayload($membership),
             'account' => $this->buildMembershipAccountPayload($membership),
@@ -1063,7 +1082,8 @@ class MemberController extends Controller
                 ->get()
                 ->reject(fn(Relationship $relationship) => $this->isTitularRelationship($relationship->name))
                 ->values(),
-            'availableGroupMembers' => $availableGroupMembers,
+            'availableGroupMembers'    => $availableGroupMembers,
+            'membershipDocumentTypes'  => $membershipDocumentTypes,
         ]);
     }
 
@@ -1183,10 +1203,15 @@ class MemberController extends Controller
                 'employment.company_name' => ['nullable', 'string', 'max:255'],
                 'employment.company_address' => ['nullable', 'string', 'max:255'],
                 'employment.company_phone' => ['nullable', 'string', 'max:50'],
+                'documents' => ['nullable', 'array'],
+                'documents.*.document_type_id' => ['required_with:documents.*', 'integer'],
+                'documents.*.files' => ['nullable', 'array'],
+                'documents.*.files.*' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:2048'],
             ]);
 
-            $relationship = Relationship::query()->findOrFail($validated['relationship_id']);
-            $age = Carbon::parse($validated['birthdate'])->age;
+            $relationship  = Relationship::query()->findOrFail($validated['relationship_id']);
+            $age           = Carbon::parse($validated['birthdate'])->age;
+            $documentsRaw  = $validated['documents'] ?? [];
 
             if ($this->isTitularRelationship($relationship->name)) {
                 throw ValidationException::withMessages([
@@ -1206,7 +1231,9 @@ class MemberController extends Controller
                 ]);
             }
 
-            DB::transaction(function () use ($validated, $membership, $relationship) {
+            $createdMemberId = null;
+
+            DB::transaction(function () use ($validated, $membership, $relationship, &$createdMemberId) {
                 $birthLocationAttributes = $this->resolveBirthLocationFields(
                     $validated,
                     'birth_country_id',
@@ -1261,7 +1288,14 @@ class MemberController extends Controller
                     'relationship_id' => $relationship->id,
                     'is_primary_holder' => false,
                 ]);
+
+                $createdMemberId = $member->id;
             });
+
+            // Subir documentos fuera de la transacción para evitar rollbacks por fallos de storage
+            if ($createdMemberId && !empty($documentsRaw)) {
+                $this->uploadMemberDocuments([$createdMemberId => $documentsRaw]);
+            }
 
             return redirect()
                 ->route('members.manage.show', $membership)
@@ -1787,7 +1821,7 @@ class MemberController extends Controller
                     : $this->createMembershipAccount(
                         club: $club,
                         accountType: $membershipType->allows_multiple_members ? 'family' : 'individual',
-                        status: 'pending',
+                        status: 'active',
                         accountGroup: $sourceAccount?->accountGroup
                     );
 
@@ -2003,6 +2037,12 @@ class MemberController extends Controller
                     'updated_at'             => now(),
                 ]);
 
+                // Cargar account para que synchronizeMembershipFees pueda encontrar
+                // el account_group_id y actualizar todas las membresías del grupo.
+                // Sin esto, el servicio trata la nueva membresía como standalone y
+                // sobreescribe billing_split_mode a 'single'.
+                $newMembership->load('account');
+
                 $newMembership = $this->membershipChargeService
                     ->synchronizeMembershipFees(
                         $newMembership,
@@ -2169,8 +2209,8 @@ class MemberController extends Controller
             'account.accountMembers.member.birthState',
             'account.accountMembers.member.birthCity',
             'account.accountMembers.member.maritalStatus',
-            'account.accountMembers.member.documents',
-            'membershipType',
+            'account.accountMembers.member.documents.documentType',
+            'membershipType.documentTypes.relationships',
             'club',
             'account.memberships.membershipType',
             'account.memberships.club',
@@ -2659,10 +2699,16 @@ class MemberController extends Controller
             'absence_permits' => $absencePermits
                 ->map(fn (AbsencePermit $absencePermit) => $this->buildAbsencePermitPayload($absencePermit))
                 ->values(),
-            'primary_holder' => $this->buildDetailedAccountMemberPayload($membership->account?->primaryHolder),
+            'primary_holder' => $this->buildDetailedAccountMemberPayload(
+                $membership->account?->primaryHolder,
+                $membership->membershipType?->documentTypes ?? collect(),
+            ),
             'members' => $membership->account->accountMembers
                 ->sortByDesc('is_primary_holder')
-                ->map(fn(MembershipAccountMember $accountMember) => $this->buildDetailedAccountMemberPayload($accountMember))
+                ->map(fn(MembershipAccountMember $accountMember) => $this->buildDetailedAccountMemberPayload(
+                    $accountMember,
+                    $membership->membershipType?->documentTypes ?? collect(),
+                ))
                 ->values(),
             'active_memberships' => $activeMemberships
                 ->map(function (Membership $activeMembership) {
@@ -2760,7 +2806,75 @@ class MemberController extends Controller
         });
     }
 
-    protected function buildDetailedAccountMemberPayload(?MembershipAccountMember $accountMember): ?array
+    public function storeDocument(Request $request, Membership $membership)
+    {
+        try {
+            $clubId = session('club_id');
+
+            if ((int) $membership->club_id !== (int) $clubId) {
+                abort(404);
+            }
+
+            $validated = $request->validate([
+                'member_id'        => ['required', 'integer'],
+                'document_type_id' => ['required', 'integer'],
+                'files'            => ['required', 'array', 'min:1'],
+                'files.*'          => ['file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+            ], [
+                'files.required'   => 'El documento es obligatorio.',
+                'files.*.mimes'    => 'El documento debe ser PDF, JPG o PNG.',
+                'files.*.max'      => 'El documento no debe superar los 5 MB.',
+            ]);
+
+            $memberId       = (int) $validated['member_id'];
+            $documentTypeId = (int) $validated['document_type_id'];
+
+            $isMemberOfAccount = $membership->account->accountMembers
+                ->contains('member_id', $memberId);
+
+            if (!$isMemberOfAccount) {
+                abort(403, 'El integrante no pertenece a esta cuenta.');
+            }
+
+            $docType     = DocumentType::findOrFail($documentTypeId);
+            $docTypeSlug = \Illuminate\Support\Str::slug($docType->name);
+            $directory   = "members/{$memberId}/{$docTypeSlug}";
+            $userId      = $request->user()?->id;
+
+            foreach ($request->file('files') as $file) {
+                $filename = \Illuminate\Support\Str::uuid() . '.' . $file->getClientOriginalExtension();
+
+                $uploaded = \Illuminate\Support\Facades\Storage::disk('spaces')
+                    ->putFileAs($directory, $file, $filename);
+
+                if ($uploaded === false) {
+                    throw new \RuntimeException('No se pudo subir el documento.');
+                }
+
+                MemberDocument::create([
+                    'member_id'        => $memberId,
+                    'document_type_id' => $documentTypeId,
+                    'file_path'        => "{$directory}/{$filename}",
+                    'uploaded_by'      => $userId,
+                ]);
+            }
+
+            return redirect()
+                ->route('members.manage.show', $membership)
+                ->with('success', 'Documento cargado correctamente.');
+        } catch (ValidationException $e) {
+            return $this->validationExceptionResponse($e);
+        } catch (\Exception $e) {
+            report($e);
+
+            return redirect()->back()->withErrors([
+                'messageError' => 'Ocurrió un error al subir el documento.',
+                'exception'    => $e->getMessage(),
+            ]);
+        }
+    }
+
+    protected function buildDetailedAccountMemberPayload(?MembershipAccountMember $accountMember, $documentTypes = null): ?array
     {
         if (!$accountMember) {
             return null;
@@ -2775,6 +2889,49 @@ class MemberController extends Controller
             ->where('year', now()->year)
             ->whereNull('deleted_at')
             ->first();
+
+        $uploadedDocs = $member?->documents ?? collect();
+        $relationshipId = $accountMember->is_primary_holder ? 1 : $accountMember->relationship_id;
+        $memberAge = $member?->birthdate ? Carbon::parse($member->birthdate)->age : null;
+
+        $documents = collect($documentTypes ?? [])
+            ->filter(fn ($docType) => $docType->relationships->contains('id', $relationshipId))
+            ->filter(function ($docType) use ($memberAge) {
+                if ($memberAge === null) return true;
+                if ($docType->min_age !== null && $memberAge < (int) $docType->min_age) return false;
+                if ($docType->max_age !== null && $memberAge > (int) $docType->max_age) return false;
+                return true;
+            })
+            ->map(function ($docType) use ($uploadedDocs) {
+                $allowMultiple = (bool) $docType->pivot->allow_multiple;
+                $numberFiles   = (int) $docType->pivot->number_files;
+
+                $docsForType = $uploadedDocs
+                    ->where('document_type_id', $docType->id)
+                    ->map(fn ($d) => [
+                        'id'          => $d->id,
+                        'uploaded_at' => $d->created_at?->toDateString(),
+                    ])
+                    ->values();
+
+                $requiredCount   = $allowMultiple ? $numberFiles : 1;
+                $alreadyUploaded = $docsForType->count() >= $requiredCount;
+
+                return [
+                    'document_type_id'   => $docType->id,
+                    'name'               => $docType->name,
+                    'allowed_extensions' => $docType->allowed_extensions
+                        ? collect(explode(',', $docType->allowed_extensions))->map(fn ($e) => trim(strtolower($e)))->values()
+                        : [],
+                    'max_file_size_kb'   => $docType->max_file_size_kb !== null ? (int) $docType->max_file_size_kb : null,
+                    'is_required'        => (bool) $docType->pivot->is_required,
+                    'allow_multiple'     => $allowMultiple,
+                    'number_files'       => $numberFiles,
+                    'already_uploaded'   => $alreadyUploaded,
+                    'uploaded_docs'      => $docsForType,
+                ];
+            })
+            ->values();
 
         return [
             ...$this->buildAccountMemberPayload($accountMember),
@@ -2808,6 +2965,7 @@ class MemberController extends Controller
                 'status' => $lockerAssignment->locker?->status,
                 'category' => $lockerAssignment->locker?->category,
             ] : null,
+            'documents' => $documents,
         ];
     }
 

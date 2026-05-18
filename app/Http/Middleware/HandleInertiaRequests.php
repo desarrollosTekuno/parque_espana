@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 use App\Models\AdminClub\BusinessAd;
+use App\Models\Memberships\PendingAgeTransition;
 
 use function Symfony\Component\Clock\now;
 
@@ -98,6 +99,15 @@ class HandleInertiaRequests extends Middleware
                         $query->where('club_id', $clubId);
                     })
                     ->where('status_id', 1)
+                    ->count();
+            },
+
+            'pendingAgeTransitions' => function () use ($request) {
+                $clubId = session('club_id');
+                if (!$clubId || !$request->user()) return 0;
+                return PendingAgeTransition::query()
+                    ->whereHas('membership', fn ($q) => $q->where('club_id', $clubId))
+                    ->where('status', 'pending')
                     ->count();
             },
 

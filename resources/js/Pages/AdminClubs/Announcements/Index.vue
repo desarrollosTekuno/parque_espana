@@ -32,6 +32,15 @@
     const imageRef = ref<any>(null);
     const formSendRef = ref();
     const imagePreview = ref<string | null>(null);
+    const imageInputRef = ref<HTMLInputElement | null>(null);
+
+    const triggerImageInput = () => imageInputRef.value?.click();
+
+    const onImageFileChange = (e: Event) => {
+        const file = (e.target as HTMLInputElement).files?.[0] ?? null;
+        form.image = file;
+        // El watch existente sobre form.image maneja preview y validación de tamaño
+    };
     const form = useForm({
         id: null,
         club_id: page.props.auth.currentClub,
@@ -50,9 +59,17 @@
         ends_at: null,
         status: "draft"
     });
-    const isSaveDisabled = computed(() => {
-        return imageRef.value?.isValid === false;
+    const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+    const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+
+    const imageError = computed(() => {
+        if (!form.image) return null;
+        if (!ALLOWED_IMAGE_TYPES.includes((form.image as File).type)) return 'Formato no permitido';
+        if ((form.image as File).size > MAX_IMAGE_BYTES) return 'El archivo supera 2 MB';
+        return null;
     });
+
+    const isSaveDisabled = computed(() => !!imageError.value);
     const create = () => {
         form.reset();
         form.is_active = true;
@@ -685,25 +702,53 @@ watch(
                                         style="min-height:150px;"/>
                                 </v-col>
                                 <v-col cols="12">
-                                    <FormImage v-model="form.image" 
-                                        label="Imagen" 
-                                        ref="imageRef"
-                                        :rules="[
-                                            fileMaxSizeRule(2),
-                                            fileTypeRule(['jpg','jpeg','png','webp'])
-                                        ]" />
-                                    <v-card height="150" variant="outlined" class="mt-2 d-flex align-center justify-center">
-                                        <v-img v-if="imagePreview" :src="imagePreview" height="120" class="rounded" />
-                                        <v-icon v-else size="40" color="grey">
-                                            mdi-image-outline
-                                        </v-icon>
-                                    </v-card>
-                                    <v-btn v-if="imagePreview" size="x-small" variant="text" color="error" class="mt-1"
-                                        @click="removeImage">
-                                        Eliminar imagen
-                                    </v-btn>
-                                    <div class="text-caption text-medium-emphasis">
-                                        Tamaño recomendado 1200x800px · Máximo 2MB · Formatos JPG, PNG
+                                    <div class="text-body-2 font-weight-medium mb-2">Imagen</div>
+
+                                    <input
+                                        ref="imageInputRef"
+                                        type="file"
+                                        accept=".jpg,.jpeg,.png,.webp"
+                                        class="d-none"
+                                        @change="onImageFileChange"
+                                    />
+
+                                    <div
+                                        class="upload-zone upload-zone--wide"
+                                        :class="{ 'upload-zone--filled': imagePreview }"
+                                        @click="triggerImageInput"
+                                    >
+                                        <v-img
+                                            v-if="imagePreview"
+                                            :src="imagePreview"
+                                            cover
+                                            class="upload-zone__img"
+                                        />
+                                        <div v-else class="upload-zone__placeholder">
+                                            <v-icon size="38" color="grey-lighten-1">mdi-image-plus</v-icon>
+                                            <span class="text-caption text-medium-emphasis mt-1">Subir imagen</span>
+                                            <span class="text-caption text-disabled">1200 × 800 px recomendado</span>
+                                        </div>
+                                        <div v-if="imagePreview" class="upload-zone__overlay">
+                                            <v-icon color="white" size="28">mdi-pencil</v-icon>
+                                        </div>
+                                    </div>
+
+                                    <div class="d-flex align-center justify-space-between mt-1">
+                                        <span
+                                            class="text-caption"
+                                            :class="imageError ? 'text-error' : 'text-medium-emphasis'"
+                                        >
+                                            {{ imageError ?? 'JPG, PNG, WEBP · máx. 2 MB' }}
+                                        </span>
+                                        <v-btn
+                                            v-if="imagePreview"
+                                            size="x-small"
+                                            color="error"
+                                            variant="text"
+                                            @click.stop="removeImage"
+                                        >
+                                            <v-icon size="14" start>mdi-close</v-icon>Quitar
+                                        </v-btn>
                                     </div>
                                 </v-col>
                                 <v-col cols="6">
