@@ -178,3 +178,26 @@ Se genero una version lista para pegar en el documento funcional en:
 - `Docs/Plan_trabajo_ParqueEspaña.md`
 
 Ese contenido esta preparado para insertarse en `Docs/ParqueEspaña.pdf` como seccion "Plan de trabajo para alta de modulos".
+
+## 9) Regla de implementacion: "minimo funcional"
+
+Cuando el usuario pida enfoque simple/minimo, aplicar esta regla estricta:
+
+- Implementar solo lo solicitado para que funcione (sin extras).
+- Validar unicamente lo necesario para guardar y no romper flujo.
+- No agregar validaciones avanzadas, escenarios preventivos ni endurecimientos de seguridad no solicitados.
+- No refactorizar ni abstraer en funciones auxiliares si no lo pidieron.
+- Preferir codigo explicito y directo (estilo junior), evitando compactaciones innecesarias.
+- Evitar `continue`; usar `if/else` claro cuando haya que condicionar.
+- No anticipar requerimientos futuros: si hoy solo piden guardar, solo guardar.
+
+### 9.1) Ejemplo practico en store
+
+Si el requerimiento dice "guardar informacion y adjuntos":
+
+1. Validar campos basicos requeridos.
+2. Crear registro principal.
+3. Guardar adjuntos (si existen) en ruta acordada.
+4. Retornar `back()->with('success', ...)`.
+
+No incluir envio real, historial adicional, filtros complejos o logica extra hasta que se pida explicitamente.

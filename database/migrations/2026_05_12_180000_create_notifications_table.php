@@ -14,6 +14,7 @@ return new class extends Migration
         Schema::create('notifications', function (Blueprint $table) {
             $table->id();
 
+            $table->uuid('uuid')->nullable();
             $table->string('title', 150);
             $table->text('body');
             $table->unsignedTinyInteger('type')->default(0); // 0 manual, 1 automatic

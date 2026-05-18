@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web\Administrator;
 use App\Models\Administrator\Club;
 use App\Models\Notifications\EmailConfig;
 use App\Models\Notifications\Notification;
+use App\Models\Notifications\NotificationAttachment;
 use App\Models\Notifications\NotificationChannel;
 use App\Models\Notifications\NotificationStatusCatalog;
 use App\Models\User;
@@ -12,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class EmailNotificationController extends Controller {
@@ -98,28 +100,54 @@ class EmailNotificationController extends Controller {
             'subject' => ['required', 'string', 'max:255'],
             'body' => ['required', 'string'],
             'club_id' => ['nullable', 'integer'],
+            'send_type' => ['nullable', 'in:now,scheduled'],
+            'scheduled_date' => ['nullable'],
+            'scheduled_time' => ['nullable'],
+            'attachments' => ['nullable', 'array'],
+            'attachments.*' => ['nullable', 'file'],
         ]);
 
+        $statusCode = 'sent';
         $channel = NotificationChannel::query()->where('code', 'email')->first();
-        $status = NotificationStatusCatalog::query()->where('code', 'scheduled')->first();
 
-        if (!$channel || !$status) {
-            return redirect()->back()->withErrors([
-                'messageError' => 'No existe la configuracion base de canales o estatus.',
-                'exception' => '',
-            ]);
+        if (isset($validated['send_type']) && $validated['send_type'] === 'scheduled') {
+            $statusCode = 'scheduled';
         }
 
-        Notification::create([
-            'title' => $validated['title'],
-            'subject' => $validated['subject'],
-            'body' => $validated['body'],
-            'type' => 0,
-            'channel_id' => $channel->id,
-            'status_id' => $status->id,
-            'club_id' => $validated['club_id'] ?? null,
-            'created_by' => Auth::id(),
-        ]);
+        $status = NotificationStatusCatalog::query()->where('code', $statusCode)->first();
+
+        DB::transaction(function () use ($request, $validated, $channel, $status) {
+            $notificationUuid = (string) Str::uuid();
+            $isScheduled = ($validated['send_type'] ?? null) === 'scheduled';
+
+            $notification = Notification::create([
+                'uuid' => $notificationUuid,
+                'title' => $validated['title'],
+                'subject' => $validated['subject'],
+                'body' => $validated['body'],
+                'type' => 0,
+                'channel_id' => $channel->id,
+                'status_id' => $status->id,
+                'club_id' => $validated['club_id'] ?? null,
+                'scheduled_date' => $isScheduled ? ($validated['scheduled_date'] ?? null) : null,
+                'scheduled_time' => $isScheduled ? ($validated['scheduled_time'] ?? null) : null,
+                'sent_date' => $isScheduled ? null : now()->toDateString(),
+                'sent_time' => $isScheduled ? null : now()->toTimeString(),
+                'created_by' => Auth::id(),
+            ]);
+
+            foreach ($request->file('attachments', []) as $file) {
+                $path = $file->store("Notificaciones/Emails/{$notificationUuid}", 'public');
+
+                NotificationAttachment::create([
+                    'notification_id' => $notification->id,
+                    'file_path' => $path,
+                    'original_name' => $file->getClientOriginalName(),
+                    'mime_type' => $file->getClientMimeType(),
+                    'file_size' => $file->getSize(),
+                ]);
+            }
+        });
 
         return redirect()->back()->with('success', 'Correo registrado con exito.');
     }
@@ -157,29 +185,5 @@ class EmailNotificationController extends Controller {
             'count' => $totalCount,
             'items' => $items,
         ]);
-    }
-
-    public function update(Request $request, Notification $email_notification) {
-        $validated = $request->validate([
-            'title' => ['required', 'string', 'max:150'],
-            'subject' => ['required', 'string', 'max:255'],
-            'body' => ['required', 'string'],
-            'club_id' => ['nullable', 'integer'],
-        ]);
-
-        $email_notification->update([
-            'title' => $validated['title'],
-            'subject' => $validated['subject'],
-            'body' => $validated['body'],
-            'club_id' => $validated['club_id'] ?? null,
-        ]);
-
-        return redirect()->back()->with('success', 'Correo actualizado con exito.');
-    }
-
-    public function destroy(Notification $email_notification) {
-        $email_notification->delete();
-
-        return redirect()->back()->with('success', 'Correo eliminado con exito.');
     }
 }

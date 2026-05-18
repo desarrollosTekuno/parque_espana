@@ -141,15 +141,14 @@ defineExpose({ validate, hasErrorState })
 }
 
 .form-quill__control {
-  border: 1px solid rgba(0, 0, 0, 0.38);
+  border: 1px solid rgba(0, 0, 0, 0.2);
   border-radius: 4px;
   background: rgb(var(--v-theme-surface));
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color 0.2s ease;
 }
 
 .form-quill__control:focus-within {
-  border-color: rgb(var(--v-theme-primary));
-  box-shadow: 0 0 0 1px rgb(var(--v-theme-primary));
+  border-color: rgba(0, 0, 0, 0.35);
 }
 
 .form-quill--error .form-quill__control {
@@ -157,7 +156,7 @@ defineExpose({ validate, hasErrorState })
 }
 
 .form-quill--error .form-quill__control:focus-within {
-  box-shadow: 0 0 0 1px rgb(var(--v-theme-error));
+  border-color: rgb(var(--v-theme-error));
 }
 
 .form-quill--disabled {
@@ -175,7 +174,7 @@ defineExpose({ validate, hasErrorState })
 .form-quill :deep(.ql-toolbar.ql-snow) {
   border: 0;
   border-bottom: 1px solid rgba(0, 0, 0, 0.12);
-  background: #f5f5f5;
+  background: #f8f8f8;
   border-top-left-radius: 4px;
   border-top-right-radius: 4px;
 }
@@ -189,6 +188,12 @@ defineExpose({ validate, hasErrorState })
 .form-quill :deep(.ql-editor) {
   min-height: var(--quill-min-height);
   color: rgba(0, 0, 0, 0.87);
+}
+
+.form-quill :deep(.ql-editor:focus),
+.form-quill :deep(.ql-container.ql-snow:focus-within) {
+  outline: none;
+  box-shadow: none;
 }
 
 .form-quill :deep(.ql-editor.ql-blank::before) {

@@ -5,7 +5,7 @@ import { fileMaxCountRule, fileMaxSizeRule, fileTypeRule, required } from "@/con
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { Head, useForm, usePage, router } from "@inertiajs/vue3";
 import { debounce } from "lodash";
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 
 interface NotificationItem {
     id: number;
@@ -33,6 +33,7 @@ const page = usePage<any>();
 const props = defineProps<Props>();
 const prefix = "email_notifications";
 const showModal = ref(false);
+const showPreviewModal = ref(false);
 const showRecipientsModal = ref(false);
 const formSendRef = ref();
 const recipientsCount = ref(0);
@@ -42,6 +43,7 @@ const extraEmails = ref<string[]>([]);
 const recipientsSearch = ref("");
 const recipientsPage = ref(1);
 const recipientsPerPage = 20;
+const attachmentPreviewItems = ref<Array<{ name: string; sizeLabel: string; type: string; isImage: boolean; previewUrl: string | null }>>([]);
 
 const form = useForm({
     title: "",
@@ -55,6 +57,8 @@ const form = useForm({
     scheduled_time: "",
     attachments: [] as File[],
     smtp_config_id: null as number | null,
+    selected_recipient_ids: [] as number[],
+    extra_emails: [] as string[],
 });
 
 const assignedClubs = computed(() => page.props.auth?.clubs ?? []);
@@ -139,7 +143,10 @@ const openSendModal = () => {
     form.scheduled_time = "";
     form.attachments = [];
     form.smtp_config_id = null;
+    form.selected_recipient_ids = [];
+    form.extra_emails = [];
     extraEmails.value = [];
+
     showModal.value = true;
     loadRecipientsPreview();
     setDefaultSmtpIfSingle();
@@ -345,11 +352,112 @@ watch(filteredRecipients, () => {
 const closeModal = () => {
     form.reset();
     form.clearErrors();
+    showPreviewModal.value = false;
     showModal.value = false;
 };
 
 watch(smtpOptions, () => {
     setDefaultSmtpIfSingle();
+});
+
+const closePreviewModal = () => {
+    showPreviewModal.value = false;
+};
+
+const cancelPreview = () => {
+    closeModal();
+};
+
+const openPreviewModal = () => {
+    formSendRef.value?.validate().then(({ valid: isValid }: { valid: boolean }) => {
+        if (!isValid) {
+            return;
+        }
+
+        showPreviewModal.value = true;
+    });
+};
+
+const previewScopeLabel = computed(() => {
+    if (form.scope === "individual") {
+        return "Individual";
+    }
+
+    if (form.scope === "by_club") {
+        const selectedClub = assignedClubs.value.find((club: { id: number; name: string }) => club.id === form.club_id);
+        return selectedClub ? `Por parque (${selectedClub.name})` : "Por parque";
+    }
+
+    return "Todos los parques";
+});
+
+const previewRecipientsLabel = computed(() => {
+    if (form.scope === "individual") {
+        return "1 seleccionado de 1";
+    }
+
+    return `${selectedRecipientsCount.value} seleccionados de ${recipientsCount.value}`;
+});
+
+const canOpenRecipientsPreview = computed(() => form.scope !== "individual" && selectedRecipientsCount.value > 0);
+
+const previewSendTypeLabel = computed(() => {
+    if (form.send_type === "now") {
+        return "Envio inmediato";
+    }
+
+    const date = form.scheduled_date || "-";
+    const time = form.scheduled_time || "-";
+    return `Programado: ${date} ${time}`;
+});
+
+const formatFileSize = (bytes: number) => {
+    if (!bytes || bytes <= 0) {
+        return "0 B";
+    }
+
+    const units = ["B", "KB", "MB", "GB"];
+    let value = bytes;
+    let unitIndex = 0;
+
+    while (value >= 1024 && unitIndex < units.length - 1) {
+        value /= 1024;
+        unitIndex += 1;
+    }
+
+    return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+};
+
+const clearAttachmentPreviews = () => {
+    attachmentPreviewItems.value.forEach((item) => {
+        if (item.previewUrl) {
+            URL.revokeObjectURL(item.previewUrl);
+        }
+    });
+    attachmentPreviewItems.value = [];
+};
+
+watch(
+    () => form.attachments,
+    (files) => {
+        clearAttachmentPreviews();
+
+        attachmentPreviewItems.value = (files ?? []).map((file) => {
+            const isImage = (file.type || "").startsWith("image/");
+            return {
+                name: file.name,
+                sizeLabel: formatFileSize(file.size),
+                type: file.type || "application/octet-stream",
+                isImage,
+                previewUrl: isImage ? URL.createObjectURL(file) : null,
+            };
+        });
+    },
+    { deep: true },
+);
+
+onBeforeUnmount(() => {
+    clearAttachmentPreviews();
 });
 
 const saveStepOne = () => {
@@ -358,7 +466,17 @@ const saveStepOne = () => {
             return;
         }
 
-        closeModal();
+        form.selected_recipient_ids = [...selectedRecipientIds.value];
+        form.extra_emails = [...extraEmails.value];
+
+        form.post(route("email-notifications.store"), {
+            forceFormData: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                closeModal();
+                fetchItems();
+            },
+        });
     });
 };
 </script>
@@ -431,8 +549,8 @@ const saveStepOne = () => {
             </v-row>
         </div>
 
-        <v-dialog v-model="showModal" max-width="800" persistent>
-            <v-form ref="formSendRef" @submit.prevent="saveStepOne">
+        <v-dialog v-model="showModal" max-width="800">
+            <v-form ref="formSendRef" @submit.prevent="openPreviewModal">
                 <v-card title="Enviar correo masivo">
                     <v-card-text>
                         <div class="p-1 mb-3 ">
@@ -630,12 +748,19 @@ const saveStepOne = () => {
 
                     <v-card-actions>
                         <v-spacer />
-                        <v-btn variant="text" color="secondary" @click="closeModal">
-                            Cancelar
-                        </v-btn>
-                        <v-btn type="submit" color="primary" variant="flat">
-                            Continuar
-                        </v-btn>
+                        <BaseButton
+                            :icon-only="false"
+                            variant="tonal"
+                            action="cancel"
+                            @click="closeModal"
+                        />
+                        <BaseButton
+                            :icon-only="false"
+                            text="Generar notificacion"
+                            variant="flat"
+                            action="save"
+                            @click="openPreviewModal"
+                        />
                     </v-card-actions>
                 </v-card>
             </v-form>
@@ -703,9 +828,172 @@ const saveStepOne = () => {
 
                 <v-card-actions>
                     <v-spacer />
-                    <v-btn variant="text" color="secondary" @click="closeRecipientsModal">
-                        Cerrar
-                    </v-btn>
+                    <BaseButton
+                        :icon-only="false"
+                        text="Cerrar"
+                        variant="tonal"
+                        action="cancel"
+                        @click="closeRecipientsModal"
+                    />
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
+        <v-dialog v-model="showPreviewModal" max-width="860">
+            <v-card class="!rounded-[28px] overflow-hidden d-flex flex-column" style="max-height: 90vh;">
+                <div class="border-b border-gray-200 pa-8 ">
+                    <div class="flex-wrap d-flex justify-space-between align-start ga-6">
+                        <div>
+                            <div class="mb-1 tracking-widest text-primary text-caption font-weight-bold text-uppercase">
+                                Previsualización
+                            </div>
+
+                            <div class="text-h5 font-weight-bold">
+                                Notificación por correo
+                            </div>
+
+                            <div class="mt-1 text-body-2 text-medium-emphasis">
+                                Revisa el contenido antes de confirmar el envío.
+                            </div>
+                        </div>
+
+                        <v-chip
+                            color="primary"
+                            variant="tonal"
+                            prepend-icon="mdi-email-check-outline"
+                            class="font-weight-medium"
+                        >
+                            {{ previewSendTypeLabel }}
+                        </v-chip>
+                    </div>
+                </div>
+
+                <v-card-text class="pa-8" style="overflow-y: auto;">
+                    <!-- Pre diseño de correo -->
+                    <section class="overflow-hidden border border-gray-200 rounded-xl">
+                        <div class="px-4 py-3 border-b border-gray-200 bg-slate-50 d-flex align-center justify-space-between ga-3">
+                            <div class="text-caption text-medium-emphasis">Vista previa del correo</div>
+                        </div>
+
+                        <div class="bg-white border-b border-gray-200">
+                            <div class="px-5 py-4 border-b border-gray-200 bg-slate-50/60">
+                                <div class="mb-1 text-caption text-medium-emphasis">Asunto</div>
+                                <div class="text-body-1 font-weight-bold">{{ form.subject || "Sin asunto" }}</div>
+                            </div>
+
+                            <div class="px-5 py-3 d-flex flex-wrap ga-4 text-body-2">
+                                <div><span class="text-medium-emphasis">De:</span> {{ smtpOptions.find((item) => item.id === form.smtp_config_id)?.from_address || "Servidor SMTP" }}</div>
+                                <div>
+                                    <span class="text-medium-emphasis">Destino:</span>
+                                    <template v-if="form.scope === 'individual'">
+                                        Individual
+                                    </template>
+                                    <template v-else-if="form.scope === 'by_club'">
+                                        {{ previewScopeLabel }}
+                                    </template>
+                                    <template v-else>
+                                        Todos los parques
+                                    </template>
+
+                                    <a
+                                        v-if="canOpenRecipientsPreview"
+                                        href="#"
+                                        class="ml-2 text-caption text-primary text-decoration-underline"
+                                        @click.prevent="openRecipientsModal"
+                                    >
+                                        Ver mas
+                                    </a>
+                                </div>
+                            </div>
+
+                            <div class="px-5 pb-4 d-flex flex-wrap ga-2">
+                                <v-chip size="small" variant="tonal" color="primary" prepend-icon="mdi-bullseye-arrow">
+                                    {{ previewScopeLabel }}
+                                </v-chip>
+                                <v-chip size="small" variant="tonal" color="primary" prepend-icon="mdi-send-clock-outline">
+                                    {{ previewSendTypeLabel }}
+                                </v-chip>
+                                <v-chip size="small" variant="tonal" color="primary" prepend-icon="mdi-paperclip">
+                                    {{ form.attachments?.length || 0 }} adjunto(s)
+                                </v-chip>
+                                <v-chip size="small" variant="tonal" color="primary" prepend-icon="mdi-email-plus-outline">
+                                    {{ extraEmails.length }} extra(s)
+                                </v-chip>
+                                <v-chip size="small" variant="tonal" color="primary" prepend-icon="mdi-account-group-outline">
+                                    {{ previewRecipientsLabel }}
+                                </v-chip>
+                            </div>
+                        </div>
+
+                        <div class="bg-white pa-5">
+                            <div class="mb-2 text-caption text-medium-emphasis font-weight-bold text-uppercase">
+                                Título
+                            </div>
+                            <div class="mb-5 text-h6 font-weight-bold">
+                                {{ form.title || "Sin título" }}
+                            </div>
+
+                            <div class="mb-2 text-caption text-medium-emphasis font-weight-bold text-uppercase">
+                                Mensaje
+                            </div>
+
+                            <div
+                                class="max-h-[280px] overflow-y-auto border border-gray-200 bg-white pa-4 text-body-2 leading-7"
+                                v-html="form.body || '<p>Sin contenido</p>'"
+                            />
+                        </div>
+
+                        <div v-if="attachmentPreviewItems.length > 0" class="pa-6">
+                            <div class="mb-2 text-caption text-medium-emphasis font-weight-bold text-uppercase">
+                                Archivos adjuntos
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                <div
+                                    v-for="(file, index) in attachmentPreviewItems"
+                                    :key="`${file.name}-${index}`"
+                                    class="p-3 border border-gray-200 rounded-xl bg-gray-50"
+                                >
+                                    <div class="mb-2 text-body-2 font-weight-medium text-truncate">
+                                        {{ file.name }}
+                                    </div>
+                                    <div class="mb-2 text-caption text-medium-emphasis">
+                                        {{ file.type }} - {{ file.sizeLabel }}
+                                    </div>
+
+                                    <v-img
+                                        v-if="file.isImage && file.previewUrl"
+                                        :src="file.previewUrl"
+                                        :alt="file.name"
+                                        height="120"
+                                        cover
+                                        class="overflow-hidden border rounded-lg"
+                                    />
+                                    <div v-else class="text-caption text-medium-emphasis">
+                                        Sin vista previa para este tipo de archivo.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                </v-card-text>
+
+                <v-card-actions class="pt-0 pa-8">
+                    <v-spacer />
+                    <BaseButton
+                        :icon-only="false"
+                        variant="tonal"
+                        action="cancel"
+                        @click="closePreviewModal"
+                    />
+                    <BaseButton
+                        :icon-only="false"
+                        text="Enviar"
+                        variant="flat"
+                        action="save"
+                        @click="saveStepOne"
+                    />
                 </v-card-actions>
             </v-card>
         </v-dialog>
