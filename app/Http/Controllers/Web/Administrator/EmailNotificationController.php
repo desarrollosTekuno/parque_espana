@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web\Administrator;
 
+use App\Jobs\SendEmailNotificationJob;
 use App\Models\Administrator\Club;
 use App\Models\Notifications\EmailConfig;
 use App\Models\Notifications\Notification;
@@ -149,6 +150,10 @@ class EmailNotificationController extends Controller {
                     'mime_type' => $file->getClientMimeType(),
                     'file_size' => $file->getSize(),
                 ]);
+            }
+
+            if (!$isScheduled) {
+                SendEmailNotificationJob::dispatch($notification->id);
             }
         });
 
