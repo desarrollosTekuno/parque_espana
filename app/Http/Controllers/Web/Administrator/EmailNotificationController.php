@@ -102,7 +102,7 @@ class EmailNotificationController extends Controller {
             'subject' => ['required', 'string', 'max:255'],
             'body' => ['required', 'string'],
             'club_id' => ['nullable', 'integer'],
-            'send_type' => ['nullable', 'in:now,scheduled'],
+            'send_type' => ['nullable'],
             'scheduled_date' => ['nullable'],
             'scheduled_time' => ['nullable'],
             'attachments' => ['nullable', 'array'],
