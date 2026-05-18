@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\Web\AdminClub;
 
 use App\Models\AdminClub\ReservationGuestList;
+use App\Models\Billing\Charge;
+use App\Models\Billing\ChargeConcept;
+use App\Models\Memberships\MembershipAccountMember;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
@@ -79,6 +82,30 @@ class ReservationGuestListController extends Controller {
                 $total = $guestList->billable_subtotal - $discount;
                 $status = ReservationGuestList::APPROVED;
                 $comments = null;
+
+                // Registro de cargo al socio
+                $concept = ChargeConcept::where('code', 'GUEST_LIST')->first();
+                $accountMember = MembershipAccountMember::where('member_id', $guestList->member_id)->first();
+                $membership = $accountMember->membershipAccount->memberships->first();
+
+                Charge::create([
+                    'membership_account_id' => $accountMember->membership_account_id,
+                    'membership_id' => $membership->id,
+                    'member_id' => $guestList->member_id,
+                    'concept_id' => $concept->id,
+                    'description' => 'Cargo por lista de invitados',
+                    'amount' => $total,
+                    'balance' => $total,
+                    'issue_date' => now(),
+                    'due_date' => now(),
+                    'allows_partial_payments' => false,
+                    'status' => 'pending',
+                    'metadata' => [
+                        'charge_origin' => 'guest_list',
+                        'concept_code' => $concept->code
+                    ]
+                ]);
+
             }else {
                 $discount = null;
                 $total = null;

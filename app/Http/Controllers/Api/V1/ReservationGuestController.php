@@ -35,14 +35,14 @@ class ReservationGuestController extends Controller {
 
             $validated = $request->validated();
 
-            // return $validated;
-
             $context = new GuestListContext(
                 data: $validated
             );
             $validator->validate($context);
 
             $data = $this->priceCalculator($validated);
+
+            $member = $request->user()->member;
 
             $guestList = ReservationGuestList::create([
                 'status' => ReservationGuestList::PENDING,
@@ -56,7 +56,8 @@ class ReservationGuestController extends Controller {
                 'title' => $validated['title'],
                 'description' => $validated['description'],
                 'total_billable_guests' => $data['total_billable_guests'],
-                'non_billable_subtotal' => $data['non_billable_subtotal']
+                'non_billable_subtotal' => $data['non_billable_subtotal'],
+                'member_id' => $member->id
             ]);
 
             foreach ($validated['guests'] as $guest) {
@@ -125,7 +126,7 @@ class ReservationGuestController extends Controller {
                 {
                     $totalBillableGuests++;
                     $subtotalBillableGuests += $normalPrice;
-                } 
+                }
                 else {
                     $totalNonBillableGuests++;
                     $subtotalNonBillable += $normalPrice;
@@ -136,12 +137,12 @@ class ReservationGuestController extends Controller {
                 {
                     $totalBillableGuests++;
                     $subtotalBillableGuests += $specialPrice;
-                }   
+                }
                 else {
                     $totalNonBillableGuests++;
                     $subtotalNonBillable += $specialPrice;
-                } 
-            }      
+                }
+            }
         }
 
         return [

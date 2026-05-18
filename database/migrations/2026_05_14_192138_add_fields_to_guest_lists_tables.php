@@ -17,6 +17,8 @@ return new class extends Migration
             $table->text('description')->nullable();
             $table->integer('total_billable_guests')->nullable();
             $table->decimal('non_billable_subtotal', 12, 2)->nullable();
+            $table->unsignedBigInteger('member_id')->nullable();
+            $table->foreign('member_id')->references('id')->on('members.members')->onDelete('cascade');
         });
 
         Schema::table('guest_lists.guest_list_items', function (Blueprint $table){
@@ -36,6 +38,8 @@ return new class extends Migration
             $table->dropColumn('description');
             $table->dropColumn('total_billable_guests');
             $table->dropColumn('non_billable_subtotal');
+            $table->dropForeign(['member_id']);
+            $table->dropColumn('member_id');
         });
 
         Schema::table('guest_lists.guest_list_items', function (Blueprint $table) {
