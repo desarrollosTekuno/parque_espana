@@ -6,10 +6,10 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class ReservationGuestListItem extends Model {
+class GuestListVariable extends Model {
     use HasFactory, SoftDeletes;
 
-    protected $table = 'guest_lists.guest_list_items';
+    protected $table = 'guest_lists.variables';
 
     protected $guarded = ['id', 'created_at', 'updated_at'];
     protected $dates = ['deleted_at'];

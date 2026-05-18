@@ -242,6 +242,22 @@ const routes: Routing[] = [
                 value: "reservaciones",
             },
             {
+                name: "system-variables.index",
+                title: "Variables del Sistema",
+                icon: "mdi-cog",
+                value: "variables-sistema",
+            }
+        ]
+    },
+    // Listas de invitados
+    {
+        name: ["guest-lists.index"],
+        title: "Listas de invitados",
+        icon: "mdi-account-group-outline",
+        value: "listas-invitadosMenu",
+        group: "Listas de invitados",
+        groupItems: [
+            {
                 name: "guest-lists.index",
                 title: "Listas de invitados",
                 icon: "mdi-account-group-outline",

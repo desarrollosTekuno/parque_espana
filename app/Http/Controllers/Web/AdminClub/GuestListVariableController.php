@@ -2,25 +2,25 @@
 
 namespace App\Http\Controllers\Web\AdminClub;
 
-use App\Models\AdminClub\SystemVariable;
+use App\Models\AdminClub\GuestListVariable;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
 use Illuminate\Routing\Controller;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
-class SystemVariableController extends Controller {
+class GuestListVariableController extends Controller {
 
-    public function __construct() {
-        $this->middleware('permission:system-variables.index')->only('index');
-        $this->middleware('permission:system-variables.store')->only('store');
-        $this->middleware('permission:system-variables.update')->only('update');
-        $this->middleware('permission:system-variables.destroy')->only('destroy');
+    public function __construct()
+    {
+        $this->middleware('permission:guest-list-variables.index')->only('index');
+        $this->middleware('permission:guest-list-variables.store')->only('store');
+        $this->middleware('permission:guest-list-variables.update')->only('update');
+        $this->middleware('permission:guest-list-variables.destroy')->only('destroy');
     }
 
-    public function index(Request $request)
-    {
+    public function index(Request $request) {
 
         $clubId = $request->club_id ?? session('club_id');
 
@@ -28,18 +28,19 @@ class SystemVariableController extends Controller {
         $driver = DB::getDriverName();
 
         // Prefijo para evitar conflicto con otras tablas
-        $prefix = 'systemVariables';
+        $prefix = 'guestListVariables';
 
         // Query base
-        $query = SystemVariable::where('club_id', $clubId);
+        $query = GuestListVariable::where('club_id', $clubId);
 
         if ($search = $request->input("{$prefix}_search")) {
 
             $query->where(function ($q) use ($driver, $search) {
 
-                $q->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
-                ->orWhere('description', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
-                ->orWhere('value', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
+                $q->where('code', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
+                    ->orwhere('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
+                    ->orWhere('description', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
+                    ->orWhere('value', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
             });
         }
 
@@ -48,14 +49,14 @@ class SystemVariableController extends Controller {
 
         $query->orderBy($sort, $order);
 
-        $systemVariables = $query->paginate(
+        $guestListVariables = $query->paginate(
             $request->input("{$prefix}_per_page", 10),
             ['*'],
             "{$prefix}_page"
         )->appends($request->all());
 
-        return Inertia::render('AdminClubs/SystemVariable/Index', [
-            'systemVariables' => $systemVariables,
+        return Inertia::render('AdminClubs/GuestListVariables/Index', [
+            'guestListVariables' => $guestListVariables,
         ]);
     }
 
@@ -64,18 +65,19 @@ class SystemVariableController extends Controller {
         try {
 
             $validated = $request->validate([
-                'name' => [
+                'code' => [
                     'required',
                     'string',
                     'max:50',
-                    Rule::unique(SystemVariable::class, 'name')
+                    Rule::unique(GuestListVariable::class, 'code')
                         ->where(fn ($query) => $query->where('club_id', session('club_id'))),
                 ],
+                'name' => 'required|string|max:100',
                 'description' => 'required|string|max:255',
                 'value' => 'required|string|max:50',
             ]);
 
-            SystemVariable::create(array_merge($validated, ['club_id' => session('club_id')]));
+            GuestListVariable::create(array_merge($validated, ['club_id' => session('club_id')]));
             return redirect()->back()->with('success', 'Variable creada correctamente');
 
         } catch (\Exception $e) {
@@ -86,7 +88,7 @@ class SystemVariableController extends Controller {
         }
     }
 
-    public function update(Request $request, SystemVariable $systemVariable)
+    public function update(Request $request, GuestListVariable $guestListVariable)
     {
         try {
 
@@ -94,12 +96,12 @@ class SystemVariableController extends Controller {
                 'name' => ['required', 'string', 'max:50'],
                 'description' => 'required|string|max:255',
                 'value' => 'required|string|max:50',
-                Rule::unique('system_variables', 'name')
-                    ->ignore($systemVariable->id)
+                Rule::unique(GuestListVariable::class, 'code')
+                    ->ignore($guestListVariable->id)
                     ->where(fn ($query) => $query->where('club_id', session('club_id'))),
             ]);
 
-            $systemVariable->update($validated);
+            $guestListVariable->update($validated);
             return redirect()->back()->with('success', 'Variable actualizada correctamente');
 
         } catch (\Exception $e) {
@@ -110,10 +112,10 @@ class SystemVariableController extends Controller {
         }
     }
 
-    public function destroy(SystemVariable $systemVariable)
+    public function destroy(GuestListVariable $guestListVariable)
     {
         try {
-            $systemVariable->delete();
+            $guestListVariable->delete();
             return redirect()->back()->with('success', 'Variable eliminada correctamente');
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([

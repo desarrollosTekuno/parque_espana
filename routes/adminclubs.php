@@ -22,6 +22,7 @@ use App\Http\Controllers\Web\AdminClub\Feedback\FeedbackManagementController;
 use App\Http\Controllers\Web\AdminClub\Feedback\FeedbackPriorityController;
 use App\Http\Controllers\Web\AdminClub\Feedback\FeedbackStatusController;
 use App\Http\Controllers\Web\AdminClub\Feedback\FeedbackTicketTypeController;
+use App\Http\Controllers\Web\AdminClub\GuestListVariableController;
 use App\Http\Controllers\Web\AdminClub\ReservationGuestListController;
 use App\Http\Controllers\Web\AdminClub\SurveyResultController;
 use App\Http\Controllers\Web\AdminClub\AccountCancellationController;
@@ -45,10 +46,14 @@ Route::post('/amenitySchedule', [AmenityScheduleController::class, 'store'])->na
 Route::resource('/blockedPeriods', BlockedPeriodController::class)->names('blockedPeriods');
 Route::get('/amenity-resource/{resource}/calendar', [AmenityResourceController::class, 'calendar'])->name('amenityResource.calendar');
 
+// reservations
 Route::resource('/reservations', ReservationController::class)->only(['index', 'update'])->names('reservations');
 Route::resource('/system-variables', SystemVariableController::class)->only(['index', 'store', 'update', 'destroy'])->names('system-variables');
 
+// guest lists
 Route::resource('/guest-lists', ReservationGuestListController::class)->only(['index', 'update'])->names('guest-lists');
+Route::resource('/guest-list-variables', GuestListVariableController::class)->only(['index', 'store', 'update', 'destroy']);
+
 Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
 Route::get('/billing/charges', [BillingController::class, 'chargesList'])->name('billing.charges.index');
 Route::post('/billing/payments', [BillingController::class, 'storePayment'])->name('billing.payments.store');

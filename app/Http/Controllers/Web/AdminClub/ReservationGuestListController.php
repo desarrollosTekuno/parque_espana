@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\Web\AdminClub;
 
 use App\Models\AdminClub\ReservationGuestList;
+use App\Models\Billing\Charge;
+use App\Models\Billing\ChargeConcept;
+use App\Models\Memberships\MembershipAccountMember;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
@@ -30,20 +33,25 @@ class ReservationGuestListController extends Controller {
 
         // Query base
         $query = ReservationGuestList::with(['guestListItems', 'reservation', 'reservation.amenityResource'])
-            ->whereHas('reservation', function ($q) use ($clubId) {
-                $q->where('club_id', $clubId);
-            });
+            ->where('club_id', $clubId);
+            // ->whereHas('reservation', function ($q) use ($clubId) {
+            //     $q->where('club_id', $clubId);
+            // });
 
         if ($search = $request->input("{$prefix}_search")) {
 
             $query->where(function ($q) use ($driver, $search) {
 
-                $q->where('status', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
-                $q->orWhereHas('reservation', function ($q2) use ($driver, $search){
-                    $q2->whereHas('amenityResource', function ($q3) use ($driver, $search){
-                        $q3->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
-                    });
-                });
+                $q->where('status', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
+                    ->orWhere('total_guests', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
+                    ->orWhere('billable_subtotal', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
+                    ->orWhere('discount', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
+                    ->orWhere('total', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
+                // $q->orWhereHas('reservation', function ($q2) use ($driver, $search){
+                //     $q2->whereHas('amenityResource', function ($q3) use ($driver, $search){
+                //         $q3->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
+                //     });
+                // });
             });
         }
 
@@ -70,10 +78,34 @@ class ReservationGuestListController extends Controller {
 
             if ($action == 'approve' )
             {
-                $discount = ($guestList->subtotal * $request->discount_percentage) / 100;
-                $total = $guestList->subtotal - $discount;
+                $discount = ($guestList->billable_subtotal * $request->discount_percentage) / 100;
+                $total = $guestList->billable_subtotal - $discount;
                 $status = ReservationGuestList::APPROVED;
                 $comments = null;
+
+                // Registro de cargo al socio
+                $concept = ChargeConcept::where('code', 'GUEST_LIST')->first();
+                $accountMember = MembershipAccountMember::where('member_id', $guestList->member_id)->first();
+                $membership = $accountMember->membershipAccount->memberships->first();
+
+                Charge::create([
+                    'membership_account_id' => $accountMember->membership_account_id,
+                    'membership_id' => $membership->id,
+                    'member_id' => $guestList->member_id,
+                    'concept_id' => $concept->id,
+                    'description' => 'Cargo por lista de invitados',
+                    'amount' => $total,
+                    'balance' => $total,
+                    'issue_date' => now(),
+                    'due_date' => now(),
+                    'allows_partial_payments' => false,
+                    'status' => 'pending',
+                    'metadata' => [
+                        'charge_origin' => 'guest_list',
+                        'concept_code' => $concept->code
+                    ]
+                ]);
+
             }else {
                 $discount = null;
                 $total = null;
