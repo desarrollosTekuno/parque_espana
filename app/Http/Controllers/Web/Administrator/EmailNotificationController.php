@@ -7,6 +7,7 @@ use App\Models\Notifications\EmailConfig;
 use App\Models\Notifications\Notification;
 use App\Models\Notifications\NotificationAttachment;
 use App\Models\Notifications\NotificationChannel;
+use App\Models\Notifications\NotificationRecipient;
 use App\Models\Notifications\NotificationStatusCatalog;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -136,6 +137,8 @@ class EmailNotificationController extends Controller {
                 'created_by' => Auth::id(),
             ]);
 
+            $this->saveNotificationHistory($notification, $request, $isScheduled);
+
             foreach ($request->file('attachments', []) as $file) {
                 $path = $file->store("Notificaciones/Emails/{$notificationUuid}", 'public');
 
@@ -150,6 +153,55 @@ class EmailNotificationController extends Controller {
         });
 
         return redirect()->back()->with('success', 'Correo registrado con exito.');
+    }
+
+    private function saveNotificationHistory(Notification $notification, Request $request, bool $isScheduled) {
+        $scope = $request->input('scope', 'all');
+        $status = $isScheduled ? 'scheduled' : 'sent';
+        $sentAt = $isScheduled ? null : now();
+
+        if ($scope === 'individual') {
+            $email = (string) $request->input('individual_email', '');
+            if ($email !== '') {
+                NotificationRecipient::create([
+                    'notification_id' => $notification->id,
+                    'destination' => $email,
+                    'status' => $status,
+                    'sent_at' => $sentAt,
+                ]);
+            }
+        } else {
+            $selectedRecipientIds = $request->input('selected_recipient_ids', []);
+            if (is_array($selectedRecipientIds)) {
+                foreach ($selectedRecipientIds as $selectedRecipientId) {
+                    $user = User::find($selectedRecipientId);
+
+                    if ($user && $user->email) {
+                        NotificationRecipient::create([
+                            'notification_id' => $notification->id,
+                            'user_id' => $user->id,
+                            'destination' => $user->email,
+                            'status' => $status,
+                            'sent_at' => $sentAt,
+                        ]);
+                    }
+                }
+            }
+        }
+
+        $extraEmails = $request->input('extra_emails', []);
+        if (is_array($extraEmails)) {
+            foreach ($extraEmails as $extraEmail) {
+                if ($extraEmail != '') {
+                    NotificationRecipient::create([
+                        'notification_id' => $notification->id,
+                        'destination' => $extraEmail,
+                        'status' => $status,
+                        'sent_at' => $sentAt,
+                    ]);
+                }
+            }
+        }
     }
 
     public function recipientsPreview(Request $request) {
