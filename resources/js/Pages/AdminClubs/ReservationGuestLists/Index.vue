@@ -293,7 +293,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                     </v-data-table-server>
                 </v-col>
             </v-row>
-            <pre>{{ guestLists }}</pre>
+            <!-- <pre>{{ guestLists }}</pre> -->
         </div>
 
         <v-dialog v-model="showModalApprove" max-width="700" persistent>
@@ -310,7 +310,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                         <v-btn value="reject" color="error" variant="flat">Rechazar</v-btn>
                     </v-btn-toggle>
                 </v-card-title>
-            
+
                 <v-card-text class="overflow-y-auto h-full">
                     <!-- Evento + Totales -->
                     <v-sheet class="pa-4 mb-4 rounded-lg border" color="grey-lighten-5">
@@ -321,9 +321,9 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 <div class="text-subtitle-1 font-weight-medium">{{ form.title }}</div>
                             </div>
                         </div>
-                    
+
                         <v-divider class="my-3"></v-divider>
-                    
+
                         <div class="d-flex justify-space-around text-center">
                             <div>
                                 <div class="text-h6 font-weight-bold text-primary">
@@ -345,7 +345,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                             </div>
                         </div>
                     </v-sheet>
-                
+
                     <!-- Lista de invitados con resaltado -->
                     <div style="max-height: 350px; overflow-y: auto;">
                         <v-list density="comfortable" class="rounded-lg border">
@@ -373,13 +373,13 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 </v-list-item-subtitle>
                                 <template #append>
                                     <span :class="item.is_billable_to_member ? 'text-primary font-weight-medium' : ''">
-                                        {{ formatCurrency(item.age <= 7 ? 150 : 300) }}
+                                        {{ formatCurrency(item.price) }}
                                     </span>
                                 </template>
                             </v-list-item>
                         </v-list>
                     </div>
-                
+
                     <!-- Acción: Aprobar -->
                     <div v-if="action === 'approve'" class="mt-5">
                         <v-alert type="info" variant="tonal" density="compact" class="mb-3">
@@ -394,7 +394,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                             prepend-inner-icon="mdi-tag-outline"
                             class="mb-2"
                         />
-                    
+
                         <v-sheet class="pa-4 rounded-lg border" color="grey-lighten-5">
                             <!-- A cargo de los invitados -->
                             <div class="mb-3">
@@ -411,9 +411,9 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                     </span>
                                 </div>
                             </div>
-                        
+
                             <v-divider class="my-3"></v-divider>
-                        
+
                             <!-- A cargo del socio -->
                             <div>
                                 <div class="d-flex justify-space-between align-center mb-1">
@@ -432,9 +432,9 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                     <span class="text-body-2">Descuento ({{ discount || 0 }}%)</span>
                                     <span class="text-body-2">-{{ formatCurrency(discountAmount) }}</span>
                                 </div>
-                            
+
                                 <v-divider class="my-2"></v-divider>
-                            
+
                                 <div class="d-flex justify-space-between align-center">
                                     <span class="text-subtitle-1 font-weight-bold">Total a pagar</span>
                                     <span class="text-h6 font-weight-bold text-primary">
@@ -444,7 +444,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                             </div>
                         </v-sheet>
                     </div>
-                
+
                     <!-- Acción: Rechazar -->
                     <div v-if="action === 'reject'" class="mt-4">
                         <v-alert type="warning" variant="tonal" density="compact" class="mb-3">
@@ -458,7 +458,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                         />
                     </div>
                 </v-card-text>
-            
+
                 <v-card-actions>
                     <v-spacer></v-spacer>
                     <BaseButton
@@ -562,7 +562,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 </v-list-item-subtitle>
                                 <template #append>
                                     <span :class="item.is_billable_to_member ? 'text-primary font-weight-medium' : ''">
-                                        {{ formatCurrency(item.age <= 7 ? 150 : 300) }}
+                                        {{ formatCurrency(item.price) }}
                                     </span>
                                 </template>
                             </v-list-item>
@@ -571,7 +571,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                     <v-alert type="info" variant="tonal" :color="form.color" class="mt-4">
                         Estatus: {{ form.status }}
                     </v-alert>
-                    
+
                     <div class="mt-5">
                         <v-sheet class="pa-4 rounded-lg border" color="grey-lighten-5">
                             <!-- A cargo de los invitados -->
@@ -589,9 +589,9 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                     </span>
                                 </div>
                             </div>
-                        
+
                             <v-divider class="my-3"></v-divider>
-                        
+
                             <!-- A cargo del socio -->
                             <div>
                                 <div class="d-flex justify-space-between align-center mb-1">
@@ -610,9 +610,9 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                     <span class="text-body-2">Descuento aplicado</span>
                                     <span class="text-body-2">-{{ formatCurrency(form.discount) }}</span>
                                 </div>
-                            
+
                                 <v-divider class="my-2"></v-divider>
-                            
+
                                 <div class="d-flex justify-space-between align-center">
                                     <span class="text-subtitle-1 font-weight-bold">Total a pagar</span>
                                     <span class="text-h6 font-weight-bold text-primary">

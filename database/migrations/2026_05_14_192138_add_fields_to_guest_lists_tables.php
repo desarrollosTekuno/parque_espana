@@ -24,6 +24,8 @@ return new class extends Migration
         Schema::table('guest_lists.guest_list_items', function (Blueprint $table){
             $table->boolean('is_billable_to_member')->nullable();
             $table->boolean('is_paid')->default(false);
+            $table->decimal('price', 12, 2)->nullable();
+            $table->boolean('is_comped')->default(false);
         });
     }
 
@@ -45,6 +47,8 @@ return new class extends Migration
         Schema::table('guest_lists.guest_list_items', function (Blueprint $table) {
             $table->dropColumn('is_billable_to_member');
             $table->dropColumn('is_paid');
+            $table->dropColumn('price');
+            $table->dropColumn('is_comped');
         });
     }
 };

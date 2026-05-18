@@ -60,7 +60,7 @@ class ReservationGuestController extends Controller {
                 'member_id' => $member->id
             ]);
 
-            foreach ($validated['guests'] as $guest) {
+            foreach ($data['guests'] as $guest) {
                 ReservationGuestListItem::create([
                     'name' => $guest['name'],
                     'last_name' => $guest['last_name'],
@@ -68,7 +68,8 @@ class ReservationGuestController extends Controller {
                     'phone' => $guest['phone'],
                     'age' => $guest['age'],
                     'guest_list_id' => $guestList->id,
-                    'is_billable_to_member' => $guest['is_billable_to_member']
+                    'is_billable_to_member' => $guest['is_billable_to_member'],
+                    'price' => $guest['price']
                 ]);
             }
 
@@ -118,9 +119,10 @@ class ReservationGuestController extends Controller {
         $subtotalBillableGuests = 0;    // subtotal de lo que pagara el socio
         $subtotalNonBillable = 0;       // subtotal de lo que no pagara el socio
 
-        foreach ($guests as $guest) {
+        foreach ($guests as &$guest) {
             if ($guest['age'] >= 7)
             {
+                $guest['price'] = $normalPrice;
                 $totalNormalGuests++;
                 if($guest['is_billable_to_member'])
                 {
@@ -132,6 +134,7 @@ class ReservationGuestController extends Controller {
                     $subtotalNonBillable += $normalPrice;
                 }
             }else{
+                $guest['price'] = $specialPrice;
                 $totalSpecialGuests++;
                 if($guest['is_billable_to_member'])
                 {
@@ -146,6 +149,7 @@ class ReservationGuestController extends Controller {
         }
 
         return [
+            'guests' => $guests,
             'total_guests' => $totalGuests,
             'total_normal_guests' => $totalNormalGuests,
             'total_special_guests' => $totalSpecialGuests,
