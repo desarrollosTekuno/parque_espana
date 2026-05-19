@@ -160,7 +160,7 @@ class EmailNotificationController extends Controller {
             }
         });
 
-        if ($notification) {
+        if (!$isScheduled && $notification) {
             SendEmailNotificationJob::dispatchSync($notification->id);
         }
 

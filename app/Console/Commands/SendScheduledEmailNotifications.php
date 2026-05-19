@@ -34,7 +34,7 @@ class SendScheduledEmailNotifications extends Command
             ->get();
 
         foreach ($notifications as $notification) {
-            SendEmailNotificationJob::dispatch($notification->id);
+            SendEmailNotificationJob::dispatchSync($notification->id);
         }
 
         return 0;
