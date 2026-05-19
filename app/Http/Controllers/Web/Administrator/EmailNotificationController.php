@@ -100,6 +100,7 @@ class EmailNotificationController extends Controller {
             'title' => ['required', 'string', 'max:150'],
             'body' => ['required', 'string'],
             'club_id' => ['nullable', 'integer'],
+            'smtp_config_id' => ['required', 'integer', 'exists:email_configs,id'],
             'send_type' => ['nullable'],
             'scheduled_date' => ['nullable'],
             'scheduled_time' => ['nullable'],
@@ -107,9 +108,10 @@ class EmailNotificationController extends Controller {
             'attachments.*' => ['nullable', 'file'],
         ]);
 
-        $resolvedClubId = (int) ($validated['club_id'] ?? session('club_id'));
-        if ($resolvedClubId <= 0) {
-            $resolvedClubId = (int) Auth::user()->clubs()->value('clubs.id');
+        $emailConfig = EmailConfig::find($validated['smtp_config_id']);
+        $resolvedClubId = $validated['club_id'] ?? null;
+        if ($emailConfig) {
+            $resolvedClubId = $emailConfig->entity_id;
         }
 
         $statusCode = 'sent';

@@ -25,25 +25,11 @@ class SendEmailNotificationJob implements ShouldQueue {
         ]);
 
         $notification = Notification::query()
-            ->with(['recipients.user.clubs:id', 'attachments'])
+            ->with(['recipients', 'attachments'])
             ->find($this->notificationId);
 
         if ($notification && $notification->club_id) {
             foreach ($notification->recipients as $recipient) {
-                $entityId = (int) $notification->club_id;
-
-                if ($recipient->user && $recipient->user->clubs->isNotEmpty()) {
-                    $entityId = (int) $recipient->user->clubs->first()->id;
-                }
-
-                if ($entityId <= 0) {
-                    Log::warning('No se encontro parque para enviar correo', [
-                        'notification_id' => $this->notificationId,
-                        'recipient_id' => $recipient->id,
-                    ]);
-                    continue;
-                }
-
                 $mailable = new EmailNotificationMailable(
                     subjectText: (string) $notification->title,
                     titleText: (string) $notification->title,
@@ -52,7 +38,7 @@ class SendEmailNotificationJob implements ShouldQueue {
                 );
 
                 $mailService->send(
-                    entityId: $entityId,
+                    entityId: (int) $notification->club_id,
                     to: (string) $recipient->destination,
                     mailable: $mailable
                 );

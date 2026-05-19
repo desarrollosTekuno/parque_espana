@@ -61,6 +61,7 @@ const form = useForm({
     scheduled_date: "",
     scheduled_time: "",
     attachments: [] as File[],
+    smtp_config_id: null as number | null,
     selected_recipient_ids: [] as number[],
     extra_emails: [] as string[],
 });
@@ -145,12 +146,14 @@ const openSendModal = () => {
     form.scheduled_date = "";
     form.scheduled_time = "";
     form.attachments = [];
+    form.smtp_config_id = null;
     form.selected_recipient_ids = [];
     form.extra_emails = [...TEMP_DEFAULT_EMAIL_FORM.extra_emails];
     extraEmails.value = [...TEMP_DEFAULT_EMAIL_FORM.extra_emails];
 
     showModal.value = true;
     loadRecipientsPreview();
+    setDefaultSmtpIfSingle();
 };
 
 const onScopeChange = () => {
@@ -166,15 +169,21 @@ const onScopeChange = () => {
         form.club_id = currentClubId.value;
     }
 
+    form.smtp_config_id = null;
+
     loadRecipientsPreview();
+    setDefaultSmtpIfSingle();
 };
 
 const onClubChange = () => {
+    form.smtp_config_id = null;
+
     if (form.scope !== "by_club") {
         return;
     }
 
     loadRecipientsPreview();
+    setDefaultSmtpIfSingle();
 };
 
 const loadRecipientsPreview = async () => {
@@ -242,6 +251,39 @@ const pagedRecipients = computed(() => {
 
 const selectedRecipientsCount = computed(() => selectedRecipientIds.value.length);
 
+const smtpOptions = computed(() => {
+    const configs = props.email_configs ?? [];
+
+    if (form.scope === "individual") {
+        return configs;
+    }
+
+    if (form.scope === "by_club") {
+        if (!form.club_id) {
+            return [];
+        }
+
+        return configs.filter((config) => config.entity_id === form.club_id);
+    }
+
+    return configs;
+});
+
+const smtpRequiredRule = (value: number | null) => {
+    if (smtpOptions.value.length === 0) {
+        return "No hay servidores SMTP disponibles";
+    }
+
+    return !!value || "Selecciona un servidor SMTP";
+};
+
+const setDefaultSmtpIfSingle = () => {
+    if (form.smtp_config_id || smtpOptions.value.length !== 1) {
+        return;
+    }
+
+    form.smtp_config_id = smtpOptions.value[0].id;
+};
 
 const toggleRecipient = (id: number, checked: boolean | null) => {
     if (checked) {
@@ -318,6 +360,10 @@ const closeModal = () => {
     showModal.value = false;
 };
 
+watch(smtpOptions, () => {
+    setDefaultSmtpIfSingle();
+});
+
 const closePreviewModal = () => {
     showPreviewModal.value = false;
 };
@@ -367,14 +413,6 @@ const previewSendTypeLabel = computed(() => {
     const date = form.scheduled_date || "-";
     const time = form.scheduled_time || "-";
     return `Programado: ${date} ${time}`;
-});
-
-const previewSubmitLabel = computed(() => {
-    if (form.send_type === "now") {
-        return "Enviar";
-    }
-
-    return "Programar envio";
 });
 
 const formatFileSize = (bytes: number) => {
@@ -559,6 +597,27 @@ const saveStepOne = () => {
                                     required
                                 />
                             </v-col>
+                            <v-col cols="12" :md="form.scope === 'all' ? 12 : 6">
+                                <v-select
+                                    v-model="form.smtp_config_id"
+                                    :items="smtpOptions"
+                                    item-title="profile_name"
+                                    item-value="id"
+                                    label="Servidor SMTP"
+                                    :rules="[smtpRequiredRule]"
+                                    :hint="form.scope === 'by_club' ? 'Servidores del parque seleccionado' : 'Servidores activos'"
+                                    persistent-hint
+                                    required
+                                >
+                                    <template #item="{ props: itemProps, item }">
+                                        <v-list-item
+                                            v-bind="itemProps"
+                                            :title="item.raw.profile_name"
+                                            :subtitle="item.raw.from_address"
+                                        />
+                                    </template>
+                                </v-select>
+                            </v-col>
                         </v-row>
 
                         <div class="px-1 mt-2 d-flex justify-space-between align-center">
@@ -693,7 +752,7 @@ const saveStepOne = () => {
                         <BaseButton
                             v-if="can.includes('email-notifications.store')"
                             :icon-only="false"
-                            text="Previsualizar notificación"
+                            text="Generar notificacion"
                             variant="flat"
                             action="save"
                             @click="openPreviewModal"
@@ -818,7 +877,8 @@ const saveStepOne = () => {
                                 <div class="text-body-1 font-weight-bold">{{ form.title || "Sin titulo" }}</div>
                             </div>
 
-                            <div class="flex-wrap px-5 py-3 d-flex ga-4 text-body-2">
+                            <div class="px-5 py-3 d-flex flex-wrap ga-4 text-body-2">
+                                <div><span class="text-medium-emphasis">De:</span> {{ smtpOptions.find((item) => item.id === form.smtp_config_id)?.from_address || "Servidor SMTP" }}</div>
                                 <div>
                                     <span class="text-medium-emphasis">Destino:</span>
                                     <template v-if="form.scope === 'individual'">
@@ -842,7 +902,7 @@ const saveStepOne = () => {
                                 </div>
                             </div>
 
-                            <div class="flex-wrap px-5 pb-4 d-flex ga-2">
+                            <div class="px-5 pb-4 d-flex flex-wrap ga-2">
                                 <v-chip size="small" variant="tonal" color="primary" prepend-icon="mdi-bullseye-arrow">
                                     {{ previewScopeLabel }}
                                 </v-chip>
@@ -926,7 +986,7 @@ const saveStepOne = () => {
                     <BaseButton
                         v-if="can.includes('email-notifications.store')"
                         :icon-only="false"
-                        :text="previewSubmitLabel"
+                        text="Enviar"
                         variant="flat"
                         action="save"
                         @click="saveStepOne"
