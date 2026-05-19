@@ -7,6 +7,7 @@ use App\Models\Administrator\Club;
 use App\Models\Notifications\EmailConfig;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
@@ -21,18 +22,22 @@ class EmailConfigController extends Controller {
 
     public function index(Request $request) {
         $emailConfigs = $this->getEmailConfigs($request);
+        $clubIds = Auth::user()->clubs()->pluck('clubs.id');
 
         return Inertia::render('Administrator/EmailConfigs/Index', [
             'emailConfigs' => $emailConfigs,
-            'clubs' => Club::query()->select('id', 'name')->orderBy('name')->get(),
+            'clubs' => Club::query()->select('id', 'name')->whereIn('id', $clubIds)->orderBy('name')->get(),
         ]);
     }
 
     private function getEmailConfigs(Request $request) {
         $driver = DB::getDriverName();
         $prefix = 'emailConfigs';
+        $clubIds = Auth::user()->clubs()->pluck('clubs.id');
 
-        $query = EmailConfig::query()->with(['club:id,name']);
+        $query = EmailConfig::query()
+            ->with(['club:id,name'])
+            ->whereIn('entity_id', $clubIds);
 
         if ($search = $request->input("{$prefix}_search")) {
             $query->where(function ($q) use ($driver, $search) {
@@ -65,6 +70,15 @@ class EmailConfigController extends Controller {
     public function store(EmailConfigRequest $request) {
         try {
             $validated = $request->validated();
+            $clubId = (int) ($request->club_id ?? session('club_id'));
+
+            if ($clubId <= 0) {
+                $clubId = (int) Auth::user()->clubs()->value('clubs.id');
+            }
+
+            if ($clubId > 0) {
+                $validated['entity_id'] = $clubId;
+            }
 
             if (! $request->filled('template_name')) {
                 $validated['template_name'] = 'email_template';
@@ -86,6 +100,21 @@ class EmailConfigController extends Controller {
     public function update(EmailConfigRequest $request, EmailConfig $emailConfig) {
         try {
             $validated = $request->validated();
+            $clubId = (int) ($request->club_id ?? session('club_id'));
+
+            if ($clubId <= 0) {
+                $clubId = (int) Auth::user()->clubs()->value('clubs.id');
+            }
+
+            if ($clubId > 0 && (int) $emailConfig->entity_id !== $clubId) {
+                return redirect()->back()->withErrors([
+                    'messageError' => 'No puedes editar configuraciones de otro parque',
+                ]);
+            }
+
+            if ($clubId > 0) {
+                $validated['entity_id'] = $clubId;
+            }
 
             if (! $request->filled('template_name')) {
                 $validated['template_name'] = 'email_template';
@@ -110,6 +139,14 @@ class EmailConfigController extends Controller {
 
     public function destroy(EmailConfig $emailConfig) {
         try {
+            $clubId = (int) (request()->club_id ?? session('club_id'));
+
+            if ($clubId > 0 && (int) $emailConfig->entity_id !== $clubId) {
+                return redirect()->back()->withErrors([
+                    'messageError' => 'No puedes eliminar configuraciones de otro parque',
+                ]);
+            }
+
             $emailConfig->delete();
 
             return redirect()->back()->with('success', 'Configuracion de correo eliminada correctamente');

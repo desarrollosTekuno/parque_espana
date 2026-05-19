@@ -35,6 +35,11 @@ const props = withDefaults(defineProps<Props>(), {
     clubs: () => [],
 });
 
+const currentClubId = computed<number | null>(() => {
+    const value = page.props.auth?.currentClub;
+    return value ? Number(value) : null;
+});
+
 const showModal = ref(false);
 const formSendRef = ref();
 const items = ref([]);
@@ -114,6 +119,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
 const create = () => {
     form.reset();
     form.clearErrors();
+    form.entity_id = currentClubId.value;
     form.template_name = "email_template";
     form.port = 587;
     form.encryption = "tls";
@@ -284,10 +290,10 @@ const save = () => {
             </v-row>
         </div>
 
-        <v-dialog v-model="showModal" max-width="800" persistent>
+        <v-dialog v-model="showModal" max-width="700" persistent>
             <v-form ref="formSendRef" @submit.prevent="save">
                 <v-card prepend-icon="mdi-email-cog-outline" :title="modalTitle">
-                    <v-card-text class="overflow-y-auto h-full">
+                    <v-card-text class="h-full overflow-y-auto">
                         <v-row>
                             <v-col cols="12" md="6">
                                 <v-select
@@ -313,6 +319,7 @@ const save = () => {
                                     v-model="form.template_name"
                                     label="Template"
                                     :rules="[required, maxLength(50)]"
+                                    disabled
                                 />
                             </v-col>
 
@@ -326,7 +333,7 @@ const save = () => {
                                 />
                             </v-col>
 
-                            <v-col cols="12" md="8">
+                            <v-col cols="12" md="6">
                                 <v-text-field
                                     v-model="form.host"
                                     label="Host SMTP"
@@ -334,7 +341,7 @@ const save = () => {
                                 />
                             </v-col>
 
-                            <v-col cols="12" md="4">
+                            <v-col cols="12" md="6">
                                 <v-text-field
                                     v-model.number="form.port"
                                     label="Puerto"
