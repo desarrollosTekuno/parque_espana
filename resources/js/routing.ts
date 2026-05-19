@@ -264,10 +264,10 @@ const routes: Routing[] = [
                 value: "listas-invitados",
             },
             {
-                name: "system-variables.index",
+                name: "guest-list-variables.index",
                 title: "Configuración",
                 icon: "mdi-cog",
-                value: "variables-sistema",
+                value: "configuracion",
             },
         ],
     },

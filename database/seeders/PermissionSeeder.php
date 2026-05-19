@@ -47,7 +47,7 @@ class PermissionSeeder extends Seeder
             ['module' => 'Amenidades', 'name' => 'blockedPeriods.store', 'description' => 'Crear bloqueos', 'contexts' => ['web']],
             ['module' => 'Amenidades', 'name' => 'blockedPeriods.update', 'description' => 'Actualizar bloqueos', 'contexts' => ['web']],
             ['module' => 'Amenidades', 'name' => 'blockedPeriods.destroy', 'description' => 'Eliminar bloqueos', 'contexts' => ['web']],
-            ['module' => 'Amenidades', 'name' => 'amenitySchedule.store', 'description' => 'Crear horarios de amenidad', 'contexts' => ['web']],    
+            ['module' => 'Amenidades', 'name' => 'amenitySchedule.store', 'description' => 'Crear horarios de amenidad', 'contexts' => ['web']],
 
             // Reservaciones
             ['module' => 'Reservaciones', 'name' => 'reservations.index', 'description' => 'Ver reservaciones', 'contexts' => ['web']],
@@ -210,7 +210,17 @@ class PermissionSeeder extends Seeder
             // Feedback Management
             ['module' => 'Quejas y Sugerencias', 'name' => 'feedback-management.index', 'description' => 'Ver gestion de casos de quejas y sugerencias', 'contexts' => ['web']],
             ['module' => 'Quejas y Sugerencias', 'name' => 'feedback-management.update', 'description' => 'Gestionar casos de quejas y sugerencias', 'contexts' => ['web']],
+
+            // Guest Lists
+            ['module' => 'Listas de Invitados', 'name' => 'guest-lists.index', 'description' => 'Ver listas de invitados', 'contexts' => ['web']],
+            ['module' => 'Listas de Invitados', 'name' => 'guest-lists.update', 'description' => 'Actualizar estatus de lista de invitados', 'contexts' => ['web']],
+            ['module' => 'Listas de Invitados', 'name' => 'guest-list-variables.index', 'description' => 'Ver variables de listas de invitados', 'contexts' => ['web']],
+            ['module' => 'Listas de Invitados', 'name' => 'guest-list-variables.store', 'description' => 'Crear variables de listas de invitados', 'contexts' => ['web']],
+            ['module' => 'Listas de Invitados', 'name' => 'guest-list-variables.update', 'description' => 'Actualizar variables de listas de invitados', 'contexts' => ['web']],
+            ['module' => 'Listas de Invitados', 'name' => 'guest-list-variables.destroy', 'description' => 'Eliminar variables de listas de invitados', 'contexts' => ['web']]
+
         ];
+
         foreach ($permissions as $permission) {
             $record = Permission::updateOrCreate(
                 ['name' => $permission['name']],
