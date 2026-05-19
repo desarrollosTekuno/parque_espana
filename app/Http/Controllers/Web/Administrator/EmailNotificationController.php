@@ -218,7 +218,7 @@ class EmailNotificationController extends Controller {
 
     public function recipientsPreview(Request $request) {
         $validated = $request->validate([
-            'scope' => ['required', 'in:all,by_club'],
+            'scope' => ['required', 'in:by_club'],
             'club_id' => ['nullable', 'integer'],
         ]);
 

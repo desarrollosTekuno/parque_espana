@@ -54,7 +54,7 @@ const TEMP_DEFAULT_EMAIL_FORM = {
 const form = useForm({
     title: "",
     body: "",
-    scope: "all" as "all" | "by_club" | "individual",
+    scope: "by_club" as "by_club" | "individual",
     club_id: null as number | null,
     individual_email: "",
     send_type: "now" as "now" | "scheduled",
@@ -137,7 +137,7 @@ const getBodyPreview = (value: string) => {
 const openSendModal = () => {
     form.reset();
     form.clearErrors();
-    form.scope = "individual";
+    form.scope = "by_club";
     form.title = TEMP_DEFAULT_EMAIL_FORM.title;
     form.body = TEMP_DEFAULT_EMAIL_FORM.body;
     form.club_id = hasMultipleAssignedClubs.value ? null : currentClubId.value;
@@ -158,10 +158,6 @@ const openSendModal = () => {
 
 const onScopeChange = () => {
     if (form.scope === "individual") {
-        form.club_id = null;
-    }
-
-    if (form.scope === "all") {
         form.club_id = null;
     }
 
@@ -392,7 +388,7 @@ const previewScopeLabel = computed(() => {
         return selectedClub ? `Por parque (${selectedClub.name})` : "Por parque";
     }
 
-    return "Todos los parques";
+    return "Por parque";
 });
 
 const previewRecipientsLabel = computed(() => {
@@ -568,10 +564,9 @@ const saveStepOne = () => {
                             >
                                 <v-btn value="individual" prepend-icon="mdi-account">Individual</v-btn>
                                 <v-btn value="by_club" prepend-icon="mdi-map-marker">Por parque</v-btn>
-                                <v-btn v-if="hasMultipleAssignedClubs" value="all" prepend-icon="mdi-earth">Todos</v-btn>
                             </v-btn-toggle>
                             <div class="mt-1 text-caption text-medium-emphasis">
-                                {{ form.scope === 'all' ? 'Se incluiran usuarios de todos los parques.' : form.scope === 'individual' ? 'Se enviara solo al correo indicado.' : 'Selecciona un parque especifico.' }}
+                                {{ form.scope === 'individual' ? 'Se enviara solo al correo indicado.' : 'Selecciona un parque especifico.' }}
                             </div>
                         </div>
 
@@ -597,7 +592,7 @@ const saveStepOne = () => {
                                     required
                                 />
                             </v-col>
-                            <v-col cols="12" :md="form.scope === 'all' ? 12 : 6">
+                            <v-col cols="12" md="6">
                                 <v-select
                                     v-model="form.smtp_config_id"
                                     :items="smtpOptions"
@@ -887,10 +882,6 @@ const saveStepOne = () => {
                                     <template v-else-if="form.scope === 'by_club'">
                                         {{ previewScopeLabel }}
                                     </template>
-                                    <template v-else>
-                                        Todos los parques
-                                    </template>
-
                                     <a
                                         v-if="canOpenRecipientsPreview"
                                         href="#"
