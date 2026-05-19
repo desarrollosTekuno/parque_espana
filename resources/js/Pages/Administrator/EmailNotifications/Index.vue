@@ -44,6 +44,13 @@ const recipientsPage = ref(1);
 const recipientsPerPage = 20;
 const attachmentPreviewItems = ref<Array<{ name: string; sizeLabel: string; type: string; isImage: boolean; previewUrl: string | null }>>([]);
 
+const TEMP_DEFAULT_EMAIL_FORM = {
+    title: "Prueba de notificacion",
+    body: "<p>Correo de prueba temporal.</p>",
+    individual_email: "qa@parquesesp.local",
+    extra_emails: ["pruebas1@parquesesp.local", "pruebas2@parquesesp.local"],
+};
+
 const form = useForm({
     title: "",
     body: "",
@@ -131,18 +138,18 @@ const openSendModal = () => {
     form.reset();
     form.clearErrors();
     form.scope = "individual";
-    form.title = "";
-    form.body = "";
+    form.title = TEMP_DEFAULT_EMAIL_FORM.title;
+    form.body = TEMP_DEFAULT_EMAIL_FORM.body;
     form.club_id = hasMultipleAssignedClubs.value ? null : currentClubId.value;
-    form.individual_email = "";
+    form.individual_email = TEMP_DEFAULT_EMAIL_FORM.individual_email;
     form.send_type = "now";
     form.scheduled_date = "";
     form.scheduled_time = "";
     form.attachments = [];
     form.smtp_config_id = null;
     form.selected_recipient_ids = [];
-    form.extra_emails = [];
-    extraEmails.value = [];
+    form.extra_emails = [...TEMP_DEFAULT_EMAIL_FORM.extra_emails];
+    extraEmails.value = [...TEMP_DEFAULT_EMAIL_FORM.extra_emails];
 
     showModal.value = true;
     loadRecipientsPreview();

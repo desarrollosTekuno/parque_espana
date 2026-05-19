@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\Web\Administrator;
 
+use App\Jobs\SendEmailNotificationJob;
 use App\Models\Administrator\Club;
-use App\Mail\EmailNotificationMailable;
 use App\Models\Notifications\EmailConfig;
 use App\Models\Notifications\Notification;
 use App\Models\Notifications\NotificationAttachment;
@@ -11,14 +11,12 @@ use App\Models\Notifications\NotificationChannel;
 use App\Models\Notifications\NotificationRecipient;
 use App\Models\Notifications\NotificationStatusCatalog;
 use App\Models\User;
-use App\Services\Email\MailService;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
-use Throwable;
 
 class EmailNotificationController extends Controller {
 
@@ -97,7 +95,7 @@ class EmailNotificationController extends Controller {
         )->appends($request->all());
     }
 
-    public function store(Request $request, MailService $mailService) {
+    public function store(Request $request) {
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:150'],
             'body' => ['required', 'string'],
@@ -162,30 +160,8 @@ class EmailNotificationController extends Controller {
             }
         });
 
-        if (!$isScheduled && $notification) {
-            try {
-                $notification->load(['recipients', 'attachments']);
-
-                foreach ($notification->recipients as $recipient) {
-                    $mailService->send(
-                        entityId: (int) $notification->club_id,
-                        to: (string) $recipient->destination,
-                        mailable: new EmailNotificationMailable(
-                            subjectText: (string) $notification->title,
-                            titleText: (string) $notification->title,
-                            bodyHtml: (string) $notification->body,
-                            files: $notification->attachments->toArray()
-                        )
-                    );
-                }
-            } catch (Throwable $e) {
-                report($e);
-
-                return redirect()->back()->withErrors([
-                    'messageError' => 'La notificacion se guardo, pero fallo el envio de correo.',
-                    'exception' => $e->getMessage(),
-                ]);
-            }
+        if ($notification) {
+            SendEmailNotificationJob::dispatchSync($notification->id);
         }
 
         return redirect()->back()->with('success', 'Correo registrado con exito.');

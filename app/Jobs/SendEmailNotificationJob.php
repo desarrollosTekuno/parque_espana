@@ -11,11 +11,19 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 
 class SendEmailNotificationJob implements ShouldQueue {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    public function __construct(public int $notificationId) {
+    }
+
     public function handle(MailService $mailService): void {
+        Log::info('SendEmailNotificationJob iniciado', [
+            'notification_id' => $this->notificationId,
+        ]);
+
         $notification = Notification::query()
             ->with(['recipients', 'attachments'])
             ->find($this->notificationId);
@@ -23,10 +31,10 @@ class SendEmailNotificationJob implements ShouldQueue {
         if ($notification && $notification->club_id) {
             foreach ($notification->recipients as $recipient) {
                 $mailable = new EmailNotificationMailable(
-                    subjectText: (string) $notification->subject,
+                    subjectText: (string) $notification->title,
                     titleText: (string) $notification->title,
                     bodyHtml: (string) $notification->body,
-                    attachments: $notification->attachments->toArray()
+                    files: $notification->attachments->toArray()
                 );
 
                 $mailService->send(
@@ -47,6 +55,15 @@ class SendEmailNotificationJob implements ShouldQueue {
                 'status_id' => $sentStatus?->id ?? $notification->status_id,
                 'sent_date' => now()->toDateString(),
                 'sent_time' => now()->toTimeString(),
+            ]);
+
+            Log::info('SendEmailNotificationJob completado', [
+                'notification_id' => $this->notificationId,
+                'recipients_count' => $notification->recipients->count(),
+            ]);
+        } else {
+            Log::warning('SendEmailNotificationJob sin notificacion valida', [
+                'notification_id' => $this->notificationId,
             ]);
         }
     }
