@@ -44,7 +44,7 @@ class LoginController extends Controller
                 ->values();
 
             if ($clubPermissions->isNotEmpty()) {
-                $permissionsByClub[$contextValue] = $clubPermissions;
+                $permissionsByClub[$contextValue=='mobile_club_1' ? 'PE1' : 'PE2'] = $clubPermissions;
             }
         }
 
