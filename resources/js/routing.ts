@@ -269,6 +269,12 @@ const routes: Routing[] = [
                 icon: "mdi-cog",
                 value: "configuracion",
             },
+            {
+                name: "guest-list-payments.index",
+                title: "Pagos",
+                icon: "mdi-cash",
+                value: "pagos",
+            }
         ],
     },
     // Anuncios

@@ -35,13 +35,14 @@ use App\Http\Controllers\Web\AdminClub\LockerController;
 use App\Http\Controllers\Web\AdminClub\CashCutController;
 use App\Http\Controllers\Web\AdminClub\GlobalCashCutController;
 use App\Http\Controllers\Web\AdminClub\DocumentTypeController;
+use App\Http\Controllers\Web\AdminClub\GuestListPaymentController;
 use App\Http\Controllers\Web\AdminClub\MembershipTypeController;
 use App\Http\Controllers\Web\AdminClub\PaymentMethodController;
 use Illuminate\Support\Facades\Route;
 
 // amenities
 Route::resource('/amenities', AmenityController::class)->names('amenities');
-Route::resource('/amenityResource', AmenityResourceController::class)->names('amenityResource'); 
+Route::resource('/amenityResource', AmenityResourceController::class)->names('amenityResource');
 Route::post('/amenitySchedule', [AmenityScheduleController::class, 'store'])->name('amenitySchedule.store');
 Route::resource('/blockedPeriods', BlockedPeriodController::class)->names('blockedPeriods');
 Route::get('/amenity-resource/{resource}/calendar', [AmenityResourceController::class, 'calendar'])->name('amenityResource.calendar');
@@ -53,6 +54,7 @@ Route::resource('/system-variables', SystemVariableController::class)->only(['in
 // guest lists
 Route::resource('/guest-lists', ReservationGuestListController::class)->only(['index', 'update'])->names('guest-lists');
 Route::resource('/guest-list-variables', GuestListVariableController::class)->only(['index', 'store', 'update', 'destroy']);
+Route::resource('/guest-list-payments', GuestListPaymentController::class)->only(['index'])->names('guest-list-payments');
 
 Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
 Route::get('/billing/charges', [BillingController::class, 'chargesList'])->name('billing.charges.index');

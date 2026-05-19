@@ -26,12 +26,15 @@ class GuestListPaymentController extends Controller {
         // Prefijo para evitar conflicto con otras tablas
         $prefix = 'guestListPayments';
 
-        $query = ReservationGuestList::with(['guestListItems'])
-            ->whereHas('guestListItems', function ($q) use ($clubId) {
-                $q->where('is_billable_to_member', false)
-                    ->where('is_comped', false);
+        $query = ReservationGuestList::with([
+                'guestListItems' => fn ($q) => $q->notBillableNotComped(),
+                'member'
+            ])
+            ->whereHas('guestListItems', function ($q) {
+                $q->notBillableNotComped();
             })
             ->where('club_id', $clubId);
+            // ->where('status', ReservationGuestList::APPROVED);
 
         if ($search = $request->input("{$prefix}_search")) {
 
@@ -50,6 +53,8 @@ class GuestListPaymentController extends Controller {
 
         $query->orderBy($sort, $order);
 
+        
+
         $guestListPayments = $query->paginate(
             $request->input("{$prefix}_per_page", 10),
             ['*'],
@@ -61,7 +66,7 @@ class GuestListPaymentController extends Controller {
         ]);
     }
 
-    public function MyFunction(Request $request) {
-        return "MyFunction";
+    public function transformData($query) {
+
     }
 }
