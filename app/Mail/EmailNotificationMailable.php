@@ -13,7 +13,7 @@ class EmailNotificationMailable extends Mailable {
         public string $subjectText,
         public string $titleText,
         public string $bodyHtml,
-        public array $attachments = []
+        public array $files = []
     ) {
     }
 
@@ -25,7 +25,7 @@ class EmailNotificationMailable extends Mailable {
                 'bodyHtml' => $this->bodyHtml,
             ]);
 
-        foreach ($this->attachments as $attachment) {
+        foreach ($this->files as $attachment) {
             if (!isset($attachment['file_path'])) {
             } else {
                 $mail->attachFromStorageDisk(

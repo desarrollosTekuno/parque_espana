@@ -9,7 +9,6 @@ import { computed, onBeforeUnmount, ref, watch } from "vue";
 
 interface NotificationItem {
     id: number;
-    subject: string | null;
     body: string;
     sent_at: string | null;
     created_at: string | null;
@@ -47,7 +46,6 @@ const attachmentPreviewItems = ref<Array<{ name: string; sizeLabel: string; type
 
 const form = useForm({
     title: "",
-    subject: "",
     body: "",
     scope: "all" as "all" | "by_club" | "individual",
     club_id: null as number | null,
@@ -70,7 +68,7 @@ const hasMultipleAssignedClubs = computed(() => assignedClubs.value.length > 1);
 
 const headers = [
     { title: "Fecha", key: "sent_at" },
-    { title: "Asunto", key: "subject" },
+    { title: "Titulo", key: "title" },
     { title: "Parque", key: "club" },
     { title: "Destinatarios", key: "recipients_count" },
     { title: "Estado", key: "status" },
@@ -134,7 +132,6 @@ const openSendModal = () => {
     form.clearErrors();
     form.scope = "individual";
     form.title = "";
-    form.subject = "";
     form.body = "";
     form.club_id = hasMultipleAssignedClubs.value ? null : currentClubId.value;
     form.individual_email = "";
@@ -660,15 +657,6 @@ const saveStepOne = () => {
                             </v-col>
 
                             <v-col cols="12">
-                                <v-text-field
-                                    v-model="form.subject"
-                                    label="Asunto"
-                                    :rules="[required]"
-                                    required
-                                />
-                            </v-col>
-
-                            <v-col cols="12">
                                 <FormQuillEditor
                                     v-model="form.body"
                                     label="Descripcion"
@@ -878,8 +866,8 @@ const saveStepOne = () => {
 
                         <div class="bg-white border-b border-gray-200">
                             <div class="px-5 py-4 border-b border-gray-200 bg-slate-50/60">
-                                <div class="mb-1 text-caption text-medium-emphasis">Asunto</div>
-                                <div class="text-body-1 font-weight-bold">{{ form.subject || "Sin asunto" }}</div>
+                                <div class="mb-1 text-caption text-medium-emphasis">Titulo</div>
+                                <div class="text-body-1 font-weight-bold">{{ form.title || "Sin titulo" }}</div>
                             </div>
 
                             <div class="px-5 py-3 d-flex flex-wrap ga-4 text-body-2">

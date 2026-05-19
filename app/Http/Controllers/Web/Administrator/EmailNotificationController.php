@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\Web\Administrator;
 
-use App\Jobs\SendEmailNotificationJob;
 use App\Models\Administrator\Club;
+use App\Mail\EmailNotificationMailable;
 use App\Models\Notifications\EmailConfig;
 use App\Models\Notifications\Notification;
 use App\Models\Notifications\NotificationAttachment;
@@ -11,12 +11,14 @@ use App\Models\Notifications\NotificationChannel;
 use App\Models\Notifications\NotificationRecipient;
 use App\Models\Notifications\NotificationStatusCatalog;
 use App\Models\User;
+use App\Services\Email\MailService;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
+use Throwable;
 
 class EmailNotificationController extends Controller {
 
@@ -74,7 +76,6 @@ class EmailNotificationController extends Controller {
             $operator = $driver === 'pgsql' ? 'ilike' : 'like';
             $query->where(function ($subQuery) use ($search, $operator) {
                 $subQuery->where('title', $operator, "%{$search}%")
-                    ->orWhere('subject', $operator, "%{$search}%")
                     ->orWhere('body', $operator, "%{$search}%");
             });
         }
@@ -82,7 +83,7 @@ class EmailNotificationController extends Controller {
         $sort = $request->input("{$prefix}_sort", 'id');
         $order = $request->input("{$prefix}_order", 'desc');
 
-        $allowedSorts = ['id', 'title', 'subject', 'created_at', 'sent_date'];
+        $allowedSorts = ['id', 'title', 'created_at', 'sent_date'];
         if (!in_array($sort, $allowedSorts, true)) {
             $sort = 'id';
         }
@@ -96,18 +97,24 @@ class EmailNotificationController extends Controller {
         )->appends($request->all());
     }
 
-    public function store(Request $request) {
+    public function store(Request $request, MailService $mailService) {
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:150'],
-            'subject' => ['required', 'string', 'max:255'],
             'body' => ['required', 'string'],
             'club_id' => ['nullable', 'integer'],
+            'smtp_config_id' => ['required', 'integer', 'exists:email_configs,id'],
             'send_type' => ['nullable'],
             'scheduled_date' => ['nullable'],
             'scheduled_time' => ['nullable'],
             'attachments' => ['nullable', 'array'],
             'attachments.*' => ['nullable', 'file'],
         ]);
+
+        $emailConfig = EmailConfig::find($validated['smtp_config_id']);
+        $resolvedClubId = $validated['club_id'] ?? null;
+        if ($emailConfig) {
+            $resolvedClubId = $emailConfig->entity_id;
+        }
 
         $statusCode = 'sent';
         $channel = NotificationChannel::query()->where('code', 'email')->first();
@@ -118,19 +125,21 @@ class EmailNotificationController extends Controller {
 
         $status = NotificationStatusCatalog::query()->where('code', $statusCode)->first();
 
-        DB::transaction(function () use ($request, $validated, $channel, $status) {
+        $notification = null;
+        $isScheduled = false;
+
+        DB::transaction(function () use ($request, $validated, $channel, $status, $resolvedClubId, &$notification, &$isScheduled) {
             $notificationUuid = (string) Str::uuid();
             $isScheduled = ($validated['send_type'] ?? null) === 'scheduled';
 
             $notification = Notification::create([
                 'uuid' => $notificationUuid,
                 'title' => $validated['title'],
-                'subject' => $validated['subject'],
                 'body' => $validated['body'],
                 'type' => 0,
                 'channel_id' => $channel->id,
                 'status_id' => $status->id,
-                'club_id' => $validated['club_id'] ?? null,
+                'club_id' => $resolvedClubId,
                 'scheduled_date' => $isScheduled ? ($validated['scheduled_date'] ?? null) : null,
                 'scheduled_time' => $isScheduled ? ($validated['scheduled_time'] ?? null) : null,
                 'sent_date' => $isScheduled ? null : now()->toDateString(),
@@ -151,11 +160,33 @@ class EmailNotificationController extends Controller {
                     'file_size' => $file->getSize(),
                 ]);
             }
-
-            if (!$isScheduled) {
-                SendEmailNotificationJob::dispatch($notification->id);
-            }
         });
+
+        if (!$isScheduled && $notification) {
+            try {
+                $notification->load(['recipients', 'attachments']);
+
+                foreach ($notification->recipients as $recipient) {
+                    $mailService->send(
+                        entityId: (int) $notification->club_id,
+                        to: (string) $recipient->destination,
+                        mailable: new EmailNotificationMailable(
+                            subjectText: (string) $notification->title,
+                            titleText: (string) $notification->title,
+                            bodyHtml: (string) $notification->body,
+                            files: $notification->attachments->toArray()
+                        )
+                    );
+                }
+            } catch (Throwable $e) {
+                report($e);
+
+                return redirect()->back()->withErrors([
+                    'messageError' => 'La notificacion se guardo, pero fallo el envio de correo.',
+                    'exception' => $e->getMessage(),
+                ]);
+            }
+        }
 
         return redirect()->back()->with('success', 'Correo registrado con exito.');
     }

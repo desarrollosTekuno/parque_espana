@@ -21,6 +21,5 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule): void
     {
         $schedule->command('app:expire-business-ads')->daily();
-        $schedule->command('app:send-scheduled-email-notifications')->everyMinute();
     }
 }
