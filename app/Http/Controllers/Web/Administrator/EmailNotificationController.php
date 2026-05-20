@@ -67,6 +67,21 @@ class EmailNotificationController extends Controller {
             });
         }
 
+        $type = $request->input("{$prefix}_type");
+        if ($type !== null && $type !== '') {
+            $query->where('type', (int) $type);
+        }
+
+        $dateFrom = $request->input("{$prefix}_date_from");
+        if ($dateFrom) {
+            $query->whereDate('created_at', '>=', $dateFrom);
+        }
+
+        $dateTo = $request->input("{$prefix}_date_to");
+        if ($dateTo) {
+            $query->whereDate('created_at', '<=', $dateTo);
+        }
+
         $sort = $request->input("{$prefix}_sort", 'id');
         $order = $request->input("{$prefix}_order", 'desc');
 

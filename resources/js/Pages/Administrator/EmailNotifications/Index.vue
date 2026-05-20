@@ -61,6 +61,9 @@ const items = ref<NotificationItem[]>(props.email_notifications?.data ?? []);
 const total = ref(props.email_notifications?.total ?? 0);
 const loading = ref(false);
 const search = ref("");
+const type = ref<number | null>(null);
+const dateFrom = ref("");
+const dateTo = ref("");
 const options = ref({
     page: 1,
     itemsPerPage: 10,
@@ -123,6 +126,9 @@ const fetchItems = async () => {
         [`${prefix}_page`]: options.value.page,
         [`${prefix}_per_page`]: options.value.itemsPerPage,
         [`${prefix}_search`]: search.value,
+        [`${prefix}_type`]: type.value,
+        [`${prefix}_date_from`]: dateFrom.value || null,
+        [`${prefix}_date_to`]: dateTo.value || null,
         [`${prefix}_sort`]: options.value.sortBy?.[0]?.key ?? "id",
         [`${prefix}_order`]: options.value.sortBy?.[0]?.order ?? "desc",
     };
@@ -383,6 +389,7 @@ watch(
 );
 
 watch([options, search], debounce(fetchItems, 400), { deep: true });
+watch([type, dateFrom, dateTo], debounce(fetchItems, 400));
 
 watch([recipients, () => form.selected_recipient_ids], () => {
         recipientsCount.value = recipients.value.length;
@@ -419,7 +426,7 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                 v-model:options="options"
                 fixed-header
                 hover
-                height="80vh"
+                height="45vh"
                 :headers="headers"
                 :items="items"
                 :items-length="total"
@@ -430,12 +437,45 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                 no-data-text="No hay notificaciones por correo guardadas"
             >
                 <template #top>
-                    <v-text-field
-                        v-model="search"
-                        label="Buscar notificaciones"
-                        class="mx-4 mt-2"
-                        clearable
-                    />
+                    <div class="flex-wrap mx-4 d-flex ga-2">
+                        <v-select
+                            v-model="type"
+                            label="Tipo"
+                            :items="[
+                                { title: 'Manual', value: 0 },
+                                { title: 'Automatica', value: 1 },
+                            ]"
+                            item-title="title"
+                            item-value="value"
+                            clearable
+                            class="flex-shrink-0 flex-grow-1"
+                            style="min-width: 160px; max-width: 200px;"
+                        />
+                        <v-text-field
+                            v-model="dateFrom"
+                            label="Fecha desde"
+                            type="date"
+                            clearable
+                            class="flex-shrink-0 flex-grow-1"
+                            style="min-width: 160px; max-width: 200px;"
+                        />
+                        <v-text-field
+                            v-model="dateTo"
+                            label="Fecha hasta"
+                            type="date"
+                            clearable
+                            class="flex-shrink-0 flex-grow-1"
+                            style="min-width: 160px; max-width: 200px;"
+                        />
+                    </div>
+                    <div>
+                        <v-text-field
+                            v-model="search"
+                            label="Buscar notificaciones"
+                            class="mx-4 mt-2"
+                            clearable
+                        />
+                    </div>
                 </template>
 
                 <template #item.scope="{ item }">
