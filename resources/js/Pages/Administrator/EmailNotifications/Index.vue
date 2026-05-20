@@ -98,7 +98,6 @@ const form = useForm({
     send_type: "now",
     scheduled_date: "",
     scheduled_time: "",
-    extra_emails: [] as string[],
     selected_recipient_ids: [] as number[],
 });
 
@@ -114,7 +113,6 @@ const create = () => {
     form.send_type = "now";
     form.scheduled_date = "";
     form.scheduled_time = "";
-    form.extra_emails = ["mailtrap@example.com", "prueba@example.com"];
     getMembers();
 };
 
@@ -250,10 +248,6 @@ const formatFileSize = (size: number) => {
     return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-const getExtraEmailsCount = () => {
-    return form.extra_emails.filter((email) => email && email.trim() !== "").length;
-};
-
 const getNotificationDate = (item: NotificationItem) => {
     if (item.sent_date) {
         return item.sent_date;
@@ -340,6 +334,22 @@ const save = () => {
     });
 };
 /* ====================== Watchers ====================== */
+watch(
+    () => props.email_notifications,
+    () => {
+        items.value = props.email_notifications?.data ?? [];
+        total.value = props.email_notifications?.total ?? 0;
+    },
+    { deep: true }
+);
+
+watch(
+    () => props.club_id,
+    () => {
+        form.club_id = props.club_id;
+    }
+);
+
 watch([options, search], debounce(fetchItems, 400), { deep: true });
 
 watch([recipients, () => form.selected_recipient_ids], () => {
@@ -740,9 +750,6 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                                 </v-chip>
                                 <v-chip size="small" variant="tonal" color="primary" prepend-icon="mdi-paperclip">
                                     {{ form.attachments.length }} adjunto(s)
-                                </v-chip>
-                                <v-chip size="small" variant="tonal" color="primary" prepend-icon="mdi-email-plus-outline">
-                                    {{ getExtraEmailsCount() }} extra(s)
                                 </v-chip>
                                 <v-chip size="small" variant="tonal" color="primary" prepend-icon="mdi-account-group-outline">
                                     {{ selectedRecipientsCount }} seleccionado(s)
