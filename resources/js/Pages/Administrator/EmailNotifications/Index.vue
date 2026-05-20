@@ -3,7 +3,7 @@ import AppLayout from "@/Layouts/AppLayout.vue";
 import BaseButton from "@/Components/BaseButton.vue";
 import FormQuillEditor from "@/Components/Form/FormQuillEditor.vue";
 import { fileMaxCountRule, fileMaxSizeRule, fileTypeRule, required } from "@/constants/validationRules";
-import { customToastSwal } from "@/utils/swal";
+import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import { Head, router, useForm } from "@inertiajs/vue3";
 import { debounce } from "lodash";
 import { ref, watch } from "vue";
@@ -336,6 +336,35 @@ const save = () => {
         },
     });
 };
+
+const cancelNotification = async (item: NotificationItem) => {
+    const confirmed = await customConfirmSwal({
+        title: "¿Cancelar notificacion?",
+        text: `Se cancelara "${item.title}" y no se enviara.`,
+        confirmText: "Sí, cancelar",
+        actionType: "delete",
+    });
+
+    if (!confirmed) return;
+
+    router.patch(route("email-notifications.cancel", item.id), {
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: () => {
+            fetchItems();
+            customToastSwal({
+                title: "Notificacion cancelada.",
+                icon: "success",
+            });
+        },
+        onError: () => {
+            customToastSwal({
+                title: "No se pudo cancelar.",
+                icon: "error",
+            });
+        },
+    });
+};
 /* ====================== Watchers ====================== */
 watch(
     () => props.email_notifications,
@@ -449,6 +478,11 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                     <BaseButton
                         action="view"
                         @click="openHistoryModal(item)"
+                    />
+                    <BaseButton
+                        v-if="item.status?.code === 'scheduled' || item.status?.code === 'pending'"
+                        action="cancel"
+                        @click="cancelNotification(item)"
                     />
                 </template>
             </v-data-table-server>

@@ -89,6 +89,7 @@ Route::resource('/email-configs', EmailConfigController::class)
 Route::resource('/email-notifications', EmailNotificationController::class)->only(['index', 'store', 'update', 'destroy'])->names('email-notifications');
 Route::get('/email-notifications/members', [EmailNotificationController::class, 'getMembers'])->name('email-notifications.members');
 Route::get('/email-notifications/recipients-preview', [EmailNotificationController::class, 'recipientsPreview'])->name('email-notifications.recipients-preview');
+Route::patch('/email-notifications/{id}/cancel', [EmailNotificationController::class, 'cancel'])->name('email-notifications.cancel');
 
 // announcements
 Route::resource('/announcements', AnnouncementController::class)->names('announcements');

@@ -25,6 +25,7 @@ class EmailNotificationController extends Controller {
         $this->middleware('permission:email-notifications.update')->only('update');
         $this->middleware('permission:email-notifications.destroy')->only('destroy');
         $this->middleware('permission:email-notifications.store')->only('recipientsPreview');
+        $this->middleware('permission:email-notifications.update')->only('cancel');
     }
 
     public function index(Request $request) {
@@ -165,6 +166,19 @@ class EmailNotificationController extends Controller {
         }
 
         return redirect()->back()->with('success', 'Correo registrado con exito.');
+    }
+
+    public function cancel($id) {
+        $notification = Notification::with('status')->findOrFail($id);
+
+        if (!in_array($notification->status?->code, ['scheduled', 'pending'])) {
+            return back()->withErrors(['cancel' => 'Solo se pueden cancelar notificaciones programadas o pendientes.']);
+        }
+
+        $cancelledStatus = NotificationStatusCatalog::query()->where('code', 'cancelled')->first();
+        $notification->update(['status_id' => $cancelledStatus?->id]);
+
+        return redirect()->back()->with('success', 'Notificacion cancelada.');
     }
 
     private function saveNotificationHistory(Notification $notification, Request $request, bool $isScheduled) {
