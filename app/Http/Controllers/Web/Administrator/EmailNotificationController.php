@@ -113,7 +113,7 @@ class EmailNotificationController extends Controller {
             return back()->withErrors(['email_config' => 'El club activo no tiene un SMTP activo configurado.']);
         }
 
-        $statusCode = 'sent';
+        $statusCode = 'pending';
         $channel = NotificationChannel::query()->where('code', 'email')->first();
 
         if (isset($validated['send_type']) && $validated['send_type'] === 'scheduled') {
@@ -140,8 +140,8 @@ class EmailNotificationController extends Controller {
                 'club_id' => $clubId,
                 'scheduled_date' => $isScheduled ? ($validated['scheduled_date'] ?? null) : null,
                 'scheduled_time' => $isScheduled ? ($validated['scheduled_time'] ?? null) : null,
-                'sent_date' => $isScheduled ? null : now()->toDateString(),
-                'sent_time' => $isScheduled ? null : now()->toTimeString(),
+                'sent_date' => null,
+                'sent_time' => null,
                 'created_by' => Auth::id(),
             ]);
 
@@ -161,7 +161,7 @@ class EmailNotificationController extends Controller {
         });
 
         if (!$isScheduled && $notification) {
-            SendEmailNotificationJob::dispatchSync($notification->id);
+            SendEmailNotificationJob::dispatch($notification->id);
         }
 
         return redirect()->back()->with('success', 'Correo registrado con exito.');
@@ -169,8 +169,8 @@ class EmailNotificationController extends Controller {
 
     private function saveNotificationHistory(Notification $notification, Request $request, bool $isScheduled) {
         $scope = $request->input('scope', 'G');
-        $status = $isScheduled ? 'scheduled' : 'sent';
-        $sentAt = $isScheduled ? null : now();
+        $status = $isScheduled ? 'scheduled' : 'pending';
+        $sentAt = null;
 
         if ($scope === 'I') {
             $email = (string) $request->input('individual_email', '');

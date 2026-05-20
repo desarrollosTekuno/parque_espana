@@ -11,6 +11,7 @@ class NotificationStatusCatalogSeeder extends Seeder
     {
         $statuses = [
             ['name' => 'Programada', 'code' => 'scheduled'],
+            ['name' => 'Pendiente', 'code' => 'pending'],
             ['name' => 'Enviada', 'code' => 'sent'],
             ['name' => 'Fallida', 'code' => 'failed'],
             ['name' => 'Cancelada', 'code' => 'cancelled'],

@@ -275,6 +275,10 @@ const getStatusColor = (code: string | undefined) => {
         return "warning";
     }
 
+    if (code === "pending" || code === "Pendiente") {
+        return "info";
+    }
+
     if (code === "failed") {
         return "error";
     }
