@@ -342,7 +342,7 @@ const cancelNotification = async (item: NotificationItem) => {
         title: "¿Cancelar notificacion?",
         text: `Se cancelara "${item.title}" y no se enviara.`,
         confirmText: "Sí, cancelar",
-        actionType: "delete",
+        actionType: "reject",
     });
 
     if (!confirmed) return;
