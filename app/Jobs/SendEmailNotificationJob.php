@@ -29,27 +29,50 @@ class SendEmailNotificationJob implements ShouldQueue {
             ->find($this->notificationId);
 
         if ($notification && $notification->club_id) {
+            $hasFailedRecipients = false;
+
             foreach ($notification->recipients as $recipient) {
-                $mailable = new EmailNotificationMailable(
-                    subjectText: (string) $notification->title,
-                    titleText: (string) $notification->title,
-                    bodyHtml: (string) $notification->body,
-                    files: $notification->attachments->toArray()
-                );
+                if (!$recipient->destination) {
+                    continue;
+                }
 
-                $mailService->send(
-                    entityId: (int) $notification->club_id,
-                    to: (string) $recipient->destination,
-                    mailable: $mailable
-                );
+                try {
+                    $mailable = new EmailNotificationMailable(
+                        subjectText: (string) $notification->title,
+                        titleText: (string) $notification->title,
+                        bodyHtml: (string) $notification->body,
+                        files: $notification->attachments->toArray()
+                    );
 
-                $recipient->update([
-                    'status' => 'sent',
-                    'sent_at' => now(),
-                ]);
+                    $mailService->send(
+                        entityId: (int) $notification->club_id,
+                        to: (string) $recipient->destination,
+                        mailable: $mailable
+                    );
+
+                    $recipient->update([
+                        'status' => 'sent',
+                        'sent_at' => now(),
+                    ]);
+                } catch (\Throwable $e) {
+                    $hasFailedRecipients = true;
+
+                    $recipient->update([
+                        'status' => 'failed',
+                        'error_message' => mb_substr($e->getMessage(), 0, 65535),
+                    ]);
+
+                    Log::error('Error al enviar notificacion por correo', [
+                        'notification_id' => $notification->id,
+                        'recipient_id' => $recipient->id,
+                        'destination' => $recipient->destination,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
             }
 
-            $sentStatus = NotificationStatusCatalog::query()->where('code', 'sent')->first();
+            $statusCode = $hasFailedRecipients ? 'failed' : 'sent';
+            $sentStatus = NotificationStatusCatalog::query()->where('code', $statusCode)->first();
 
             $notification->update([
                 'status_id' => $sentStatus?->id ?? $notification->status_id,

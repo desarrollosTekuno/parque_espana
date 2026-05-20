@@ -4,13 +4,32 @@ import BaseButton from "@/Components/BaseButton.vue";
 import FormQuillEditor from "@/Components/Form/FormQuillEditor.vue";
 import { fileMaxCountRule, fileMaxSizeRule, fileTypeRule, required } from "@/constants/validationRules";
 import { customToastSwal } from "@/utils/swal";
-import { Head, useForm } from "@inertiajs/vue3";
+import { Head, router, useForm } from "@inertiajs/vue3";
+import { debounce } from "lodash";
 import { ref, watch } from "vue";
 import axios from "axios";
 
 /* ====================== Props ====================== */
+interface NotificationItem {
+    id: number;
+    title: string;
+    body: string;
+    scope: "I" | "G";
+    created_at: string | null;
+    sent_date: string | null;
+    scheduled_date: string | null;
+    scheduled_time: string | null;
+    recipients_count: number;
+    status: { id: number; name: string; code: string } | null;
+    creator: { id: number; name: string } | null;
+}
+
 interface Props {
     club_id: number | null;
+    email_notifications: {
+        data: NotificationItem[];
+        total: number;
+    };
 }
 
 const props = defineProps<Props>();
@@ -25,6 +44,26 @@ const recipients = ref<Array<{ id: number; name: string; email: string }>>([]);
 const recipientsCount = ref(0);
 const selectedRecipientsCount = ref(0);
 const allRecipientsSelected = ref(false);
+const formSendRef = ref();
+const prefix = "email_notifications";
+const items = ref<NotificationItem[]>(props.email_notifications?.data ?? []);
+const total = ref(props.email_notifications?.total ?? 0);
+const loading = ref(false);
+const search = ref("");
+const options = ref({
+    page: 1,
+    itemsPerPage: 10,
+    sortBy: [{ key: "id", order: "desc" }],
+});
+
+const headers = [
+    { title: "Titulo", key: "title" },
+    { title: "Alcance", key: "scope", sortable: false },
+    { title: "Destinatarios", key: "recipients_count", sortable: false },
+    { title: "Estado", key: "status", sortable: false },
+    { title: "Fecha", key: "created_at" },
+    { title: "Creado por", key: "creator", sortable: false },
+];
 
 /* ====================== useForm ====================== */
 const form = useForm({
@@ -48,7 +87,38 @@ const create = () => {
     showModal.value = true;
     form.scope = "G";
     form.club_id = props.club_id;
+    form.title = "Prueba de notificacion";
+    form.body = "<p>Correo de prueba temporal.</p>";
+    form.send_type = "now";
+    form.scheduled_date = "";
+    form.scheduled_time = "";
+    form.extra_emails = ["mailtrap@example.com", "prueba@example.com"];
     getMembers();
+};
+
+const fetchItems = async () => {
+    loading.value = true;
+
+    const params = {
+        [`${prefix}_page`]: options.value.page,
+        [`${prefix}_per_page`]: options.value.itemsPerPage,
+        [`${prefix}_search`]: search.value,
+        [`${prefix}_sort`]: options.value.sortBy?.[0]?.key ?? "id",
+        [`${prefix}_order`]: options.value.sortBy?.[0]?.order ?? "desc",
+    };
+
+    router.get(route("email-notifications.index"), params, {
+        preserveState: true,
+        replace: true,
+        onSuccess: (inertiaPage) => {
+            items.value = inertiaPage.props.email_notifications?.data ?? [];
+            total.value = inertiaPage.props.email_notifications?.total ?? 0;
+            loading.value = false;
+        },
+        onError: () => {
+            loading.value = false;
+        },
+    });
 };
 
 const closeModal = () => {
@@ -63,6 +133,14 @@ const changeRecipientsModal = () => {
 
 const changePreviewModal = () => {
     showPreviewModal.value = !showPreviewModal.value;
+};
+
+const generatePreview = () => {
+    formSendRef.value?.validate().then(({ valid }: { valid: boolean }) => {
+        if (valid) {
+            showPreviewModal.value = true;
+        }
+    });
 };
 
 const onScopeChange = (value: "I" | "G") => {
@@ -142,10 +220,74 @@ const getExtraEmailsCount = () => {
     return form.extra_emails.filter((email) => email && email.trim() !== "").length;
 };
 
-const save = () => {
+const getNotificationDate = (item: NotificationItem) => {
+    if (item.sent_date) {
+        return item.sent_date;
+    }
 
+    if (item.scheduled_date) {
+        return `${item.scheduled_date} ${item.scheduled_time || ""}`;
+    }
+
+    return item.created_at || "-";
+};
+
+const getNotificationScope = (item: NotificationItem) => {
+    if (item.scope === "I") {
+        return "Individual";
+    }
+
+    return "General";
+};
+
+const getStatusColor = (code: string | undefined) => {
+    if (code === "sent") {
+        return "success";
+    }
+
+    if (code === "scheduled") {
+        return "warning";
+    }
+
+    if (code === "failed") {
+        return "error";
+    }
+
+    return "default";
+};
+
+const isImageFile = (file: File) => {
+    return file.type.startsWith("image/");
+};
+
+const getFilePreviewUrl = (file: File) => {
+    return URL.createObjectURL(file);
+};
+
+const save = () => {
+    form.post(route("email-notifications.store"), {
+        forceFormData: true,
+        preserveScroll: true,
+        onSuccess: () => {
+            showPreviewModal.value = false;
+            closeModal();
+            fetchItems();
+            customToastSwal({
+                title: "Correo registrado con exito.",
+                icon: "success",
+            });
+        },
+        onError: () => {
+            customToastSwal({
+                title: "No se pudo registrar el correo.",
+                icon: "error",
+            });
+        },
+    });
 };
 /* ====================== Watchers ====================== */
+watch([options, search], debounce(fetchItems, 400), { deep: true });
+
 watch([recipients, () => form.selected_recipient_ids], () => {
         recipientsCount.value = recipients.value.length;
         selectedRecipientsCount.value = form.selected_recipient_ids.length;
@@ -176,14 +318,57 @@ watch([recipients, () => form.selected_recipient_ids], () => {
             />
         </template>
 
-        <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg pa-6">
-            <p class="text-body-1">Modulo en construccion.</p>
-            <p class="mt-2 text-body-2">Esta vista se encuentra en version basica.</p>
+        <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
+            <v-data-table-server
+                v-model:options="options"
+                fixed-header
+                hover
+                height="80vh"
+                :headers="headers"
+                :items="items"
+                :items-length="total"
+                :loading="loading"
+                class="elevation-1"
+                :items-per-page-options="[10, 25, 50, 100]"
+                items-per-page-text=" Mostrar"
+                no-data-text="No hay notificaciones por correo guardadas"
+            >
+                <template #top>
+                    <v-text-field
+                        v-model="search"
+                        label="Buscar notificaciones"
+                        class="mx-4 mt-2"
+                        clearable
+                    />
+                </template>
+
+                <template #item.scope="{ item }">
+                    {{ getNotificationScope(item) }}
+                </template>
+
+                <template #item.status="{ item }">
+                    <v-chip
+                        size="small"
+                        variant="tonal"
+                        :color="getStatusColor(item.status?.code)"
+                    >
+                        {{ item.status?.name || "Sin estado" }}
+                    </v-chip>
+                </template>
+
+                <template #item.created_at="{ item }">
+                    {{ getNotificationDate(item) }}
+                </template>
+
+                <template #item.creator="{ item }">
+                    {{ item.creator?.name || "-" }}
+                </template>
+            </v-data-table-server>
         </div>
 
         <!-- ===================================== MODALES ===================================== -->
         <v-dialog v-model="showModal" max-width="900">
-            <v-form @submit.prevent="save">
+            <v-form ref="formSendRef" @submit.prevent="save">
                 <v-card title="Nueva notificacion">
                     <v-card-text>
                         <v-row>
@@ -310,7 +495,7 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                             text="Generar notificacion"
                             variant="flat"
                             action="save"
-                            @click="changePreviewModal"
+                            @click="generatePreview"
                         />
                     </v-card-actions>
                 </v-card>
@@ -412,7 +597,7 @@ watch([recipients, () => form.selected_recipient_ids], () => {
             </v-card>
         </v-dialog>
 
-        <v-dialog v-model="showPreviewModal" max-width="860">
+        <v-dialog v-model="showPreviewModal" max-width="800">
             <v-card class="!rounded-[28px] overflow-hidden d-flex flex-column">
                 <div class="border-b border-gray-200 pa-8 ">
                     <div class="flex-wrap d-flex justify-space-between align-start ga-6">
@@ -441,8 +626,8 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                     </div>
                 </div>
 
-                <v-card-text class="pa-8">
-                    <section class="overflow-hidden border border-gray-200 rounded-xl">
+                <v-card-text class="pa-8 overflow-auto h-[50vh]">
+                    <section class="border border-gray-200 rounded-xl ">
                         <div class="px-4 py-3 border-b border-gray-200 bg-slate-50 d-flex align-center justify-space-between ga-3">
                             <div class="text-caption text-medium-emphasis">Vista previa del correo</div>
                         </div>
@@ -505,17 +690,13 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                                 Mensaje
                             </div>
 
-                            <div
-                                class="max-h-[280px] overflow-y-auto border border-gray-200 bg-white pa-4 text-body-2 leading-7"
-                                v-html="form.body || '<p>Sin contenido</p>'"
-                            />
+                            <div class="max-h-[280px] overflow-y-auto border-gray-200 bg-white pa-4 text-body-2 leading-7">
+                                <div v-html="form.body">
+                                </div>
+                            </div>
 
-                            <div v-if="form.attachments.length > 0" class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                                <div
-                                    v-for="(file, index) in form.attachments"
-                                    :key="`${file.name}-${index}`"
-                                    class="p-3 border border-gray-200 rounded-xl bg-gray-50"
-                                >
+                            <div v-if="form.attachments.length > 0" class="grid grid-cols-1 gap-3 my-5 md:grid-cols-2">
+                                <div v-for="(file, index) in form.attachments" :key="`${file.name}-${index}`" class="p-3 border border-gray-200 rounded-xl bg-gray-50">
                                     <div class="mb-2 text-body-2 font-weight-medium text-truncate">
                                         {{ file.name }}
                                     </div>
@@ -523,8 +704,22 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                                         {{ file.type || "Sin tipo" }} - {{ formatFileSize(file.size) }}
                                     </div>
 
-                                    <div class="text-caption text-medium-emphasis">
-                                        Sin vista previa para este tipo de archivo.
+                                    <v-img
+                                        v-if="isImageFile(file)"
+                                        :src="getFilePreviewUrl(file)"
+                                        :alt="file.name"
+                                        height="120"
+                                        cover
+                                        class="overflow-hidden border rounded-lg"
+                                    />
+
+                                    <div v-else class="py-6 text-center bg-white border rounded-lg text-medium-emphasis">
+                                        <v-icon size="42" color="primary" class="mb-2">
+                                            mdi-file-document-outline
+                                        </v-icon>
+                                        <div class="text-caption">
+                                            Documento adjunto
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -534,7 +729,6 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                         </div>
 
                     </section>
-
                 </v-card-text>
 
                 <v-card-actions class="pt-0 pa-8">
@@ -547,9 +741,10 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                     />
                     <BaseButton
                         :icon-only="false"
-                        text="Enviar"
+                        :text="form.send_type === 'scheduled' ? 'Guardar para enviar despues' : 'Enviar'"
                         variant="flat"
                         action="save"
+                        @click="save"
                     />
                 </v-card-actions>
             </v-card>

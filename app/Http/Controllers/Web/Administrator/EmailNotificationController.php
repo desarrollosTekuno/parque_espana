@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Web\Administrator;
 
 use App\Jobs\SendEmailNotificationJob;
-use App\Models\Administrator\Club;
 use App\Models\Notifications\EmailConfig;
 use App\Models\Notifications\Notification;
 use App\Models\Notifications\NotificationAttachment;
@@ -51,12 +50,6 @@ class EmailNotificationController extends Controller {
             ->whereHas('channel', function ($channelQuery) {
                 $channelQuery->where('code', 'email');
             })
-            ->where(function ($historyQuery) {
-                $historyQuery->whereNotNull('sent_date')
-                    ->orWhereHas('status', function ($statusQuery) {
-                        $statusQuery->where('code', 'sent');
-                    });
-            })
             ->whereIn('club_id', $clubIds);
 
         if ($requestedClubId > 0) {
@@ -94,19 +87,32 @@ class EmailNotificationController extends Controller {
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:150'],
             'body' => ['required', 'string'],
-            'club_id' => ['nullable', 'integer'],
-            'smtp_config_id' => ['required', 'integer', 'exists:email_configs,id'],
-            'send_type' => ['nullable'],
+            'scope' => ['required', 'in:I,G'],
+            'individual_email' => ['nullable', 'email', 'max:255'],
+            'send_type' => ['nullable', 'in:now,scheduled'],
             'scheduled_date' => ['nullable'],
             'scheduled_time' => ['nullable'],
+            'extra_emails' => ['nullable', 'array'],
+            'extra_emails.*' => ['nullable', 'email', 'max:255'],
+            'selected_recipient_ids' => ['nullable', 'array'],
+            'selected_recipient_ids.*' => ['nullable', 'integer', 'exists:users,id'],
             'attachments' => ['nullable', 'array'],
             'attachments.*' => ['nullable', 'file'],
         ]);
-        return $validated;
-        $emailConfig = EmailConfig::find($validated['smtp_config_id']);
-        $resolvedClubId = $validated['club_id'] ?? null;
-        if ($emailConfig) {
-            $resolvedClubId = $emailConfig->entity_id;
+
+        $clubId = session('club_id');
+
+        if (!$clubId) {
+            return back()->withErrors(['club_id' => 'No hay un club activo en la sesion.']);
+        }
+
+        $emailConfig = EmailConfig::query()
+            ->where('entity_id', $clubId)
+            ->where('is_active', true)
+            ->first();
+
+        if (!$emailConfig) {
+            return back()->withErrors(['email_config' => 'El club activo no tiene un SMTP activo configurado.']);
         }
 
         $statusCode = 'sent';
@@ -121,7 +127,7 @@ class EmailNotificationController extends Controller {
         $notification = null;
         $isScheduled = false;
 
-        DB::transaction(function () use ($request, $validated, $channel, $status, $resolvedClubId, &$notification, &$isScheduled) {
+        DB::transaction(function () use ($request, $validated, $channel, $status, $clubId, &$notification, &$isScheduled) {
             $notificationUuid = (string) Str::uuid();
             $isScheduled = ($validated['send_type'] ?? null) === 'scheduled';
 
@@ -129,10 +135,11 @@ class EmailNotificationController extends Controller {
                 'uuid' => $notificationUuid,
                 'title' => $validated['title'],
                 'body' => $validated['body'],
+                'scope' => $validated['scope'],
                 'type' => 0,
                 'channel_id' => $channel->id,
                 'status_id' => $status->id,
-                'club_id' => $resolvedClubId,
+                'club_id' => $clubId,
                 'scheduled_date' => $isScheduled ? ($validated['scheduled_date'] ?? null) : null,
                 'scheduled_time' => $isScheduled ? ($validated['scheduled_time'] ?? null) : null,
                 'sent_date' => $isScheduled ? null : now()->toDateString(),
@@ -163,11 +170,11 @@ class EmailNotificationController extends Controller {
     }
 
     private function saveNotificationHistory(Notification $notification, Request $request, bool $isScheduled) {
-        $scope = $request->input('scope', 'all');
+        $scope = $request->input('scope', 'G');
         $status = $isScheduled ? 'scheduled' : 'sent';
         $sentAt = $isScheduled ? null : now();
 
-        if ($scope === 'individual') {
+        if ($scope === 'I') {
             $email = (string) $request->input('individual_email', '');
             if ($email !== '') {
                 NotificationRecipient::create([
@@ -180,18 +187,23 @@ class EmailNotificationController extends Controller {
         } else {
             $selectedRecipientIds = $request->input('selected_recipient_ids', []);
             if (is_array($selectedRecipientIds)) {
-                foreach ($selectedRecipientIds as $selectedRecipientId) {
-                    $user = User::find($selectedRecipientId);
+                $users = User::query()
+                    ->whereIn('id', $selectedRecipientIds)
+                    ->whereNotNull('email')
+                    ->where('email', '<>', '')
+                    ->whereHas('clubs', function ($clubQuery) use ($notification) {
+                        $clubQuery->where('clubs.clubs.id', $notification->club_id);
+                    })
+                    ->get();
 
-                    if ($user && $user->email) {
-                        NotificationRecipient::create([
-                            'notification_id' => $notification->id,
-                            'user_id' => $user->id,
-                            'destination' => $user->email,
-                            'status' => $status,
-                            'sent_at' => $sentAt,
-                        ]);
-                    }
+                foreach ($users as $user) {
+                    NotificationRecipient::create([
+                        'notification_id' => $notification->id,
+                        'user_id' => $user->id,
+                        'destination' => $user->email,
+                        'status' => $status,
+                        'sent_at' => $sentAt,
+                    ]);
                 }
             }
         }
@@ -247,7 +259,15 @@ class EmailNotificationController extends Controller {
     }
 
     public function getMembers(Request $request) {
-        $clubId = $request->club_id;
+        $clubId = session('club_id');
+
+        if (!$clubId) {
+            return [
+                'total' => 0,
+                'recipients' => [],
+            ];
+        }
+
         $data = User::query()
             ->select('id', 'name', 'email')
             ->whereNotNull('email')

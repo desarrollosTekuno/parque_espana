@@ -13,6 +13,10 @@ class MailService {
     public function send(int $entityId, string|array $to, Mailable $mailable): void {
         $emailConfig = $this->configEmail($entityId);
 
+        if (!$emailConfig) {
+            throw new \RuntimeException('No hay una configuracion SMTP activa para este club.');
+        }
+
         $logData = [
             'entity_id' => $entityId,
             'email_config_id' => $emailConfig->id,
