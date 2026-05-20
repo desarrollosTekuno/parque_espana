@@ -177,13 +177,10 @@ const generatePreview = () => {
 
 const onScopeChange = (value: "I" | "G") => {
     form.scope = value;
-    if (value == "G") {
-        form.club_id = props.club_id;
-        getMembers();
-    } else {
-        form.club_id = null;
-        members.value = [];
-    }
+    form.club_id = props.club_id;
+    form.individual_email = "";
+    form.selected_recipient_ids = [];
+    getMembers();
 };
 
 const getMembers = async () => {
@@ -198,8 +195,9 @@ const getMembers = async () => {
 
         recipients.value = response.data.recipients ?? [];
 
-        // Selecciona todos por default
-        form.selected_recipient_ids = recipients.value.map((recipient) => recipient.id);
+        if (form.scope === "G") {
+            form.selected_recipient_ids = recipients.value.map((recipient) => recipient.id);
+        }
     } catch (e) {
         console.error(e);
         recipients.value = [];
@@ -316,6 +314,7 @@ const save = () => {
     form.post(route("email-notifications.store"), {
         forceFormData: true,
         preserveScroll: true,
+        preserveState: true,
         onSuccess: () => {
             showPreviewModal.value = false;
             closeModal();
@@ -484,6 +483,20 @@ watch([recipients, () => form.selected_recipient_ids], () => {
 
                             <v-col v-if="form.scope == 'G'" cols="12">
 
+                            </v-col>
+
+                            <v-col v-if="form.scope == 'I'" cols="12">
+                                <v-autocomplete
+                                    v-model="form.individual_email"
+                                    label="Seleccionar persona"
+                                    :items="recipients"
+                                    item-title="name"
+                                    item-value="email"
+                                    :rules="[required]"
+                                    required
+                                    clearable
+                                    no-data-text="No se encontraron personas"
+                                />
                             </v-col>
 
                             <v-col cols="12">
