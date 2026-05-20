@@ -30,26 +30,20 @@ class EmailNotificationController extends Controller {
 
     public function index(Request $request) {
         $notifications = $this->getEmailNotifications($request);
-        $clubIds = Auth::user()->clubs()->pluck('clubs.id');
-        $clubs = Club::query()->whereIn('id', $clubIds)->get();
+        $club_id = session('club_id');
 
         return Inertia::render('Administrator/EmailNotifications/Index', [
             'email_notifications' => $notifications,
-            'clubs' => $clubs,
-            'email_configs' => EmailConfig::query()
-                ->select('id', 'entity_id', 'profile_name', 'from_address', 'is_active')
-                ->where('is_active', true)
-                ->whereIn('entity_id', $clubIds)
-                ->orderBy('profile_name')
-                ->get(),
+            'club_id' => $club_id,
         ]);
     }
 
     private function getEmailNotifications(Request $request) {
         $driver = DB::getDriverName();
         $prefix = 'email_notifications';
-        $sessionClubId = session('club_id');
+        $sessionClubId = (int) session('club_id');
         $requestedClubId = $request->input("{$prefix}_club_id", $request->input('club_id'));
+        $clubIds = Auth::user()->clubs()->pluck('clubs.id');
 
         $query = Notification::query()
             ->with(['creator:id,name', 'status:id,name,code', 'club:id,name'])
@@ -62,7 +56,8 @@ class EmailNotificationController extends Controller {
                     ->orWhereHas('status', function ($statusQuery) {
                         $statusQuery->where('code', 'sent');
                     });
-            });
+            })
+            ->whereIn('club_id', $clubIds);
 
         if ($requestedClubId > 0) {
             $query->where('club_id', $requestedClubId);
@@ -107,7 +102,7 @@ class EmailNotificationController extends Controller {
             'attachments' => ['nullable', 'array'],
             'attachments.*' => ['nullable', 'file'],
         ]);
-
+        return $validated;
         $emailConfig = EmailConfig::find($validated['smtp_config_id']);
         $resolvedClubId = $validated['club_id'] ?? null;
         if ($emailConfig) {
@@ -249,5 +244,25 @@ class EmailNotificationController extends Controller {
             'count' => $totalCount,
             'items' => $items,
         ]);
+    }
+
+    public function getMembers(Request $request) {
+        $clubId = $request->club_id;
+        $items = User::query()
+            ->select('id', 'name', 'email')
+            ->whereNotNull('email')
+            ->where('email', '<>', '')
+            ->whereHas('clubs', function ($clubQuery) use ($clubId) {
+                $clubQuery->where('clubs.clubs.id', $clubId);
+            })
+            ->orderBy('name')
+            ->get();
+
+        $data = [
+            'count' => $items->count(),
+            'items' => $items,
+        ];
+
+        return $data;
     }
 }

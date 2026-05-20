@@ -201,3 +201,12 @@ Si el requerimiento dice "guardar informacion y adjuntos":
 4. Retornar `back()->with('success', ...)`.
 
 No incluir envio real, historial adicional, filtros complejos o logica extra hasta que se pida explicitamente.
+
+## 10) Regla de orden en vistas Vue
+
+Aplicar siempre esta regla al crear o editar vistas Vue en `<script setup>`:
+
+- Agrupar por secciones del mismo tipo (no mezclar bloques).
+- Mantener juntas: variables/refs, `useForm`, `computed`, funciones, `watch`, y lifecycle (`onMounted`, etc.).
+- El orden entre secciones puede variar libremente, pero cada tipo debe quedar junto en su propio bloque.
+- Se permite usar comentarios de seccion para identificar claramente cada bloque.
