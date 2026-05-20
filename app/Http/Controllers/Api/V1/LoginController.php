@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\DeviceToken;
 use App\Models\Members\Member;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -103,16 +104,25 @@ class LoginController extends Controller
     public function logout(Request $request)
     {
         try {
+            // Desactivar el token FCM del dispositivo si se envía
+            $fcmToken = $request->input('fcm_token');
+            if ($fcmToken) {
+                DeviceToken::where('token', $fcmToken)
+                    ->where('user_id', $request->user()->id)
+                    ->update(['is_active' => false]);
+            }
+
             $request->user()->currentAccessToken()->delete();
+
             return response()->json([
                 'success' => true,
-                'message' => 'Logout successful'
+                'message' => 'Logout successful',
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Logout failed',
-                'error' => $e->getMessage()
+                'error'   => $e->getMessage(),
             ], 500);
         }
     }

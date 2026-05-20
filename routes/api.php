@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\AccountStatementController;
 use App\Http\Controllers\Api\V1\AmenityController;
 use App\Http\Controllers\Api\V1\ConektaWebhookController;
+use App\Http\Controllers\Api\V1\DeviceTokenController;
 use App\Http\Controllers\Api\V1\SpeiPaymentController;
 use App\Http\Controllers\Api\V1\FeedbackTicketMobileController;
 use App\Http\Controllers\Api\V1\LoginController;
@@ -64,6 +65,12 @@ Route::prefix('v1')->group(function () {
 
     // Perfil del socio
     Route::get('/my-profile', [MemberProfileController::class, 'show'])->middleware('auth:sanctum');
+
+    // Tokens FCM para notificaciones push
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/device-token', [DeviceTokenController::class, 'store']);
+        Route::delete('/device-token', [DeviceTokenController::class, 'destroy']);
+    });
 
     // Documents
     Route::get('/my-documents', [MemberDocumentController::class, 'index'])->middleware('auth:sanctum');

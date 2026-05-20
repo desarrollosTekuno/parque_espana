@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendPushNotificationJob;
 use App\Models\Billing\SpeiOrder;
 use App\Services\Billing\PaymentRegistrationService;
 use Illuminate\Http\Request;
@@ -121,6 +122,27 @@ class ConektaWebhookController extends Controller
                 'status'     => 'paid',
                 'payment_id' => $payment->id,
             ]);
+
+            // Notificar al socio que su transferencia fue recibida
+            $userId = $speiOrder->membershipAccount
+                ->members()
+                ->first()
+                ?->user_id;
+
+            if ($userId) {
+                SendPushNotificationJob::dispatch(
+                    userId: $userId,
+                    title:  '¡Pago recibido!',
+                    body:   'Tu transferencia SPEI de $' . number_format($speiOrder->amount, 2) . ' MXN fue confirmada.',
+                    data:   [
+                        'screen'        => 'account_statement',
+                        'type'          => 'spei_paid',
+                        'spei_order_id' => (string) $speiOrder->id,
+                        'payment_id'    => (string) $payment->id,
+                        'club_id'       => (string) $speiOrder->club_id,
+                    ],
+                );
+            }
 
             Log::info('Pago SPEI confirmado vía webhook', [
                 'spei_order_id'    => $speiOrder->id,
