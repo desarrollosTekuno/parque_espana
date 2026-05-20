@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web\Administrator;
 
+use App\Exports\EmailNotificationsExport;
 use App\Jobs\SendEmailNotificationJob;
 use App\Models\Notifications\EmailConfig;
 use App\Models\Notifications\Notification;
@@ -16,6 +17,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
+use Maatwebsite\Excel\Facades\Excel;
 
 class EmailNotificationController extends Controller {
 
@@ -26,6 +28,7 @@ class EmailNotificationController extends Controller {
         $this->middleware('permission:email-notifications.destroy')->only('destroy');
         $this->middleware('permission:email-notifications.store')->only('recipientsPreview');
         $this->middleware('permission:email-notifications.update')->only('cancel');
+        $this->middleware('permission:email-notifications.index')->only('export');
     }
 
     public function index(Request $request) {
@@ -194,6 +197,12 @@ class EmailNotificationController extends Controller {
         $notification->update(['status_id' => $cancelledStatus?->id]);
 
         return redirect()->back()->with('success', 'Notificacion cancelada.');
+    }
+
+    public function export(Request $request) {
+        $filename = 'notificaciones-correo-' . now()->format('Y-m-d-His') . '.xlsx';
+
+        return Excel::download(new EmailNotificationsExport($request), $filename);
     }
 
     private function saveNotificationHistory(Notification $notification, Request $request, bool $isScheduled) {

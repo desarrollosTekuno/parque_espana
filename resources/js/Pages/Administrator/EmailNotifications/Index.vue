@@ -371,6 +371,16 @@ const cancelNotification = async (item: NotificationItem) => {
         },
     });
 };
+
+const exportExcel = () => {
+    const params = new URLSearchParams();
+    if (search.value) params.set(`${prefix}_search`, search.value);
+    if (type.value !== null && type.value !== undefined) params.set(`${prefix}_type`, String(type.value));
+    if (dateFrom.value) params.set(`${prefix}_date_from`, dateFrom.value);
+    if (dateTo.value) params.set(`${prefix}_date_to`, dateTo.value);
+
+    window.location.href = route("email-notifications.export") + "?" + params.toString();
+};
 /* ====================== Watchers ====================== */
 watch(
     () => props.email_notifications,
@@ -426,7 +436,7 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                 v-model:options="options"
                 fixed-header
                 hover
-                height="45vh"
+                height="40vh"
                 :headers="headers"
                 :items="items"
                 :items-length="total"
@@ -526,6 +536,15 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                     />
                 </template>
             </v-data-table-server>
+            <div class="flex justify-end w-full mt-3">
+                <BaseButton
+                    variant="tonal"
+                    :icon-only="false"
+                    text="Exportar Excel"
+                    action="download"
+                    @click="exportExcel"
+                />
+            </div>
         </div>
 
         <!-- ===================================== MODALES ===================================== -->

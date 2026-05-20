@@ -90,6 +90,7 @@ Route::resource('/email-notifications', EmailNotificationController::class)->onl
 Route::get('/email-notifications/members', [EmailNotificationController::class, 'getMembers'])->name('email-notifications.members');
 Route::get('/email-notifications/recipients-preview', [EmailNotificationController::class, 'recipientsPreview'])->name('email-notifications.recipients-preview');
 Route::patch('/email-notifications/{id}/cancel', [EmailNotificationController::class, 'cancel'])->name('email-notifications.cancel');
+Route::get('/email-notifications/export', [EmailNotificationController::class, 'export'])->name('email-notifications.export');
 
 // announcements
 Route::resource('/announcements', AnnouncementController::class)->names('announcements');
