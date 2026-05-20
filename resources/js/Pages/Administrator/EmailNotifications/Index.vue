@@ -840,40 +840,45 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                 </v-card-title>
 
                 <v-card-text>
-                    <v-table class="border rounded-lg">
-                        <thead>
-                            <tr>
-                                <th>Destinatario</th>
-                                <th>SMTP</th>
-                                <th>Remitente</th>
-                                <th>Estado</th>
-                                <th>Enviado en</th>
-                                <th>Error</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="log in selectedNotification?.email_logs || []" :key="log.id">
-                                <td>{{ log.to_email }}</td>
-                                <td>{{ log.email_config?.profile_name || "-" }}</td>
-                                <td>{{ log.email_config?.from_address || "-" }}</td>
-                                <td>
-                                    <v-chip size="small" variant="tonal" :color="getStatusColor(log.status)">
-                                        {{ getLogStatusText(log.status) }}
-                                    </v-chip>
-                                </td>
-                                <td>{{ log.sent_at || "-" }}</td>
-                                <td class="text-caption text-error">
-                                    {{ log.error_message || "-" }}
-                                </td>
-                            </tr>
+                    <v-data-table
+                        :headers="historyHeaders"
+                        :items="selectedNotification?.email_logs || []"
+                        :search="historySearch"
+                        :items-per-page="10"
+                        :items-per-page-options="[10, 25, 50, 100]"
+                        items-per-page-text=" Mostrar"
+                        no-data-text="Todavia no hay historial de envio para esta notificacion"
+                        class="border rounded-lg"
+                    >
+                        <template #top>
+                            <v-text-field
+                                v-model="historySearch"
+                                label="Buscar en historial"
+                                class="mx-4 mt-2"
+                                clearable
+                            />
+                        </template>
 
-                            <tr v-if="!selectedNotification?.email_logs || selectedNotification.email_logs.length === 0">
-                                <td colspan="6" class="py-6 text-center text-medium-emphasis">
-                                    Todavia no hay historial de envio para esta notificacion.
-                                </td>
-                            </tr>
-                        </tbody>
-                    </v-table>
+                        <template #item.smtp="{ item }">
+                            {{ item.email_config?.profile_name || "-" }}
+                        </template>
+
+                        <template #item.from_address="{ item }">
+                            {{ item.email_config?.from_address || "-" }}
+                        </template>
+
+                        <template #item.status="{ item }">
+                            <v-chip size="small" variant="tonal" :color="getStatusColor(item.status)">
+                                {{ getLogStatusText(item.status) }}
+                            </v-chip>
+                        </template>
+
+                        <template #item.error_message="{ item }">
+                            <span class="text-caption text-error">
+                                {{ item.error_message || "-" }}
+                            </span>
+                        </template>
+                    </v-data-table>
                 </v-card-text>
 
                 <v-card-actions>
