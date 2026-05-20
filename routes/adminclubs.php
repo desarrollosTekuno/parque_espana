@@ -87,7 +87,7 @@ Route::resource('/email-configs', EmailConfigController::class)
     ->names('email-configs');
 
 Route::resource('/email-notifications', EmailNotificationController::class)->only(['index', 'store', 'update', 'destroy'])->names('email-notifications');
-Route::get('/email-notifications/getMembers', [EmailNotificationController::class, 'getMembers'])->name('email-notifications.getMembers');
+Route::get('/email-notifications/members', [EmailNotificationController::class, 'getMembers'])->name('email-notifications.members');
 Route::get('/email-notifications/recipients-preview', [EmailNotificationController::class, 'recipientsPreview'])->name('email-notifications.recipients-preview');
 
 // announcements

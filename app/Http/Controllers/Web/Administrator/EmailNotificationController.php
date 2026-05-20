@@ -248,7 +248,7 @@ class EmailNotificationController extends Controller {
 
     public function getMembers(Request $request) {
         $clubId = $request->club_id;
-        $items = User::query()
+        $data = User::query()
             ->select('id', 'name', 'email')
             ->whereNotNull('email')
             ->where('email', '<>', '')
@@ -258,11 +258,9 @@ class EmailNotificationController extends Controller {
             ->orderBy('name')
             ->get();
 
-        $data = [
-            'count' => $items->count(),
-            'items' => $items,
+        return [
+            'total' => $data->count(),
+            'recipients' => $data,
         ];
-
-        return $data;
     }
 }

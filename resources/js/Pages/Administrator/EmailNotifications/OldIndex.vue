@@ -791,7 +791,7 @@ onBeforeUnmount(() => {
         </v-dialog>
 
         <v-dialog v-model="showPreviewModal" max-width="860">
-            <v-card class="!rounded-[28px] overflow-hidden d-flex flex-column" style="max-height: 90vh;">
+            <v-card class="!rounded-[28px] overflow-hidden d-flex flex-column">
                 <div class="border-b border-gray-200 pa-8 ">
                     <div class="flex-wrap d-flex justify-space-between align-start ga-6">
                         <div>

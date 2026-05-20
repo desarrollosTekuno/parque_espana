@@ -131,6 +131,7 @@ Basada en `resources/js/Pages/Template.vue`:
   - `const can = usePage().props.auth.permissions`
   - estado reactivo (`items`, `total`, `loading`, `search`, `options`, `showModal`)
   - metodos `fetchItems`, `create`, `edit`, `save`, `destroy`, `close`
+  - para rutas extra fuera de CRUD basico (`store/update/destroy`), usar `axios` con funcion simple `try/catch` y `route('modulo.accion', params)`
   - `watch([options, search], debounce(fetchItems, 400), { deep: true })`
 
 - `<template>`
@@ -183,11 +184,18 @@ Ese contenido esta preparado para insertarse en `Docs/ParqueEspaña.pdf` como se
 
 Cuando el usuario pida enfoque simple/minimo, aplicar esta regla estricta:
 
+- Regla general: por defecto, cualquier implementacion debe ser lo mas simple posible.
+- Solo optimizar, abstraer o sofisticar la solucion si el usuario lo solicita de forma explicita.
+
 - Implementar solo lo solicitado para que funcione (sin extras).
 - Validar unicamente lo necesario para guardar y no romper flujo.
 - No agregar validaciones avanzadas, escenarios preventivos ni endurecimientos de seguridad no solicitados.
 - No refactorizar ni abstraer en funciones auxiliares si no lo pidieron.
 - Preferir codigo explicito y directo (estilo junior), evitando compactaciones innecesarias.
+- Mantener el codigo siempre basico y facil de entender para nivel junior.
+- En CRUD sencillo, validar solo lo necesario (requerido, tipo, longitud o peso) y luego guardar/actualizar/eliminar sin logica extra.
+- Si el requerimiento incluye calculos o reglas de negocio, agregar esa logica, pero sin complejidad innecesaria.
+- Para consultas especificas fuera de CRUD basico, usar funciones simples con `axios` y `try/catch` (sin abstracciones extras).
 - Evitar `continue`; usar `if/else` claro cuando haya que condicionar.
 - No anticipar requerimientos futuros: si hoy solo piden guardar, solo guardar.
 
@@ -202,6 +210,20 @@ Si el requerimiento dice "guardar informacion y adjuntos":
 
 No incluir envio real, historial adicional, filtros complejos o logica extra hasta que se pida explicitamente.
 
+### 9.2) Ejemplo practico en consulta auxiliar con axios
+
+Cuando se necesite una ruta auxiliar fuera de `store/update/destroy`, usar formato simple como este:
+
+```ts
+const getMembers = async () => {
+    try {
+        const response = await axios.get(route("email-notifications.members", form));
+    } catch (e) {
+        console.error(e);
+    }
+};
+```
+
 ## 10) Regla de orden en vistas Vue
 
 Aplicar siempre esta regla al crear o editar vistas Vue en `<script setup>`:
@@ -210,3 +232,13 @@ Aplicar siempre esta regla al crear o editar vistas Vue en `<script setup>`:
 - Mantener juntas: variables/refs, `useForm`, `computed`, funciones, `watch`, y lifecycle (`onMounted`, etc.).
 - El orden entre secciones puede variar libremente, pero cada tipo debe quedar junto en su propio bloque.
 - Se permite usar comentarios de seccion para identificar claramente cada bloque.
+
+Divisores sugeridos:
+
+- `/* ====================== Props ====================== */`
+- `/* ====================== Variables ====================== */`
+- `/* ====================== useForm ====================== */`
+- `/* ====================== Computed ====================== */`
+- `/* ====================== Funciones ====================== */`
+- `/* ====================== Watchers ====================== */`
+- `/* ====================== Lifecycle ====================== */`

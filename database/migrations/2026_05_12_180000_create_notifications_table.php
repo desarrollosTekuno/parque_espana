@@ -17,6 +17,7 @@ return new class extends Migration
             $table->uuid('uuid')->nullable();
             $table->string('title', 150);
             $table->text('body');
+            $table->char('scope', 1)->default('I'); //  I Individual, G Grupal
             $table->unsignedTinyInteger('type')->default(0); // 0 manual, 1 automatic
             $table->date('scheduled_date')->nullable();
             $table->time('scheduled_time')->nullable();
