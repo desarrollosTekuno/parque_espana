@@ -151,6 +151,89 @@ class ConektaService
     }
 
     // ──────────────────────────────────────────────────────────────
+    // SPEI
+    // ──────────────────────────────────────────────────────────────
+
+    /**
+     * Crea una orden SPEI en Conekta y devuelve el CLABE para que el socio
+     * realice la transferencia desde su banco.
+     *
+     * El pago NO se confirma aquí — queda en estado "pending_payment".
+     * La confirmación llega vía webhook (charge.paid).
+     *
+     * @param  Member $member
+     * @param  int    $amountCents   Monto en centavos (ej. 250000 = $2,500.00 MXN)
+     * @param  string $description   Concepto del cargo
+     * @param  int    $expiresAt     Unix timestamp de expiración del CLABE
+     * @param  array  $metadata      Datos adicionales que se mandan a Conekta
+     * @return array  ['order_id', 'charge_id', 'clabe', 'bank', 'expires_at', 'status']
+     */
+    public function createSpeiOrder(
+        Member $member,
+        int    $amountCents,
+        string $description,
+        int    $expiresAt,
+        array  $metadata = []
+    ): array {
+        $customerId = $this->resolveCustomer($member);
+
+        $orderRequest = new OrderRequest([
+            'currency'      => 'MXN',
+            'customer_info' => new OrderRequestCustomerInfo([
+                'customer_id' => $customerId,
+            ]),
+            'line_items' => [
+                new Product([
+                    'name'       => $description,
+                    'unit_price' => $amountCents,
+                    'quantity'   => 1,
+                ]),
+            ],
+            'charges' => [
+                new ChargeRequest([
+                    'payment_method' => new ChargeRequestPaymentMethod([
+                        'type' => 'spei',
+                    ]),
+                    'amount'     => $amountCents,
+                    'expires_at' => $expiresAt,
+                ]),
+            ],
+            'metadata' => $metadata,
+        ]);
+
+        $order  = $this->ordersApi->createOrder($orderRequest);
+        $charge = $order->getCharges()->getData()[0] ?? null;
+
+        // El SDK devuelve el payment_method del charge como objeto tipado.
+        // Para SPEI, los campos CLABE y banco vienen en ese objeto.
+        $paymentMethod = $charge?->getPaymentMethod();
+        $clabe = null;
+        $bank  = null;
+
+        if ($paymentMethod) {
+            // Intentamos acceder con los métodos tipados del SDK.
+            // Si el SDK usa un modelo genérico, recurrimos a getClabe/getBank
+            // según la versión de conekta-php instalada.
+            $clabe = method_exists($paymentMethod, 'getClabe')
+                ? $paymentMethod->getClabe()
+                : ($paymentMethod->getReceivingAccountNumber() ?? null);
+
+            $bank  = method_exists($paymentMethod, 'getBank')
+                ? $paymentMethod->getBank()
+                : ($paymentMethod->getReceivingAccountBank() ?? null);
+        }
+
+        return [
+            'order_id'   => $order->getId(),
+            'charge_id'  => $charge?->getId(),
+            'clabe'      => $clabe,
+            'bank'       => $bank,
+            'expires_at' => $expiresAt,
+            'status'     => $charge?->getStatus(), // "pending_payment"
+        ];
+    }
+
+    // ──────────────────────────────────────────────────────────────
     // COBROS
     // ──────────────────────────────────────────────────────────────
 

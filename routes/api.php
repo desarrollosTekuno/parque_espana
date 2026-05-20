@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\Api\V1\AccountStatementController;
 use App\Http\Controllers\Api\V1\AmenityController;
+use App\Http\Controllers\Api\V1\ConektaWebhookController;
+use App\Http\Controllers\Api\V1\SpeiPaymentController;
 use App\Http\Controllers\Api\V1\FeedbackTicketMobileController;
 use App\Http\Controllers\Api\V1\LoginController;
 use App\Http\Controllers\Api\V1\MemberProfileController;
@@ -54,6 +56,10 @@ Route::prefix('v1')->group(function () {
 
         // Estado de cuenta (solo socio titular)
         Route::get('/account-statement', [AccountStatementController::class, 'show']);
+
+        // SPEI — generar CLABE y consultar estado de orden
+        Route::post('/spei-payment', [SpeiPaymentController::class, 'store']);
+        Route::get('/spei-payment/{speiOrder}', [SpeiPaymentController::class, 'show']);
     });
 
     // Perfil del socio
@@ -66,6 +72,9 @@ Route::prefix('v1')->group(function () {
     Route::get('/lockers/index', [LockerApiController::class, 'index'])->middleware('auth:sanctum');
     Route::get('/lockers/members', [LockerApiController::class, 'membersAvailable'])->middleware('auth:sanctum');
     Route::post('/lockers/assign', [LockerApiController::class, 'assign'])->middleware('auth:sanctum');
+
+    // Webhook de Conekta — sin auth, público para recibir eventos
+    Route::post('/webhooks/conekta', [ConektaWebhookController::class, 'handle']);
 
     // Cobro con tarjeta domiciliada (Conekta)
     Route::post('/charge-payment', [ChargePaymentController::class, 'store'])->middleware('auth:sanctum');
