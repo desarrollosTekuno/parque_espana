@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AccountStatementController;
 use App\Http\Controllers\Api\V1\AmenityController;
 use App\Http\Controllers\Api\V1\FeedbackTicketMobileController;
 use App\Http\Controllers\Api\V1\LoginController;
@@ -39,16 +40,20 @@ Route::prefix('v1')->group(function () {
     // Business Ads
     Route::post('/business-ads', [BusinessAdController::class, 'store'])->middleware('auth:sanctum');
 
-    // Surveys (encuestas para usuarios — agrupadas por club)
+    // Agrupadas por club
     Route::middleware('auth:sanctum')->prefix('clubs/{club}')->group(function () {
-        Route::get('/surveys', [SurveyController::class, 'index']);                     // Encuestas activas pendientes
-        Route::get('/surveys/{survey}', [SurveyController::class, 'show']);             // Detalle con preguntas
+        // Encuestas
+        Route::get('/surveys', [SurveyController::class, 'index']);                      // Encuestas activas pendientes
+        Route::get('/surveys/{survey}', [SurveyController::class, 'show']);              // Detalle con preguntas
         Route::post('/surveys/{survey}/responses', [SurveyController::class, 'store']); // Enviar respuestas
 
         // Feedback (tickets de quejas y sugerencias de cada usuario)
         Route::get('/feedback/tickets', [FeedbackTicketMobileController::class, 'index']);
         Route::post('/feedback/tickets', [FeedbackTicketMobileController::class, 'store']);
         Route::patch('/feedback/tickets/{ticket}/cancel', [FeedbackTicketMobileController::class, 'cancel']);
+
+        // Estado de cuenta (solo socio titular)
+        Route::get('/account-statement', [AccountStatementController::class, 'show']);
     });
 
     // Perfil del socio
