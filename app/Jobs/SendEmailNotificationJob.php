@@ -47,7 +47,8 @@ class SendEmailNotificationJob implements ShouldQueue {
                     $mailService->send(
                         entityId: (int) $notification->club_id,
                         to: (string) $recipient->destination,
-                        mailable: $mailable
+                        mailable: $mailable,
+                        notificationId: $notification->id
                     );
 
                     $recipient->update([

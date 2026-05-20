@@ -22,6 +22,11 @@ interface NotificationItem {
     recipients_count: number;
     status: { id: number; name: string; code: string } | null;
     creator: { id: number; name: string } | null;
+    email_logs: Array<{
+        id: number;
+        status: string;
+        email_config: { id: number; profile_name: string; from_address: string; host: string } | null;
+    }>;
 }
 
 interface Props {
@@ -60,6 +65,7 @@ const headers = [
     { title: "Titulo", key: "title" },
     { title: "Alcance", key: "scope", sortable: false },
     { title: "Destinatarios", key: "recipients_count", sortable: false },
+    { title: "SMTP", key: "smtp", sortable: false },
     { title: "Estado", key: "status", sortable: false },
     { title: "Fecha", key: "created_at" },
     { title: "Creado por", key: "creator", sortable: false },
@@ -256,6 +262,14 @@ const getStatusColor = (code: string | undefined) => {
     return "default";
 };
 
+const getNotificationSmtp = (item: NotificationItem) => {
+    if (!item.email_logs || item.email_logs.length === 0) {
+        return null;
+    }
+
+    return item.email_logs[0].email_config;
+};
+
 const isImageFile = (file: File) => {
     return file.type.startsWith("image/");
 };
@@ -354,6 +368,20 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                     >
                         {{ item.status?.name || "Sin estado" }}
                     </v-chip>
+                </template>
+
+                <template #item.smtp="{ item }">
+                    <div v-if="getNotificationSmtp(item)">
+                        <div class="text-body-2 font-weight-medium">
+                            {{ getNotificationSmtp(item)?.profile_name }}
+                        </div>
+                        <div class="text-caption text-medium-emphasis">
+                            {{ getNotificationSmtp(item)?.from_address }}
+                        </div>
+                    </div>
+                    <span v-else class="text-caption text-medium-emphasis">
+                        Pendiente de envio
+                    </span>
                 </template>
 
                 <template #item.created_at="{ item }">

@@ -10,7 +10,7 @@ use Throwable;
 
 class MailService {
 
-    public function send(int $entityId, string|array $to, Mailable $mailable): void {
+    public function send(int $entityId, string|array $to, Mailable $mailable, ?int $notificationId = null): void {
         $emailConfig = $this->configEmail($entityId);
 
         if (!$emailConfig) {
@@ -20,6 +20,7 @@ class MailService {
         $logData = [
             'entity_id' => $entityId,
             'email_config_id' => $emailConfig->id,
+            'notification_id' => $notificationId,
             'to_email' => $this->normalize($to),
             'subject' => $this->resolveSubject($mailable),
         ];
@@ -51,7 +52,7 @@ class MailService {
         }
     }
 
-    private function configEmail(int $entityId): EmailConfig {
+    private function configEmail(int $entityId): ?EmailConfig {
         $emailConfig = EmailConfig::query()
             ->where('entity_id', $entityId)
             ->where('is_active', true)

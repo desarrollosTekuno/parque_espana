@@ -48,4 +48,9 @@ class Notification extends Model
     {
         return $this->hasMany(NotificationAttachment::class, 'notification_id');
     }
+
+    public function emailLogs()
+    {
+        return $this->hasMany(EmailLog::class, 'notification_id');
+    }
 }

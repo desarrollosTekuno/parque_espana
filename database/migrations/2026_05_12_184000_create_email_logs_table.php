@@ -36,6 +36,12 @@ return new class extends Migration
                 ->on('email_configs')
                 ->nullOnDelete();
 
+            $table->unsignedBigInteger('notification_id')->nullable();
+            $table->foreign('notification_id')
+                ->references('id')
+                ->on('notifications')
+                ->nullOnDelete();
+
             $table->timestamps();
             $table->softDeletes();
         });

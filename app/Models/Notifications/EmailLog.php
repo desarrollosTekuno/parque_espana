@@ -27,4 +27,9 @@ class EmailLog extends Model
     {
         return $this->belongsTo(EmailConfig::class, 'email_config_id');
     }
+
+    public function notification()
+    {
+        return $this->belongsTo(Notification::class, 'notification_id');
+    }
 }
