@@ -60,10 +60,10 @@ class PermissionSeeder extends Seeder
             ['module' => 'Correo', 'name' => 'email-configs.store', 'description' => 'Crear configuración de correo', 'contexts' => ['web']],
             ['module' => 'Correo', 'name' => 'email-configs.update', 'description' => 'Actualizar configuración de correo', 'contexts' => ['web']],
             ['module' => 'Correo', 'name' => 'email-configs.destroy', 'description' => 'Eliminar configuración de correo', 'contexts' => ['web']],
-            ['module' => 'Correo', 'name' => 'email-notifications.index', 'description' => 'Ver notificaciones por correo', 'contexts' => ['web']],
-            ['module' => 'Correo', 'name' => 'email-notifications.store', 'description' => 'Crear notificaciones por correo', 'contexts' => ['web']],
-            ['module' => 'Correo', 'name' => 'email-notifications.update', 'description' => 'Actualizar notificaciones por correo', 'contexts' => ['web']],
-            ['module' => 'Correo', 'name' => 'email-notifications.destroy', 'description' => 'Eliminar notificaciones por correo', 'contexts' => ['web']],
+            ['module' => 'Notificaciones', 'name' => 'notifications.index', 'description' => 'Ver notificaciones', 'contexts' => ['web']],
+            ['module' => 'Notificaciones', 'name' => 'notifications.store', 'description' => 'Crear notificaciones', 'contexts' => ['web']],
+            ['module' => 'Notificaciones', 'name' => 'notifications.update', 'description' => 'Actualizar notificaciones', 'contexts' => ['web']],
+            ['module' => 'Notificaciones', 'name' => 'notifications.destroy', 'description' => 'Eliminar notificaciones', 'contexts' => ['web']],
 
             // Sistema
             ['module' => 'Sistema', 'name' => 'system-variables.index', 'description' => 'Ver variables de sistema', 'contexts' => ['web']],

@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Web\Administrator;
 
-use App\Exports\EmailNotificationsExport;
+use App\Exports\NotificationsExport;
 use App\Jobs\SendEmailNotificationJob;
 use App\Models\Notifications\EmailConfig;
 use App\Models\Notifications\Notification;
@@ -19,31 +19,31 @@ use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Maatwebsite\Excel\Facades\Excel;
 
-class EmailNotificationController extends Controller {
+class NotificationController extends Controller {
 
     public function __construct() {
-        $this->middleware('permission:email-notifications.index')->only('index');
-        $this->middleware('permission:email-notifications.store')->only('store');
-        $this->middleware('permission:email-notifications.update')->only('update');
-        $this->middleware('permission:email-notifications.destroy')->only('destroy');
-        $this->middleware('permission:email-notifications.store')->only('recipientsPreview');
-        $this->middleware('permission:email-notifications.update')->only('cancel');
-        $this->middleware('permission:email-notifications.index')->only('export');
+        $this->middleware('permission:notifications.index')->only('index');
+        $this->middleware('permission:notifications.store')->only('store');
+        $this->middleware('permission:notifications.update')->only('update');
+        $this->middleware('permission:notifications.destroy')->only('destroy');
+        $this->middleware('permission:notifications.store')->only('recipientsPreview');
+        $this->middleware('permission:notifications.update')->only('cancel');
+        $this->middleware('permission:notifications.index')->only('export');
     }
 
     public function index(Request $request) {
-        $notifications = $this->getEmailNotifications($request);
+        $notifications = $this->getNotifications($request);
         $club_id = session('club_id');
 
-        return Inertia::render('Administrator/EmailNotifications/Index', [
-            'email_notifications' => $notifications,
+        return Inertia::render('Administrator/Notifications/Index', [
+            'notifications' => $notifications,
             'club_id' => $club_id,
         ]);
     }
 
-    private function getEmailNotifications(Request $request) {
+    private function getNotifications(Request $request) {
         $driver = DB::getDriverName();
-        $prefix = 'email_notifications';
+        $prefix = 'notifications';
         $sessionClubId = (int) session('club_id');
         $requestedClubId = $request->input("{$prefix}_club_id", $request->input('club_id'));
         $clubIds = Auth::user()->clubs()->pluck('clubs.id');
@@ -202,7 +202,7 @@ class EmailNotificationController extends Controller {
     public function export(Request $request) {
         $filename = 'notificaciones-correo-' . now()->format('Y-m-d-His') . '.xlsx';
 
-        return Excel::download(new EmailNotificationsExport($request), $filename);
+        return Excel::download(new NotificationsExport($request), $filename);
     }
 
     private function saveNotificationHistory(Notification $notification, Request $request, bool $isScheduled) {

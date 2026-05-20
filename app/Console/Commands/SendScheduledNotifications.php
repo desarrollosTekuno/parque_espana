@@ -6,11 +6,11 @@ use App\Jobs\SendEmailNotificationJob;
 use App\Models\Notifications\Notification;
 use Illuminate\Console\Command;
 
-class SendScheduledEmailNotifications extends Command
+class SendScheduledNotifications extends Command
 {
-    protected $signature = 'app:send-scheduled-email-notifications';
+    protected $signature = 'app:send-scheduled-notifications';
 
-    protected $description = 'Envia notificaciones de correo programadas';
+    protected $description = 'Envia notificaciones programadas';
 
     public function handle()
     {

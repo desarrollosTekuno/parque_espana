@@ -34,7 +34,7 @@ interface NotificationItem {
 
 interface Props {
     club_id: number | null;
-    email_notifications: {
+    notifications: {
         data: NotificationItem[];
         total: number;
     };
@@ -56,9 +56,9 @@ const recipientsCount = ref(0);
 const selectedRecipientsCount = ref(0);
 const allRecipientsSelected = ref(false);
 const formSendRef = ref();
-const prefix = "email_notifications";
-const items = ref<NotificationItem[]>(props.email_notifications?.data ?? []);
-const total = ref(props.email_notifications?.total ?? 0);
+const prefix = "notifications";
+const items = ref<NotificationItem[]>(props.notifications?.data ?? []);
+const total = ref(props.notifications?.total ?? 0);
 const loading = ref(false);
 const search = ref("");
 const type = ref<number | null>(null);
@@ -133,12 +133,12 @@ const fetchItems = async () => {
         [`${prefix}_order`]: options.value.sortBy?.[0]?.order ?? "desc",
     };
 
-    router.get(route("email-notifications.index"), params, {
+    router.get(route("notifications.index"), params, {
         preserveState: true,
         replace: true,
         onSuccess: (inertiaPage) => {
-            items.value = inertiaPage.props.email_notifications?.data ?? [];
-            total.value = inertiaPage.props.email_notifications?.total ?? 0;
+            items.value = inertiaPage.props.notifications?.data ?? [];
+            total.value = inertiaPage.props.notifications?.total ?? 0;
             loading.value = false;
         },
         onError: () => {
@@ -197,7 +197,7 @@ const getMembers = async () => {
     }
 
     try {
-        const response = await axios.get(route("email-notifications.members", { club_id: form.club_id }));
+        const response = await axios.get(route("notifications.members", { club_id: form.club_id }));
 
         recipients.value = response.data.recipients ?? [];
 
@@ -321,7 +321,7 @@ const getFilePreviewUrl = (file: File) => {
 };
 
 const save = () => {
-    form.post(route("email-notifications.store"), {
+    form.post(route("notifications.store"), {
         forceFormData: true,
         preserveScroll: true,
         preserveState: true,
@@ -353,7 +353,7 @@ const cancelNotification = async (item: NotificationItem) => {
 
     if (!confirmed) return;
 
-    router.patch(route("email-notifications.cancel", item.id), {
+    router.patch(route("notifications.cancel", item.id), {
         preserveState: true,
         preserveScroll: true,
         onSuccess: () => {
@@ -379,14 +379,14 @@ const exportExcel = () => {
     if (dateFrom.value) params.set(`${prefix}_date_from`, dateFrom.value);
     if (dateTo.value) params.set(`${prefix}_date_to`, dateTo.value);
 
-    window.location.href = route("email-notifications.export") + "?" + params.toString();
+    window.location.href = route("notifications.export") + "?" + params.toString();
 };
 /* ====================== Watchers ====================== */
 watch(
-    () => props.email_notifications,
+    () => props.notifications,
     () => {
-        items.value = props.email_notifications?.data ?? [];
-        total.value = props.email_notifications?.total ?? 0;
+        items.value = props.notifications?.data ?? [];
+        total.value = props.notifications?.total ?? 0;
     },
     { deep: true }
 );

@@ -184,11 +184,11 @@ const routes: Routing[] = [
         group: null,
     },
     {
-        name: ["email-configs.index", "email-notifications.index"],
-        title: "Notificaciones correo",
-        icon: "mdi-email-multiple-outline",
-        value: "notificaciones-correo",
-        group: "Notificaciones correo",
+        name: ["email-configs.index", "notifications.index"],
+        title: "Notificaciones",
+        icon: "mdi-bell-outline",
+        value: "notificaciones",
+        group: "Notificaciones",
         groupItems: [
             {
                 name: "email-configs.index",
@@ -197,10 +197,10 @@ const routes: Routing[] = [
                 value: "configuracion-correo",
             },
             {
-                name: "email-notifications.index",
-                title: "Envío de correos",
-                icon: "mdi-email-outline",
-                value: "correo-socios",
+                name: "notifications.index",
+                title: "Gestión de notificaciones",
+                icon: "mdi-bell-outline",
+                value: "gestion-notificaciones",
             },
         ],
     },

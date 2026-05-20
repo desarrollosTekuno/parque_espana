@@ -30,7 +30,7 @@ use App\Http\Controllers\Web\AdminClub\CashCutController;
 use App\Http\Controllers\Web\AdminClub\GlobalCashCutController;
 use App\Http\Controllers\Web\AdminClub\DocumentTypeController;
 use App\Http\Controllers\Web\Administrator\EmailConfigController;
-use App\Http\Controllers\Web\Administrator\EmailNotificationController;
+use App\Http\Controllers\Web\Administrator\NotificationController;
 use App\Http\Controllers\Web\AdminClub\MembershipTypeController;
 use App\Http\Controllers\Web\AdminClub\PaymentMethodController;
 use Illuminate\Support\Facades\Route;
@@ -86,11 +86,11 @@ Route::resource('/email-configs', EmailConfigController::class)
     ->only(['index', 'store', 'update', 'destroy'])
     ->names('email-configs');
 
-Route::resource('/email-notifications', EmailNotificationController::class)->only(['index', 'store', 'update', 'destroy'])->names('email-notifications');
-Route::get('/email-notifications/members', [EmailNotificationController::class, 'getMembers'])->name('email-notifications.members');
-Route::get('/email-notifications/recipients-preview', [EmailNotificationController::class, 'recipientsPreview'])->name('email-notifications.recipients-preview');
-Route::patch('/email-notifications/{id}/cancel', [EmailNotificationController::class, 'cancel'])->name('email-notifications.cancel');
-Route::get('/email-notifications/export', [EmailNotificationController::class, 'export'])->name('email-notifications.export');
+Route::resource('/notifications', NotificationController::class)->only(['index', 'store', 'update', 'destroy'])->names('notifications');
+Route::get('/notifications/members', [NotificationController::class, 'getMembers'])->name('notifications.members');
+Route::get('/notifications/recipients-preview', [NotificationController::class, 'recipientsPreview'])->name('notifications.recipients-preview');
+Route::patch('/notifications/{id}/cancel', [NotificationController::class, 'cancel'])->name('notifications.cancel');
+Route::get('/notifications/export', [NotificationController::class, 'export'])->name('notifications.export');
 
 // announcements
 Route::resource('/announcements', AnnouncementController::class)->names('announcements');
