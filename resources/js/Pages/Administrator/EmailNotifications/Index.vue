@@ -24,7 +24,10 @@ interface NotificationItem {
     creator: { id: number; name: string } | null;
     email_logs: Array<{
         id: number;
+        to_email: string;
         status: string;
+        sent_at: string | null;
+        error_message: string | null;
         email_config: { id: number; profile_name: string; from_address: string; host: string } | null;
     }>;
 }
@@ -44,6 +47,9 @@ const props = defineProps<Props>();
 const showModal = ref(false);
 const showRecipientsModal = ref(false);
 const showPreviewModal = ref(false);
+const showHistoryModal = ref(false);
+const selectedNotification = ref<NotificationItem | null>(null);
+const historySearch = ref("");
 const members = ref<Array<{ id: number; name: string; email: string }>>([]);
 const recipients = ref<Array<{ id: number; name: string; email: string }>>([]);
 const recipientsCount = ref(0);
@@ -69,6 +75,16 @@ const headers = [
     { title: "Estado", key: "status", sortable: false },
     { title: "Fecha", key: "created_at" },
     { title: "Creado por", key: "creator", sortable: false },
+    { title: "Acciones", key: "actions", sortable: false },
+];
+
+const historyHeaders = [
+    { title: "Destinatario", key: "to_email" },
+    { title: "SMTP", key: "smtp", sortable: false },
+    { title: "Remitente", key: "from_address", sortable: false },
+    { title: "Estado", key: "status" },
+    { title: "Enviado en", key: "sent_at" },
+    { title: "Error", key: "error_message" },
 ];
 
 /* ====================== useForm ====================== */
@@ -139,6 +155,18 @@ const changeRecipientsModal = () => {
 
 const changePreviewModal = () => {
     showPreviewModal.value = !showPreviewModal.value;
+};
+
+const openHistoryModal = (item: NotificationItem) => {
+    selectedNotification.value = item;
+    historySearch.value = "";
+    showHistoryModal.value = true;
+};
+
+const closeHistoryModal = () => {
+    selectedNotification.value = null;
+    historySearch.value = "";
+    showHistoryModal.value = false;
 };
 
 const generatePreview = () => {
@@ -247,7 +275,7 @@ const getNotificationScope = (item: NotificationItem) => {
 };
 
 const getStatusColor = (code: string | undefined) => {
-    if (code === "sent") {
+    if (code === "sent" || code === "Enviada") {
         return "success";
     }
 
@@ -260,6 +288,18 @@ const getStatusColor = (code: string | undefined) => {
     }
 
     return "default";
+};
+
+const getLogStatusText = (status: string) => {
+    if (status === "sent") {
+        return "Enviado";
+    }
+
+    if (status === "failed") {
+        return "Fallido";
+    }
+
+    return status;
 };
 
 const getNotificationSmtp = (item: NotificationItem) => {
@@ -390,6 +430,13 @@ watch([recipients, () => form.selected_recipient_ids], () => {
 
                 <template #item.creator="{ item }">
                     {{ item.creator?.name || "-" }}
+                </template>
+
+                <template #item.actions="{ item }">
+                    <BaseButton
+                        action="view"
+                        @click="openHistoryModal(item)"
+                    />
                 </template>
             </v-data-table-server>
         </div>
@@ -773,6 +820,70 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                         variant="flat"
                         action="save"
                         @click="save"
+                    />
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
+        <v-dialog v-model="showHistoryModal" max-width="1000">
+            <v-card>
+                <v-card-title class="d-flex align-center justify-space-between">
+                    <div>
+                        <div class="text-h6">Historial de envio</div>
+                        <div class="text-caption text-medium-emphasis">
+                            {{ selectedNotification?.title || "Notificacion" }}
+                        </div>
+                    </div>
+                    <v-chip size="small" variant="tonal" color="primary">
+                        {{ selectedNotification?.email_logs?.length || 0 }} registro(s)
+                    </v-chip>
+                </v-card-title>
+
+                <v-card-text>
+                    <v-table class="border rounded-lg">
+                        <thead>
+                            <tr>
+                                <th>Destinatario</th>
+                                <th>SMTP</th>
+                                <th>Remitente</th>
+                                <th>Estado</th>
+                                <th>Enviado en</th>
+                                <th>Error</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="log in selectedNotification?.email_logs || []" :key="log.id">
+                                <td>{{ log.to_email }}</td>
+                                <td>{{ log.email_config?.profile_name || "-" }}</td>
+                                <td>{{ log.email_config?.from_address || "-" }}</td>
+                                <td>
+                                    <v-chip size="small" variant="tonal" :color="getStatusColor(log.status)">
+                                        {{ getLogStatusText(log.status) }}
+                                    </v-chip>
+                                </td>
+                                <td>{{ log.sent_at || "-" }}</td>
+                                <td class="text-caption text-error">
+                                    {{ log.error_message || "-" }}
+                                </td>
+                            </tr>
+
+                            <tr v-if="!selectedNotification?.email_logs || selectedNotification.email_logs.length === 0">
+                                <td colspan="6" class="py-6 text-center text-medium-emphasis">
+                                    Todavia no hay historial de envio para esta notificacion.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </v-table>
+                </v-card-text>
+
+                <v-card-actions>
+                    <v-spacer />
+                    <BaseButton
+                        :icon-only="false"
+                        text="Cerrar"
+                        variant="tonal"
+                        action="cancel"
+                        @click="closeHistoryModal"
                     />
                 </v-card-actions>
             </v-card>
