@@ -92,8 +92,6 @@ class EmailNotificationController extends Controller {
             'send_type' => ['nullable', 'in:now,scheduled'],
             'scheduled_date' => ['nullable'],
             'scheduled_time' => ['nullable'],
-            'extra_emails' => ['nullable', 'array'],
-            'extra_emails.*' => ['nullable', 'email', 'max:255'],
             'selected_recipient_ids' => ['nullable', 'array'],
             'selected_recipient_ids.*' => ['nullable', 'integer', 'exists:users,id'],
             'attachments' => ['nullable', 'array'],
@@ -208,19 +206,6 @@ class EmailNotificationController extends Controller {
             }
         }
 
-        $extraEmails = $request->input('extra_emails', []);
-        if (is_array($extraEmails)) {
-            foreach ($extraEmails as $extraEmail) {
-                if ($extraEmail != '') {
-                    NotificationRecipient::create([
-                        'notification_id' => $notification->id,
-                        'destination' => $extraEmail,
-                        'status' => $status,
-                        'sent_at' => $sentAt,
-                    ]);
-                }
-            }
-        }
     }
 
     public function recipientsPreview(Request $request) {
