@@ -11,6 +11,11 @@ use Inertia\Inertia;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use App\Models\AdminClub\Amenity;
+use App\Models\AdminClub\AmenityResource;
+use App\Models\Members\Member;
+use App\Models\AdminClub\SystemVariable;
+use App\Models\AdminClub\BlockedPeriod;
 
 class ReservationController extends Controller {
 
@@ -74,10 +79,34 @@ class ReservationController extends Controller {
             "{$prefix}_page"
         )->appends($request->all());
 
+         $amenities = Amenity::where('club_id', $clubId)
+        ->where('is_active', true)
+        ->select('id', 'name')
+        ->orderBy('name')
+        ->get();
+
+        $resources = AmenityResource::where('is_active', true)
+            ->select('id', 'name', 'amenity_id')
+            ->orderBy('name')
+            ->get();
+
+        $members = Member::byClub($clubId)
+            ->select('id', 'first_name', 'last_name')
+            ->orderBy('first_name')
+            ->get();
+        
+        $diasReserva = SystemVariable::where('club_id', $clubId)
+            ->where('name', 'dias_para_crear_reserva')
+            ->value('value') ?? 1;
+
         return Inertia::render('AdminClubs/Reservations/Index', [
             'reservations' => $reservations,
             'activeStatus' => ReservationStatus::ACTIVA,
-            'reservationStatus' => $reservationStatus
+            'reservationStatus' => $reservationStatus,
+            'amenities' => $amenities,
+            'resources' => $resources,
+            'members' => $members,
+            'diasReserva' => (int) $diasReserva,
         ]);
 
     }
@@ -85,18 +114,14 @@ class ReservationController extends Controller {
     public function store(Request $request)
     {
         try {
-            $request->validate([
-                'member_id' => 'required|exists:members.members,id',
-                'amenity_resource_id' => 'required|exists:admin_club.amenity_resources,id',
-                'start' => 'required|date',
-                'end' => 'required|date|after:start',
-            ]);
-
+            $clubId = session('club_id');
             Reservation::create([
                 'member_id' => $request->member_id,
+                'club_id' => $clubId,
+                'amenity_id' => $request->amenity_id,
                 'amenity_resource_id' => $request->amenity_resource_id,
-                'start_datetime' => $request->start,
-                'end_datetime' => $request->end,
+                'start_datetime' => $request->start_datetime,
+                'end_datetime' => $request->end_datetime,
                 'reservation_status_id' => ReservationStatus::ACTIVA
             ]);
 
@@ -144,5 +169,61 @@ class ReservationController extends Controller {
                 'exception' => $e->getMessage(),
             ]);
         }
+    }
+
+    public function calendar()
+    {        
+        $club_id = session('club_id');
+        $reservations = Reservation::with(['member', 'amenityResource'])
+            ->where('club_id', $club_id) 
+            ->get();
+        $blocked = BlockedPeriod::where('club_id', $club_id)->get();
+       
+        $statusMap = [
+            1 => 'Activa',
+            2 => 'Cancelada',
+            3 => 'Finalizada',
+            4 => 'Inasistencia',
+        ];
+
+        $reservationEvents = $reservations->map(function ($reservation) use ($statusMap) {
+            $userName = $reservation->member->full_name ?? 'Usuario';
+            $statusId = $reservation->reservation_status_id;
+
+            return [
+                'id' => 'res-'.$reservation->id,
+                'title' => $userName,
+                'start' => $reservation->start_datetime->format('Y-m-d\TH:i:sP'),
+                'end'   => $reservation->end_datetime->format('Y-m-d\TH:i:sP'),
+                'status' => $statusMap[$statusId] ?? 'Desconocido',
+                'reservation_status_id' => $statusId,
+                'amenity_id' => $reservation->amenityResource->amenity_id ?? null,
+                'resource_id' => $reservation->amenity_resource_id,
+            ];
+        });
+        $blockedEvents = $blocked->map(function ($block) {
+            return [
+                'id' => 'block-'.$block->id,
+                'title' => $block->reason ?? 'Bloqueo',
+                'start' => $block->start_time->format('Y-m-d\TH:i:sP'),
+                'end'   => $block->end_time->format('Y-m-d\TH:i:sP'),
+                'status' => 'Bloqueado',
+                'calendarId' => 'blocked',
+                'amenity_id' => optional($block->resource)->amenity_id,
+                'resource_id' => $block->resource_id,
+            ];
+        });
+
+       return $reservationEvents->concat($blockedEvents)->values();
+    }
+    
+    public function slots(AmenityResource $amenityResource, Request $request)
+    {
+        $date = $request->input('date');
+
+        $slots = app()->make(\App\Services\AmenityAvailabilityService::class)
+            ->getSlots($amenityResource, $date);
+
+        return response()->json($slots);
     }
 }

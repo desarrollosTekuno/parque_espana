@@ -8,6 +8,7 @@ use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Models\AdminClub\Reservation;
+use App\Models\AdminClub\BlockedPeriod;
 use App\Models\AdminClub\AmenityResource;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
@@ -132,8 +133,11 @@ class AmenityResourceController extends Controller {
 
     public function calendar(AmenityResource $resource)
     {
+        
+        $club_id = session('club_id');
         $reservations = Reservation::with(['user', 'amenityResource'])
             ->where('amenity_resource_id', $resource->id)
+            ->where('club_id', $club_id)
             ->get();
 
         $statusMap = [
@@ -148,13 +152,13 @@ class AmenityResourceController extends Controller {
                 3 => '#66bb6a', 
                 4 => '#ffa726', 
         ];
-    
-        return $reservations->map(function ($reservation) use ($statusMap){
+         $blocked = BlockedPeriod::where('club_id', $club_id)->get();
+        $reservationEvents = $reservations->map(function ($reservation) use ($statusMap){
             $userName = $reservation->member->full_name ?? 'Usuario';
             $statusId = $reservation->reservation_status_id;
 
             return [
-                'id' => $reservation->id,
+                'id' => 'res-'.$reservation->id,
                 'title' => $userName,
                 'start' => $reservation->start_datetime->format('Y-m-d\TH:i:sP'),
                 'end'   => $reservation->end_datetime->format('Y-m-d\TH:i:sP'),
@@ -162,6 +166,17 @@ class AmenityResourceController extends Controller {
                 'reservation_status_id' => $statusId,
             ];
         });
+        $blockedEvents = $blocked->map(function ($block) {
+            return [
+                'id' => 'block-'.$block->id,
+                'title' => $block->reason ?? 'Bloqueo',
+                'start' => $block->start_time->format('Y-m-d\TH:i:sP'),
+                'end'   => $block->end_time->format('Y-m-d\TH:i:sP'),
+                'status' => 'Bloqueado',
+                'calendarId' => 'blocked',
+            ];
+        });
+        return $reservationEvents->concat($blockedEvents)->values();
     }
     
 }

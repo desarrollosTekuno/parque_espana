@@ -41,7 +41,9 @@ const formatEvents = (events: any[]) => {
     start: toTZ(e.start),
     end: toTZ(e.end),
 
-    calendarId: `status-${e.reservation_status_id}`,
+    calendarId: e.calendarId 
+      ? e.calendarId 
+      : `status-${e.reservation_status_id}`,
     status: e.status, 
   }))
 }
