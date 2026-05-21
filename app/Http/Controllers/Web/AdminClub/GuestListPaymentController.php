@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Web\AdminClub;
 
 use App\Models\AdminClub\ReservationGuestList;
+use App\Models\Administrator\Club;
+use App\Models\Billing\ClubPaymentMethod;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
@@ -53,8 +55,6 @@ class GuestListPaymentController extends Controller {
 
         $query->orderBy($sort, $order);
 
-        
-
         $guestListPayments = $query->paginate(
             $request->input("{$prefix}_per_page", 10),
             ['*'],
@@ -62,11 +62,38 @@ class GuestListPaymentController extends Controller {
         )->appends($request->all());
 
         return Inertia::render('AdminClubs/GuestListPayments/Index', [
-            'guestListPayments' => $guestListPayments
+            'guestListPayments' => $guestListPayments,
+            'clubPaymentMethods' => $this->resolveClubPaymentMethods(),
         ]);
     }
 
     public function transformData($query) {
 
+    }
+
+    protected function resolveClubPaymentMethods()
+    {
+
+        $clubId = $request->club_id ?? session('club_id');
+
+        return ClubPaymentMethod::query()
+            ->with('paymentMethod')
+            ->where('club_id', $clubId)
+            ->where('is_active', true)
+            ->orderBy('display_order')
+            ->get()
+            ->map(function ($clubPaymentMethod) {
+                return [
+                    'id' => $clubPaymentMethod->paymentMethod?->id,
+                    'code' => $clubPaymentMethod->paymentMethod?->code,
+                    'name' => $clubPaymentMethod->paymentMethod?->name,
+                    'requires_reference' => (bool) $clubPaymentMethod->paymentMethod?->requires_reference,
+                    'requires_bank_name' => (bool) $clubPaymentMethod->paymentMethod?->requires_bank_name,
+                    'requires_check_number' => (bool) $clubPaymentMethod->paymentMethod?->requires_check_number,
+                    'affects_cash_cut' => (bool) $clubPaymentMethod->paymentMethod?->affects_cash_cut,
+                ];
+            })
+            ->filter(fn ($method) => !empty($method['id']))
+            ->values();
     }
 }

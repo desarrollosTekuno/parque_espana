@@ -9,6 +9,8 @@ import { formatCurrency } from '@/constants/formatCurrency';
 // import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import BaseButton from "@/Components/BaseButton.vue";
 import { customToastSwal } from '@/utils/swal';
+import { nowAsLocalInput } from "@/constants/formatDates";
+import { optionalLength, required, selectRequired } from "@/constants/validationRules";
 
 const page = usePage();
 const can = usePage().props.auth.permissions;
@@ -16,10 +18,12 @@ const showModalDetail = ref(false);
 
 interface Props {
     guestListPayments?: any;
+    clubPaymentMethods?: any;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-    guestListPayments: null
+    guestListPayments: null,
+    clubPaymentMethods: null
 });
 
 interface GuestListPayment {
@@ -52,6 +56,35 @@ const detail = (data: any) => {
     form.member = data.member.first_name + ' ' + data.member.last_name
     showModalDetail.value = true;
 }
+
+interface PaymentApplicationInput {
+    charge_id: number;
+    amount: number;
+}
+
+interface PaymentFormData {
+    membership_account_id: number | null;
+    club_id: number | null;
+    payment_method_id: number | null;
+    paid_at: string;
+    reference: string;
+    bank_name: string;
+    check_number: string;
+    notes: string;
+    applications: PaymentApplicationInput[];
+}
+
+const paymentForm = useForm<PaymentFormData>({
+    membership_account_id: null,
+    club_id: null,
+    payment_method_id: null,
+    paid_at: nowAsLocalInput(),
+    reference: "",
+    bank_name: "",
+    check_number: "",
+    notes: "",
+    applications: [],
+});
 
 const Cerrar = () => {
     showModalDetail.value = false;
@@ -110,6 +143,32 @@ const fetchItems = async () => {
 
 // 🔁 Observadores con debounce para evitar muchas peticiones
 watch([options, search], debounce(fetchItems, 400), { deep: true });
+
+
+// Cobro
+const paymentMethodRules = [selectRequired];
+const paidAtRules = [required];
+const notesRules = [optionalLength(0, 1000)];
+
+const paymentMethods = ref<PaymentMethodItem[]>(
+    props.clubPaymentMethods ?? [],
+);
+
+const selectedPaymentMethod = computed( () =>
+    paymentMethods.value.find(
+        (method) => method.id === paymentForm.payment_method_id,
+    ) ?? null,
+);
+
+interface PaymentMethodItem {
+    id: number;
+    code: string;
+    name: string;
+    requires_reference: boolean;
+    requires_bank_name: boolean;
+    requires_check_number: boolean;
+    affects_cash_cut: boolean;
+}
 
 
 const selectedIds = ref([])
@@ -199,80 +258,9 @@ function abrirCobro() {
                     </v-data-table-server>
                 </v-col>
             </v-row>
-            <pre>{{ guestListPayments }}</pre>
+            <!-- <pre>{{ guestListPayments }}</pre> -->
+            <!-- <pre>{{ clubPaymentMethods }}</pre> -->
         </div>
-
-        <!-- <v-dialog v-model="showModalDetail" max-width="800" persistent>
-            <v-card class="rounded-xl">
-                <v-card-title class="d-flex justify-space-between align-center">
-                    <div class="d-flex align-center gap-2">
-                        <v-icon color="primary">mdi-account-check</v-icon>
-                        <span class="text-h6 font-weight-bold">
-                            Detalles
-                        </span>
-                    </div>
-                </v-card-title>
-
-                <v-card-text class="overflow-y-auto h-full">
-                    <v-sheet class="pa-4 mb-4 rounded-lg border" color="grey-lighten-5">
-
-                        <div class="d-flex align-start mb-2">
-                            <v-icon color="primary" size="20" class="mt-1 mr-3">mdi-calendar-star</v-icon>
-                            <div class="flex-grow-1">
-                                <div class="text-caption text-medium-emphasis text-uppercase">Evento</div>
-                                <div class="text-subtitle-1 font-weight-medium">{{ form.title }}</div>
-                                <div class="text-body-2 text-medium-emphasis mt-1" style="white-space: pre-wrap;">
-                                    {{ form.description || '—' }}
-                                </div>
-                                <div class="text-caption text-medium-emphasis text-uppercase">Socio</div>
-                                <div class="text-subtitle-1 font-weight-medium">{{ form.member }}</div>
-                            </div>
-                        </div>
-                    </v-sheet>
-
-                    <div style="max-height: 350px; overflow-y: auto;">
-                        <v-list density="comfortable" class="rounded-lg border">
-                            <v-list-item
-                                v-for="(item, index) in form.guest_list_items"
-                                :key="index"
-                                :class="{ 'bg-primary-lighten-5': item.is_billable }">
-                                <template #prepend>
-
-                                </template>
-                                <v-list-item-title class="font-weight-medium d-flex align-center gap-2">
-                                    {{ item.name }}
-                                </v-list-item-title>
-                                <v-list-item-subtitle>
-                                    Edad: {{ item.age }}
-                                </v-list-item-subtitle>
-                                <template #append>
-                                    <span :class="item.is_billable_to_member ? 'text-primary font-weight-medium' : ''">
-                                        {{ formatCurrency(item.price) }}
-                                    </span>
-                                </template>
-                            </v-list-item>
-                        </v-list>
-                    </div>
-
-                    <div class="mt-5">
-                        <v-sheet class="pa-4 rounded-lg border" color="grey-lighten-5">
-
-                        </v-sheet>
-                    </div>
-
-                </v-card-text>
-                <v-card-actions>
-                    <v-spacer></v-spacer>
-                    <BaseButton
-                        text="Cerrar"
-                        variant="tonal"
-                        :icon-only="false"
-                        action="cancel"
-                        @click="Cerrar()">
-                    </BaseButton>
-                </v-card-actions>
-            </v-card>
-        </v-dialog> -->
 
         <v-dialog v-model="showModalDetail" max-width="800" persistent>
             <v-card class="rounded-xl">
@@ -284,17 +272,18 @@ function abrirCobro() {
                 </v-card-title>
 
                 <v-card-text class="overflow-y-auto h-full">
+                    <!-- Info del evento / lista -->
                     <v-sheet class="pa-4 mb-4 rounded-lg border" color="grey-lighten-5">
                         <div class="d-flex align-start">
                             <v-icon color="primary" size="20" class="mt-1 mr-3">mdi-calendar-star</v-icon>
                             <div class="flex-grow-1">
                                 <div class="text-caption text-medium-emphasis text-uppercase">
-                                  <!-- {{ form.event_id ? 'Evento' : 'Lista' }} -->
+                                    <!-- {{ form.event_id ? 'Evento' : 'Lista' }} -->
                                 </div>
                                 <div class="text-subtitle-1 font-weight-medium">{{ form.title }}</div>
                                 <div v-if="form.description" class="text-body-2 text-medium-emphasis mt-1"
-                                     style="white-space: pre-wrap;">
-                                  {{ form.description }}
+                                    style="white-space: pre-wrap;">
+                                    {{ form.description }}
                                 </div>
                                 <div class="d-flex ga-6 mt-2">
                                     <div>
@@ -303,14 +292,15 @@ function abrirCobro() {
                                     </div>
                                     <div>
                                         <div class="text-caption text-medium-emphasis text-uppercase">Fecha</div>
-                                      <div class="text-body-2 font-weight-medium">{{ form.date || '—' }}</div>
+                                        <div class="text-body-2 font-weight-medium">{{ form.date || '—' }}</div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </v-sheet>
 
-                    <div style="max-height: 350px; overflow-y: auto;">
+                    <!-- Lista de invitados -->
+                    <div style="max-height: 320px; overflow-y: auto;">
                         <v-list density="comfortable" class="rounded-lg border">
                             <v-list-item class="border-b">
                                 <template #prepend>
@@ -322,11 +312,14 @@ function abrirCobro() {
                                         @update:model-value="toggleAll" />
                                 </template>
                                 <v-list-item-title class="text-caption text-medium-emphasis text-uppercase">
-                                  Seleccionar todos los pendientes
+                                    Seleccionar todos los pendientes
                                 </v-list-item-title>
                             </v-list-item>
 
-                            <v-list-item v-for="item in guests" :key="item.id" :class="{ 'bg-primary-lighten-5': selectedIds.includes(item.id) }">
+                            <v-list-item
+                                v-for="item in guests"
+                                :key="item.id"
+                                :class="{ 'bg-primary-lighten-5': selectedIds.includes(item.id) }">
                                 <template #prepend>
                                     <v-checkbox
                                         v-model="selectedIds"
@@ -354,39 +347,121 @@ function abrirCobro() {
                         </v-list>
                     </div>
 
-                    <v-sheet class="pa-4 mt-5 rounded-lg border d-flex justify-space-between align-center" color="grey-lighten-5">
-                        <div>
-                            <span class="text-medium-emphasis">
-                                {{ selectedIds.length }}
-                                {{ selectedIds.length === 1 ? 'seleccionado' : 'seleccionados' }}
-                            </span>
-                            <span class="mx-2 text-disabled">·</span>
-                            <span class="text-h6 font-weight-bold" style="font-variant-numeric: tabular-nums;">
-                                {{ formatCurrency(totalSeleccionado) }}
-                            </span>
+                    <!-- Resumen de seleccionados -->
+                    <v-sheet class="pa-4 mt-4 rounded-lg border" color="grey-lighten-5">
+                        <div class="d-flex justify-space-between align-center">
+                            <div class="d-flex align-center ga-2">
+                                <v-icon color="primary">mdi-check-circle-outline</v-icon>
+                                <span class="text-body-2">
+                                    <strong>{{ selectedIds.length }}</strong>
+                                    {{ selectedIds.length === 1 ? 'invitado seleccionado' : 'invitados seleccionados' }}
+                                </span>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-caption text-medium-emphasis text-uppercase">Total a cobrar</div>
+                                <div class="text-h5 font-weight-bold text-primary" style="font-variant-numeric: tabular-nums;">
+                                    {{ formatCurrency(totalSeleccionado) }}
+                                </div>
+                            </div>
                         </div>
                     </v-sheet>
 
-                    <v-sheet class="pa-4 mt-5 rounded-lg border d-flex" color="grey-lighten-5">
-                        <v-row>
-                            <v-col cols="12" md="4">
-                                <!-- <v-select
-                                    v-model="selectedPaymentClubId"
-                                    :items="
-                                        selectedPaymentAccountClubs.map(
-                                            (club) => ({
-                                                title: `${club.code} - ${club.name}`,
-                                                value: club.id,
-                                            }),
-                                        )
-                                    "
-                                    label="Parque del cobro"
-                                    :rules="paymentClubRules"
-                                    hide-details="auto"
-                                /> -->
-                            </v-col>
-                        </v-row>
-                    </v-sheet>
+                    <!-- Datos del cobro -->
+                    <div v-if="selectedIds.length > 0" class="mt-5">
+                        <div class="d-flex align-center ga-2 mb-3">
+                            <v-icon color="primary" size="20">mdi-cash-register</v-icon>
+                            <span class="text-subtitle-1 font-weight-bold">Datos del cobro</span>
+                        </div>
+                        <!-- <pre>{{ selectedPaymentMethod }}</pre> -->
+                        <v-sheet class="pa-4 rounded-lg border" color="grey-lighten-5">
+                            <v-row dense>
+                                <!-- Método de pago -->
+                                <v-col cols="12" md="6">
+                                    <v-select
+                                        v-model="paymentForm.payment_method_id"
+                                        :items="clubPaymentMethods.map(m => ({ title: m.name, value: m.id }))"
+                                        label="Método de pago *"
+                                        prepend-inner-icon="mdi-credit-card-outline"
+                                        variant="outlined"
+                                        density="comfortable"
+                                        :rules="paymentMethodRules"
+                                        :error-messages="paymentForm.errors.payment_method_id"
+                                        hide-details="auto"
+                                    />
+                                </v-col>
+                            
+                                <!-- Fecha y hora -->
+                                <v-col cols="12" md="6">
+                                    <v-text-field
+                                        v-model="paymentForm.paid_at"
+                                        label="Fecha y hora *"
+                                        type="datetime-local"
+                                        prepend-inner-icon="mdi-calendar-clock"
+                                        variant="outlined"
+                                        density="comfortable"
+                                        :rules="paidAtRules"
+                                        :error-messages="paymentForm.errors.paid_at"
+                                        hide-details="auto"
+                                    />
+                                </v-col>
+                            
+                                <!-- Banco (solo si el método lo requiere) -->
+                                <v-col v-if="selectedPaymentMethod?.requires_bank_name" cols="12" md="6">
+                                    <v-text-field
+                                        v-model="paymentForm.bank_name"
+                                        label="Banco *"
+                                        prepend-inner-icon="mdi-bank-outline"
+                                        variant="outlined"
+                                        density="comfortable"
+                                        :error-messages="paymentForm.errors.bank_name"
+                                        hide-details="auto"
+                                    />
+                                </v-col>
+                            
+                                <!-- Referencia (solo si el método lo requiere) -->
+                                <v-col v-if="selectedPaymentMethod?.requires_reference" cols="12" md="6">
+                                    <v-text-field
+                                        v-model="paymentForm.reference"
+                                        label="Referencia *"
+                                        prepend-inner-icon="mdi-pound"
+                                        variant="outlined"
+                                        density="comfortable"
+                                        :error-messages="paymentForm.errors.reference"
+                                        hide-details="auto"
+                                    />
+                                </v-col>
+                            
+                                <!-- Número de cheque (solo si el método lo requiere) -->
+                                <v-col v-if="selectedPaymentMethod?.requires_check_number" cols="12" md="6">
+                                    <v-text-field
+                                        v-model="paymentForm.check_number"
+                                        label="Número de cheque *"
+                                        prepend-inner-icon="mdi-checkbook"
+                                        variant="outlined"
+                                        density="comfortable"
+                                        :error-messages="paymentForm.errors.check_number"
+                                        hide-details="auto"
+                                    />
+                                </v-col>
+                            
+                                <!-- Notas -->
+                                <v-col cols="12">
+                                    <v-textarea
+                                        v-model="paymentForm.notes"
+                                        label="Notas (opcional)"
+                                        rows="2"
+                                        auto-grow
+                                        prepend-inner-icon="mdi-note-text-outline"
+                                        variant="outlined"
+                                        density="comfortable"
+                                        :rules="notesRules"
+                                        :error-messages="paymentForm.errors.notes"
+                                        hide-details="auto"
+                                    />
+                                </v-col>
+                            </v-row>
+                        </v-sheet>
+                    </div>
                 </v-card-text>
 
                 <v-card-actions>
