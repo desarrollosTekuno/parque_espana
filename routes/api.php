@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\Api\V1\AccountStatementController;
 use App\Http\Controllers\Api\V1\AmenityController;
+use App\Http\Controllers\Api\V1\EmailTestController;
+use App\Http\Controllers\Api\V1\FirebaseTestController;
 use App\Http\Controllers\Api\V1\ConektaWebhookController;
 use App\Http\Controllers\Api\V1\DeviceTokenController;
 use App\Http\Controllers\Api\V1\SpeiPaymentController;
@@ -79,6 +81,13 @@ Route::prefix('v1')->group(function () {
     Route::get('/lockers/index', [LockerApiController::class, 'index'])->middleware('auth:sanctum');
     Route::get('/lockers/members', [LockerApiController::class, 'membersAvailable'])->middleware('auth:sanctum');
     Route::post('/lockers/assign', [LockerApiController::class, 'assign'])->middleware('auth:sanctum');
+
+    // Email test
+    Route::post('/email/test', [EmailTestController::class, 'send'])->middleware('auth:sanctum');
+
+    // Firebase test
+    Route::post('/firebase/test', [FirebaseTestController::class, 'send']);
+    Route::get('/firebase/ping', [FirebaseTestController::class, 'ping']);
 
     // Webhook de Conekta — sin auth, público para recibir eventos
     Route::post('/webhooks/conekta', [ConektaWebhookController::class, 'handle']);

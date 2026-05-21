@@ -12,11 +12,14 @@ use App\Models\Feedback\Category;
 use App\Models\Feedback\TicketType;
 use App\Models\Feedback\Status;
 use App\Models\Feedback\Priority;
+use App\Services\Email\MailService;
 use App\Traits\HandlesFeedbackTickets;
+use App\Traits\SendsFeedbackTicketNotifications;
 use Illuminate\Support\Facades\Auth;
 
 class FeedbackController extends Controller {
     use HandlesFeedbackTickets;
+    use SendsFeedbackTicketNotifications;
 
     public function __construct() {
         $this->middleware('permission:feedback.index')->only('index');
@@ -100,6 +103,8 @@ class FeedbackController extends Controller {
                             'id' => $attachment->id,
                             'file_name' => $attachment->file_name,
                             'file_path' => $attachment->file_path,
+                            'storage_path' => $attachment->storage_path,
+                            'file_url' => $attachment->public_url,
                             'file_type' => $attachment->file_type,
                             'file_size' => $attachment->file_size,
                             'uploaded_by' => $attachment->uploadedBy,
@@ -148,7 +153,7 @@ class FeedbackController extends Controller {
         }
     }
 
-    public function store(StoreFeedbackTicketRequest $request) {
+    public function store(StoreFeedbackTicketRequest $request, MailService $mailService) {
         try {
             $status = Status::where('code', 'SUBMITTED')->firstOrFail();
             $clubId = (int) session('club_id');
@@ -186,8 +191,10 @@ class FeedbackController extends Controller {
             $attachments = $this->getAttachmentFiles($request);
 
             if (!empty($attachments)) {
-                $this->storeTicketAttachments($ticket, $attachments);
+                $this->storeFileAttachments($ticket, $attachments);
             }
+
+            $this->sendTicketNotifications($mailService, $ticket);
 
             return back()->with('success', 'Queja o sugerencia creada correctamente');
 
@@ -207,8 +214,8 @@ class FeedbackController extends Controller {
             'category_id' => 'required',
             'status_id' => 'required',
             'priority_id' => 'required',
-            'title' => 'required|string|max:200',
-            'description' => 'required|string',
+            'title' => 'required|string|max:85',
+            'description' => 'required|string|max:350',
             'is_anonymous' => 'required|boolean',
             'attachments' => 'nullable|array|max:5',
             'attachments.*' => 'nullable|file|mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx|max:10240',
@@ -218,6 +225,7 @@ class FeedbackController extends Controller {
             'status_id.required' => 'Debes seleccionar un estatus.',
             'priority_id.required' => 'Debes seleccionar una prioridad.',
             'title.required' => 'Debes ingresar un título.',
+            'title.max' => 'El título no puede exceder 85 caracteres.',
             'description.required' => 'Debes ingresar una descripción.',
             'attachments.array' => 'Los adjuntos deben enviarse como una lista de archivos.',
             'attachments.max' => 'Solo puedes subir hasta 5 archivos por ticket.',
@@ -250,7 +258,7 @@ class FeedbackController extends Controller {
             $attachments = $this->getAttachmentFiles($request);
 
             if (!empty($attachments)) {
-                $this->storeTicketAttachments($feedback, $attachments);
+                $this->storeFileAttachments($feedback, $attachments);
             }
 
             return back()->with('success', 'Queja o sugerencia actualizada');
@@ -265,7 +273,7 @@ class FeedbackController extends Controller {
         }
     }
 
-    public function cancelTicket(Ticket $feedback) {
+    public function cancelTicket(Ticket $feedback, MailService $mailService) {
         try {
             $submittedStatus = Status::where('code', 'SUBMITTED')->firstOrFail();
             $cancelledStatus = Status::where('code', 'CANCELLED')->firstOrFail();

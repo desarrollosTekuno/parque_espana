@@ -14,14 +14,14 @@ class StoreFeedbackTicketRequest extends FormRequest {
 
     public function rules(): array {
         return [
+            'title' => ['required', 'string', 'max:85'],
+            'description' => ['required', 'string', 'max:350'],
+            'is_anonymous' => ['nullable', 'boolean'],
+            'attachments' => ['nullable', 'array', 'max:5'],
+            'attachments.*' => ['nullable', 'file', 'mimes:jpg,jpeg,png,gif,webp,bmp,tif,tiff,svg', 'max:2048'],
             'ticket_type_id' => ['required'],
             'category_id' => ['required'],
             'priority_id' => ['required'],
-            'title' => ['required', 'string', 'max:85'],
-            'description' => ['required', 'string'],
-            'is_anonymous' => ['nullable', 'boolean'],
-            'attachments' => ['nullable', 'array', 'max:5'],
-            'attachments.*' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx', 'max:10240'],
         ];
     }
 
@@ -33,12 +33,13 @@ class StoreFeedbackTicketRequest extends FormRequest {
             'title.required' => 'Debes ingresar un titulo.',
             'title.max' => 'El titulo no puede exceder 85 caracteres.',
             'description.required' => 'Debes ingresar una descripcion.',
+            'description.max' => 'La descripcion no puede exceder 350 caracteres.',
             'is_anonymous.boolean' => 'El campo de anonimato debe ser verdadero o falso.',
             'attachments.array' => 'Los adjuntos deben enviarse como una lista de archivos.',
             'attachments.max' => 'Solo puedes subir hasta 5 archivos por ticket.',
             'attachments.*.file' => 'Cada adjunto debe ser un archivo valido.',
-            'attachments.*.mimes' => 'Formato no permitido. Usa: jpg, jpeg, png, pdf, doc, docx, xls o xlsx.',
-            'attachments.*.max' => 'Cada archivo puede pesar maximo 10 MB.',
+            'attachments.*.mimes' => 'Formato no permitido. Usa: jpg, jpeg, png, gif, webp, bmp, tif, tiff o svg.',
+            'attachments.*.max' => 'Cada archivo puede pesar maximo 2 MB.',
         ];
     }
 

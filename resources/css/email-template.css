@@ -1,0 +1,94 @@
+:root {
+    --brand-primary: #0097b2;
+    --brand-secondary: #d4172a;
+    --brand-info: #004aad;
+    --email-bg: #f3f7fb;
+    --email-surface: #fefefe;
+    --email-text: #1f2937;
+    --email-muted: #64748b;
+}
+
+.email-template-page {
+    font-family: Arial, sans-serif;
+    background-color: var(--email-bg);
+    background-image: radial-gradient(circle at 10% 10%, rgba(0, 151, 178, 0.14), transparent 38%), radial-gradient(circle at 90% 90%, rgba(212, 23, 42, 0.1), transparent 36%);
+    margin: 0;
+    padding: 24px 12px;
+}
+
+.email-template-container {
+    max-width: 640px;
+    margin: 0 auto;
+    background-color: var(--email-surface);
+    border-radius: 18px;
+    border: 1px solid #e5edf5;
+    box-shadow: 0 20px 45px rgba(15, 23, 42, 0.14);
+    overflow: hidden;
+}
+
+.email-template-topbar {
+    height: 6px;
+    background: linear-gradient(90deg, var(--brand-primary) 0%, var(--brand-info) 60%, var(--brand-secondary) 100%);
+}
+
+.email-template-header {
+    padding: 26px 28px 16px;
+    color: #0f172a;
+    background: linear-gradient(180deg, rgba(0, 151, 178, 0.08), rgba(255, 255, 255, 0));
+}
+
+.email-template-brand {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--brand-info);
+    background-color: rgba(0, 74, 173, 0.1);
+    border: 1px solid rgba(0, 74, 173, 0.18);
+    border-radius: 999px;
+    padding: 5px 10px;
+    margin-bottom: 12px;
+}
+
+.email-template-header h1 {
+    margin: 0;
+    font-size: 26px;
+    line-height: 1.3;
+}
+
+.email-template-body {
+    padding: 8px 28px 26px;
+    color: var(--email-text);
+    font-size: 15px;
+}
+
+.email-template-body p {
+    line-height: 1.7;
+    margin: 0 0 16px;
+}
+
+.email-template-footer {
+    background-color: #f7fafc;
+    border-top: 1px solid #e2e8f0;
+    padding: 16px 24px 20px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--email-muted);
+}
+
+.email-template-footer p {
+    margin: 0;
+}
+
+.email-template-btn {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 11px 18px;
+    color: #ffffff !important;
+    background: linear-gradient(135deg, var(--brand-primary), var(--brand-info));
+    text-decoration: none;
+    border-radius: 10px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+}
