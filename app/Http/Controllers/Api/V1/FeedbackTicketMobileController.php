@@ -8,11 +8,14 @@ use App\Models\Administrator\Club;
 use App\Models\Feedback\Status;
 use App\Models\Feedback\Ticket;
 use App\Models\Members\Member;
+use App\Services\Email\MailService;
 use App\Traits\HandlesFeedbackTickets;
+use App\Traits\SendsFeedbackTicketNotifications;
 use Illuminate\Http\Request;
 
 class FeedbackTicketMobileController extends Controller {
     use HandlesFeedbackTickets;
+    use SendsFeedbackTicketNotifications;
 
     public function index(Request $request, Club $club) {
         try {
@@ -84,7 +87,7 @@ class FeedbackTicketMobileController extends Controller {
         }
     }
 
-    public function store(StoreFeedbackTicketRequest $request, Club $club) {
+    public function store(StoreFeedbackTicketRequest $request, Club $club, MailService $mailService) {
         try {
             $status = Status::where('code', 'SUBMITTED')->first();
             $member = Member::where('user_id', $request->user()->id)->first();
@@ -127,8 +130,10 @@ class FeedbackTicketMobileController extends Controller {
                 $attachments = $this->getAttachmentFiles($request);
 
                 if (!empty($attachments)) {
-                    $this->storeTicketAttachments($ticket, $attachments);
+                    $this->storeFileAttachments($ticket, $attachments);
                 }
+
+                $this->sendTicketNotifications($mailService, $ticket);
 
                 return response()->json([
                     'success' => true,
@@ -145,7 +150,7 @@ class FeedbackTicketMobileController extends Controller {
         }
     }
 
-    public function cancel(Request $request, Club $club, Ticket $ticket) {
+    public function cancel(Request $request, Club $club, Ticket $ticket, MailService $mailService) {
         try {
             $member = Member::where('user_id', $request->user()->id)->first();
 
@@ -199,4 +204,5 @@ class FeedbackTicketMobileController extends Controller {
             ], 500);
         }
     }
+
 }

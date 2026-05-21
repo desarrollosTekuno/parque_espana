@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generar Token Conekta</title>
+    <script src="https://cdn.conekta.io/js/latest/conekta.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 480px;
+            margin: 60px auto;
+            padding: 24px;
+            background: #f5f5f5;
+        }
+        h2 { color: #333; }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        label {
+            display: block;
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 4px;
+            margin-top: 12px;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 15px;
+            box-sizing: border-box;
+        }
+        button {
+            margin-top: 20px;
+            width: 100%;
+            padding: 12px;
+            background: #6c47d4;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        button:hover { background: #5a39b8; }
+        button:disabled { background: #aaa; cursor: not-allowed; }
+        .resultado {
+            margin-top: 20px;
+            padding: 16px;
+            border-radius: 8px;
+            display: none;
+        }
+        .resultado.ok {
+            background: #e8f5e9;
+            border: 1px solid #a5d6a7;
+        }
+        .resultado.error {
+            background: #fdecea;
+            border: 1px solid #f5c6cb;
+        }
+        .token-value {
+            font-family: monospace;
+            font-size: 13px;
+            word-break: break-all;
+            margin-top: 8px;
+            font-weight: bold;
+            color: #2e7d32;
+        }
+        .copy-btn {
+            margin-top: 10px;
+            padding: 8px 16px;
+            font-size: 13px;
+            width: auto;
+            background: #43a047;
+        }
+        .expira {
+            font-size: 12px;
+            color: #888;
+            margin-top: 6px;
+        }
+    </style>
+</head>
+<body>
+    <h2>🔑 Generar Token de Prueba</h2>
+
+    <div class="card">
+        <label>PUBLIC KEY de Conekta</label>
+        <input type="text" id="public_key" placeholder="key_xxxxxxxxxxxxxxxx" />
+
+        <label>Número de tarjeta</label>
+        <input type="text" id="number" value="4242424242424242" maxlength="16" />
+
+        <label>Nombre del titular</label>
+        <input type="text" id="name" value="Jorge Lopez" />
+
+        <label>Mes de expiración</label>
+        <input type="text" id="exp_month" value="06" maxlength="2" />
+
+        <label>Año de expiración</label>
+        <input type="text" id="exp_year" value="40" maxlength="2" />
+
+        <label>CVC</label>
+        <input type="text" id="cvc" value="123" maxlength="4" />
+
+        <button id="btn" onclick="generar()">Generar Token</button>
+    </div>
+
+    <div class="resultado" id="resultado_ok">
+        ✅ Token generado correctamente
+        <div class="token-value" id="token_value"></div>
+        <div class="expira">⏱ Expira en ~10 minutos — úsalo ya en Postman</div>
+        <button class="copy-btn" onclick="copiar()">📋 Copiar token</button>
+    </div>
+
+    <div class="resultado error" id="resultado_error">
+        ❌ Error: <span id="error_msg"></span>
+    </div>
+
+    <script>
+        function generar() {
+            const publicKey = document.getElementById('public_key').value.trim();
+            if (!publicKey) {
+                alert('Ingresa tu Public Key de Conekta');
+                return;
+            }
+
+            Conekta.setPublicKey(publicKey);
+
+            const card = {
+                number:    document.getElementById('number').value.trim(),
+                name:      document.getElementById('name').value.trim(),
+                exp_year:  document.getElementById('exp_year').value.trim(),
+                exp_month: document.getElementById('exp_month').value.trim(),
+                cvc:       document.getElementById('cvc').value.trim(),
+            };
+
+            const btn = document.getElementById('btn');
+            btn.disabled = true;
+            btn.textContent = 'Generando...';
+
+            document.getElementById('resultado_ok').style.display    = 'none';
+            document.getElementById('resultado_error').style.display = 'none';
+
+            Conekta.Token.create({ card }, function(token) {
+                document.getElementById('token_value').textContent = token.id;
+                document.getElementById('resultado_ok').style.display = 'block';
+                btn.disabled = false;
+                btn.textContent = 'Generar Token';
+            }, function(err) {
+                document.getElementById('error_msg').textContent = err.message_to_purchaser || JSON.stringify(err);
+                document.getElementById('resultado_error').style.display = 'block';
+                btn.disabled = false;
+                btn.textContent = 'Generar Token';
+            });
+        }
+
+        function copiar() {
+            const token = document.getElementById('token_value').textContent;
+            navigator.clipboard.writeText(token).then(() => {
+                alert('Token copiado al portapapeles ✅');
+            });
+        }
+    </script>
+</body>
+</html>
