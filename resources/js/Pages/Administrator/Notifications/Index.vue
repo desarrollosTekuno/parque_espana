@@ -22,13 +22,14 @@ interface NotificationItem {
     recipients_count: number;
     status: { id: number; name: string; code: string } | null;
     creator: { id: number; name: string } | null;
-    email_logs: Array<{
+    delivery_logs: Array<{
         id: number;
-        to_email: string;
+        channel: string;
+        destination: string | null;
+        provider: string | null;
         status: string;
         sent_at: string | null;
         error_message: string | null;
-        email_config: { id: number; profile_name: string; from_address: string; host: string } | null;
     }>;
 }
 
@@ -82,9 +83,9 @@ const headers = [
 ];
 
 const historyHeaders = [
-    { title: "Destinatario", key: "to_email" },
-    { title: "SMTP", key: "smtp", sortable: false },
-    { title: "Remitente", key: "from_address", sortable: false },
+    { title: "Canal", key: "channel" },
+    { title: "Destino", key: "destination" },
+    { title: "Proveedor", key: "provider" },
     { title: "Estado", key: "status" },
     { title: "Enviado en", key: "sent_at" },
     { title: "Error", key: "error_message" },
@@ -305,11 +306,11 @@ const getLogStatusText = (status: string) => {
 };
 
 const getNotificationSmtp = (item: NotificationItem) => {
-    if (!item.email_logs || item.email_logs.length === 0) {
+    if (!item.delivery_logs || item.delivery_logs.length === 0) {
         return null;
     }
 
-    return item.email_logs[0].email_config;
+    return item.delivery_logs[0].provider;
 };
 
 const isImageFile = (file: File) => {
@@ -504,12 +505,7 @@ watch([recipients, () => form.selected_recipient_ids], () => {
 
                 <template #item.smtp="{ item }">
                     <div v-if="getNotificationSmtp(item)">
-                        <div class="text-body-2 font-weight-medium">
-                            {{ getNotificationSmtp(item)?.profile_name }}
-                        </div>
-                        <div class="text-caption text-medium-emphasis">
-                            {{ getNotificationSmtp(item)?.from_address }}
-                        </div>
+                        <div class="text-body-2 font-weight-medium">{{ getNotificationSmtp(item) }}</div>
                     </div>
                     <span v-else class="text-caption text-medium-emphasis">
                         Pendiente de envio
@@ -952,14 +948,14 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                         </div>
                     </div>
                     <v-chip size="small" variant="tonal" color="primary">
-                        {{ selectedNotification?.email_logs?.length || 0 }} registro(s)
+                        {{ selectedNotification?.delivery_logs?.length || 0 }} registro(s)
                     </v-chip>
                 </v-card-title>
 
                 <v-card-text>
                     <v-data-table
                         :headers="historyHeaders"
-                        :items="selectedNotification?.email_logs || []"
+                        :items="selectedNotification?.delivery_logs || []"
                         :search="historySearch"
                         :items-per-page="10"
                         :items-per-page-options="[10, 25, 50, 100]"
@@ -976,12 +972,16 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                             />
                         </template>
 
-                        <template #item.smtp="{ item }">
-                            {{ item.email_config?.profile_name || "-" }}
+                        <template #item.channel="{ item }">
+                            {{ item.channel || "-" }}
                         </template>
 
-                        <template #item.from_address="{ item }">
-                            {{ item.email_config?.from_address || "-" }}
+                        <template #item.destination="{ item }">
+                            {{ item.destination || "-" }}
+                        </template>
+
+                        <template #item.provider="{ item }">
+                            {{ item.provider || "-" }}
                         </template>
 
                         <template #item.status="{ item }">

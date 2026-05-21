@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Mail\EmailNotificationMailable;
+use App\Models\Notifications\NotificationDeliveryLog;
 use App\Models\Notifications\Notification;
 use App\Models\Notifications\NotificationStatusCatalog;
 use App\Services\Email\MailService;
@@ -55,10 +56,30 @@ class SendEmailNotificationJob implements ShouldQueue {
                         'status' => 'sent',
                         'sent_at' => now(),
                     ]);
+
+                    NotificationDeliveryLog::create([
+                        'notification_id' => $notification->id,
+                        'notification_recipient_id' => $recipient->id,
+                        'channel' => 'email',
+                        'destination' => $recipient->destination,
+                        'provider' => 'smtp',
+                        'status' => 'sent',
+                        'sent_at' => now(),
+                    ]);
                 } catch (\Throwable $e) {
                     $hasFailedRecipients = true;
 
                     $recipient->update([
+                        'status' => 'failed',
+                        'error_message' => mb_substr($e->getMessage(), 0, 65535),
+                    ]);
+
+                    NotificationDeliveryLog::create([
+                        'notification_id' => $notification->id,
+                        'notification_recipient_id' => $recipient->id,
+                        'channel' => 'email',
+                        'destination' => $recipient->destination,
+                        'provider' => 'smtp',
                         'status' => 'failed',
                         'error_message' => mb_substr($e->getMessage(), 0, 65535),
                     ]);

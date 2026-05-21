@@ -49,7 +49,7 @@ class NotificationController extends Controller {
         $clubIds = Auth::user()->clubs()->pluck('clubs.id');
 
         $query = Notification::query()
-            ->with(['creator:id,name', 'status:id,name,code', 'club:id,name', 'emailLogs.emailConfig:id,profile_name,from_address,host'])
+            ->with(['creator:id,name', 'status:id,name,code', 'club:id,name', 'deliveryLogs'])
             ->withCount('recipients')
             ->whereHas('channel', function ($channelQuery) {
                 $channelQuery->where('code', 'email');
