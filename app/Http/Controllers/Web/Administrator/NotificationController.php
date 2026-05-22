@@ -10,6 +10,7 @@ use App\Models\Notifications\NotificationAttachment;
 use App\Models\Notifications\NotificationChannel;
 use App\Models\Notifications\NotificationRecipient;
 use App\Models\Notifications\NotificationStatusCatalog;
+use App\Models\Members\Member;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -107,12 +108,11 @@ class NotificationController extends Controller {
             'title' => ['required', 'string', 'max:150'],
             'body' => ['required', 'string'],
             'scope' => ['required', 'in:I,G'],
-            'individual_email' => ['nullable', 'email', 'max:255'],
             'send_type' => ['nullable', 'in:now,scheduled'],
             'scheduled_date' => ['nullable'],
             'scheduled_time' => ['nullable'],
             'selected_recipient_ids' => ['nullable', 'array'],
-            'selected_recipient_ids.*' => ['nullable', 'integer', 'exists:users,id'],
+            'selected_recipient_ids.*' => ['nullable', 'integer', 'exists:members.members,id'],
             'attachments' => ['nullable', 'array'],
             'attachments.*' => ['nullable', 'file'],
         ]);
@@ -209,38 +209,36 @@ class NotificationController extends Controller {
         $scope = $request->input('scope', 'G');
         $status = $isScheduled ? 'scheduled' : 'pending';
         $sentAt = null;
+        $selectedRecipientIds = $request->input('selected_recipient_ids', []);
+
+        $membersQuery = Member::query()
+            ->whereHas('accountMemberships.membershipAccount.memberships', function ($membershipQuery) use ($notification) {
+                $membershipQuery->where('club_id', $notification->club_id)
+                    ->where('status', 'active');
+            })
+            ->with('user:id,email');
 
         if ($scope === 'I') {
-            $email = (string) $request->input('individual_email', '');
-            if ($email !== '') {
+            if (!is_array($selectedRecipientIds) || empty($selectedRecipientIds)) {
+                return;
+            }
+
+            $membersQuery->whereIn('id', $selectedRecipientIds);
+        }
+
+        $members = $membersQuery->get();
+
+        foreach ($members as $member) {
+            $destination = $member->user?->email ?: $member->email;
+
+            if ($destination) {
                 NotificationRecipient::create([
                     'notification_id' => $notification->id,
-                    'destination' => $email,
+                    'user_id' => $member->user_id,
+                    'destination' => $destination,
                     'status' => $status,
                     'sent_at' => $sentAt,
                 ]);
-            }
-        } else {
-            $selectedRecipientIds = $request->input('selected_recipient_ids', []);
-            if (is_array($selectedRecipientIds)) {
-                $users = User::query()
-                    ->whereIn('id', $selectedRecipientIds)
-                    ->whereNotNull('email')
-                    ->where('email', '<>', '')
-                    ->whereHas('clubs', function ($clubQuery) use ($notification) {
-                        $clubQuery->where('clubs.clubs.id', $notification->club_id);
-                    })
-                    ->get();
-
-                foreach ($users as $user) {
-                    NotificationRecipient::create([
-                        'notification_id' => $notification->id,
-                        'user_id' => $user->id,
-                        'destination' => $user->email,
-                        'status' => $status,
-                        'sent_at' => $sentAt,
-                    ]);
-                }
             }
         }
 
@@ -282,7 +280,7 @@ class NotificationController extends Controller {
     }
 
     public function getMembers(Request $request) {
-        $clubId = session('club_id');
+        $clubId = (int) $request->input('club_id', session('club_id'));
 
         if (!$clubId) {
             return [
@@ -291,19 +289,38 @@ class NotificationController extends Controller {
             ];
         }
 
-        $data = User::query()
-            ->select('id', 'name', 'email')
-            ->whereNotNull('email')
-            ->where('email', '<>', '')
-            ->whereHas('clubs', function ($clubQuery) use ($clubId) {
-                $clubQuery->where('clubs.clubs.id', $clubId);
+        $data = Member::query()
+            ->select('id', 'first_name', 'last_name', 'second_last_name', 'email', 'user_id')
+            ->where(function ($query) {
+                $query->whereNotNull('email')
+                    ->where('email', '<>', '')
+                    ->orWhereHas('user', function ($userQuery) {
+                        $userQuery->whereNotNull('email')
+                            ->where('email', '<>', '');
+                    });
             })
-            ->orderBy('name')
+            ->whereHas('accountMemberships.membershipAccount.memberships', function ($membershipQuery) use ($clubId) {
+                $membershipQuery->where('club_id', $clubId)
+                    ->where('status', 'active');
+            })
+            ->with('user:id,email')
+            ->orderBy('first_name')
+            ->orderBy('last_name')
             ->get();
 
+        $recipients = $data->map(function (Member $member) {
+            $destination = $member->user?->email ?: $member->email;
+
+            return [
+                'id' => $member->id,
+                'name' => trim(collect([$member->first_name, $member->last_name, $member->second_last_name])->filter()->implode(' ')),
+                'email' => $destination,
+            ];
+        })->values();
+
         return [
-            'total' => $data->count(),
-            'recipients' => $data,
+            'total' => $recipients->count(),
+            'recipients' => $recipients,
         ];
     }
 }

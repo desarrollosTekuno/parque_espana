@@ -95,7 +95,6 @@ const historyHeaders = [
 const form = useForm({
     scope: "G" as "I" | "G",
     club_id: props.club_id,
-    individual_email: "",
     title: "",
     body: "",
     attachments: [] as File[],
@@ -185,7 +184,6 @@ const generatePreview = () => {
 const onScopeChange = (value: "I" | "G") => {
     form.scope = value;
     form.club_id = props.club_id;
-    form.individual_email = "";
     form.selected_recipient_ids = [];
     getMembers();
 };
@@ -201,10 +199,6 @@ const getMembers = async () => {
         const response = await axios.get(route("notifications.members", { club_id: form.club_id }));
 
         recipients.value = response.data.recipients ?? [];
-
-        if (form.scope === "G") {
-            form.selected_recipient_ids = recipients.value.map((recipient) => recipient.id);
-        }
     } catch (e) {
         console.error(e);
         recipients.value = [];
@@ -234,8 +228,8 @@ const getSendTypeLabel = () => {
 };
 
 const getDestinationLabel = () => {
-    if (form.scope === "I") {
-        return form.individual_email || "Sin correo individual";
+    if (form.scope === "G") {
+        return "Todos los miembros del club";
     }
 
     return `${selectedRecipientsCount.value} destinatarios`;
@@ -556,14 +550,14 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                                         <v-btn value="I" class="flex-grow-1" prepend-icon="mdi-account">Individual</v-btn>
                                     </v-btn-toggle>
                                     <div class="mt-1 text-caption text-medium-emphasis">
-                                        {{ form.scope === 'I' ? 'Se enviara a la persona seleccionada.' : 'Se enviara al grupo general.' }}
+                                        {{ form.scope === 'I' ? 'Selecciona uno o varios miembros.' : 'Se enviara al grupo general.' }}
                                     </div>
                                     <div class="px-1 mt-2 d-flex justify-space-between align-center">
-                                        <div class="text-caption text-medium-emphasis" v-if="form.scope == 'G'">
-                                            {{ `Seleccionados: ${selectedRecipientsCount} de ${recipientsCount}` }}
+                                        <div class="text-caption text-medium-emphasis">
+                                            {{ form.scope === 'G' ? `Se enviara a ${recipientsCount} miembros del club.` : `Seleccionados: ${selectedRecipientsCount} de ${recipientsCount}` }}
                                         </div>
                                         <a
-                                            v-if="form.scope != 'I' && selectedRecipientsCount > 0"
+                                            v-if="form.scope === 'I' && selectedRecipientsCount > 0"
                                             href="#"
                                             class="text-primary text-decoration-underline text-caption"
                                             :style="recipientsCount == 0 ? 'pointer-events:none;opacity:0.5;' : ''"
@@ -580,13 +574,15 @@ watch([recipients, () => form.selected_recipient_ids], () => {
 
                             <v-col v-if="form.scope == 'I'" cols="12">
                                 <v-autocomplete
-                                    v-model="form.individual_email"
-                                    label="Seleccionar persona"
+                                    v-model="form.selected_recipient_ids"
+                                    label="Seleccionar miembros"
                                     :items="recipients"
                                     item-title="name"
-                                    item-value="email"
+                                    item-value="id"
                                     :rules="[required]"
                                     required
+                                    multiple
+                                    chips
                                     clearable
                                     no-data-text="No se encontraron personas"
                                 />
@@ -837,7 +833,7 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                                         {{ getDestinationLabel() }}
                                     </template>
                                     <a
-                                        v-if="form.scope === 'G'"
+                                        v-if="form.scope === 'I'"
                                         href="#"
                                         class="ml-2 text-caption text-primary text-decoration-underline"
                                         @click.prevent="changeRecipientsModal"
