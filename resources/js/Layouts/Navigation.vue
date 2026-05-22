@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import routes from "@/routing";
 import { Link, usePage } from "@inertiajs/vue3";
-import { onMounted, ref, computed } from "vue";
+import { onMounted, onUnmounted, nextTick, ref, computed } from "vue";
 import { router } from "@inertiajs/vue3";
 import { useDisplay } from "vuetify";
 
@@ -37,8 +37,25 @@ const changeClub = () => {
 
 const drawer = defineModel("drawer");
 const props = defineProps<{ rail: boolean }>();
-const opened = ref<string[]>();
 const display = useDisplay();
+const navScrollRef = ref<HTMLElement | null>(null);
+
+// ── Persistencia del estado del menú en localStorage ──────────────────────
+const NAV_STORAGE_KEY = "nav_opened_groups";
+
+const loadOpened = (): string[] => {
+    try {
+        return JSON.parse(localStorage.getItem(NAV_STORAGE_KEY) ?? "[]");
+    } catch {
+        return [];
+    }
+};
+
+const saveOpened = (groups: string[]) => {
+    localStorage.setItem(NAV_STORAGE_KEY, JSON.stringify(groups));
+};
+
+const opened = ref<string[]>(loadOpened());
 
 // true cuando el drawer está en modo colapsado (solo íconos)
 const isRail = computed(() =>
@@ -60,15 +77,45 @@ const userInitials = computed(() => {
     return parts[0]?.[0]?.toUpperCase() ?? "?";
 });
 
+/** Devuelve los grupos que contienen la ruta activa */
+const getActiveGroups = (): string[] =>
+    routes
+        .filter((ruta) =>
+            ruta.groupItems?.find((groupItem) => route().current(groupItem.name)),
+        )
+        .map((ruta) => ruta.group)
+        .filter(Boolean) as string[];
+
 onMounted(() => {
-    opened.value =
-        routes
-            .filter((ruta) =>
-                ruta.groupItems?.find((groupItem) =>
-                    route().current(groupItem.name),
-                ),
-            )
-            ?.map((ruta) => ruta.group) ?? [];
+    // Si no hay nada guardado, abre el grupo activo por defecto
+    if (opened.value.length === 0) {
+        opened.value = getActiveGroups();
+        saveOpened(opened.value);
+    }
+});
+
+// Después de navegar: asegura que el grupo activo esté abierto
+// y hace scroll al ítem activo para que siempre quede visible
+const offNavigate = router.on("navigate", () => {
+    const activeGroups = getActiveGroups();
+    const merged = [...new Set([...loadOpened(), ...activeGroups])];
+    opened.value = merged;
+    saveOpened(merged);
+
+    // Espera a que Vuetify termine de renderizar el submenú expandido
+    // antes de hacer scroll al ítem activo
+    nextTick(() => {
+        setTimeout(() => {
+            const activeItem = navScrollRef.value?.querySelector<HTMLElement>(
+                ".nav-item--active, .nav-item--active-sub",
+            );
+            activeItem?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }, 150); // pequeño delay para que la animación del grupo termine
+    });
+});
+
+onUnmounted(() => {
+    offNavigate();
 });
 const shouldShowBadge = (ruta: any) => {
     if (!ruta.showBadge || pendingAds.value <= 0) return false;
@@ -166,7 +213,7 @@ const disabledSelectClub = computed(() => {
         <v-divider style="border-color: rgba(255, 255, 255, 0.08)" />
 
         <!-- ── Menú de navegación (scrolleable) ── -->
-        <div class="nav-scroll-area">
+        <div class="nav-scroll-area" ref="navScrollRef">
             <v-list
                 open-strategy="multiple"
                 :opened="opened"
@@ -177,6 +224,7 @@ const disabledSelectClub = computed(() => {
                 @update:opened="
                     (newOpened) => {
                         opened = newOpened;
+                        saveOpened(newOpened);
                     }
                 "
             >
