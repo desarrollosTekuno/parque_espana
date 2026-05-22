@@ -150,67 +150,69 @@ const disabledSelectClub = computed(() => {
         class="font-poppins"
         style="background-color: #0a2540"
     >
-        <!-- ── Banda de perfil con acento rojo ── -->
-        <v-list bg-color="transparent" class="pa-0">
-            <v-list-item
-                class="py-4 px-4"
-                style="
-                    background-color: #0d2e52;
-                    border-left: 4px solid #d4172a;
-                "
-                :subtitle="auth.user.email"
-                :title="auth.user.name"
-            >
-                <template #prepend>
-                    <v-img
-                        v-if="clubs?.length"
-                        :width="50"
-                        aspect-ratio="16/9"
-                        cover
-                        :src="`/assets/images/Logo${selectedClub == 1 ? 'P1' : 'P2'}.png`"
-                        class="mr-2"
-                    ></v-img>
-                    <v-avatar
-                        v-else
-                        color="#F4B403"
-                        size="40"
-                        class="mr-3"
-                        style="
-                            font-weight: 700;
-                            color: #0a2540;
-                            font-size: 1rem;
-                        "
-                    >
-                        {{ userInitials }}
-                    </v-avatar>
-                </template>
-            </v-list-item>
-        </v-list>
+        <!-- ── Cabecera fija: perfil + selector de club ── -->
+        <div class="nav-header-area">
+            <v-list bg-color="transparent" class="pa-0">
+                <v-list-item
+                    class="py-4 px-4"
+                    style="
+                        background-color: #0d2e52;
+                        border-left: 4px solid #d4172a;
+                    "
+                    :subtitle="auth.user.email"
+                    :title="auth.user.name"
+                >
+                    <template #prepend>
+                        <v-img
+                            v-if="clubs?.length"
+                            :width="50"
+                            aspect-ratio="16/9"
+                            cover
+                            :src="`/assets/images/Logo${selectedClub == 1 ? 'P1' : 'P2'}.png`"
+                            class="mr-2"
+                        ></v-img>
+                        <v-avatar
+                            v-else
+                            color="#F4B403"
+                            size="40"
+                            class="mr-3"
+                            style="
+                                font-weight: 700;
+                                color: #0a2540;
+                                font-size: 1rem;
+                            "
+                        >
+                            {{ userInitials }}
+                        </v-avatar>
+                    </template>
+                </v-list-item>
+            </v-list>
 
-        <!-- ── Selector de club ── -->
-        <div v-if="clubs?.length" class="px-3 pt-3 pb-1">
-            <v-select
-                v-model="selectedClub"
-                :items="clubs"
-                item-title="name"
-                item-value="id"
-                label="Club"
-                density="compact"
-                variant="outlined"
-                color="#F4B403"
-                base-color="rgba(255,255,255,0.6)"
-                @update:modelValue="changeClub"
-                :disabled="disabledSelectClub"
-                :hint="
-                    disabledSelectClub
-                        ? 'No puedes cambiar de club durante la asignación de casilleros o la gestión de miembros'
-                        : ''
-                "
-                persistent-hint
-            />
+            <!-- Selector de club -->
+            <div v-if="clubs?.length" class="px-3 pt-3 pb-1">
+                <v-select
+                    v-model="selectedClub"
+                    :items="clubs"
+                    item-title="name"
+                    item-value="id"
+                    label="Club"
+                    density="compact"
+                    variant="outlined"
+                    color="#F4B403"
+                    base-color="rgba(255,255,255,0.6)"
+                    @update:modelValue="changeClub"
+                    :disabled="disabledSelectClub"
+                    :hint="
+                        disabledSelectClub
+                            ? 'No puedes cambiar de club durante la asignación de casilleros o la gestión de miembros'
+                            : ''
+                    "
+                    persistent-hint
+                />
+            </div>
+
+            <v-divider style="border-color: rgba(255, 255, 255, 0.08)" />
         </div>
-
-        <v-divider style="border-color: rgba(255, 255, 255, 0.08)" />
 
         <!-- ── Menú de navegación (scrolleable) ── -->
         <div class="nav-scroll-area" ref="navScrollRef">
@@ -398,6 +400,31 @@ const disabledSelectClub = computed(() => {
 </template>
 
 <style scoped>
+/* ── Layout del drawer en columna ── */
+:deep(.v-navigation-drawer__content) {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* Cabecera: nunca hace scroll */
+.nav-header-area {
+    flex-shrink: 0;
+}
+
+/* Área del menú: ocupa todo el espacio restante y hace scroll */
+.nav-scroll-area {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0; /* necesario para que flex respete el overflow */
+}
+
+/* Logout: nunca hace scroll */
+.nav-logout-area {
+    flex-shrink: 0;
+}
+
 .nav-item--inactive {
     opacity: 0.6;
 }
