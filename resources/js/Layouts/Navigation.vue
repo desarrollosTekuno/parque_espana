@@ -117,17 +117,29 @@ const offNavigate = router.on("navigate", () => {
 onUnmounted(() => {
     offNavigate();
 });
-const shouldShowBadge = (ruta: any) => {
-    if (!ruta.showBadge || pendingAds.value <= 0) return false;
-    if (ruta.groupItems) {
-        return ruta.groupItems.some(
-            (sub: any) => sub.name === "business-ads.index",
-        );
-    }
-    if (Array.isArray(ruta.name)) {
-        return ruta.name.includes("business-ads.index");
-    }
-    return ruta.name === "business-ads.index";
+/**
+ * Devuelve el conteo del badge para una ruta o grupo.
+ * Agrega aquí nuevos tipos de badge según crezcan las notificaciones.
+ */
+const getBadgeCount = (ruta: any): number => {
+    const names: string[] = Array.isArray(ruta.name) ? ruta.name : [ruta.name ?? ""];
+    const subNames: string[] = (ruta.groupItems ?? []).map((g: any) => g.name);
+    const allNames = [...names, ...subNames];
+
+    if (allNames.includes("business-ads.index") && pendingAds.value > 0)
+        return pendingAds.value;
+
+    const hasAgeBadge = (ruta.groupItems ?? []).some((g: any) => g.showBadge);
+    if (hasAgeBadge && pendingAgeTransitions.value > 0)
+        return pendingAgeTransitions.value;
+
+    return 0;
+};
+
+const getGroupItemBadgeCount = (groupItem: any): number => {
+    if (!groupItem.showBadge) return 0;
+    if (groupItem.name === "business-ads.index") return pendingAds.value;
+    return pendingAgeTransitions.value;
 };
 // const isInLockersFlow = computed(() => {
 //     return route().current("members.lockers.create")
@@ -231,138 +243,195 @@ const disabledSelectClub = computed(() => {
                 "
             >
                 <template v-for="ruta in routes" :key="ruta.value">
-                    <!-- Ítem simple -->
-                    <v-tooltip
-                        v-if="ruta.group == null && existSomeRoute(ruta.name)"
-                        :text="ruta.title"
-                        location="end"
-                        :disabled="!isRail"
-                    >
-                        <template #activator="{ props: tipProps }">
-                            <Link
-                                :href="route(ruta.name[0])"
-                                preserve-scroll
-                                v-bind="tipProps"
-                            >
+
+                    <!-- ── Ítem simple ────────────────────────────────────── -->
+                    <template v-if="ruta.group == null && existSomeRoute(ruta.name)">
+                        <v-tooltip :text="ruta.title" location="end" :disabled="!isRail">
+                            <template #activator="{ props: tipProps }">
+                                <Link :href="route(ruta.name[0])" preserve-scroll v-bind="tipProps">
+                                    <v-list-item
+                                        rounded="lg"
+                                        variant="text"
+                                        color="#FEFEFE"
+                                        :active="isActive(ruta.name)"
+                                        class="nav-item mb-1"
+                                        :class="isActive(ruta.name) ? 'nav-item--active' : 'nav-item--inactive'"
+                                    >
+                                        <template #prepend>
+                                            <!-- Badge flotante sobre el ícono en modo rail -->
+                                            <v-badge
+                                                v-if="isRail && getBadgeCount(ruta) > 0"
+                                                :content="getBadgeCount(ruta) > 9 ? '9+' : getBadgeCount(ruta)"
+                                                color="#D4172A"
+                                                floating
+                                                offset-x="2"
+                                                offset-y="2"
+                                            >
+                                                <v-icon :icon="ruta.icon" :color="isActive(ruta.name) ? '#0A2540' : '#FEFEFE'" />
+                                            </v-badge>
+                                            <v-icon
+                                                v-else
+                                                :icon="ruta.icon"
+                                                :color="isActive(ruta.name) ? '#0A2540' : '#FEFEFE'"
+                                            />
+                                        </template>
+                                        <v-list-item-title class="d-flex align-center justify-space-between w-100">
+                                            <span :style="isActive(ruta.name) ? 'color: #0A2540; font-weight: 700; letter-spacing: 0.01em;' : 'color: #FEFEFE;'">
+                                                {{ ruta.title }}
+                                            </span>
+                                            <!-- Badge inline en modo expandido -->
+                                            <v-badge
+                                                v-if="getBadgeCount(ruta) > 0"
+                                                :content="getBadgeCount(ruta) > 9 ? '9+' : getBadgeCount(ruta)"
+                                                color="#D4172A"
+                                                inline
+                                            />
+                                        </v-list-item-title>
+                                    </v-list-item>
+                                </Link>
+                            </template>
+                        </v-tooltip>
+                    </template>
+
+                    <!-- ── Ítem con submenú ───────────────────────────────── -->
+                    <template v-else-if="ruta.group != null && existSomeRoute(ruta.name)">
+
+                        <!-- Modo expandido: acordeón normal -->
+                        <v-list-group v-if="!isRail" :value="ruta.group" fluid>
+                            <template #activator="{ props: activatorProps }">
                                 <v-list-item
-                                    rounded="lg"
+                                    v-bind="activatorProps"
                                     variant="text"
+                                    rounded="lg"
                                     color="#FEFEFE"
-                                    :active="isActive(ruta.name)"
-                                    class="nav-item mb-1"
-                                    :class="
-                                        isActive(ruta.name)
-                                            ? 'nav-item--active'
-                                            : 'nav-item--inactive'
-                                    "
+                                    class="nav-item nav-item--inactive mb-1"
                                 >
                                     <template #prepend>
-                                        <v-icon
-                                            :icon="ruta.icon"
-                                            :color="
-                                                isActive(ruta.name)
-                                                    ? '#0A2540'
-                                                    : '#FEFEFE'
-                                            "
-                                        />
-                                    </template>
-                                    <v-list-item-title
-                                        class="d-flex align-center justify-space-between w-100"
-                                    >
-                                        <span
-                                            :style="
-                                                isActive(ruta.name)
-                                                    ? 'color: #0A2540; font-weight: 700; letter-spacing: 0.01em;'
-                                                    : 'color: #FEFEFE;'
-                                            "
-                                        >
-                                            {{ ruta.title }}
-                                        </span>
                                         <v-badge
-                                            v-if="
-                                                ruta.showBadge && pendingAds > 0
-                                            "
-                                            :content="
-                                                pendingAds > 9
-                                                    ? '9+'
-                                                    : pendingAds
-                                            "
+                                            v-if="getBadgeCount(ruta) > 0"
+                                            :content="getBadgeCount(ruta) > 9 ? '9+' : getBadgeCount(ruta)"
+                                            color="#D4172A"
+                                            inline
+                                        >
+                                            <v-icon :icon="ruta.icon" color="#FEFEFE" />
+                                        </v-badge>
+                                        <v-icon v-else :icon="ruta.icon" color="#FEFEFE" />
+                                    </template>
+                                    <v-list-item-title style="color: #FEFEFE">
+                                        {{ ruta.title }}
+                                    </v-list-item-title>
+                                </v-list-item>
+                            </template>
+
+                            <Link
+                                v-for="groupItem in ruta.groupItems"
+                                :key="groupItem.value"
+                                :href="route(groupItem.name)"
+                                preserve-scroll
+                            >
+                                <v-list-item
+                                    v-if="can.includes(groupItem.name)"
+                                    variant="text"
+                                    rounded="lg"
+                                    :color="route().current(groupItem.name) ? '#0A2540' : '#FEFEFE'"
+                                    class="nav-item ml-3 mb-1"
+                                    :class="route().current(groupItem.name) ? 'nav-item--active-sub' : 'nav-item--inactive'"
+                                    :active="route().current(groupItem.name)"
+                                    :prepend-icon="groupItem.icon"
+                                >
+                                    <v-list-item-title class="d-flex align-center gap-2">
+                                        {{ groupItem.title }}
+                                        <v-badge
+                                            v-if="getGroupItemBadgeCount(groupItem) > 0"
+                                            :content="getGroupItemBadgeCount(groupItem) > 9 ? '9+' : getGroupItemBadgeCount(groupItem)"
                                             color="#D4172A"
                                             inline
                                         />
                                     </v-list-item-title>
                                 </v-list-item>
                             </Link>
-                        </template>
-                    </v-tooltip>
+                        </v-list-group>
 
-                    <!-- Ítem con submenú -->
-                    <v-list-group
-                        v-else-if="
-                            ruta.group != null && existSomeRoute(ruta.name)
-                        "
-                        :value="ruta.group"
-                        fluid
-                    >
-                        <template #activator="{ props: activatorProps }">
-                            <v-tooltip
-                                :text="ruta.title"
-                                location="end"
-                                :disabled="!isRail"
-                            >
-                                <template #activator="{ props: tipProps }">
-                                    <v-list-item
-                                        v-bind="{
-                                            ...activatorProps,
-                                            ...tipProps,
-                                        }"
-                                        variant="text"
-                                        rounded="lg"
-                                        color="#FEFEFE"
-                                        :title="ruta.title"
-                                        :prepend-icon="ruta.icon"
-                                        class="nav-item nav-item--inactive mb-1"
-                                    />
-                                </template>
-                            </v-tooltip>
-                        </template>
+                        <!-- Modo rail: popup flotante al hacer hover -->
+                        <v-menu v-else location="end" :open-delay="80" :close-delay="120" open-on-hover>
+                            <template #activator="{ props: menuProps }">
+                                <v-list-item
+                                    v-bind="menuProps"
+                                    rounded="lg"
+                                    variant="text"
+                                    color="#FEFEFE"
+                                    class="nav-item mb-1"
+                                    :class="isActive((ruta.groupItems ?? []).map((g: any) => g.name)) ? 'nav-item--active' : 'nav-item--inactive'"
+                                    :active="isActive((ruta.groupItems ?? []).map((g: any) => g.name))"
+                                >
+                                    <template #prepend>
+                                        <v-badge
+                                            v-if="getBadgeCount(ruta) > 0"
+                                            :content="getBadgeCount(ruta) > 9 ? '9+' : getBadgeCount(ruta)"
+                                            color="#D4172A"
+                                            floating
+                                            offset-x="2"
+                                            offset-y="2"
+                                        >
+                                            <v-icon
+                                                :icon="ruta.icon"
+                                                :color="isActive((ruta.groupItems ?? []).map((g: any) => g.name)) ? '#0A2540' : '#FEFEFE'"
+                                            />
+                                        </v-badge>
+                                        <v-icon
+                                            v-else
+                                            :icon="ruta.icon"
+                                            :color="isActive((ruta.groupItems ?? []).map((g: any) => g.name)) ? '#0A2540' : '#FEFEFE'"
+                                        />
+                                    </template>
+                                </v-list-item>
+                            </template>
 
-                        <Link
-                            v-for="groupItem in ruta.groupItems"
-                            :key="groupItem.value"
-                            :href="route(groupItem.name)"
-                            preserve-scroll
-                        >
-                            <v-list-item
-                                v-if="can.includes(groupItem.name)"
-                                variant="text"
+                            <!-- Panel flotante con los subitems -->
+                            <v-list
+                                bg-color="#0a2540"
+                                class="pa-1"
                                 rounded="lg"
-                                :color="
-                                    route().current(groupItem.name)
-                                        ? '#0A2540'
-                                        : '#FEFEFE'
-                                "
-                                class="nav-item ml-3 mb-1"
-                                :class="
-                                    route().current(groupItem.name)
-                                        ? 'nav-item--active-sub'
-                                        : 'nav-item--inactive'
-                                "
-                                :active="route().current(groupItem.name)"
-                                :prepend-icon="groupItem.icon"
+                                min-width="210"
+                                style="border: 1px solid rgba(255,255,255,0.12)"
                             >
-                                <v-list-item-title class="d-flex align-center gap-2">
-                                    {{ groupItem.title }}
-                                    <v-badge
-                                        v-if="groupItem.showBadge && pendingAgeTransitions > 0"
-                                        :content="pendingAgeTransitions > 9 ? '9+' : pendingAgeTransitions"
-                                        color="#D4172A"
-                                        inline
-                                    />
-                                </v-list-item-title>
-                            </v-list-item>
-                        </Link>
-                    </v-list-group>
+                                <v-list-subheader style="color: rgba(255,255,255,0.45); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.09em">
+                                    {{ ruta.title }}
+                                </v-list-subheader>
+                                <template v-for="groupItem in ruta.groupItems" :key="groupItem.value">
+                                    <Link
+                                        v-if="can.includes(groupItem.name)"
+                                        :href="route(groupItem.name)"
+                                        preserve-scroll
+                                    >
+                                        <v-list-item
+                                            rounded="lg"
+                                            variant="text"
+                                            color="#FEFEFE"
+                                            class="nav-item mb-1"
+                                            :class="route().current(groupItem.name) ? 'nav-item--active-sub' : 'nav-item--inactive'"
+                                            :active="route().current(groupItem.name)"
+                                            :prepend-icon="groupItem.icon"
+                                        >
+                                            <v-list-item-title class="d-flex align-center gap-2">
+                                                <span :style="route().current(groupItem.name) ? 'color: #0A2540; font-weight: 700' : 'color: #FEFEFE'">
+                                                    {{ groupItem.title }}
+                                                </span>
+                                                <v-badge
+                                                    v-if="getGroupItemBadgeCount(groupItem) > 0"
+                                                    :content="getGroupItemBadgeCount(groupItem) > 9 ? '9+' : getGroupItemBadgeCount(groupItem)"
+                                                    color="#D4172A"
+                                                    inline
+                                                />
+                                            </v-list-item-title>
+                                        </v-list-item>
+                                    </Link>
+                                </template>
+                            </v-list>
+                        </v-menu>
+
+                    </template>
+
                 </template>
             </v-list>
         </div>
