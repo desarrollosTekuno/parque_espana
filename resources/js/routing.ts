@@ -369,6 +369,23 @@ const routes: Routing[] = [
             },
         ],
     },
+    // Documentos
+    {
+        name: ["files.index"],
+        title: "Archivos",
+        icon: "mdi-file-outline",
+        value: "archivos",
+        group: "Archivos",
+        showBadge: true,
+        groupItems: [
+            {
+                name: "files.index",
+                title: "Archivos",
+                icon: "mdi-file-outline",
+                value: "archivos",
+            }
+        ],
+    },
     /*
     {
         name: ["dashboard"],

@@ -34,7 +34,7 @@ const moduleOptions = [
     "Administración", "Clubes", "Amenidades", "Reservaciones",
     "Comunicación", "Sistema", "Membresías", "Cobranza",
     "Encuestas", "Publicidad", "App Móvil",
-    "Listas de Invitados"
+    "Listas de Invitados", "Archivos"
 ];
 
 // const props = defineProps<Props>();

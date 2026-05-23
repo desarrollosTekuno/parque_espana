@@ -35,6 +35,7 @@ use App\Http\Controllers\Web\AdminClub\LockerController;
 use App\Http\Controllers\Web\AdminClub\CashCutController;
 use App\Http\Controllers\Web\AdminClub\GlobalCashCutController;
 use App\Http\Controllers\Web\AdminClub\DocumentTypeController;
+use App\Http\Controllers\Web\AdminClub\FileController;
 use App\Http\Controllers\Web\AdminClub\GuestListPaymentController;
 use App\Http\Controllers\Web\AdminClub\MembershipTypeController;
 use App\Http\Controllers\Web\AdminClub\PaymentMethodController;
@@ -228,6 +229,16 @@ Route::delete('/members/lockers/{id}/cancel',[LockerController::class, 'cancel']
 Route::get('lockers/available-for-change',[LockerController::class, 'availableForChange'])
         ->name('lockers.available.for.change');
 
+
+// Files
+Route::resource('/files', FileController::class)->only(['index'])->names('files');
+// Route::prefix('park-files')->name('park-files.')->group(function () {
+//     Route::get('/', [ParkFileController::class, 'index'])->name('index');
+//     Route::post('/', [ParkFileController::class, 'store'])->name('store');
+//     Route::post('{id}/toggle-club', [ParkFileController::class, 'toggleClub'])->name('toggle-club');
+//     Route::post('{id}', [ParkFileController::class, 'update'])->name('update');
+//     Route::delete('{id}', [ParkFileController::class, 'destroy'])->name('destroy');
+// });
 
 // Acts
 Route::prefix('acts')->group(function () {

@@ -218,8 +218,10 @@ class PermissionSeeder extends Seeder
             ['module' => 'Listas de Invitados', 'name' => 'guest-list-variables.store', 'description' => 'Crear variables de listas de invitados', 'contexts' => ['web']],
             ['module' => 'Listas de Invitados', 'name' => 'guest-list-variables.update', 'description' => 'Actualizar variables de listas de invitados', 'contexts' => ['web']],
             ['module' => 'Listas de Invitados', 'name' => 'guest-list-variables.destroy', 'description' => 'Eliminar variables de listas de invitados', 'contexts' => ['web']],
-            ['module' => 'Listas de Invitados', 'name' => 'guest-list-payments.index', 'description' => 'Ver pagos de listas de invitados', 'contexts' => ['web']]
+            ['module' => 'Listas de Invitados', 'name' => 'guest-list-payments.index', 'description' => 'Ver pagos de listas de invitados', 'contexts' => ['web']],
 
+            // Files
+            ['module' => 'Archivos', 'name' => 'files.index', 'description' => 'Ver archivos', 'contexts' => ['Web']]
         ];
 
         foreach ($permissions as $permission) {
