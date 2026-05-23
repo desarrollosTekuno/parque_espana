@@ -16,6 +16,10 @@ use App\Models\AdminClub\AmenityResource;
 use App\Models\Members\Member;
 use App\Models\AdminClub\SystemVariable;
 use App\Models\AdminClub\BlockedPeriod;
+use App\Services\Reservation\Context\ReservationContext;
+use App\Services\Reservation\Rules\CancelReservationRule;
+use App\Services\Reservation\Rules\ConsecutiveReservationRule;
+use App\Exceptions\ReservationException;
 
 class ReservationController extends Controller {
 
@@ -115,6 +119,20 @@ class ReservationController extends Controller {
     {
         try {
             $clubId = session('club_id');
+            $member = Member::find($request->member_id);
+            if (!$member) {
+                throw new \Exception('El miembro no existe');
+            }
+            $context = new ReservationContext(
+                [
+                    'amenity_resource_id' => $request->amenity_resource_id,
+                    'start_datetime' => $request->start_datetime,
+                    'end_datetime' => $request->end_datetime,
+                    'club_id' => $clubId,
+                ],
+                member: $member
+            );
+            (new ConsecutiveReservationRule())->validate($context);
             Reservation::create([
                 'member_id' => $request->member_id,
                 'club_id' => $clubId,
@@ -126,26 +144,39 @@ class ReservationController extends Controller {
             ]);
 
             return back()->with('success', 'Reservación creada correctamente');
+
+        } catch (ReservationException $e) {
+            return back()->withErrors([
+                'messageError' => $e->getMessage()
+            ]);
         } catch (\Exception $e) {
-            return back()->withErrors(['messageError' => 'Ocurrió un error al crear la reservación: '.$e->getMessage()]);
+            return back()->withErrors([
+                'messageError' => 'Ocurrió un error al crear la reservación: '.$e->getMessage()
+            ]);
         }
     }
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Reservation $reservation) {
+    public function update(Reservation $reservation) {
         try {
+        
+            $context = new ReservationContext(
+                data: [],
+                amenity: null,
+                amenityResource: null,
+                member: null,
+                reservation: $reservation
+            );
+            (new CancelReservationRule())->validate($context);
             $reservation->update([
                 'cancelled_at' => now(),
                 'reservation_status_id' => ReservationStatus::CANCELADA
             ]);
             return redirect()->back()->with('success', 'Reservación cancelada con éxito!');
-        } catch (\Exception $e) {
-            return redirect()->back()->withErrors([
-                'messageError' => 'Ocurrió un error al cancelar la reservación',
-                'exception' => $e->getMessage(),
-            ]);
+        } catch (ReservationException $e) {
+            return redirect()->back()->with('messageError', $e->getMessage());
         }
     }
 
@@ -156,13 +187,27 @@ class ReservationController extends Controller {
         return redirect()->back()->with('success', 'Message');
     }
 
-    public function cancel(Reservation $reservation) {
+    public function cancel(Reservation $reservation)
+    {dd('ENTRÉ A CANCEL');
         try {
+            $context = new ReservationContext(
+                data: [],
+                amenity: null,
+                amenityResource: null,
+                member: null,
+                reservation: $reservation
+            );
+            
+            (new CancelReservationRule())->validate($context);
             $reservation->update([
                 'cancelled_at' => now(),
                 'reservation_status_id' => ReservationStatus::CANCELADA
             ]);
             return redirect()->back()->with('success', 'Reservación cancelada con éxito!');
+        } catch (ReservationException $e) {
+            return redirect()->back()->withErrors([
+                'messageError' => $e->getMessage()
+            ]);
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([
                 'messageError' => 'Ocurrió un error al cancelar la reservación',
@@ -189,28 +234,36 @@ class ReservationController extends Controller {
         $reservationEvents = $reservations->map(function ($reservation) use ($statusMap) {
             $userName = $reservation->member->full_name ?? 'Usuario';
             $statusId = $reservation->reservation_status_id;
-
+            $amenity = optional($reservation->amenityResource->amenity)->name ?? '';
+            $resource = optional($reservation->amenityResource)->name ?? '';    
             return [
-                'id' => 'res-'.$reservation->id,
-                'title' => $userName,
+                'id' => $reservation->id,
+                'title' => "{$userName}",
                 'start' => $reservation->start_datetime->format('Y-m-d\TH:i:sP'),
                 'end'   => $reservation->end_datetime->format('Y-m-d\TH:i:sP'),
                 'status' => $statusMap[$statusId] ?? 'Desconocido',
                 'reservation_status_id' => $statusId,
                 'amenity_id' => $reservation->amenityResource->amenity_id ?? null,
                 'resource_id' => $reservation->amenity_resource_id,
+                'amenity_name' => $amenity,
+                'resource_name' => $resource,
             ];
         });
         $blockedEvents = $blocked->map(function ($block) {
+            $amenity = optional($block->resource->amenity)->name ?? '';
+            $resource = optional($block->resource)->name ?? '';
+
             return [
-                'id' => 'block-'.$block->id,
+                'id' => $block->id,
                 'title' => $block->reason ?? 'Bloqueo',
                 'start' => $block->start_time->format('Y-m-d\TH:i:sP'),
                 'end'   => $block->end_time->format('Y-m-d\TH:i:sP'),
                 'status' => 'Bloqueado',
-                'calendarId' => 'blocked',
                 'amenity_id' => optional($block->resource)->amenity_id,
                 'resource_id' => $block->resource_id,
+                'amenity_name' => $amenity,
+                'resource_name' => $resource,
+                'calendarId' => 'blocked',
             ];
         });
 

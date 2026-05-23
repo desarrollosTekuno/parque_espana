@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
-import { ref, watch, computed } from 'vue';
+import { ref, watch, computed, nextTick } from 'vue';
 import { debounce, get } from 'lodash';
 import { formatDateTimeNoTZ } from '@/constants/formatDates';
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
@@ -110,9 +110,12 @@ const formatEvents = (events: any[]) => {
     status: e.status,
      amenity_id: e.amenity_id,
     resource_id: e.resource_id,
+    amenity_name: e.amenity_name,
+    resource_name: e.resource_name,
+
+    _tooltip: `Amenidad: ${e.amenity_name || 'N/A'}\nRecurso: ${e.resource_name || 'N/A'}`
   }))
 }
-
 const fetchCalendar = async () => {
   try {
     const { data } = await axios.get(route('reservations.calendar'))
@@ -129,6 +132,7 @@ const fetchCalendar = async () => {
 
 // cancelar desde calendario
 const cancelFromCalendar = (event: any) => {
+    console.log('ID QUE ENVÍO:', event.id)
   if (event.calendarId !== `status-${props.activeStatus}`) {
     customToastSwal({
       title: 'Solo puedes cancelar reservaciones activas',
@@ -144,14 +148,25 @@ const cancelFromCalendar = (event: any) => {
     if (!result.isConfirmed) return
 
     router.put(route("reservations.update", event.id), {}, {
-      onSuccess: () => {
-        customToastSwal({
-          title: "Reservación cancelada correctamente",
-          icon: "success"
-        })
-        fetchCalendar()
-        fetchItems()
-      }
+        onSuccess: (page) => {
+            const flash = page.props.flash || {}
+
+            if (flash.messageError) {
+                customToastSwal({
+                    title: flash.messageError,
+                    icon: "error"
+                })
+                return
+            }
+
+            customToastSwal({
+                title: flash.success || "Reservación cancelada",
+                icon: "success"
+            })
+
+            fetchCalendar()
+            fetchItems()
+        }
     })
   })
 }
@@ -510,7 +525,7 @@ const maxDate = computed(() => {
                                 <BaseButton
                                     variant="elevated"
                                     @click="clearFilters()"
-                                    color="grey"
+                                    color="blue"
                                     text="Limpiar"
                                     icon="mdi-filter-off"
                                 />
@@ -576,7 +591,7 @@ const maxDate = computed(() => {
                 <v-window-item value="calendar">
                     <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg mt-4 pa-4">
                         <v-row>
-                            <v-col cols="12" md="5">
+                            <v-col cols="12" md="5" class="pb-0">
                                 <v-select
                                     v-model="filterAmenity"
                                     :items="amenities"
@@ -586,7 +601,7 @@ const maxDate = computed(() => {
                                     clearable
                                 />
                             </v-col>
-                            <v-col cols="12" md="5">
+                            <v-col cols="12" md="5" class="pb-0">
                                   <v-select
                                         v-model="filterResource"
                                         :items="filteredCalendarResources"
@@ -598,11 +613,13 @@ const maxDate = computed(() => {
                                         no-data-text="No hay recursos"
                                     />
                             </v-col>
-                            <v-col cols="12" md="2" class="d-flex align-start justify-end">
+                            <v-col cols="12" md="2" class="d-flex justify-center align-start pb-0">
                                 <BaseButton
-                                text="Limpiar filtros"
-                                icon="mdi-filter-off"
-                                @click="clearCalendarFilters"
+                                    variant="elevated"
+                                    @click="clearCalendarFilters"
+                                    color="blue"
+                                    text="Limpiar"
+                                    icon="mdi-filter-off"
                                 />
                             </v-col>
                         </v-row>
@@ -747,5 +764,8 @@ const maxDate = computed(() => {
 .calendar-content :deep(.sx__calendar) {
   height: 100% !important;
   min-height: 600px;        
+}
+:deep(.sx__event) {
+  cursor: pointer;
 }
 </style>

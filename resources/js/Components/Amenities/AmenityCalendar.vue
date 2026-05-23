@@ -8,12 +8,27 @@ import {
 } from '@schedule-x/calendar'
 import { translations } from '@schedule-x/translations'
 import '@schedule-x/theme-default/dist/index.css'
-import { watch, nextTick, computed } from 'vue'
+import { watch, nextTick, onMounted } from 'vue'
 
-const props = defineProps({
-  events: { type: Array, default: () => [] }
-})
 const emit = defineEmits(['create-reservation', 'cancel-reservation'])
+interface CalendarEvent {
+  id: string
+  title: string
+  start: any
+  end: any
+  status?: string
+  amenity_id?: number
+  resource_id?: number
+  amenity_name?: string
+  resource_name?: string
+  _tooltip?: string
+}
+/*const props = defineProps({
+  events: { type: Array, default: () => [] }
+})*/
+const props = defineProps<{
+  events: CalendarEvent[]
+}>()
 const calendarApp = createCalendar({
   defaultView: 'week',
   locale: 'es-ES',
@@ -27,7 +42,6 @@ const calendarApp = createCalendar({
     start: '07:00',
     end: '22:00',
   },
-
   calendars: {
   'status-1': {
     colorName: 'blue',
@@ -70,15 +84,14 @@ const calendarApp = createCalendar({
     }
   },
 },
-
   events: [],
-
   callbacks: {
     onEventClick(event) {
       handleEventClick(event)
     }
   },
 })
+
 const handleEventClick = (event: any) => {
   emit('cancel-reservation', event)
 }
@@ -86,8 +99,20 @@ watch(
   () => props.events,
   async (events) => {
     if (!events?.length) return
-    await nextTick()
     calendarApp.events.set(events)
+    setTimeout(() => {
+      const elements = document.querySelectorAll('.sx__event')
+
+      elements.forEach((el: any) => {
+        const eventId = el.getAttribute('data-event-id')
+
+        const event = events.find(e => String(e.id) === String(eventId))
+
+        if (event?._tooltip) {
+          el.setAttribute('title', event._tooltip)
+        }
+      })
+    }, 50)
   },
   { immediate: true, deep: true }
 )
@@ -109,9 +134,16 @@ watch(
   display: flex;
   flex-direction: column;
 }
-
 .calendar-wrapper :deep(.sx__calendar) {
   flex: 1;
   min-height: 0;
+}
+:deep(.sx__event) {
+  margin-bottom: 4px;
+  width: 100% !important;
+}
+:deep(.sx__time-grid-event) {
+  left: 0 !important;
+  width: 100% !important;
 }
 </style>
