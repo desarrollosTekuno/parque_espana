@@ -87,30 +87,28 @@ const getActiveGroups = (): string[] =>
         .filter(Boolean) as string[];
 
 onMounted(() => {
-    // Si no hay nada guardado, abre el grupo activo por defecto
-    if (opened.value.length === 0) {
+    // Solo abre el grupo activo si NUNCA se ha guardado nada (primera visita).
+    // Si el usuario ya interactuó con el menú (aunque haya cerrado todo),
+    // respetamos su elección — la clave existe aunque su valor sea [].
+    const neverSaved = localStorage.getItem(NAV_STORAGE_KEY) === null;
+    if (neverSaved) {
         opened.value = getActiveGroups();
         saveOpened(opened.value);
     }
 });
 
-// Después de navegar: asegura que el grupo activo esté abierto
-// y hace scroll al ítem activo para que siempre quede visible
+// Después de navegar: restaura exactamente el estado guardado por el usuario
+// sin forzar la apertura de ningún grupo — el usuario decide qué queda abierto
 const offNavigate = router.on("navigate", () => {
-    const activeGroups = getActiveGroups();
-    const merged = [...new Set([...loadOpened(), ...activeGroups])];
-    opened.value = merged;
-    saveOpened(merged);
+    opened.value = loadOpened();
 
-    // Espera a que Vuetify termine de renderizar el submenú expandido
-    // antes de hacer scroll al ítem activo
     nextTick(() => {
         setTimeout(() => {
             const activeItem = navScrollRef.value?.querySelector<HTMLElement>(
                 ".nav-item--active, .nav-item--active-sub",
             );
             activeItem?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-        }, 150); // pequeño delay para que la animación del grupo termine
+        }, 150);
     });
 });
 
