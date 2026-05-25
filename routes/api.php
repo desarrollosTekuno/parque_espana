@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AccountStatementController;
+use App\Http\Controllers\Api\V1\FamilyMembersController;
 use App\Http\Controllers\Api\V1\AmenityController;
 use App\Http\Controllers\Api\V1\EmailTestController;
 use App\Http\Controllers\Api\V1\FirebaseTestController;
@@ -53,12 +54,16 @@ Route::prefix('v1')->group(function () {
         Route::post('/surveys/{survey}/responses', [SurveyController::class, 'store']); // Enviar respuestas
 
         // Feedback (tickets de quejas y sugerencias de cada usuario)
-        Route::get('/feedback/tickets', [FeedbackTicketMobileController::class, 'index']);
-        Route::post('/feedback/tickets', [FeedbackTicketMobileController::class, 'store']);
-        Route::patch('/feedback/tickets/{ticket}/cancel', [FeedbackTicketMobileController::class, 'cancel']);
+        Route::get('/feedback/tickets',                          [FeedbackTicketMobileController::class, 'index']);
+        Route::post('/feedback/tickets',                         [FeedbackTicketMobileController::class, 'store']);
+        Route::get('/feedback/tickets/{ticket}',                 [FeedbackTicketMobileController::class, 'show']);
+        Route::patch('/feedback/tickets/{ticket}/cancel',        [FeedbackTicketMobileController::class, 'cancel']);
 
         // Estado de cuenta (solo socio titular)
         Route::get('/account-statement', [AccountStatementController::class, 'show']);
+
+        // Integrantes de membresía familiar (solo socio titular)
+        Route::get('/family-members', [FamilyMembersController::class, 'index']);
 
         // SPEI — generar CLABE y consultar estado de orden
         Route::post('/spei-payment', [SpeiPaymentController::class, 'store']);
