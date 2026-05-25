@@ -12,6 +12,7 @@ use App\Models\Memberships\MembershipAccountMember;
 use App\Models\User;
 use App\Traits\SerializesDates;
 use Carbon\Carbon;
+use Database\Factories\MemberFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -23,6 +24,11 @@ class Member extends Model
     protected $table = 'members.members';
     protected $connection = 'pgsql';
     protected $appends = ['full_name', 'age'];
+
+    protected static function newFactory(): MemberFactory
+    {
+        return MemberFactory::new();
+    }
 
     public function user()
     {
