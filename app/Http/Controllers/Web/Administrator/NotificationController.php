@@ -167,7 +167,7 @@ class NotificationController extends Controller {
             $this->saveNotificationHistory($notification, $request, $isScheduled);
 
             foreach ($request->file('attachments', []) as $file) {
-                $path = $file->store("Notificaciones/Emails/{$notificationUuid}", 'public');
+                $path = $file->store("Notificaciones/Emails/{$notificationUuid}", 's3');
 
                 NotificationAttachment::create([
                     'notification_id' => $notification->id,
