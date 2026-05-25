@@ -1,5 +1,6 @@
 /* @tailwind base; */
 @import url(normalize.css);
+@import url(email-template.css);
 
 @tailwind components;
 @tailwind utilities;

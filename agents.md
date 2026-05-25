@@ -77,6 +77,29 @@ Este proyecto usa Laravel + Inertia + Vue 3 + Vuetify. La forma correcta de dar 
 - Seeders: `php artisan db:seed`
 - Revisar flujo web/API completo: listar, crear, editar, eliminar, permisos, errores.
 
+## 2.1) Instruccion rapida: "iniciar modulo"
+
+Cuando se pida iniciar un modulo (solo dejar entrada funcional sin logica de negocio), realizar unicamente estos pasos minimos:
+
+1. Crear permisos base del modulo
+- Agregar al menos permiso `modulo.index` en `PermissionSeeder.php`.
+- Asignar el permiso al rol inicial requerido (por ejemplo en `SuperAdminSeeder.php`).
+
+2. Registrar ruta web del modulo
+- Registrar `Route::resource(...)->only(['index'])->names('modulo')` en el archivo de rutas que corresponda (`routes/adminclubs.php` o `routes/administrator.php`).
+
+3. Crear controlador minimo
+- Crear controlador web con `index()` y middleware de permiso en `__construct()`.
+- Retornar `Inertia::render('.../Index')`.
+
+4. Crear vista minima
+- Crear `Index.vue` simple con `Head`, `AppLayout` y texto tipo "Modulo en construccion" para validar acceso.
+
+5. Registrar en navegacion
+- Agregar opcion en `resources/js/routing.ts` con titulo e icono.
+
+Objetivo de esta instruccion: poder entrar al modulo desde menu con control de permisos, sin implementar CRUD ni logica adicional.
+
 ## 3) Estructura recomendada de controlador
 
 Para modulos CRUD web, se recomienda:
@@ -108,6 +131,7 @@ Basada en `resources/js/Pages/Template.vue`:
   - `const can = usePage().props.auth.permissions`
   - estado reactivo (`items`, `total`, `loading`, `search`, `options`, `showModal`)
   - metodos `fetchItems`, `create`, `edit`, `save`, `destroy`, `close`
+  - para rutas extra fuera de CRUD basico (`store/update/destroy`), usar `axios` con funcion simple `try/catch` y `route('modulo.accion', params)`
   - `watch([options, search], debounce(fetchItems, 400), { deep: true })`
 
 - `<template>`
@@ -155,3 +179,66 @@ Se genero una version lista para pegar en el documento funcional en:
 - `Docs/Plan_trabajo_ParqueEspaña.md`
 
 Ese contenido esta preparado para insertarse en `Docs/ParqueEspaña.pdf` como seccion "Plan de trabajo para alta de modulos".
+
+## 9) Regla de implementacion: "minimo funcional"
+
+Cuando el usuario pida enfoque simple/minimo, aplicar esta regla estricta:
+
+- Regla general: por defecto, cualquier implementacion debe ser lo mas simple posible.
+- Solo optimizar, abstraer o sofisticar la solucion si el usuario lo solicita de forma explicita.
+
+- Implementar solo lo solicitado para que funcione (sin extras).
+- Validar unicamente lo necesario para guardar y no romper flujo.
+- No agregar validaciones avanzadas, escenarios preventivos ni endurecimientos de seguridad no solicitados.
+- No refactorizar ni abstraer en funciones auxiliares si no lo pidieron.
+- Preferir codigo explicito y directo (estilo junior), evitando compactaciones innecesarias.
+- Mantener el codigo siempre basico y facil de entender para nivel junior.
+- En CRUD sencillo, validar solo lo necesario (requerido, tipo, longitud o peso) y luego guardar/actualizar/eliminar sin logica extra.
+- Si el requerimiento incluye calculos o reglas de negocio, agregar esa logica, pero sin complejidad innecesaria.
+- Para consultas especificas fuera de CRUD basico, usar funciones simples con `axios` y `try/catch` (sin abstracciones extras).
+- Evitar `continue`; usar `if/else` claro cuando haya que condicionar.
+- No anticipar requerimientos futuros: si hoy solo piden guardar, solo guardar.
+
+### 9.1) Ejemplo practico en store
+
+Si el requerimiento dice "guardar informacion y adjuntos":
+
+1. Validar campos basicos requeridos.
+2. Crear registro principal.
+3. Guardar adjuntos (si existen) en ruta acordada.
+4. Retornar `back()->with('success', ...)`.
+
+No incluir envio real, historial adicional, filtros complejos o logica extra hasta que se pida explicitamente.
+
+### 9.2) Ejemplo practico en consulta auxiliar con axios
+
+Cuando se necesite una ruta auxiliar fuera de `store/update/destroy`, usar formato simple como este:
+
+```ts
+const getMembers = async () => {
+    try {
+        const response = await axios.get(route("email-notifications.members", form));
+    } catch (e) {
+        console.error(e);
+    }
+};
+```
+
+## 10) Regla de orden en vistas Vue
+
+Aplicar siempre esta regla al crear o editar vistas Vue en `<script setup>`:
+
+- Agrupar por secciones del mismo tipo (no mezclar bloques).
+- Mantener juntas: variables/refs, `useForm`, `computed`, funciones, `watch`, y lifecycle (`onMounted`, etc.).
+- El orden entre secciones puede variar libremente, pero cada tipo debe quedar junto en su propio bloque.
+- Se permite usar comentarios de seccion para identificar claramente cada bloque.
+
+Divisores sugeridos:
+
+- `/* ====================== Props ====================== */`
+- `/* ====================== Variables ====================== */`
+- `/* ====================== useForm ====================== */`
+- `/* ====================== Computed ====================== */`
+- `/* ====================== Funciones ====================== */`
+- `/* ====================== Watchers ====================== */`
+- `/* ====================== Lifecycle ====================== */`

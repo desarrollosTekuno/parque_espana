@@ -35,6 +35,8 @@ use App\Http\Controllers\Web\AdminClub\LockerController;
 use App\Http\Controllers\Web\AdminClub\CashCutController;
 use App\Http\Controllers\Web\AdminClub\GlobalCashCutController;
 use App\Http\Controllers\Web\AdminClub\DocumentTypeController;
+use App\Http\Controllers\Web\Administrator\EmailConfigController;
+use App\Http\Controllers\Web\Administrator\EmailNotificationController;
 use App\Http\Controllers\Web\AdminClub\FileController;
 use App\Http\Controllers\Web\AdminClub\GuestListPaymentController;
 use App\Http\Controllers\Web\AdminClub\MembershipTypeController;
@@ -94,6 +96,16 @@ Route::resource('/document-types', DocumentTypeController::class)
 Route::resource('/interclub-package-rules', InterclubPackageRuleController::class)
     ->only(['index', 'store', 'update', 'destroy'])
     ->names('interclub-package-rules');
+
+Route::resource('/email-configs', EmailConfigController::class)
+    ->only(['index', 'store', 'update', 'destroy'])
+    ->names('email-configs');
+
+Route::resource('/email-notifications', EmailNotificationController::class)->only(['index', 'store', 'update', 'destroy'])->names('email-notifications');
+Route::get('/email-notifications/members', [EmailNotificationController::class, 'getMembers'])->name('email-notifications.members');
+Route::get('/email-notifications/recipients-preview', [EmailNotificationController::class, 'recipientsPreview'])->name('email-notifications.recipients-preview');
+Route::patch('/email-notifications/{id}/cancel', [EmailNotificationController::class, 'cancel'])->name('email-notifications.cancel');
+Route::get('/email-notifications/export', [EmailNotificationController::class, 'export'])->name('email-notifications.export');
 
 // announcements
 Route::resource('/announcements', AnnouncementController::class)->names('announcements');

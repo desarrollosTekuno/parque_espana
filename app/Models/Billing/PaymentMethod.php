@@ -15,12 +15,14 @@ class PaymentMethod extends Model
     protected $table = 'billing.payment_methods';
 
     protected $casts = [
-        'requires_reference' => 'boolean',
-        'requires_bank_name' => 'boolean',
+        'requires_reference'   => 'boolean',
+        'requires_bank_name'   => 'boolean',
         'requires_check_number' => 'boolean',
-        'affects_cash_cut' => 'boolean',
-        'is_active' => 'boolean',
+        'affects_cash_cut'     => 'boolean',
+        'is_active'            => 'boolean',
     ];
+
+    public const PROVIDER_CONEKTA = 'conekta';
 
     public function clubPaymentMethods()
     {
