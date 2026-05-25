@@ -221,7 +221,12 @@ class PermissionSeeder extends Seeder
             ['module' => 'Listas de Invitados', 'name' => 'guest-list-payments.index', 'description' => 'Ver pagos de listas de invitados', 'contexts' => ['web']],
 
             // Files
-            ['module' => 'Archivos', 'name' => 'files.index', 'description' => 'Ver archivos', 'contexts' => ['Web']]
+            ['module' => 'Archivos', 'name' => 'files.index', 'description' => 'Ver archivos', 'contexts' => ['Web']],
+            ['module' => 'Archivos', 'name' => 'files.store', 'description' => 'Crear formato de archivo', 'contexts' => ['Web']],
+            ['module' => 'Archivos', 'name' => 'files.update', 'description' => 'Editar formato de archivo', 'contexts' => ['Web']],
+            ['module' => 'Archivos', 'name' => 'files.destroy', 'description' => 'Eliminar formato de archivo', 'contexts' => ['Web']],
+            ['module' => 'Archivos', 'name' => 'files.club-file.upload', 'description' => 'Subir archivo del club', 'contexts' => ['Web']],
+            ['module' => 'Archivos', 'name' => 'files.club-file.destroy', 'description' => 'Eliminar archivo del club', 'contexts' => ['Web']]
         ];
 
         foreach ($permissions as $permission) {

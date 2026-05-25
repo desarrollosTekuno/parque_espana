@@ -6,7 +6,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class File extends Model {
+class File extends Model
+{
     use HasFactory, SoftDeletes;
 
     protected $table = 'files.files';
@@ -14,7 +15,14 @@ class File extends Model {
     protected $guarded = ['id', 'created_at', 'updated_at'];
     protected $dates = ['deleted_at'];
 
-    public function clubFile() {
-        return $this->belongsTo(ClubFile::class);
+    protected $casts = [
+        'allowed_mime_types' => 'array',
+        'is_required'        => 'boolean',
+        'is_active'          => 'boolean',
+    ];
+
+    public function clubFiles()
+    {
+        return $this->hasMany(ClubFile::class, 'file_id');
     }
 }

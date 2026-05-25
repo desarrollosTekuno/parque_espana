@@ -231,14 +231,19 @@ Route::get('lockers/available-for-change',[LockerController::class, 'availableFo
 
 
 // Files
-Route::resource('/files', FileController::class)->only(['index'])->names('files');
-// Route::prefix('park-files')->name('park-files.')->group(function () {
-//     Route::get('/', [ParkFileController::class, 'index'])->name('index');
-//     Route::post('/', [ParkFileController::class, 'store'])->name('store');
-//     Route::post('{id}/toggle-club', [ParkFileController::class, 'toggleClub'])->name('toggle-club');
-//     Route::post('{id}', [ParkFileController::class, 'update'])->name('update');
-//     Route::delete('{id}', [ParkFileController::class, 'destroy'])->name('destroy');
+// Route::prefix('/files')->name('files.')->group(function () {
+//     Route::get('/', [FileController::class, 'index'])->name('index');
+//     Route::post('/', [FileController::class, 'store'])->name('store');
+//     Route::post('/{file}', [FileController::class, 'update'])->name('update');
+//     Route::delete('/{file}', [FileController::class, 'destroy'])->name('destroy');
+//     Route::post('/{file}/club-file', [FileController::class, 'uploadClubFile'])->name('club-file.upload');
+//     Route::delete('/{file}/club-file', [FileController::class, 'destroyClubFile'])->name('club-file.destroy');
 // });
+
+Route::resource('/files', FileController::class)->only(['index', 'store', 'update', 'destroy'])->names('files');
+Route::post('files/{file}/club-file', [FileController::class, 'uploadClubFile'])->name('files.club-file.upload');
+Route::delete('files/{file}/club-file', [FileController::class, 'destroyClubFile'])->name('files.club-file.destroy');
+
 
 // Acts
 Route::prefix('acts')->group(function () {
