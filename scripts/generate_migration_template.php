@@ -54,7 +54,7 @@ $noteStyle = [
 
 $readme = $spreadsheet->createSheet();
 $readme->setTitle('README');
-$readme->setCellValue('A1', 'Plantilla de migracion de socios y cobranza');
+$readme->setCellValue('A1', 'Plantilla de migracion de usuarios y cobranza');
 $readme->setCellValue('A3', 'Instrucciones generales');
 
 $instructions = [
@@ -183,7 +183,7 @@ foreach ($sheets as $title => $config) {
 }
 
 $spreadsheet->setActiveSheetIndex(0);
-$outputFile = $outputDir . '/Plantilla_Migracion_Socios_Cobranza.xlsx';
+$outputFile = $outputDir . '/Plantilla_Migracion_Usuarios_Cobranza.xlsx';
 
 $writer = new Xlsx($spreadsheet);
 $writer->save($outputFile);

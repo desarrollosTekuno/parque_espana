@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Web\AdminClub;
 
-use App\Http\Controllers\Controller;
+use Illuminate\Routing\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\AdminClub\Reservation;
@@ -15,13 +15,10 @@ use Illuminate\Validation\ValidationException;
 
 class AmenityScheduleController extends Controller {
 
-   /* public function __construct()
+    public function __construct()
     {
-        $this->middleware('permission:amenitySchedule.index')->only('index');
         $this->middleware('permission:amenitySchedule.store')->only('store');
-        $this->middleware('permission:amenitySchedule.update')->only('update');
-        $this->middleware('permission:amenitySchedule.destroy')->only('destroy');
-    }*/
+    }
 
     public function index() {
         //$items = Model::get();

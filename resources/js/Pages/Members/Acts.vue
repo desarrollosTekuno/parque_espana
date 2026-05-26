@@ -7,13 +7,18 @@ import { ref, watch, computed } from "vue";
 import { debounce } from "lodash";
 import { customToastSwal } from "@/utils/swal";
 const page = usePage();
+const can = usePage().props.auth.permissions;
 interface Props {
     acts?: any;
     account?: any;
     membershipId: Number,
 }
+
 const previews = ref<any[]>([]);
+const existingFiles = ref<number[]>([]);
 const fileInput = ref<HTMLInputElement | null>(null);
+const date = new Date();
+const today = new Date().toISOString().split('T')[0];
 const props = defineProps({
     acts: Object,
     account_id: Number,
@@ -34,6 +39,7 @@ const headers = ref([
 const items = ref([]);
 const total = ref(0);
 const loading = ref(false);
+const formRef = ref();
 
 // Opciones tabla
 const options = ref({
@@ -78,7 +84,6 @@ const memberOptions = computed(() => {
         value: m.id
     })) || [];
 });
-const date = new Date();
 const openCreate = () => {
     previews.value = [];
     form.value = {
@@ -109,13 +114,21 @@ const openCreate = () => {
 
     showModal.value = true;
 };
-const save = () => {
+const save = async () => {
+    const { valid } = await formRef.value.validate();
+    if (!valid) return;
     const payload = {
         ...form.value,
+
+        existing_files: existingFiles.value,
+
         account_id: props.account?.id,
+        membership_id: props.membershipId?.id,
         club_id: form.value.club_id || props.account?.club_id || null,
+
         date: form.value.date || null,
         time: form.value.time || null,
+
         hasFine: !!form.value.hasFine,
         has_suspension: !!form.value.has_suspension,
     };
@@ -132,6 +145,9 @@ const save = () => {
 
     router.post(routeName, {
         ...payload,
+        existing_files: previews.value
+    .filter(f => f.isExisting)
+    .map(f => f.id),
         _method: form.value.id ? 'PUT' : 'POST'
     }, {
         forceFormData: true,
@@ -173,9 +189,6 @@ const fetchItems = () => {
     );
 };
 
-const folioPreview = computed(() => {
-    return form.value.folio || 'ACT-XXXX';
-});
 // Watch datos
 watch(
     () => props.acts,
@@ -196,16 +209,32 @@ watch(search, debounce(() => {
 watch([options], debounce(fetchItems, 400), { deep: true });
 
 // Funciones
+
 const edit = (item: any) => {
-    previews.value = [];
+    const predefinedTypes = [
+        'danos',
+        'reglamento',
+        'conducta'
+    ];
+
+    const isCustomViolation =
+        !predefinedTypes.includes(item.violation_type);
+        previews.value = [];
+        existingFiles.value = [];
+
     form.value = {
         id: item.id,
 
         member_id: item.member_id,
         club_id: item.club_id,
+        folio: item.folio,
+        violation_type: isCustomViolation
+        ? 'otro'
+        : item.violation_type,
 
-        violation_type: item.violation_type,
-        other_violation: "",
+        other_violation: isCustomViolation
+            ? item.violation_type
+            : "",
 
         description: item.description,
         date: item.date,
@@ -223,15 +252,20 @@ const edit = (item: any) => {
 
         files: []
     };
-    // cargar archivos existentes del backend
+
     if (item.files?.length) {
+
         previews.value = item.files.map((file: any) => ({
+            id: file.id,
             name: file.path.split('/').pop(),
-            type: 'image/*',
-            url: `/storage/${file.path}`, 
-            isExisting: true 
+            type: file.mime_type || file.path,
+            url: file.url,
+            isExisting: true
         }));
+
+        existingFiles.value = item.files.map((f:any) => f.id);
     }
+
     showModal.value = true;
 };
 
@@ -245,7 +279,13 @@ watch(() => form.value.has_suspension, (val) => {
         form.value.suspension_end = null;
     }
 });
-
+const requiredRule = [
+    (v:any) => !!v || 'Este campo es obligatorio'
+];
+const dateRule = [
+    (v:any) => !!v || 'La fecha es obligatoria',
+    (v:any) => v <= today || 'La fecha no puede ser futura'
+];
 // Funciones para manejo de archivos
 const MAX_SIZE = 2 * 1024 * 1024; // 2MB
 
@@ -302,14 +342,20 @@ const onDragLeave = (e: DragEvent) => {
     e.stopPropagation();
     isDragging.value = false;
 };
+
 const removeFile = (index: number) => {
     const file = previews.value[index];
-
-    // limpiar memoria
-    if (file.url) URL.revokeObjectURL(file.url);
-
+    // si es archivo existente
+    if (file.isExisting) {
+        existingFiles.value =
+            existingFiles.value.filter(id => id !== file.id);
+    } else {
+        form.value.files.splice(index, 1);
+        if (file.url) {
+            URL.revokeObjectURL(file.url);
+        }
+    }
     previews.value.splice(index, 1);
-    form.value.files.splice(index, 1);
 };
 </script>
 
@@ -339,7 +385,7 @@ const removeFile = (index: number) => {
                 @click="router.visit(route('members.manage.show', props.membershipId))"
             />
         </template>
-            <BaseButton
+            <BaseButton  v-if="can.includes('acts.store')"
                 :text="'Registrar multa'"
                 :icon-only="false"
                 icon="mdi-plus"
@@ -388,7 +434,7 @@ const removeFile = (index: number) => {
 
             <!-- Acciones -->
             <template #item.actions="{ item }">
-                <BaseButton
+                <BaseButton  v-if="can.includes('acts.update')"
                     icon="mdi-pencil"
                     action="edit"
                     @click="edit(item)"
@@ -398,7 +444,7 @@ const removeFile = (index: number) => {
 
         <!-- MODAL -->
         <v-dialog v-model="showModal" max-width="650" persistent>
-            <v-form @submit.prevent="save">
+            <v-form @submit.prevent="save" ref="formRef">
                 <v-card>
                     <template #title>
                         <div class="d-flex align-center gap-2">
@@ -424,7 +470,7 @@ const removeFile = (index: number) => {
                                     <v-card-text>
 
                                         <div class="text-caption text-grey">
-                                            {{ folioPreview }}
+                                            {{ form.folio || 'Folio' }}
                                         </div>
 
                                         <div class="text-h6 font-weight-bold">
@@ -457,6 +503,7 @@ const removeFile = (index: number) => {
                                     :items="memberOptions"
                                     item-title="title"
                                     item-value="value"
+                                    :rules="requiredRule"
                                 />
                             </v-col>
                             <!-- Tipo -->
@@ -471,6 +518,7 @@ const removeFile = (index: number) => {
                                         { title: 'Conducta', value: 'conducta' },
                                         { title: 'Otro', value: 'otro' }
                                     ]"
+                                    :rules="requiredRule"
                                 />
                             </v-col>
 
@@ -487,12 +535,13 @@ const removeFile = (index: number) => {
                                 <v-textarea
                                     v-model="form.description"
                                     label="Descripción"
+                                    :rules="requiredRule"
                                 />
                             </v-col>
 
                             <!-- Fecha -->
                             <v-col cols="6">
-                                <v-text-field v-model="form.date" type="date" label="Fecha" />
+                                <v-text-field v-model="form.date" type="date" label="Fecha" :max="today" :rules="dateRule" />
                             </v-col>
 
                             <v-col cols="6">
@@ -501,7 +550,21 @@ const removeFile = (index: number) => {
 
                             <!-- Multa -->
                             <v-col cols="12">
-                                <v-switch v-model="form.hasFine" label="¿Aplica multa?" />
+                                <v-switch
+                                    v-model="form.hasFine"
+                                    inset
+                                    color="red"
+                                >
+                                    <template #label>
+                                        <div class="d-flex align-center gap-2">
+                                            <v-icon size="20">
+                                                mdi-cash-remove
+                                            </v-icon>
+
+                                            <span>¿Aplica multa?</span>
+                                        </div>
+                                    </template>
+                                </v-switch>
                             </v-col>
 
                             <v-row v-if="form.hasFine">
@@ -528,6 +591,7 @@ const removeFile = (index: number) => {
                                         { title: 'Moderada', value: 'moderada' },
                                         { title: 'Grave', value: 'grave' }
                                     ]"
+                                    :rules="requiredRule"
                                 />
                             </v-col>
 
@@ -598,16 +662,40 @@ const removeFile = (index: number) => {
 
                                             <!-- Imagen -->
                                             <v-img
-                                                v-if="file.url"
+                                                v-if="
+                                                    file.type?.includes('png') ||
+                                                    file.type?.includes('jpg') ||
+                                                    file.type?.includes('jpeg') ||
+                                                    file.type?.includes('webp')
+                                                "
                                                 :src="file.url"
                                                 height="100"
                                                 cover
                                             />
 
-                                            <!-- Archivo no imagen -->
-                                            <div v-else>
-                                                <v-icon size="30">mdi-file</v-icon>
-                                                <div class="text-caption">
+                                            <!-- Documento -->
+                                            <div v-else class="py-4">
+
+                                                <v-icon
+                                                    size="40"
+                                                    :color="
+                                                        file.type?.includes('pdf')
+                                                            ? 'red'
+                                                            : 'primary'
+                                                    "
+                                                >
+                                                    {{
+                                                        file.type?.includes('pdf')
+                                                            ? 'mdi-file-pdf-box'
+                                                            : file.type?.includes('doc')
+                                                                ? 'mdi-file-word'
+                                                                : file.type?.includes('xls')
+                                                                    ? 'mdi-file-excel'
+                                                                    : 'mdi-file-document'
+                                                    }}
+                                                </v-icon>
+
+                                                <div class="text-caption mt-2">
                                                     {{ file.name }}
                                                 </div>
                                             </div>

@@ -13,7 +13,17 @@ class Reservation extends Model {
 
     protected $table = 'reservations.reservations';
 
-    protected $guarded = ['id', 'created_at', 'updated_at'];
+    protected $fillable = [
+        'id',
+        'start_datetime',
+        'end_datetime',
+        'cancelled_at',
+        'club_id',
+        'amenity_id',
+        'user_id',
+        'amenity_resource_id',
+        'reservation_status_id',
+        ];
     protected $dates = ['deleted_at'];
     protected $casts = [ 'start_datetime' => 'datetime', 'end_datetime' => 'datetime' ];
 
@@ -24,7 +34,7 @@ class Reservation extends Model {
 
     public function amenityResource()
     {
-        return $this->belongsTo(AmenityResource::class);
+        return $this->belongsTo(AmenityResource::class, 'amenity_resource_id');
     }
 
     public function user(){

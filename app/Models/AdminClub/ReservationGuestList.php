@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class ReservationGuestList extends Model {
     use HasFactory, SoftDeletes;
 
-    protected $table = 'reservations.guest_lists';
+    protected $table = 'guest_lists.guest_lists';
 
     protected $guarded = ['id', 'created_at', 'updated_at'];
     protected $dates = ['deleted_at'];

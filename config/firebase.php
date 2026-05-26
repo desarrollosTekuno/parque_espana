@@ -50,7 +50,14 @@ return [
              *
              */
 
-            'credentials' => env('FIREBASE_CREDENTIALS', env('GOOGLE_APPLICATION_CREDENTIALS')),
+            'credentials' => (function () {
+                $path = env('FIREBASE_CREDENTIALS', env('GOOGLE_APPLICATION_CREDENTIALS'));
+                if (!$path) return null;
+                // Si es ruta relativa, la resuelve desde la raíz del proyecto
+                return str_starts_with($path, '/') || str_contains($path, ':')
+                    ? $path
+                    : base_path($path);
+            })(),
 
             /*
              * ------------------------------------------------------------------------

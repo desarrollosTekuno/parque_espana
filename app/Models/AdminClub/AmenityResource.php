@@ -37,4 +37,8 @@ class AmenityResource extends Model
         return $query->where('is_active', true);
     }
 
+    public function reservations()
+    {
+        return $this->hasMany(Reservation::class);
+    }
 }

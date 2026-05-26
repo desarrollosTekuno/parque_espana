@@ -285,3 +285,7 @@ export const phoneRule: ValidationRule = (v) => {
     const digitsOnly = v.toString().replace(/\D/g, "");
     return /^\d{10}$/.test(digitsOnly) || "Debe tener exactamente 10 dígitos";
 };
+export const allowedExtensions = (v: string) =>
+  !v ||
+  /^([a-zA-Z0-9]+)(,\s*[a-zA-Z0-9]+)*$/.test(v) ||
+  "Ingresa extensiones válidas separadas por comas";

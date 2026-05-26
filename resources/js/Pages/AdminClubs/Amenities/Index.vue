@@ -3,6 +3,7 @@ import axios from "axios";
 import '@/../css/amenities.css';
 import BaseButton from "@/Components/BaseButton.vue";
 import FormDescripcion from "@/Components/Form/FormDescripcion.vue";
+import AmenityCalendar from "@/Components/Amenities/AmenityCalendar.vue";
 import FormIcon from "@/Components/Form/FormIcon.vue";
 import FormImage from "@/Components/Form/FormImage.vue";
 import FormName from "@/Components/Form/FormName.vue";
@@ -13,27 +14,72 @@ import AppLayout from "@/Layouts/AppLayout.vue";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import { Form, Head, router, useForm, usePage } from "@inertiajs/vue3";
 import { debounce } from "lodash";
+import Swal from "sweetalert2";
 import { ref, watch, computed, reactive } from "vue";
 
 const page = usePage();
 const can = usePage().props.auth.permissions;
 const imageRef = ref<any>(null);
 const iconRef = ref<any>(null);
+const iconInputRef = ref<HTMLInputElement | null>(null);
+const imageInputRef = ref<HTMLInputElement | null>(null);
+
+const onIconFileChange = (e: Event) => {
+    const file = (e.target as HTMLInputElement).files?.[0] ?? null;
+    form.icon = file;
+    form.remove_icon = !file;
+};
+
+const onImageFileChange = (e: Event) => {
+    const file = (e.target as HTMLInputElement).files?.[0] ?? null;
+    form.background_image = file;
+};
+
+const triggerIconInput = () => iconInputRef.value?.click();
+const triggerImageInput = () => imageInputRef.value?.click();
 const tab = ref('amenities')
 
-//    Computeds
-const isSaveDisabled = computed(() => {
-    const imageInvalid =
-        imageRef.value &&
-        form.background_image &&
-        imageRef.value.isValid === false;
+// Modal calendario
+const showCalendarModal = ref(false);
+const calendarEvents = ref([]);
+const selectedAmenityCalendar = ref<any>(null);
 
-    const iconInvalid =
-        iconRef.value &&
-        form.icon &&
-        iconRef.value.isValid === false;
-    return imageInvalid || iconInvalid;
+const openCalendar = async (resource:any) => {
+    selectedAmenityCalendar.value = resource
+    try {
+        const response = await axios.get(
+            route('amenityResource.calendar', resource.id)
+        )
+        calendarEvents.value = response.data
+        showCalendarModal.value = true
+    } catch (error) {
+        console.error(error)
+        customToastSwal({
+            title: 'Error al cargar reservaciones',
+            icon: 'error'
+        })
+    }
+}
+
+//    Computeds
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const MAX_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB
+
+const iconError = computed(() => {
+    if (!form.icon) return null;
+    if (!ALLOWED_TYPES.includes(form.icon.type)) return 'Formato no permitido';
+    if (form.icon.size > MAX_SIZE_BYTES) return 'El archivo supera 2 MB';
+    return null;
 });
+
+const imageError = computed(() => {
+    if (!form.background_image) return null;
+    if (!ALLOWED_TYPES.includes(form.background_image.type)) return 'Formato no permitido';
+    if (form.background_image.size > MAX_SIZE_BYTES) return 'El archivo supera 2 MB';
+    return null;
+});
+
+const isSaveDisabled = computed(() => !!iconError.value || !!imageError.value);
 /*const isAmenities = computed(() => tab.value === 'amenities')
 const handleCreate = () => {
     if (isAmenities.value) {
@@ -138,61 +184,86 @@ const create = () => {
     iconPreview.value = null;
     showModal.value = true;
 };
-const save = () => {
-    formSendRef.value?.validate().then(({ valid }) => {
-        if (!valid) return;
-        form
-            .transform((data) => {
+const savingAmenity = ref(false)
 
-                const payload: any = { ...data };
+const save = async () => {
 
-                if (form.id) {
-                    payload._method = "PUT";
-                }
-                if (!data.icon && !data.remove_icon) {
-                    delete payload.icon;
-                }
+    const { valid } = await formSendRef.value?.validate()
 
-                if (!data.background_image && !data.remove_background_image) {
-                    delete payload.background_image;
-                }
+    if (!valid) return
 
-                return payload;
-            })
-            .post(
-                form.id
-                    ? route("amenities.update", form.id)
-                    : route("amenities.store"),
-                {
-                    forceFormData: true,
-                    onSuccess: () => {
+    const result = await customConfirmSwal({
+        title: form.id 
+            ? "¿Actualizar amenidad?" 
+            : "¿Guardar amenidad?",
+        text: form.id
+            ? "Se actualizarán los datos de la amenidad"
+            : "Se creará una nueva amenidad"
+    })
 
-                        customToastSwal({
-                            title: page.props.flash.success || "",
-                            icon: "success"
-                        });
+    if (!result.isConfirmed) return
 
-                        showModal.value = false;
-                        form.reset();
-                        form.transform(data => data);
+    if (savingAmenity.value) return
+    savingAmenity.value = true
 
-                        imagePreview.value = null;
-                        iconPreview.value = null;
-                        fetchItems();
-                    },
-                    onError: () => {
+    form
+        .transform((data) => {
 
-                        customToastSwal({
-                            title: `Error: ${form.errors.messageError}`,
-                            text: `${form.errors.exception}`,
-                            icon: "error",
-                        });
+            const payload: any = { ...data }
 
-                    },
-                }
-            );
-    });
-};
+            if (form.id) {
+                payload._method = "PUT"
+            }
+
+            if (!data.icon && !data.remove_icon) {
+                delete payload.icon
+            }
+
+            if (!data.background_image && !data.remove_background_image) {
+                delete payload.background_image
+            }
+
+            return payload
+        })
+        .post(
+            form.id
+                ? route("amenities.update", form.id)
+                : route("amenities.store"),
+            {
+                forceFormData: true,
+
+                onSuccess: () => {
+
+                    customToastSwal({
+                        title: page.props.flash.success || "",
+                        icon: "success"
+                    })
+
+                    showModal.value = false
+                    form.reset()
+                    form.transform(data => data)
+
+                    imagePreview.value = null
+                    iconPreview.value = null
+
+                    fetchItems()
+
+                    savingAmenity.value = false
+                },
+
+                onError: () => {
+
+                    customToastSwal({
+                        title: `Error: ${form.errors.messageError}`,
+                        text: `${form.errors.exception}`,
+                        icon: "error",
+                    })
+
+                    savingAmenity.value = false
+                },
+            }
+        )
+}
 
 const edit = (data: any) => {
     form.id = data.id;
@@ -201,16 +272,16 @@ const edit = (data: any) => {
     form.reservation_type = data.reservation_type;
     form.is_active = data.is_active;
     form.icon = null;
-    form.icon_path = data.icon || null;
+    form.icon_path = data.icon_url || null;
     form.remove_icon = false;
     form.background_image = null;
     form.remove_background_image = false;
-    form.background_image_path = data.background_image || null;
-    iconPreview.value = data.icon ? `/storage/${data.icon}` : null;
-    imagePreview.value = data.background_image ? `/storage/${data.background_image}` : null;
+    form.background_image_path = data.background_image_url || null;
+    iconPreview.value = data.icon_url ?? null;
+    imagePreview.value = data.background_image_url ?? null;
     showModal.value = true;
 };
-const schedule = () => {
+const schedule = async () => {
     const current = JSON.stringify(
         normalizeSchedule(formSchedule.days)
     )
@@ -247,6 +318,21 @@ const schedule = () => {
 
     if (hasError) return;
     
+    const result = await Swal.fire({
+        title: '¿Desea guardar los cambios?',
+        text: 'Se actualizará el horario de la amenidad seleccionada',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, cambiar',
+        cancelButtonText: 'Cancelar',
+        reverseButtons: true,
+        allowOutsideClick: false,
+        target: document.body
+    });
+
+    if (!result.isConfirmed) {
+        return;
+    }
 
     const schedules = formSchedule.days
         .filter(day => day.active)
@@ -331,7 +417,7 @@ watch(() => form.icon, (file) => {
     if (file instanceof File) {
         iconPreview.value = URL.createObjectURL(file);
     } else if (file && form.icon_path) {
-        iconPreview.value = `/storage/${form.icon_path}`;
+        iconPreview.value = form.icon_path;
     } else {
         iconPreview.value = null;
     }
@@ -640,51 +726,68 @@ const editResource = (resource: any) => {
 
 }
 const saveResource = () => {
-    resourceForm
-        .transform((data) => {
-            const payload: any = { ...data }
-            if (!showSlotDuration.value) {
-                payload.slot_duration_minutes = null
-            }
-            if (!showCapacity.value) {
-                payload.capacity = 1
-            }
-            if (resourceForm.id) {
-                payload._method = "PUT"
-            }
-            return payload
-        })
-        .post(
-            resourceForm.id
-                ? route('amenityResource.update', resourceForm.id)
-                : route('amenityResource.store'),
-            {
-                onSuccess: (page) => {
-                    const flash = page.props.flash || {}
-                    if(flash.messageError){
+
+    customConfirmSwal({
+        title: resourceForm.id 
+            ? "¿Actualizar recurso?" 
+            : "¿Guardar recurso?",
+        text: "Confirma para continuar"
+    }).then((result) => {
+
+        if (!result.isConfirmed) return
+
+        resourceForm
+            .transform((data) => {
+                const payload: any = { ...data }
+
+                if (!showSlotDuration.value) {
+                    payload.slot_duration_minutes = null
+                }
+
+                if (!showCapacity.value) {
+                    payload.capacity = 1
+                }
+
+                if (resourceForm.id) {
+                    payload._method = "PUT"
+                }
+
+                return payload
+            })
+            .post(
+                resourceForm.id
+                    ? route('amenityResource.update', resourceForm.id)
+                    : route('amenityResource.store'),
+                {
+                    onSuccess: (page) => {
+                        const flash = page.props.flash || {}
+
+                        if (flash.messageError) {
+                            customToastSwal({
+                                title: flash.messageError,
+                                icon: "error"
+                            })
+                            return
+                        }
+
                         customToastSwal({
-                            title: flash.messageError,
+                            title: flash.success || "Recurso guardado",
+                            icon: "success"
+                        })
+
+                        resourceForm.reset()
+                        showResourceModal.value = false
+                        fetchResources()
+                    },
+
+                    onError: (errors) => {
+                        customToastSwal({
+                            title: errors.messageError || "Error al guardar recurso",
                             icon: "error"
                         })
-                        return
                     }
-                    customToastSwal({
-                        title: flash.success || "Recurso guardado",
-                        icon: "success"
-                    })
-                    resourceForm.reset()
-                    showResourceModal.value = false
-                    fetchResources()
-                },
-                onError: (errors) => {
-                    customToastSwal({
-                        title: errors.messageError || "Error al guardar recurso",
-                        icon: "error"
-                    })
-
-                }
-            })
-
+                })
+    })
 }
 const deleteResource = (item: any) => {
     customConfirmSwal({
@@ -841,7 +944,7 @@ watch(
                                         max-width="30" class="rounded-lg" />
                                 </template>-->
                                 <template #item.background_image="{ item }">
-                                    <v-img v-if="item.background_image" :src="`/storage/${item.background_image}`"
+                                    <v-img v-if="item.background_image_url" :src="item.background_image_url"
                                         max-height="80" max-width="80" class="rounded-lg" />
                                 </template>
                                 <template #item.reservation_type="{ item }">
@@ -878,10 +981,10 @@ watch(
                                 <template #item.actions="{ item }">
                                     <span class="action-slot">
                                         <BaseButton text="Agregar horario" action="add" icon="mdi-calendar-month"
-                                            @click="openScheduleModal(item)" />
+                                            @click="openScheduleModal(item)" v-if="can.includes('amenitySchedule.store')" />
                                     </span>
                                     <BaseButton action="edit" @click="edit(item)"
-                                        v-if="can.includes('amenities.update')" />
+                                        v-if="can.includes('amenities.update')" /> 
 
                                     <BaseButton action="delete" @click="destroy(item)"
                                         v-if="can.includes('amenities.destroy')" />
@@ -928,8 +1031,9 @@ watch(
                                     />
                                 </template>
                                 <template #item.actions="{ item }">
-                                    <BaseButton action="edit" @click="editResource(item)" />
-                                    <BaseButton action="delete" @click="deleteResource(item)" />
+                                    <BaseButton v-if="can.includes('amenityResource.calendar')" text="Calendario" icon="mdi-calendar-month" action="view" @click="openCalendar(item)" />
+                                    <BaseButton v-if="can.includes('amenityResource.update')" action="edit" @click="editResource(item)" />
+                                    <BaseButton v-if="can.includes('amenityResource.destroy')" action="delete" @click="deleteResource(item)" />
                                 </template>
                             </v-data-table-server>
                         </v-col>
@@ -949,56 +1053,105 @@ watch(
                                     :rules="[required, maxLength(50)]" />
                             </v-col>
 
-                            <v-col cols="6">
-                                <FormIcon v-model="form.icon" 
-                                    label="Icono" 
-                                    ref="iconRef"
-                                    :rules="[
-                                        fileMaxSizeRule(2),
-                                        fileTypeRule(['jpg','jpeg','png','webp'])
-                                    ]" />
+                            <!-- ── Icono ── -->
+                            <v-col cols="12" sm="5">
+                                <div class="text-body-2 font-weight-medium mb-2">Icono</div>
 
-                                <v-card height="150" variant="outlined"
-                                    class="mt-2 pa-2 d-flex flex-column align-center justify-center imagePreview">
-                                    <v-img v-if="iconPreview" :src="iconPreview" width="90" height="60" cover
-                                        class="rounded" />
-                                    <v-icon v-else size="40" color="grey">
-                                        mdi-image-outline
-                                    </v-icon>
+                                <input
+                                    ref="iconInputRef"
+                                    type="file"
+                                    accept=".jpg,.jpeg,.png,.webp"
+                                    class="d-none"
+                                    @change="onIconFileChange"
+                                />
 
-                                    <v-btn v-if="iconPreview" size="x-small" color="error" variant="text" class="mt-2"
-                                        @click="removeIcon">
-                                        Eliminar
+                                <div
+                                    class="upload-zone upload-zone--square"
+                                    :class="{ 'upload-zone--filled': iconPreview }"
+                                    @click="triggerIconInput"
+                                >
+                                    <v-img
+                                        v-if="iconPreview"
+                                        :src="iconPreview"
+                                        cover
+                                        class="upload-zone__img"
+                                    />
+                                    <div v-else class="upload-zone__placeholder">
+                                        <v-icon size="38" color="grey-lighten-1">mdi-image-plus</v-icon>
+                                        <span class="text-caption text-medium-emphasis mt-1">Subir icono</span>
+                                    </div>
+                                    <div v-if="iconPreview" class="upload-zone__overlay">
+                                        <v-icon color="white" size="28">mdi-pencil</v-icon>
+                                    </div>
+                                </div>
+
+                                <div class="d-flex align-center justify-space-between mt-1">
+                                    <span
+                                        class="text-caption"
+                                        :class="iconError ? 'text-error' : 'text-medium-emphasis'"
+                                    >
+                                        {{ iconError ?? 'JPG, PNG, WEBP · máx. 2 MB' }}
+                                    </span>
+                                    <v-btn
+                                        v-if="iconPreview"
+                                        size="x-small"
+                                        color="error"
+                                        variant="text"
+                                        @click.stop="removeIcon"
+                                    >
+                                        <v-icon size="14" start>mdi-close</v-icon>Quitar
                                     </v-btn>
-                                </v-card>
-                                <div class="text-caption text-medium-emphasis">
-                                    Máximo 2MB · Formatos JPG, PNG
                                 </div>
                             </v-col>
-                            <v-col cols="6">
-                                <FormImage v-model="form.background_image" 
-                                    label="Imagen de fondo" 
-                                    ref="imageRef"
-                                    :rules="[
-                                        fileMaxSizeRule(2),
-                                        fileTypeRule(['jpg','jpeg','png','webp'])
-                                    ]" />
-                                <v-card height="150" variant="outlined"
-                                    class="mt-2 d-flex flex-column align-center justify-center imagePreview">
-                                    <v-img v-if="imagePreview" :src="imagePreview" height="90" width="200" cover
-                                        class="rounded" />
 
-                                    <v-icon v-else size="40" color="grey">
-                                        mdi-image-outline
-                                    </v-icon>
+                            <!-- ── Imagen de fondo ── -->
+                            <v-col cols="12" sm="7">
+                                <div class="text-body-2 font-weight-medium mb-2">Imagen de fondo</div>
 
-                                    <v-btn v-if="imagePreview" size="x-small" color="error" variant="text" class="mt-2"
-                                        @click="removeBackgroundImage">
-                                        Eliminar
+                                <input
+                                    ref="imageInputRef"
+                                    type="file"
+                                    accept=".jpg,.jpeg,.png,.webp"
+                                    class="d-none"
+                                    @change="onImageFileChange"
+                                />
+
+                                <div
+                                    class="upload-zone upload-zone--wide"
+                                    :class="{ 'upload-zone--filled': imagePreview }"
+                                    @click="triggerImageInput"
+                                >
+                                    <v-img
+                                        v-if="imagePreview"
+                                        :src="imagePreview"
+                                        cover
+                                        class="upload-zone__img"
+                                    />
+                                    <div v-else class="upload-zone__placeholder">
+                                        <v-icon size="38" color="grey-lighten-1">mdi-image-plus</v-icon>
+                                        <span class="text-caption text-medium-emphasis mt-1">Subir imagen de fondo</span>
+                                    </div>
+                                    <div v-if="imagePreview" class="upload-zone__overlay">
+                                        <v-icon color="white" size="28">mdi-pencil</v-icon>
+                                    </div>
+                                </div>
+
+                                <div class="d-flex align-center justify-space-between mt-1">
+                                    <span
+                                        class="text-caption"
+                                        :class="imageError ? 'text-error' : 'text-medium-emphasis'"
+                                    >
+                                        {{ imageError ?? 'JPG, PNG, WEBP · máx. 2 MB' }}
+                                    </span>
+                                    <v-btn
+                                        v-if="imagePreview"
+                                        size="x-small"
+                                        color="error"
+                                        variant="text"
+                                        @click.stop="removeBackgroundImage"
+                                    >
+                                        <v-icon size="14" start>mdi-close</v-icon>Quitar
                                     </v-btn>
-                                </v-card>
-                                <div class="text-caption text-medium-emphasis">
-                                    Máximo 2MB · Formatos JPG, PNG
                                 </div>
                             </v-col>
 
@@ -1158,5 +1311,47 @@ watch(
                 </v-card>
             </v-form>
         </v-dialog>
+        <v-dialog
+            v-model="showCalendarModal"
+            max-width="1200"
+        >
+            <v-card>
+
+                <v-card-title class="d-flex align-center ga-2">
+                    <v-icon>
+                        mdi-calendar
+                    </v-icon>
+
+                    Reservaciones ·
+                    {{ selectedAmenityCalendar?.name }}
+                </v-card-title>
+
+                <v-card-text>
+
+                    <AmenityCalendar
+                        :events="calendarEvents"
+                    />
+
+                </v-card-text>
+
+                <v-card-actions>
+                    <v-spacer />
+
+                    <BaseButton
+                        text="Cerrar"
+                        action="cancel"
+                        variant="tonal"
+                        :icon-only="false"
+                        @click="showCalendarModal = false"
+                    />
+                </v-card-actions>
+
+            </v-card>
+        </v-dialog>
     </AppLayout>
 </template>
+<style>
+.swal2-container {
+    z-index: 9999 !important;
+}
+</style>

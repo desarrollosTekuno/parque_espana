@@ -7,46 +7,36 @@ use Illuminate\Support\Facades\Storage;
 
 class TestSftpConnection extends Command
 {
-    protected $signature   = 'sftp:test';
-    protected $description = 'Prueba la conexión SFTP y sube un archivo de prueba';
+    protected $signature   = 'spaces:test';
+    protected $description = 'Prueba la conexión con DigitalOcean Spaces y sube un archivo de prueba';
 
     public function handle(): int
     {
-        $this->info('Probando conexión SFTP...');
+        $this->info('Probando conexión con DigitalOcean Spaces...');
         $this->newLine();
 
-        // 1. Verificar configuración
-        $host = config('filesystems.disks.sftp.host');
-        $user = config('filesystems.disks.sftp.username');
-        $key  = config('filesystems.disks.sftp.privateKey');
-        $root = config('filesystems.disks.sftp.root');
+        $key      = config('filesystems.disks.spaces.key');
+        $bucket   = config('filesystems.disks.spaces.bucket');
+        $region   = config('filesystems.disks.spaces.region');
+        $endpoint = config('filesystems.disks.spaces.endpoint');
 
-        $this->line("  Host    : <comment>{$host}</comment>");
-        $this->line("  Usuario : <comment>{$user}</comment>");
-        $this->line("  Llave   : <comment>{$key}</comment>");
-        $this->line("  Root    : <comment>{$root}</comment>");
+        $this->line("  Bucket   : <comment>{$bucket}</comment>");
+        $this->line("  Región   : <comment>{$region}</comment>");
+        $this->line("  Endpoint : <comment>{$endpoint}</comment>");
         $this->newLine();
 
-        if (!$host || !$user) {
-            $this->error('Faltan variables SFTP en el .env (SFTP_HOST, SFTP_USERNAME).');
+        if (!$key || !$bucket) {
+            $this->error('Faltan variables en el .env (DO_SPACES_KEY, DO_SPACES_BUCKET).');
             return self::FAILURE;
         }
 
-        if (!file_exists($key)) {
-            $this->error("La llave privada no existe en: {$key}");
-            return self::FAILURE;
-        }
-
-        $this->line('  Llave privada encontrada ✓');
-
-        // 2. Intentar subir un archivo de prueba
         $testPath    = '_test/conexion_prueba_' . now()->format('YmdHis') . '.txt';
-        $testContent = "Prueba de conexión SFTP — " . now()->toDateTimeString();
+        $testContent = "Prueba de conexión DigitalOcean Spaces — " . now()->toDateTimeString();
 
         try {
             $this->line('  Subiendo archivo de prueba...');
-            Storage::disk('sftp')->put($testPath, $testContent);
-            $this->line("  Subida exitosa ✓  →  {$root}/{$testPath}");
+            Storage::disk('spaces')->put($testPath, $testContent);
+            $this->line("  Subida exitosa ✓  →  {$testPath}");
         } catch (\Throwable $e) {
             $this->newLine();
             $this->error('Error al subir el archivo:');
@@ -54,32 +44,29 @@ class TestSftpConnection extends Command
             return self::FAILURE;
         }
 
-        // 3. Verificar que el archivo existe
         try {
-            $exists = Storage::disk('sftp')->exists($testPath);
+            $exists = Storage::disk('spaces')->exists($testPath);
             $this->line('  Verificando existencia  →  ' . ($exists ? '✓ existe' : '✗ no encontrado'));
         } catch (\Throwable $e) {
             $this->warn('No se pudo verificar existencia: ' . $e->getMessage());
         }
 
-        // 4. Leer el contenido de vuelta
         try {
-            $read = Storage::disk('sftp')->get($testPath);
+            $read = Storage::disk('spaces')->get($testPath);
             $this->line('  Lectura de vuelta       →  ' . ($read === $testContent ? '✓ contenido correcto' : '✗ contenido diferente'));
         } catch (\Throwable $e) {
             $this->warn('No se pudo leer el archivo: ' . $e->getMessage());
         }
 
-        // 5. Eliminar el archivo de prueba
-        try {
-            Storage::disk('sftp')->delete($testPath);
-            $this->line('  Limpieza del archivo    →  ✓ eliminado');
-        } catch (\Throwable $e) {
-            $this->warn('No se pudo eliminar el archivo de prueba: ' . $e->getMessage());
-        }
+        // try {
+        //     Storage::disk('spaces')->delete($testPath);
+        //     $this->line('  Limpieza del archivo    →  ✓ eliminado');
+        // } catch (\Throwable $e) {
+        //     $this->warn('No se pudo eliminar el archivo de prueba: ' . $e->getMessage());
+        // }
 
         $this->newLine();
-        $this->info('¡Conexión SFTP funcionando correctamente!');
+        $this->info('¡Conexión con DigitalOcean Spaces funcionando correctamente!');
 
         return self::SUCCESS;
     }

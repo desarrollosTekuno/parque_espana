@@ -112,6 +112,5 @@ class ClubController extends Controller
         session(['club_id' => $request->club_id]);
 
         return redirect()->back();
-        //dd(session('club_id'));
     }
 }

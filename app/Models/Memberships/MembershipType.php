@@ -5,6 +5,7 @@ namespace App\Models\Memberships;
 use App\Models\Administrator\Club;
 use App\Models\Catalogs\DocumentType;
 use App\Traits\SerializesDates;
+
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -18,6 +19,11 @@ class MembershipType extends Model
     public function pricingRules()
     {
         return $this->hasMany(PricingRule::class, 'membership_type_id');
+    }
+
+    public function interclubPackageRulesAsTarget()
+    {
+        return $this->hasMany(InterclubPackageRule::class, 'target_membership_type_id');
     }
 
     public function club()
@@ -35,7 +41,7 @@ class MembershipType extends Model
         )->withPivot([
             'is_required',
             'allow_multiple',
-            'number_files'
+            'number_files',
         ]);
     }
 }

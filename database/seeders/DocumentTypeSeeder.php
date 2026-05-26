@@ -71,12 +71,25 @@ class DocumentTypeSeeder extends Seeder
                 'name' => 'INE',
                 'description' => 'Documento oficial de identificación emitido por el Instituto Nacional Electoral en México.',
                 'allowed_extensions' => 'pdf,jpg,png',
+                'min_age' => 18, // Solo se requiere para mayores de edad
             ],
             // comprobante de domicilio
             [
                 'code' => 'comprobante_domicilio',
                 'name' => 'Comprobante de Domicilio',
                 'description' => 'Documento que acredita la residencia de una persona en un lugar específico.',
+                'allowed_extensions' => 'pdf,jpg,png',
+            ],
+            [
+                'code' => 'carta_baja',
+                'name' => 'Carta de Baja',
+                'description' => 'Carta firmada por el titular solicitando la baja de la cuenta.',
+                'allowed_extensions' => 'pdf,jpg,png',
+            ],
+            [
+                'code' => 'documento_permiso_ausencia',
+                'name' => 'Documento de Permiso por Ausencia',
+                'description' => 'Documento que respalda la solicitud de permiso por ausencia del titular.',
                 'allowed_extensions' => 'pdf,jpg,png',
             ],
             // carta de no adeudo
@@ -105,7 +118,7 @@ class DocumentTypeSeeder extends Seeder
         foreach ($documentTypes as $type) {
             DocumentType::updateOrCreate(
                 ['code' => $type['code']],
-                ['name' => $type['name'], 'description' => $type['description'], 'allowed_extensions' => $type['allowed_extensions']]
+                ['name' => $type['name'], 'description' => $type['description'], 'allowed_extensions' => $type['allowed_extensions'], 'min_age' => $type['min_age'] ?? null]
             );
         }
     }

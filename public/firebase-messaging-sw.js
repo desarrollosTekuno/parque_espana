@@ -1,13 +1,13 @@
-importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js');
 
 firebase.initializeApp({
-    apiKey: "AIzaSyCN_i3EqP6rd4XMt_G4-H8HUrG04Zx2bJo",
-    authDomain: "parques-8e912.firebaseapp.com",
-    projectId: "parques-8e912",
-    storageBucket: "parques-8e912.firebasestorage.app",
-    messagingSenderId: "888727738482",
-    appId: "1:888727738482:web:654be235028bfabaaf4aeb"
+    apiKey:            'AIzaSyBD1S8I0lFhuGn2AfeSft-wVltDRy2QxTk',
+    authDomain:        'parqueespana-72f8f.firebaseapp.com',
+    projectId:         'parqueespana-72f8f',
+    storageBucket:     'parqueespana-72f8f.firebasestorage.app',
+    messagingSenderId: '775812930675',
+    appId:             '1:775812930675:web:36f2ba5752c3d3f03c9e06',
 });
 
 const messaging = firebase.messaging();

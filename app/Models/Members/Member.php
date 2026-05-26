@@ -95,7 +95,8 @@ class Member extends Model
     }
     public function getFullNameAttribute(): string
     {
-        return "{$this->first_name} {$this->last_name}";
+        // return "{$this->first_name} {$this->last_name} {$this->second_last_name}";
+        return trim("{$this->first_name} {$this->last_name} {$this->second_last_name}");
     }
 
     public function getAgeAttribute(): ?int
@@ -109,6 +110,21 @@ class Member extends Model
     {
         return $this->hasOne(LockerAssignment::class, 'member_id')
             ->where('year', now()->year);;
+    }
+
+    public function documents()
+    {
+        return $this->hasMany(MemberDocument::class, 'member_id');
+    }
+
+    public function paymentSources()
+    {
+        return $this->hasMany(MemberPaymentSource::class, 'member_id');
+    }
+
+    public function defaultPaymentSource()
+    {
+        return $this->hasOne(MemberPaymentSource::class, 'member_id')->where('is_default', true);
     }
 
 }

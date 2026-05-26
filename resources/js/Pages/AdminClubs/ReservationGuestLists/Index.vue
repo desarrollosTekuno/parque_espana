@@ -27,11 +27,15 @@ const props = withDefaults(defineProps<Props>(), {
 
 interface GuestList {
     id: number | null;
+    title: string;
+    description: string;
     status: string;
     total_guests: number;
     total_adults: number;
     total_children: number;
-    subtotal: number;
+    total_billable_guests: number;
+    billable_subtotal: number;
+    non_billable_subtotal: number;
     discount_percentage: number;
     discount: number;
     total: number;
@@ -45,11 +49,15 @@ interface GuestList {
 
 const form = useForm<GuestList>({
     id: null,
+    title: "",
+    description: "",
     status: "",
     total_guests: 0,
     total_adults: 0,
     total_children: 0,
-    subtotal: 0,
+    total_billable_guests: 0,
+    billable_subtotal: 0,
+    non_billable_subtotal: 0,
     discount_percentage: 0,
     discount: 0,
     total: 0,
@@ -63,21 +71,29 @@ const form = useForm<GuestList>({
 
 const edit = (data: any) => {
     form.id = data.id;
+    form.title = data.title;
+    form.description = data.description;
     form.status = data.status;
     form.total_guests = data.total_guests;
-    form.subtotal = data.subtotal;
+    form.total_billable_guests = data.total_billable_guests;
+    form.billable_subtotal = data.billable_subtotal;
+    form.non_billable_subtotal = data.non_billable_subtotal;
     form.reservation_id = data.reservation_id;
     form.guest_list_items = data.guest_list_items;
     showModalApprove.value = true;
 }
 
-const detail = (data) => {
+const detail = (data: any) => {
     form.id = data.id;
+    form.title = data.title;
+    form.description = data.description;
     form.status = data.status;
     form.total_guests = data.total_guests;
     form.total_adults = data.total_adults;
     form.total_children = data.total_children;
-    form.subtotal = data.subtotal;
+    form.total_billable_guests = data.total_billable_guests;
+    form.billable_subtotal = data.billable_subtotal;
+    form.non_billable_subtotal = data.non_billable_subtotal;
     form.discount = data.discount;
     form.total = data.total;
     form.comments = data.comments;
@@ -93,17 +109,19 @@ const Cerrar = () => {
 }
 
 const discountAmount = computed(() => {
-    return (form.subtotal * discount.value) / 100;
+    return (form.billable_subtotal * discount.value) / 100;
 });
 
 const totalAmount = computed(() => {
-    return form.subtotal - discountAmount.value;
+    return form.billable_subtotal - discountAmount.value;
 });
 
 function approveOrRejectList(){
 
     form.discount_percentage = discount.value;
     form.action = action.value;
+
+    // console.log(form);
 
     form.put(route("guest-lists.update", form.id), {
         onSuccess: () => {
@@ -128,6 +146,7 @@ function approveOrRejectList(){
 }
 
 function resetModal() {
+    discount.value = 0;
     showModalApprove.value = false;
 }
 
@@ -144,10 +163,13 @@ watch(discount, (val) => {
 // Aquí se definen los encabezados de la tabla, donde key es el nombre de la columna en la base de datos
 const headers = [
     { title: "ID", key: "id" },
-    { title: "Recurso", key: "reservation.amenity_resource.name" },
-    { title: "Fecha Reserva", key: "reservation.start_datetime" },
+    // { title: "Recurso", key: "reservation.amenity_resource.name" },
+    // { title: "Fecha Reserva", key: "reservation.start_datetime" },
+    { title: "Evento", key:"title"},
     { title: "Total Invitados", key: "total_guests" },
-    { title: "Subtotal", key: "subtotal" },
+    { title: "Subtotal", key: "billable_subtotal" },
+    { title: "Descuento", key: "discount"},
+    { title: "Total", key: "total"},
     { title: "Estatus", key: "status" },
     { title: "Acciones", key: "actions", sortable: false },
 ];
@@ -173,8 +195,6 @@ const fetchItems = async () => {
         [`${prefix}_search`]: search.value,
         [`${prefix}_sort`]: options.value.sortBy?.[0]?.key ?? "id",
         [`${prefix}_order`]: options.value.sortBy?.[0]?.order ?? "desc",
-        // [`${prefix}_filter_date`]: filterDate.value,
-        // [`${prefix}_filter_status`]: filterStatus.value
     };
 
     router.get(route("guest-lists.index"), params, {
@@ -247,7 +267,15 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                         </template>
 
                         <template v-slot:item.subtotal="{ item }">
-                            {{ formatCurrency(item.subtotal)}}
+                            {{ formatCurrency(item.billable_subtotal)}}
+                        </template>
+
+                        <template v-slot:item.discount="{ item }">
+                            {{ formatCurrency(item.discount) }}
+                        </template>
+
+                        <template v-slot:item.total="{ item }">
+                            {{ formatCurrency(item.total) }}
                         </template>
 
                         <template #item.actions="{ item }">
@@ -265,57 +293,97 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                     </v-data-table-server>
                 </v-col>
             </v-row>
-            <!-- <pre>{{ can }}</pre> -->
+            <!-- <pre>{{ guestLists }}</pre> -->
         </div>
 
         <v-dialog v-model="showModalApprove" max-width="700" persistent>
             <v-card class="rounded-xl">
-                <v-card-title class="d-flex justify-space-between align-center">
+                <v-card-title class="d-flex justify-space-between align-center flex-wrap gap-2">
                     <div class="d-flex align-center gap-2">
                         <v-icon color="primary">mdi-account-check</v-icon>
                         <span class="text-h6 font-weight-bold">
                             Lista de invitados
                         </span>
                     </div>
-                    <v-btn-toggle v-model="action" mandatory>
+                    <v-btn-toggle v-model="action" mandatory density="comfortable">
                         <v-btn value="approve" color="success" variant="flat">Aprobar</v-btn>
                         <v-btn value="reject" color="error" variant="flat">Rechazar</v-btn>
                     </v-btn-toggle>
                 </v-card-title>
 
                 <v-card-text class="overflow-y-auto h-full">
-                    <v-sheet
-                        class="pa-3 mb-4 d-flex justify-space-between align-center"
-                        color="grey-lighten-4"
-                        rounded>
-                        <span class="text-subtitle-2">Total de invitados</span>
-                        <v-chip color="primary" variant="flat">
-                            {{ form.guest_list_items.length }}
-                        </v-chip>
+                    <!-- Evento + Totales -->
+                    <v-sheet class="pa-4 mb-4 rounded-lg border" color="grey-lighten-5">
+                        <div class="d-flex align-start mb-3">
+                            <v-icon color="primary" size="20" class="mt-1 mr-3">mdi-calendar-star</v-icon>
+                            <div class="flex-grow-1">
+                                <div class="text-caption text-medium-emphasis text-uppercase">Evento</div>
+                                <div class="text-subtitle-1 font-weight-medium">{{ form.title }}</div>
+                            </div>
+                        </div>
+
+                        <v-divider class="my-3"></v-divider>
+
+                        <div class="d-flex justify-space-around text-center">
+                            <div>
+                                <div class="text-h6 font-weight-bold text-primary">
+                                    {{ form.total_guests }}
+                                </div>
+                                <div class="text-caption text-medium-emphasis">Total invitados</div>
+                            </div>
+                            <v-divider vertical></v-divider>
+                            <div>
+                                <div class="text-h6 font-weight-bold">{{ form.total_billable_guests }}</div>
+                                <div class="text-caption text-medium-emphasis">A cargo del socio</div>
+                            </div>
+                            <v-divider vertical></v-divider>
+                            <div>
+                                <div class="text-h6 font-weight-bold">
+                                    {{ form.total_guests - form.total_billable_guests }}
+                                </div>
+                                <div class="text-caption text-medium-emphasis">Pago directo</div>
+                            </div>
+                        </div>
                     </v-sheet>
-                    <div style="max-height: 300px; overflow-y: auto;">
+
+                    <!-- Lista de invitados con resaltado -->
+                    <div style="max-height: 350px; overflow-y: auto;">
                         <v-list density="comfortable" class="rounded-lg border">
-                            <v-list-item v-for="(item, index) in form.guest_list_items" :key="index">
+                            <v-list-item
+                                v-for="(item, index) in form.guest_list_items"
+                                :key="index"
+                                :class="{ 'bg-primary-lighten-5': item.is_billable_to_member }">
                                 <template #prepend>
-                                    <v-avatar color="primary" size="34">
+                                    <v-avatar :color="item.is_billable_to_member ? 'primary' : 'grey'" size="34">
                                         {{ item.name.charAt(0).toUpperCase() }}
                                     </v-avatar>
                                 </template>
-                                <v-list-item-title class="font-weight-medium">
+                                <v-list-item-title class="font-weight-medium d-flex align-center gap-2">
                                     {{ item.name }}
+                                    <v-tooltip v-if="item.is_billable_to_member" text="A cargo del socio" location="top">
+                                        <template #activator="{ props }">
+                                            <v-icon v-bind="props" size="14" color="primary">
+                                                mdi-account-cash
+                                            </v-icon>
+                                        </template>
+                                    </v-tooltip>
                                 </v-list-item-title>
                                 <v-list-item-subtitle>
                                     Edad: {{ item.age }}
                                 </v-list-item-subtitle>
                                 <template #append>
-                                    <span> {{ formatCurrency(item.age <= 7 ? 150 : 300) }} </span>
+                                    <span :class="item.is_billable_to_member ? 'text-primary font-weight-medium' : ''">
+                                        {{ formatCurrency(item.price) }}
+                                    </span>
                                 </template>
                             </v-list-item>
                         </v-list>
                     </div>
+
+                    <!-- Acción: Aprobar -->
                     <div v-if="action === 'approve'" class="mt-5">
-                        <v-alert type="info" variant="tonal" class="mb-3">
-                            Puedes aplicar un descuento sobre el subtotal.
+                        <v-alert type="info" variant="tonal" density="compact" class="mb-3">
+                            El descuento se aplica únicamente sobre el subtotal a cargo del socio.
                         </v-alert>
                         <v-text-field
                             v-model="discount"
@@ -323,31 +391,70 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                             type="number"
                             suffix="%"
                             density="comfortable"
+                            prepend-inner-icon="mdi-tag-outline"
+                            class="mb-2"
                         />
-                        <v-sheet class="pa-3 mt-2 rounded" color="grey-lighten-4">
-                            <div class="d-flex justify-space-between">
-                                <span>Subtotal</span>
-                                <span>{{ formatCurrency(form.subtotal) }}</span>
+
+                        <v-sheet class="pa-4 rounded-lg border" color="grey-lighten-5">
+                            <!-- A cargo de los invitados -->
+                            <div class="mb-3">
+                                <div class="text-caption text-medium-emphasis text-uppercase mb-1">
+                                    A cargo de los invitados
+                                </div>
+                                <div class="d-flex justify-space-between align-center">
+                                    <span class="text-body-2">
+                                        <v-icon size="16" class="mr-1">mdi-account-group-outline</v-icon>
+                                        Pago directo ({{ form.total_guests - form.total_billable_guests }} invitados)
+                                    </span>
+                                    <span class="text-body-2 font-weight-medium">
+                                        {{ formatCurrency(form.non_billable_subtotal) }}
+                                    </span>
+                                </div>
                             </div>
-                            <div class="d-flex justify-space-between">
-                                <span>Descuento ({{ discount }}%)</span>
-                                <span>-{{ formatCurrency(discountAmount) }}</span>
-                            </div>
-                            <v-divider class="my-2" />
-                            <div class="d-flex justify-space-between font-weight-bold">
-                                <span>Total</span>
-                                <span>{{ formatCurrency(totalAmount) }}</span>
+
+                            <v-divider class="my-3"></v-divider>
+
+                            <!-- A cargo del socio -->
+                            <div>
+                                <div class="d-flex justify-space-between align-center mb-1">
+                                    <span class="text-caption text-medium-emphasis text-uppercase">
+                                        A cargo del socio
+                                    </span>
+                                    <v-chip size="x-small" color="primary" variant="tonal">
+                                        {{ form.total_billable_guests }} invitados
+                                    </v-chip>
+                                </div>
+                                <div class="d-flex justify-space-between">
+                                    <span class="text-body-2">Subtotal</span>
+                                    <span class="text-body-2">{{ formatCurrency(form.billable_subtotal) }}</span>
+                                </div>
+                                <div class="d-flex justify-space-between text-success">
+                                    <span class="text-body-2">Descuento ({{ discount || 0 }}%)</span>
+                                    <span class="text-body-2">-{{ formatCurrency(discountAmount) }}</span>
+                                </div>
+
+                                <v-divider class="my-2"></v-divider>
+
+                                <div class="d-flex justify-space-between align-center">
+                                    <span class="text-subtitle-1 font-weight-bold">Total a pagar</span>
+                                    <span class="text-h6 font-weight-bold text-primary">
+                                        {{ formatCurrency(totalAmount) }}
+                                    </span>
+                                </div>
                             </div>
                         </v-sheet>
                     </div>
+
+                    <!-- Acción: Rechazar -->
                     <div v-if="action === 'reject'" class="mt-4">
-                        <v-alert type="warning" variant="tonal" class="mb-3">
-                            Ingresa el motivo del rechazo
+                        <v-alert type="warning" variant="tonal" density="compact" class="mb-3">
+                            Ingresa el motivo del rechazo.
                         </v-alert>
                         <v-textarea
                             v-model="form.comments"
                             label="Motivo del rechazo"
                             rows="3"
+                            variant="outlined"
                         />
                     </div>
                 </v-card-text>
@@ -378,8 +485,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                         :icon-only="false"
                         icon="mdi-close-thick"
                         action="delete"
-                        @click="approveOrRejectList()"
-                    >
+                        @click="approveOrRejectList()">
                     </BaseButton>
                 </v-card-actions>
             </v-card>
@@ -397,40 +503,67 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                 </v-card-title>
 
                 <v-card-text class="overflow-y-auto h-full">
-                    <v-sheet class="pa-3 mb-4" color="grey-lighten-4" rounded>
-                        <div class="d-flex justify-space-between">
-                            <span class="text-subtitle-2">Total de invitados</span>
-                            <v-chip color="primary" variant="flat">
-                                {{ form.total_guests }}
-                            </v-chip>
+                    <v-sheet class="pa-4 mb-4 rounded-lg border" color="grey-lighten-5">
+                        <!-- Evento + Descripción -->
+                        <div class="d-flex align-start mb-2">
+                            <v-icon color="primary" size="20" class="mt-1 mr-3">mdi-calendar-star</v-icon>
+                            <div class="flex-grow-1">
+                                <div class="text-caption text-medium-emphasis text-uppercase">Evento</div>
+                                <div class="text-subtitle-1 font-weight-medium">{{ form.title }}</div>
+                                <div class="text-body-2 text-medium-emphasis mt-1" style="white-space: pre-wrap;">
+                                    {{ form.description || '—' }}
+                                </div>
+                            </div>
                         </div>
-                        <div class="d-flex justify-space-between pr-3">
-                            <span class="text-subtitle-2">Total invitados mayores a 7 años</span>
-                                {{ form.total_adults }}
-                        </div>
-                        <div class="d-flex justify-space-between pr-3">
-                            <span class="text-subtitle-2">Total invitados de 3 a 7 años</span>
-                                {{ form.total_children }}
+
+                        <v-divider class="my-3"></v-divider>
+
+                        <!-- Totales de invitados -->
+                        <div class="d-flex justify-space-around text-center">
+                            <div>
+                                <div class="text-h6 font-weight-bold text-primary">{{ form.total_guests }}</div>
+                                <div class="text-caption text-medium-emphasis">Total invitados</div>
+                            </div>
+                            <v-divider vertical></v-divider>
+                            <div>
+                                <div class="text-h6 font-weight-bold">{{ form.total_adults }}</div>
+                                <div class="text-caption text-medium-emphasis">Mayores a 6 años</div>
+                            </div>
+                            <v-divider vertical></v-divider>
+                            <div>
+                                <div class="text-h6 font-weight-bold">{{ form.total_children }}</div>
+                                <div class="text-caption text-medium-emphasis">De 3 a 6 años</div>
+                            </div>
                         </div>
                     </v-sheet>
-                    <div style="max-height: 310px; overflow-y: auto;">
+                    <div style="max-height: 350px; overflow-y: auto;">
                         <v-list density="comfortable" class="rounded-lg border">
-                            <v-list-item v-for="(item, index) in form.guest_list_items" :key="index">
+                            <v-list-item
+                                v-for="(item, index) in form.guest_list_items"
+                                :key="index"
+                                :class="{ 'bg-primary-lighten-5': item.is_billable }">
                                 <template #prepend>
-                                    <v-avatar color="primary" size="34">
+                                    <v-avatar :color="item.is_billable_to_member ? 'primary' : 'grey'" size="34">
                                         {{ item.name.charAt(0).toUpperCase() }}
                                     </v-avatar>
                                 </template>
-                                <v-list-item-title class="font-weight-medium">
+                                <v-list-item-title class="font-weight-medium d-flex align-center gap-2">
                                     {{ item.name }}
+                                    <v-tooltip v-if="item.is_billable_to_member" text="A cargo del socio" location="top">
+                                        <template #activator="{ props }">
+                                            <v-icon v-bind="props" size="14" color="primary">
+                                                mdi-account-cash
+                                            </v-icon>
+                                        </template>
+                                    </v-tooltip>
                                 </v-list-item-title>
                                 <v-list-item-subtitle>
                                     Edad: {{ item.age }}
                                 </v-list-item-subtitle>
                                 <template #append>
-                                  <span>
-                                    {{ formatCurrency(item.age <= 7 ? 150 : 300) }}
-                                  </span>
+                                    <span :class="item.is_billable_to_member ? 'text-primary font-weight-medium' : ''">
+                                        {{ formatCurrency(item.price) }}
+                                    </span>
                                 </template>
                             </v-list-item>
                         </v-list>
@@ -438,20 +571,54 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                     <v-alert type="info" variant="tonal" :color="form.color" class="mt-4">
                         Estatus: {{ form.status }}
                     </v-alert>
+
                     <div class="mt-5">
-                        <v-sheet class="pa-3 mt-2 rounded" color="grey-lighten-4">
-                            <div class="d-flex justify-space-between">
-                                <span>Subtotal</span>
-                                <span>{{ formatCurrency(form.subtotal) }}</span>
+                        <v-sheet class="pa-4 rounded-lg border" color="grey-lighten-5">
+                            <!-- A cargo de los invitados -->
+                            <div class="mb-3">
+                                <div class="text-caption text-medium-emphasis text-uppercase mb-1">
+                                    A cargo de los invitados
+                                </div>
+                                <div class="d-flex justify-space-between align-center">
+                                    <span class="text-body-2">
+                                        <v-icon size="16" class="mr-1">mdi-account-group-outline</v-icon>
+                                        Pago directo ({{ form.total_guests - form.total_billable_guests }} invitados)
+                                    </span>
+                                    <span class="text-body-2 font-weight-medium">
+                                        {{ formatCurrency(form.non_billable_subtotal) }}
+                                    </span>
+                                </div>
                             </div>
-                            <div class="d-flex justify-space-between">
-                                <span>Descuento</span>
-                                <span>-{{ formatCurrency(form.discount)  }}</span>
-                            </div>
-                            <v-divider class="my-2" />
-                            <div class="d-flex justify-space-between font-weight-bold">
-                                <span>Total</span>
-                                <span>{{ formatCurrency(form.total)  }}</span>
+
+                            <v-divider class="my-3"></v-divider>
+
+                            <!-- A cargo del socio -->
+                            <div>
+                                <div class="d-flex justify-space-between align-center mb-1">
+                                    <span class="text-caption text-medium-emphasis text-uppercase">
+                                        A cargo del socio
+                                    </span>
+                                    <v-chip size="x-small" color="primary" variant="tonal">
+                                        {{ form.total_billable_guests }} invitados
+                                    </v-chip>
+                                </div>
+                                <div class="d-flex justify-space-between">
+                                    <span class="text-body-2">Subtotal</span>
+                                    <span class="text-body-2">{{ formatCurrency(form.billable_subtotal) }}</span>
+                                </div>
+                                <div class="d-flex justify-space-between text-success">
+                                    <span class="text-body-2">Descuento aplicado</span>
+                                    <span class="text-body-2">-{{ formatCurrency(form.discount) }}</span>
+                                </div>
+
+                                <v-divider class="my-2"></v-divider>
+
+                                <div class="d-flex justify-space-between align-center">
+                                    <span class="text-subtitle-1 font-weight-bold">Total a pagar</span>
+                                    <span class="text-h6 font-weight-bold text-primary">
+                                        {{ formatCurrency(form.total) }}
+                                    </span>
+                                </div>
                             </div>
                         </v-sheet>
                     </div>

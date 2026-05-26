@@ -12,7 +12,7 @@ use Illuminate\Validation\Rule;
 
 class SystemVariableController extends Controller {
 
-    public function _construct() {
+    public function __construct() {
         $this->middleware('permission:system-variables.index')->only('index');
         $this->middleware('permission:system-variables.store')->only('store');
         $this->middleware('permission:system-variables.update')->only('update');
@@ -68,7 +68,7 @@ class SystemVariableController extends Controller {
                     'required',
                     'string',
                     'max:50',
-                    Rule::unique('system_variables', 'name')
+                    Rule::unique(SystemVariable::class, 'name')
                         ->where(fn ($query) => $query->where('club_id', session('club_id'))),
                 ],
                 'description' => 'required|string|max:255',

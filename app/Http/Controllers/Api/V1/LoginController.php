@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\DeviceToken;
+use App\Models\Members\Member;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
@@ -22,14 +24,14 @@ class LoginController extends Controller
                 'success' => false,
                 'message' => 'Validation failed',
                 'errors' => $validator->errors()
-            ], 200);
+            ], 422);
         }
 
         if (!Auth::attempt($request->only('email', 'password'))) {
             return response()->json([
                 'success' => false,
                 'message' => 'Unauthorized'
-            ], 200);
+            ], 401);
         }
         $user = $request->user();
         $allPermissions = $user->getAllPermissions();
@@ -44,31 +46,83 @@ class LoginController extends Controller
                 ->values();
 
             if ($clubPermissions->isNotEmpty()) {
-                $permissionsByClub[$contextValue] = $clubPermissions;
+                $permissionsByClub[$contextValue == 'mobile_club_1' ? 'PE1' : 'PE2'] = $clubPermissions;
             }
         }
 
+        $member = Member::where('user_id', $user->id)->first();
+        $memberData = $this->buildMemberData($member, $permissionsByClub);
+
         return response()->json([
-            'success'            => true,
-            'message'            => 'Login successful',
-            'token'              => $user->createToken($request->email)->plainTextToken,
-            'permissions_by_club' => $permissionsByClub,
+            'success' => true,
+            'message' => 'Login successful',
+            'token' => $user->createToken($request->email)->plainTextToken,
+            'member' => $memberData,
         ]);
+    }
+
+    private function buildMemberData(?Member $member, array $permissionsByClub): ?array
+    {
+        if (!$member) {
+            return null;
+        }
+
+        $accountMemberships = $member->accountMemberships()
+            ->with([
+                'membershipAccount.memberships' => fn($q) => $q
+                    ->where('is_primary', true)
+                    ->whereIn('status', ['active', 'suspended'])
+                    ->with('club', 'membershipType'),
+            ])
+            ->get();
+
+        $clubs = $accountMemberships->flatMap(function ($accountMember) use ($permissionsByClub) {
+            $account = $accountMember->membershipAccount;
+
+            return $account->memberships->map(fn($membership) => [
+                'club_id' => $membership->club_id,
+                'club_name' => $membership->club?->name,
+                'club_code' => $membership->club?->code,
+                'membership_account_id' => $account->id,
+                'membership_number' => $account->membership_number,
+                'membership_type' => $membership->membershipType?->name,
+                'status' => $membership->status,
+                'is_primary_holder' => (bool) $accountMember->is_primary_holder,
+                'permissions' => $permissionsByClub[$membership->club?->code] ?? [],
+            ]);
+        })->values();
+
+        return [
+            'id' => $member->id,
+            'full_name' => $member->full_name,
+            'email' => $member->email,
+            'phone' => $member->phone,
+            'clubs' => $clubs,
+        ];
     }
 
     public function logout(Request $request)
     {
         try {
+            // Desactivar el token FCM del dispositivo si se envía
+            $fcmToken = $request->input('fcm_token');
+            if ($fcmToken) {
+                DeviceToken::where('token', $fcmToken)
+                    ->where('user_id', $request->user()->id)
+                    ->update(['is_active' => false]);
+            }
+
             $request->user()->currentAccessToken()->delete();
+
             return response()->json([
                 'success' => true,
-                'message' => 'Logout successful'
+                'message' => 'Logout successful',
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Logout failed',
-                'error' => $e->getMessage()
+                'error'   => $e->getMessage(),
             ], 500);
         }
     }

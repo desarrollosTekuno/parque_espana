@@ -43,12 +43,21 @@ class BillingConceptSeeder extends Seeder
             [
                 'code' => 'LOCKERS',
                 'name' => 'Renta de casilleros',
-                'description' => 'Cargo por renta de un casillero.',
-                'default_amount' => null,
+                'description' => 'Cargo anual por renta de un casillero.',
+                'default_amount' => 1100,
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
             ],
+            [
+                'code' => 'GUEST_LIST',
+                'name' => 'Lista de invitados',
+                'description' => 'Cargo por lista de invitados.',
+                'default_amount' => null,
+                'is_recurring' => false,
+                'allows_partial_payments' => false,
+                'is_active' => true,
+            ]
         ];
 
         foreach ($concepts as $concept) {

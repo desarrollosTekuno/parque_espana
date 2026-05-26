@@ -80,6 +80,9 @@ interface DocumentType {
     id: number;
     name: string;
     allowed_extensions: string;
+    min_age: number | null;
+    max_age: number | null;
+    max_file_size_kb: number | null;
     pivot: {
         membership_type_id: number;
         document_type_id: number;
@@ -133,12 +136,17 @@ interface MemberEmploymentForm {
 
 interface MemberDocumentForm {
     document_type_id: number;
+    document_id: number | null;
     name: string;
     allowed_extensions: string[];
+    max_file_size_kb: number | null;
     is_required: boolean;
     allow_multiple: boolean;
     number_files: number;
     files: File[];
+    already_uploaded: boolean;
+    uploaded_at: string | null;
+    update_mode: boolean;
 }
 
 interface MemberForm {
@@ -199,6 +207,11 @@ interface PrefillMember {
     is_from_source_membership?: boolean;
     address?: Partial<MemberAddressForm> | null;
     employment?: Partial<MemberEmploymentForm> | null;
+    existing_documents?: Array<{
+        id: number;
+        document_type_id: number;
+        uploaded_at: string | null;
+    }>;
 }
 
 interface MembershipsForm {
@@ -553,10 +566,11 @@ const buildMemberFromPrefill = (prefillMember: PrefillMember): MemberForm => {
         ...createEmptyEmployment(),
         ...(prefillMember.employment ?? {}),
     };
+    const existingDocs = prefillMember.existing_documents ?? [];
     member.documents = member.is_primary_holder
-        ? buildMemberDocuments(member)
+        ? buildMemberDocuments(member, existingDocs)
         : member.relationship_id
-          ? buildDocumentsForRelationship(member.relationship_id, member.age)
+          ? buildDocumentsForRelationship(member.relationship_id, member.age, existingDocs)
           : [];
 
     return member;
@@ -569,13 +583,12 @@ const getRelationshipIdForDocuments = (member: MemberForm) => {
     return member.relationship_id;
 };
 
+const DEFAULT_MAX_FILE_SIZE_KB = 2048;
+
 const shouldIncludeDocumentByAge = (doc: DocumentType, age: number | null) => {
     if (age === null) return true;
-
-    if (doc.name === "INE") {
-        return age >= 18;
-    }
-
+    if (doc.min_age !== null && age < doc.min_age) return false;
+    if (doc.max_age !== null && age > doc.max_age) return false;
     return true;
 };
 
@@ -594,7 +607,18 @@ const getDocumentsForMember = (member: MemberForm) => {
 const isMatrimonioDocument = (doc: DocumentType) =>
     doc.name.toLowerCase().includes("matrimon");
 
-const buildMemberDocuments = (member: MemberForm): MemberDocumentForm[] => {
+const resolveExistingDoc = (
+    docTypeId: number,
+    existingDocs?: PrefillMember["existing_documents"],
+): { id: number; document_type_id: number; uploaded_at: string | null } | null => {
+    const found = existingDocs?.find((e) => e.document_type_id === docTypeId);
+    return found ?? null;
+};
+
+const buildMemberDocuments = (
+    member: MemberForm,
+    existingDocs?: PrefillMember["existing_documents"],
+): MemberDocumentForm[] => {
     return getDocumentsForMember(member)
         .filter((doc) => {
             if (member.is_primary_holder && isMatrimonioDocument(doc)) {
@@ -602,24 +626,33 @@ const buildMemberDocuments = (member: MemberForm): MemberDocumentForm[] => {
             }
             return true;
         })
-        .map((doc) => ({
-            document_type_id: doc.id,
-            name: doc.name,
-            allowed_extensions: doc.allowed_extensions
-                ? doc.allowed_extensions
-                      .split(",")
-                      .map((ext) => ext.trim().toLowerCase())
-                : [],
-            is_required: doc.pivot.is_required,
-            allow_multiple: doc.pivot.allow_multiple,
-            number_files: doc.pivot.number_files,
-            files: [],
-        }));
+        .map((doc) => {
+            const existing = resolveExistingDoc(doc.id, existingDocs);
+            return {
+                document_type_id: doc.id,
+                name: doc.name,
+                allowed_extensions: doc.allowed_extensions
+                    ? doc.allowed_extensions
+                          .split(",")
+                          .map((ext) => ext.trim().toLowerCase())
+                    : [],
+                max_file_size_kb: doc.max_file_size_kb ?? null,
+                is_required: doc.pivot.is_required,
+                allow_multiple: doc.pivot.allow_multiple,
+                number_files: doc.pivot.number_files,
+                files: [],
+                document_id: existing?.id ?? null,
+                already_uploaded: existing !== null,
+                uploaded_at: existing?.uploaded_at ?? null,
+                update_mode: false,
+            };
+        });
 };
 
 const buildDocumentsForRelationship = (
     relationshipId: number,
     age: number | null = null,
+    existingDocs?: PrefillMember["existing_documents"],
 ): MemberDocumentForm[] => {
     if (!form.membershipType) return [];
 
@@ -628,19 +661,27 @@ const buildDocumentsForRelationship = (
             doc.relationships.some((rel) => rel.id === relationshipId),
         )
         .filter((doc) => shouldIncludeDocumentByAge(doc, age))
-        .map((doc) => ({
-            document_type_id: doc.id,
-            name: doc.name,
-            allowed_extensions: doc.allowed_extensions
-                ? doc.allowed_extensions
-                      .split(",")
-                      .map((ext) => ext.trim().toLowerCase())
-                : [],
-            is_required: doc.pivot.is_required,
-            allow_multiple: doc.pivot.allow_multiple,
-            number_files: doc.pivot.number_files,
-            files: [],
-        }));
+        .map((doc) => {
+            const existing = resolveExistingDoc(doc.id, existingDocs);
+            return {
+                document_type_id: doc.id,
+                name: doc.name,
+                allowed_extensions: doc.allowed_extensions
+                    ? doc.allowed_extensions
+                          .split(",")
+                          .map((ext) => ext.trim().toLowerCase())
+                    : [],
+                max_file_size_kb: doc.max_file_size_kb ?? null,
+                is_required: doc.pivot.is_required,
+                allow_multiple: doc.pivot.allow_multiple,
+                number_files: doc.pivot.number_files,
+                files: [],
+                document_id: existing?.id ?? null,
+                already_uploaded: existing !== null,
+                uploaded_at: existing?.uploaded_at ?? null,
+                update_mode: false,
+            };
+        });
 };
 
 const createPrimaryHolder = (): MemberForm => {
@@ -940,6 +981,22 @@ const crossClubTargetSummary = computed(() => {
     return `${props.targetClub.code} - ${props.targetClub.name}`;
 });
 
+const previewingDocId = ref<number | null>(null);
+
+const previewDocument = async (documentId: number) => {
+    previewingDocId.value = documentId;
+    try {
+        const res = await fetch(route("member-documents.url", documentId));
+        if (!res.ok) throw new Error("Sin acceso");
+        const { url } = await res.json();
+        window.open(url, "_blank");
+    } catch {
+        // silencioso — el documento simplemente no abre
+    } finally {
+        previewingDocId.value = null;
+    }
+};
+
 const submitButtonLabel = computed(() =>
     props.isCrossClubRequest
         ? "Confirmar y generar solicitud"
@@ -1033,10 +1090,39 @@ const hasSpouse = computed(() =>
     form.members.some((m) => isSpouseRelationship(m)),
 );
 
-watch(hasSpouse, () => {
+watch(hasSpouse, (spousePresent) => {
     const primary = getPrimaryMember();
-    if (primary) {
-        primary.documents = buildMemberDocuments(primary);
+    if (!primary || !form.membershipType) return;
+
+    if (spousePresent) {
+        const missing = form.membershipType.document_types.filter(
+            (doc) =>
+                isMatrimonioDocument(doc) &&
+                doc.relationships.some((rel) => rel.id === TITULAR_RELATIONSHIP_ID) &&
+                !primary.documents.some((d) => d.document_type_id === doc.id),
+        );
+        for (const doc of missing) {
+            primary.documents.push({
+                document_type_id: doc.id,
+                name: doc.name,
+                allowed_extensions: doc.allowed_extensions
+                    ? doc.allowed_extensions.split(",").map((e) => e.trim().toLowerCase())
+                    : [],
+                max_file_size_kb: doc.max_file_size_kb ?? null,
+                is_required: doc.pivot?.is_required ?? false,
+                allow_multiple: doc.pivot?.allow_multiple ?? false,
+                number_files: doc.pivot?.number_files ?? 1,
+                files: [],
+                document_id: null,
+                already_uploaded: false,
+                uploaded_at: null,
+                update_mode: false,
+            });
+        }
+    } else {
+        primary.documents = primary.documents.filter(
+            (d) => !d.name.toLowerCase().includes("matrimon"),
+        );
     }
 });
 
@@ -1122,22 +1208,22 @@ const handleNext = async (next: () => void) => {
             return;
             
         }
-        next();
-        return;
+        // next();
+        // return;
     }
 
     if (step.value === 3) {
         const { valid } = await documentsStepRef.value?.validate();
-        /* if (!valid) {
+        if (!valid) {
             // Show an error toast if validation fails
             customToastSwal({
                 text: "Revisa los documentos requeridos. Hay campos con errores o documentos faltantes.",
                 icon: "warning",
             });
             return;
-        } */
-        next();
-        return;
+        }
+    //    next();
+    //     return;
     }
 
     next();
@@ -1202,6 +1288,7 @@ const submit = () => {
     }));
 
     form.post(route("members.store"), {
+        forceFormData: true,
         preserveScroll: true,
         onSuccess: () => {
             customToastSwal({
@@ -2025,11 +2112,7 @@ const memberLabel = (member: MemberForm) => {
                                                                 'birth_country_id',
                                                             )
                                                         "
-                                                        :disabled="
-                                                            isIdentityLocked(
-                                                                member,
-                                                            )
-                                                        "
+                                                        
                                                         clearable
                                                         @update:modelValue="
                                                             onBirthCountryChange(
@@ -2070,9 +2153,7 @@ const memberLabel = (member: MemberForm) => {
                                                             )
                                                         "
                                                         :disabled="
-                                                            isIdentityLocked(
-                                                                member,
-                                                            ) ||
+                                                            
                                                             !member.birth_country_id
                                                         "
                                                         clearable
@@ -2117,9 +2198,7 @@ const memberLabel = (member: MemberForm) => {
                                                             )
                                                         "
                                                         :disabled="
-                                                            isIdentityLocked(
-                                                                member,
-                                                            ) ||
+                                                           
                                                             !member.birth_state_id
                                                         "
                                                         clearable
@@ -2152,11 +2231,7 @@ const memberLabel = (member: MemberForm) => {
                                                         item-title="title"
                                                         item-value="id"
                                                         label="Nacionalidad"
-                                                        :disabled="
-                                                            isIdentityLocked(
-                                                                member,
-                                                            )
-                                                        "
+                                                        
                                                         clearable
                                                         auto-select-first
                                                         :rules="[
@@ -2553,49 +2628,77 @@ const memberLabel = (member: MemberForm) => {
                                                     cols="12"
                                                     md="6"
                                                 >
-                                                    <div
-                                                        class="mb-2 font-weight-medium"
-                                                    >
-                                                        {{ doc.name }}
-                                                        <span
-                                                            v-if="
-                                                                doc.is_required
-                                                            "
-                                                            class="text-error"
-                                                            >*</span
+                                                    <div class="mb-2 d-flex align-center justify-space-between flex-wrap ga-1">
+                                                        <span class="font-weight-medium">
+                                                            {{ doc.name }}
+                                                            <span v-if="doc.is_required && !doc.already_uploaded" class="text-error">*</span>
+                                                        </span>
+                                                        <v-chip
+                                                            v-if="doc.already_uploaded && !doc.update_mode"
+                                                            size="x-small"
+                                                            color="success"
+                                                            variant="tonal"
+                                                            prepend-icon="mdi-check-circle"
                                                         >
+                                                            Ya cargado{{ doc.uploaded_at ? ` · ${doc.uploaded_at}` : '' }}
+                                                        </v-chip>
                                                     </div>
 
-                                                    <CustomFileUploadField
-                                                        v-model="doc.files"
-                                                        :label="doc.name"
-                                                        :hint="
-                                                            doc.allowed_extensions.join(
-                                                                ', ',
-                                                            )
-                                                        "
-                                                        :accept="
-                                                            doc.allowed_extensions
-                                                                .map(
-                                                                    (ext) =>
-                                                                        `.${ext}`,
-                                                                )
-                                                                .join(',')
-                                                        "
-                                                        :multiple="
-                                                            doc.allow_multiple
-                                                        "
-                                                        :rules="[
-                                                            ...(doc.is_required
-                                                                ? [requiredFileRule, fileExactCountRule(doc.number_files)]
-                                                                : []),
-                                                            fileTypeRule(
-                                                                doc.allowed_extensions,
-                                                            ),
-                                                            fileMaxSizeRule(2)
-                                                        ]"
-                                                        clearable
-                                                    />
+                                                    <!-- Documento ya cargado — modo lectura -->
+                                                    <div
+                                                        v-if="doc.already_uploaded && !doc.update_mode"
+                                                        class="d-flex align-center ga-2"
+                                                    >
+                                                        <v-btn
+                                                            v-if="doc.document_id !== null"
+                                                            size="small"
+                                                            variant="tonal"
+                                                            color="info"
+                                                            :icon="previewingDocId === doc.document_id ? 'mdi-loading' : 'mdi-eye'"
+                                                            :loading="previewingDocId === doc.document_id"
+                                                            @click="previewDocument(doc.document_id!)"
+                                                        />
+                                                        <v-btn
+                                                            size="small"
+                                                            variant="tonal"
+                                                            color="warning"
+                                                            prepend-icon="mdi-refresh"
+                                                            @click="doc.update_mode = true"
+                                                        >
+                                                            Actualizar
+                                                        </v-btn>
+                                                    </div>
+
+                                                    <!-- Upload field: nuevo o en modo actualización -->
+                                                    <template v-else>
+                                                        <v-btn
+                                                            v-if="doc.already_uploaded && doc.update_mode"
+                                                            size="x-small"
+                                                            variant="text"
+                                                            color="default"
+                                                            class="mb-1"
+                                                            prepend-icon="mdi-close"
+                                                            @click="doc.update_mode = false; doc.files = []"
+                                                        >
+                                                            Cancelar actualización
+                                                        </v-btn>
+
+                                                        <CustomFileUploadField
+                                                            v-model="doc.files"
+                                                            :label="`${doc.allow_multiple ?  doc.number_files + ' x ' : ''} ${doc.name}`"
+                                                            :hint="doc.allowed_extensions.join(', ')"
+                                                            :accept="doc.allowed_extensions.map((ext) => `.${ext}`).join(',')"
+                                                            :multiple="doc.allow_multiple"
+                                                            :rules="[
+                                                                ...(doc.is_required && !doc.already_uploaded
+                                                                    ? [requiredFileRule, fileExactCountRule(doc.number_files)]
+                                                                    : []),
+                                                                fileTypeRule(doc.allowed_extensions),
+                                                                fileMaxSizeRule((doc.max_file_size_kb ?? DEFAULT_MAX_FILE_SIZE_KB) / 1024)
+                                                            ]"
+                                                            clearable
+                                                        />
+                                                    </template>
                                                 </v-col>
                                             </v-row>
                                         </v-card>

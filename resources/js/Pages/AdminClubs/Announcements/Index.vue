@@ -32,6 +32,15 @@
     const imageRef = ref<any>(null);
     const formSendRef = ref();
     const imagePreview = ref<string | null>(null);
+    const imageInputRef = ref<HTMLInputElement | null>(null);
+
+    const triggerImageInput = () => imageInputRef.value?.click();
+
+    const onImageFileChange = (e: Event) => {
+        const file = (e.target as HTMLInputElement).files?.[0] ?? null;
+        form.image = file;
+        // El watch existente sobre form.image maneja preview y validación de tamaño
+    };
     const form = useForm({
         id: null,
         club_id: page.props.auth.currentClub,
@@ -50,9 +59,17 @@
         ends_at: null,
         status: "draft"
     });
-    const isSaveDisabled = computed(() => {
-        return imageRef.value?.isValid === false;
+    const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+    const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+
+    const imageError = computed(() => {
+        if (!form.image) return null;
+        if (!ALLOWED_IMAGE_TYPES.includes((form.image as File).type)) return 'Formato no permitido';
+        if ((form.image as File).size > MAX_IMAGE_BYTES) return 'El archivo supera 2 MB';
+        return null;
     });
+
+    const isSaveDisabled = computed(() => !!imageError.value);
     const create = () => {
         form.reset();
         form.is_active = true;
@@ -73,10 +90,10 @@
 const formatToPicker = (val: string | null) => {
     if (!val) return null;
 
-    // 👉 elimina milisegundos y zona
+    // elimina milisegundos y zona
     let clean = val.replace('T', ' ').split('.')[0];
 
-    // 👉 si trae Z o timezone lo quitamos
+    // si trae Z o timezone lo quitamos
     clean = clean.replace('Z', '');
 
     return clean;
@@ -96,85 +113,108 @@ const formatToPicker = (val: string | null) => {
         form.is_active = item.is_active;
 
         form.image = null;
-        form.image_path = item.image;
-        imagePreview.value = item.image ? `/storage/${item.image}` : null;
+        form.image_path = item.image_url;
+        imagePreview.value = item.image_url ?? null;
 
         showModal.value = true;
     };
-    const save = () => {
-        formSendRef.value
-            ?.validate()
-            .then(({ valid }) => {
-                if (!valid) return;
-                const publish = normalizeDate(form.publish_at);
-                const expires = normalizeDate(form.expires_at);
-                const now = Date.now();
+  const savingAnnouncement = ref(false)
 
-                if (!publish) {
-                    customToastSwal({ title: "Fecha de publicación inválida", icon: "error" });
-                    return;
-                }
+const save = async () => {
 
-                if (publish < now) {
-                    customToastSwal({ title: "La publicación no puede ser en el pasado", icon: "error" });
-                    return;
-                }
+    const { valid } = await formSendRef.value?.validate()
+    if (!valid) return
 
-                if (!expires) {
-                    customToastSwal({ title: "Fecha de expiración inválida", icon: "error" });
-                    return;
-                }
+    const publish = normalizeDate(form.publish_at)
+    const expires = normalizeDate(form.expires_at)
+    const now = Date.now()
 
-                if (expires <= publish) {
-                    customToastSwal({ title: "La expiración debe ser mayor a publicación", icon: "error" });
-                    return;
+    if (!publish) {
+        customToastSwal({ title: "Fecha de publicación inválida", icon: "error" })
+        return
+    }
+
+    if (publish < now) {
+        customToastSwal({ title: "La publicación no puede ser en el pasado", icon: "error" })
+        return
+    }
+
+    if (!expires) {
+        customToastSwal({ title: "Fecha de expiración inválida", icon: "error" })
+        return
+    }
+
+    if (expires <= publish) {
+        customToastSwal({ title: "La expiración debe ser mayor a publicación", icon: "error" })
+        return
+    }
+
+    const result = await customConfirmSwal({
+        title: form.id 
+            ? "¿Actualizar anuncio?" 
+            : "¿Crear anuncio?",
+        text: form.id
+            ? "Se actualizará el anuncio"
+            : "Se publicará el anuncio"
+    })
+
+    if (!result.isConfirmed) return
+
+    if (savingAnnouncement.value) return
+    savingAnnouncement.value = true
+
+    form
+        .transform((data: any) => {
+            let payload: any = { ...data }
+
+            if (!(data.image instanceof File)) {
+                delete payload.image
+            }
+
+            if (form.id) {
+                payload._method = "PUT"
+            }
+
+            return payload
+        })
+        .post(
+            form.id
+                ? route("announcements.update", form.id)
+                : route("announcements.store"),
+            {
+                forceFormData: true,
+
+                onSuccess: () => {
+                    customToastSwal({
+                        title: page.props.flash.success || "",
+                        icon: "success"
+                    })
+
+                    showModal.value = false
+                    form.reset()
+                    imagePreview.value = null
+                    fetchItems()
+
+                    savingAnnouncement.value = false
+                },
+
+                onError: () => {
+                    console.log("ERRORES", form.errors)
+
+                    const firstError = Object.values(form.errors)[0]
+
+                    customToastSwal({
+                        title: "Error al guardar anuncio",
+                        text: firstError,
+                        icon: "error",
+                        timer: 8000
+                    })
+
+                    savingAnnouncement.value = false
                 }
-                form.transform((data: any) => {
-                let payload:any = {
-                    ...data,
-                };
-                if (!(data.image instanceof File)) {
-                    delete payload.image;
-                }
-                if (form.id) {
-                    payload._method = "PUT";
-                }
-                return payload;
-                }).post(
-                    form.id
-                        ? route(
-                            "announcements.update",
-                            form.id
-                        ) : route(
-                            "announcements.store"
-                        ),
-                    {
-                        forceFormData: true,
-                        onSuccess: () => {
-                            customToastSwal({
-                                title: page.props.flash.success || "",
-                                icon: "success"
-                            });
-                            showModal.value = false;
-                            form.reset();
-                            imagePreview.value = null;
-                            fetchItems();
-                        },
-                        onError: () => {
-                            console.log("ERRORES", form.errors);
-                            const firstError =
-                                Object.values(form.errors)[0];
-                            customToastSwal({
-                                title: "Horario no disponible",
-                                text: firstError,
-                                icon: "error",
-                                timer: 8000
-                            });
-                        }
-                    }
-                );
-            });
-    };
+            }
+        )
+};
     const destroy = (item: any) => {
         customConfirmSwal({
             title: "¿Eliminar anuncio?"
@@ -411,7 +451,7 @@ const MAX_MB = 2 * 1024 * 1024;
 const handleImagesSelected = (files:any[]) => {
     if(!files) return;
     const MAX_MB = 2 * 1024 * 1024;
-    const MAX_FILES = 5;
+    //const MAX_FILES = 5;
     let validFiles:any[] = [];
     for(const file of files){
         if(file.size > MAX_MB){
@@ -423,7 +463,7 @@ const handleImagesSelected = (files:any[]) => {
         }
         validFiles.push(file);
     }
-    const availableSlots =
+    /*const availableSlots =
         MAX_FILES
         - galleryForm.existing_images.length;
     if(validFiles.length > availableSlots){
@@ -433,34 +473,54 @@ const handleImagesSelected = (files:any[]) => {
             title: "Máximo 5 imágenes por anuncio",
             icon:"warning"
         });
-    }
+    }*/
     galleryForm.images = validFiles;
 
 };
-const saveGallery = () => {
+const savingGallery = ref(false)
+
+const saveGallery = async () => {
+
+    const result = await customConfirmSwal({
+        title: "¿Guardar imágenes?",
+        text: "Se agregarán a la galería del anuncio"
+    })
+
+    if (!result.isConfirmed) return
+
+    if (savingGallery.value) return
+    savingGallery.value = true
+
     galleryForm
         .post(
             route("announcements.gallery.store"),
             {
                 forceFormData: true,
+
                 onSuccess: () => {
                     customToastSwal({
                         title: page.props.flash.success || "",
                         icon: "success"
-                    });
-                    showGalleryModal.value = false;
-                    galleryForm.reset();
-                    fetchItems();
+                    })
+
+                    showGalleryModal.value = false
+                    galleryForm.reset()
+                    fetchItems()
+
+                    savingGallery.value = false
                 },
+
                 onError: () => {
                     customToastSwal({
-                        title: `Error: ${form.errors.messageError}`,
-                        text: `${form.errors.exception}`,
+                        title: `Error: ${galleryForm.errors.messageError}`,
+                        text: `${galleryForm.errors.exception}`,
                         icon: "error",
-                    });
+                    })
+
+                    savingGallery.value = false
                 }
             }
-        );
+        )
 };
 const removeExistingImage = (img:any) => {
     galleryForm.remove_images.push(img.id);
@@ -472,12 +532,12 @@ const removeExistingImage = (img:any) => {
 const removeNewImage = (index:number) => {
     galleryForm.images.splice(index,1);
 };
-const totalImages = computed(()=>{
+/*const totalImages = computed(()=>{
     return (
         galleryForm.images.length
         + galleryForm.existing_images.length
     );
-});
+});*/
 const hasGalleryChanges = computed(()=>{
     return (
         galleryForm.images.length > 0
@@ -596,7 +656,7 @@ watch(
                         {{ item.detail?.resource?.name }}
                     </template>
                     <template #item.image="{ item }">
-                        <v-img v-if="item.image" :src="`/storage/${item.image}`" max-height="70" max-width="100"
+                        <v-img v-if="item.image_url" :src="item.image_url" max-height="70" max-width="100"
                             class="rounded" />
                     </template>
                     <template #item.event_date="{ item }">
@@ -608,11 +668,11 @@ watch(
                     <template #item.actions="{ item }">
                         <v-tooltip text="Agregar galería">
                             <template #activator="{ props }">
-                                <BaseButton v-bind="props" icon="mdi-camera" color="green" @click="openGallery(item)"/>
+                                <BaseButton v-if="can.includes('announcements.getGallery')" v-bind="props" icon="mdi-camera" color="green" @click="openGallery(item)"/>
                             </template>
                         </v-tooltip>
-                        <BaseButton action="edit" @click="edit(item)" v-if="can.includes('announcements.update')" />
-                        <BaseButton action="delete" @click="destroy(item)" v-if="can.includes('announcements.destroy')" />
+                        <BaseButton v-if="can.includes('announcements.update')" action="edit" @click="edit(item)" />
+                        <BaseButton v-if="can.includes('announcements.destroy')" action="delete" @click="destroy(item)" />
                     </template>
                 </v-data-table-server>
             </div>
@@ -642,25 +702,53 @@ watch(
                                         style="min-height:150px;"/>
                                 </v-col>
                                 <v-col cols="12">
-                                    <FormImage v-model="form.image" 
-                                        label="Imagen" 
-                                        ref="imageRef"
-                                        :rules="[
-                                            fileMaxSizeRule(2),
-                                            fileTypeRule(['jpg','jpeg','png','webp'])
-                                        ]" />
-                                    <v-card height="150" variant="outlined" class="mt-2 d-flex align-center justify-center">
-                                        <v-img v-if="imagePreview" :src="imagePreview" height="120" class="rounded" />
-                                        <v-icon v-else size="40" color="grey">
-                                            mdi-image-outline
-                                        </v-icon>
-                                    </v-card>
-                                    <v-btn v-if="imagePreview" size="x-small" variant="text" color="error" class="mt-1"
-                                        @click="removeImage">
-                                        Eliminar imagen
-                                    </v-btn>
-                                    <div class="text-caption text-medium-emphasis">
-                                        Tamaño recomendado 1200x800px · Máximo 2MB · Formatos JPG, PNG
+                                    <div class="text-body-2 font-weight-medium mb-2">Imagen</div>
+
+                                    <input
+                                        ref="imageInputRef"
+                                        type="file"
+                                        accept=".jpg,.jpeg,.png,.webp"
+                                        class="d-none"
+                                        @change="onImageFileChange"
+                                    />
+
+                                    <div
+                                        class="upload-zone upload-zone--wide"
+                                        :class="{ 'upload-zone--filled': imagePreview }"
+                                        @click="triggerImageInput"
+                                    >
+                                        <v-img
+                                            v-if="imagePreview"
+                                            :src="imagePreview"
+                                            cover
+                                            class="upload-zone__img"
+                                        />
+                                        <div v-else class="upload-zone__placeholder">
+                                            <v-icon size="38" color="grey-lighten-1">mdi-image-plus</v-icon>
+                                            <span class="text-caption text-medium-emphasis mt-1">Subir imagen</span>
+                                            <span class="text-caption text-disabled">1200 × 800 px recomendado</span>
+                                        </div>
+                                        <div v-if="imagePreview" class="upload-zone__overlay">
+                                            <v-icon color="white" size="28">mdi-pencil</v-icon>
+                                        </div>
+                                    </div>
+
+                                    <div class="d-flex align-center justify-space-between mt-1">
+                                        <span
+                                            class="text-caption"
+                                            :class="imageError ? 'text-error' : 'text-medium-emphasis'"
+                                        >
+                                            {{ imageError ?? 'JPG, PNG, WEBP · máx. 2 MB' }}
+                                        </span>
+                                        <v-btn
+                                            v-if="imagePreview"
+                                            size="x-small"
+                                            color="error"
+                                            variant="text"
+                                            @click.stop="removeImage"
+                                        >
+                                            <v-icon size="14" start>mdi-close</v-icon>Quitar
+                                        </v-btn>
                                     </div>
                                 </v-col>
                                 <v-col cols="6">
@@ -741,10 +829,10 @@ watch(
                         :key="img.id"
                         class="ma-2 position-relative"
                         width="110">
-                        <v-img :src="`/storage/${img.image}`"
+                        <v-img :src="img.image_url"
                             height="90"
                             cover/>
-                        <v-btn
+                        <v-btn v-if="can.includes('announcements.destroyGalleryImage')" 
                             icon="mdi-close"
                             size="x-small"
                             color="error"
@@ -771,7 +859,7 @@ watch(
                     <v-card-actions>
                         <v-spacer/>
                         <BaseButton text="Cancelar" action="cancel" variant="flat" @click="showGalleryModal=false" :icon-only="false" />
-                        <BaseButton :text="'Guardar'" action="save" @click="saveGallery" :icon-only="false" :disabled="totalImages > 5 || !hasGalleryChanges" variant="flat"/>
+                        <BaseButton v-if="can.includes('announcements.storeGallery')" :text="'Guardar'" action="save" @click="saveGallery" :icon-only="false" :disabled="!hasGalleryChanges" variant="flat"/>
                     </v-card-actions>
                 </v-card>
             </v-dialog>

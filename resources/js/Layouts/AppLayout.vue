@@ -19,14 +19,17 @@ const changeClub = () => {
         club_id: selectedClub.value
     });
 };
+const RAIL_KEY = "nav_rail";
+
 const drawer = ref(true);
-const rail = ref(false);
+const rail = ref(localStorage.getItem(RAIL_KEY) === "true");
+
 const clicStop = (displayMobile: boolean) => {
-    rail.value = !rail.value;
     if (displayMobile) {
         drawer.value = !drawer.value;
     } else {
-        drawer.value = true;
+        rail.value = !rail.value;
+        localStorage.setItem(RAIL_KEY, String(rail.value));
     }
 };
 

@@ -4,12 +4,14 @@ namespace App\Models\AdminClub;
 
 use App\Models\Administrator\Club;
 use App\Models\AdminClub\AnnouncementImage;
+use App\Traits\SerializesDates;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Storage;
 
 class Announcement extends Model {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, SerializesDates;
 
     protected $table = 'announcements.announcements';
 
@@ -68,10 +70,17 @@ class Announcement extends Model {
         return $this->hasMany(AnnouncementImage::class);
     }
 
-    protected $appends = ['publish_at_formatted'];
+    protected $appends = ['publish_at_formatted', 'image_url'];
 
-    public function getPublishAtFormattedAttribute()
+    public function getPublishAtFormattedAttribute(): ?string
     {
         return $this->publish_at?->format('Y-m-d H:i:s');
+    }
+
+    public function getImageUrlAttribute(): ?string
+    {
+        return $this->image
+            ? Storage::disk('spaces')->url($this->image)
+            : null;
     }
 }
