@@ -309,8 +309,11 @@ const editPerPage = ref(30);
 const editTotal = ref(0);
 const editTotalPages = ref(1);
 
-const editLocker = async (member: any) => {
-    editingMember.value = member;
+const editLocker = async (member: any, locker: any) => {
+    editingMember.value = {
+        ...member,
+        currentLocker: locker 
+    };
     editSelectedLocker.value = null;
     editCurrentPage.value = 1;
     showEditLockerModal.value = true;
@@ -324,7 +327,7 @@ const loadAvailableEditLockers = async () => {
                 params: {
                     membership_id: props.membership.id,
                     current_locker_id: editingMember.value.locker.id,
-                    category: editingMember.value.locker.category,
+                    category: editingMember.value.locker?.[0]?.category,
                     page: editCurrentPage.value,
                     lockers_per_page: editPerPage.value,
                     lockers_search: editLockerSearch.value,
@@ -361,12 +364,11 @@ const updateLocker = async () => {
     if (!result.isConfirmed) {
         return;
     }
-
     router.post(
         route('members.lockers.change'),
         {
             member_id: editingMember.value.member_id,
-            old_locker_id: editingMember.value.locker.id,
+            old_locker_id: editingMember.value.currentLocker.locker_id,
             new_locker_id: editSelectedLocker.value,
         },
         {
@@ -918,7 +920,7 @@ watch(editLockerSearch, () => {
                                             </v-chip>
                                         </div>
                                         <v-row>
-                                            <v-col cols="12" md="9">
+                                            <v-col cols="12" md="8">
                                                 <div class="text-body-2">
                                                     <strong>Edad:</strong>
                                                     {{ member.age ?? "-" }}
@@ -952,56 +954,60 @@ watch(editLockerSearch, () => {
                                                     {{ addressSummary(member) || "-" }}
                                                 </div>
                                             </v-col>
-                                            <v-col cols="12" md="3" class="mt-3">
-                                                <v-card v-if="member.locker"
-                                                    class="pa-2 text-center"
-                                                    color="primary"
-                                                    variant="tonal"
-                                                >
-                                                     <v-btn
-                                                        icon
-                                                        size="x-small"
-                                                        variant="text"
+                                           <v-col cols="12" md="4" class="mt-3">
+
+                                                <div v-if="member.locker?.length" class="locker-grid-mini">
+                                                   <v-card
+                                                        v-for="locker in member.locker"
+                                                        :key="locker.assignment_id"
+                                                        class="locker-mini text-center"
+                                                        variant="outlined"
                                                         color="primary"
-                                                        class="position-absolute top-0 left-0 ma-1"
-                                                        @click.stop="editLocker(member)"
                                                     >
-                                                        <v-icon size="18">
-                                                            mdi-pencil
-                                                        </v-icon>
-
-                                                        <v-tooltip activator="parent" location="top">
-                                                            Editar casillero
+                                                        <!-- EDIT -->
+                                                        <v-tooltip text="Editar casillero" location="top">
+                                                            <template #activator="{ props }">
+                                                                <v-btn
+                                                                    v-bind="props"
+                                                                    icon
+                                                                    size="x-small"
+                                                                    variant="text"
+                                                                    class="btn-edit"
+                                                                    @click.stop="editLocker(member, locker)"
+                                                                >
+                                                                    <v-icon size="16">mdi-pencil</v-icon>
+                                                                </v-btn>
+                                                            </template>
                                                         </v-tooltip>
-                                                    </v-btn>
-                                                    <v-btn
-                                                        icon
-                                                        size="x-small"
-                                                        variant="text"
-                                                        color="error"
-                                                        class="position-absolute top-0 right-0 ma-1"
-                                                        @click.stop="removeLocker(member.locker.assignment_id)"
-                                                    >
-                                                        <v-icon size="18">
-                                                            mdi-close
-                                                        </v-icon>
 
-                                                        <v-tooltip activator="parent" location="top">
-                                                            Dar de baja
+                                                        <!-- DELETE -->
+                                                        <v-tooltip text="Eliminar casillero" location="top">
+                                                            <template #activator="{ props }">
+                                                                <v-btn
+                                                                    v-bind="props"
+                                                                    icon
+                                                                    size="x-small"
+                                                                    variant="text"
+                                                                    class="btn-delete"
+                                                                    @click.stop="removeLocker(locker.assignment_id)"
+                                                                >
+                                                                    <v-icon size="16">mdi-close</v-icon>
+                                                                </v-btn>
+                                                            </template>
                                                         </v-tooltip>
-                                                    </v-btn>
-                                                    <v-icon size="22" class="mt-5">
-                                                        mdi-locker
-                                                    </v-icon>
 
-                                                    <div class="text-caption">
-                                                        Casillero
-                                                    </div>
-
-                                                    <div class="text-h6 font-weight-bold">
-                                                        {{ member.locker.number }}
-                                                    </div>
-                                                </v-card>
+                                                        <!-- CONTENIDO -->
+                                                        <div class="locker-content">
+                                                            <v-icon size="20">mdi-locker</v-icon>
+                                                            <div class="text-subtitle-2 font-weight-bold">
+                                                                {{ locker.number }}
+                                                            </div>
+                                                        </div>
+                                                    </v-card>
+                                                </div>
+                                                <div v-else class="text-caption text-medium-emphasis text-center">
+                                                    Sin casilleros
+                                                </div>
                                             </v-col>
                                         </v-row>
                                         
@@ -1212,7 +1218,7 @@ watch(editLockerSearch, () => {
                             </div>
 
                             <div class="text-h5 font-weight-bold">
-                                {{ editingMember?.locker?.number }}
+                                {{ editingMember?.currentLocker?.number }}
                             </div>
                         </v-card>
 
@@ -1251,59 +1257,17 @@ watch(editLockerSearch, () => {
                             {{ editTotal }} disponibles
                         </v-chip>
                     </v-col>
-
-                    <v-col cols="12">
-                        <v-card
+                     <v-col cols="12" md="12">
+                        <v-file-input
+                            v-model="editLockerFile"
+                            label="Adjuntar comprobante"
+                            prepend-icon="mdi-paperclip"
                             variant="outlined"
-                            class="pa-3"
-                            :color="absencePermitForm.errors.absence_permit_document ? 'error' : undefined"
-                        >
-                            <div class="font-weight-medium text-body-2 mb-1">
-                                Documento de solicitud
-                                <span class="text-error">*</span>
-                            </div>
-                            <div class="text-caption text-medium-emphasis mb-3">
-                                Adjunta el documento firmado que respalda la solicitud. PDF, JPG o PNG, máx. 5 MB.
-                            </div>
-
-                            <input
-                                ref="absencePermitFileInput"
-                                type="file"
-                                accept=".pdf,.jpg,.jpeg,.png"
-                                style="display: none"
-                                @change="onAbsencePermitFileChange"
-                            />
-
-                            <div class="d-flex align-center ga-3">
-                                <v-btn
-                                    size="small"
-                                    variant="outlined"
-                                    prepend-icon="mdi-upload"
-                                    @click="absencePermitFileInput?.click()"
-                                >
-                                    Seleccionar archivo
-                                </v-btn>
-                                <span
-                                    v-if="absencePermitFileName"
-                                    class="text-body-2 text-success"
-                                >
-                                    {{ absencePermitFileName }}
-                                </span>
-                                <span
-                                    v-else
-                                    class="text-body-2 text-medium-emphasis"
-                                >
-                                    Ningún archivo seleccionado
-                                </span>
-                            </div>
-
-                            <div
-                                v-if="absencePermitForm.errors.absence_permit_document"
-                                class="text-error text-caption mt-2"
-                            >
-                                {{ absencePermitForm.errors.absence_permit_document }}
-                            </div>
-                        </v-card>
+                            density="comfortable"
+                            accept="image/*,.pdf"
+                            show-size
+                            clearable
+                        />
                     </v-col>
                 </v-row>
 
@@ -1417,6 +1381,53 @@ watch(editLockerSearch, () => {
     gap: 12px;
 }
 
+.locker-grid-mini {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    justify-content: end;
+    width: fit-content;      
+    margin-left: auto;  
+    direction: rtl;
+}
+
+.locker-mini {
+    position: relative;
+    padding: 20px 25px 8px;
+    border: 1px solid rgb(var(--v-theme-primary));
+    border-radius: 10px;
+    overflow: hidden;
+    direction: ltr;
+}
+
+/* botón editar */
+.btn-edit {
+    position: absolute;
+    top: 2px;
+    left: 0px;
+    min-width: auto;
+    padding: 0px;
+}
+
+/* botón eliminar */
+.btn-delete {
+    position: absolute;
+    top: 2px;
+    right: 0px; 
+    min-width: auto;
+    padding: 0px;
+}
+
+/* contenido */
+.locker-content {
+    display: flex;
+    margin-top: 10px;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+/*Responsive adjustments for the locker grid*/
 @media (max-width: 1400px) {
 
     .edit-locker-grid {

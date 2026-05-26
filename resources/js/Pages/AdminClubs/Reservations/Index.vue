@@ -132,7 +132,6 @@ const fetchCalendar = async () => {
 
 // cancelar desde calendario
 const cancelFromCalendar = (event: any) => {
-    console.log('ID QUE ENVÍO:', event.id)
   if (event.calendarId !== `status-${props.activeStatus}`) {
     customToastSwal({
       title: 'Solo puedes cancelar reservaciones activas',
@@ -201,10 +200,22 @@ const cancel = (data: any) => {
     }).then((result) => {
         if (result.isConfirmed) {
             form.put(route("reservations.update", data.id), {
-                onSuccess: () => {
-                    customToastSwal({ title: "Reservación cancelada correctamente", icon: "success" });
-                    fetchItems();
-                },
+                onSuccess: (page) => {
+                    const flash = page.props.flash || {}
+                    if (flash.messageError) {
+                        customToastSwal({
+                            title: flash.messageError,
+                            icon: "error"
+                        })
+                        return
+                    }
+                    customToastSwal({
+                        title: flash.success || "Reservación cancelada",
+                        icon: "success"
+                    })
+                    fetchCalendar()
+                    fetchItems()
+                }
             });
         }
     });

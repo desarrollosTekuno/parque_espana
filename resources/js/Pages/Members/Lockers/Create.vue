@@ -22,7 +22,7 @@ const selectedLocker = ref(null);
 const loading = ref(false);
 const cost = ref(0);
 const category = ref(null);
-const hasSearched = ref(false);
+const hasSearched = ref(false); 
 const showErrors = ref(false);
 const myLockers = ref([]);
 const search = ref('');
@@ -122,7 +122,6 @@ const assign = async () => {
 
     const result = await Swal.fire({
         title: '¿Reservar casillero?',
-        text: 'El casillero quedará pendiente hasta que se realice el pago.',
         icon: 'question',
         showCancelButton: true,
         confirmButtonText: 'Sí, reservar',
@@ -148,7 +147,7 @@ const assign = async () => {
     }, {
         onSuccess: () => {
             customToastSwal({
-                title: "Casillero reservado hasta que se efectue el pago",
+                title: "Casillero asignado correctamente",
                 icon: "success"
             });
             resetForm();
@@ -167,11 +166,11 @@ const memberOptions = computed(() =>
         title: `${m.first_name} ${m.last_name} ${m.second_last_name}`,
         value: m.id,
         props: {
-            disabled: m.locked,
+            disabled: props.clubId !== 2 && !!m.locker_assignment,
             subtitle: m.locker_assignment
-                ? 'Ya tiene casillero'
-                : m.has_pending_locker
-                ? 'Pendiente de pago'
+                ? (props.clubId === 2
+                    ? 'Puede tener más casilleros'
+                    : 'Ya tiene casillero')
                 : null
         }
     }))
@@ -207,7 +206,7 @@ watch(
         }
     }
 );
-const pendingLockers = computed(() => {
+/*const pendingLockers = computed(() => {
     return myLockers.value.filter(
         (x: any) => x.status === 'pago_pendiente'
     );
@@ -217,7 +216,7 @@ const activeLockers = computed(() => {
     return myLockers.value.filter(
         (x: any) => x.status !== 'pago_pendiente'
     );
-});
+});*/
 
 // Paginación y búsqueda
 watch(search, () => {
@@ -233,7 +232,7 @@ watch(perPage, () => {
     loadLockers();
 
 });
-const cancelRequest = async (id: number) => {
+/*const cancelRequest = async (id: number) => {
     const result = await Swal.fire({
         title: '¿Cancelar solicitud?',
         text: 'El casillero volverá a estar disponible.',
@@ -280,7 +279,7 @@ const removeLocker = async (id: number) => {
     if (!result.isConfirmed) {
         return;
     }
-    router.delete(route('members.lockers.remove', id), {
+    router.delete(route('members.lockers.remove', { assignment: id }), {
         onSuccess: () => {
             customToastSwal({
                 title: 'Casillero dado de baja',
@@ -297,7 +296,7 @@ const removeLocker = async (id: number) => {
             });
         }
     });
-};
+};*/
 </script>
 
 <template>
@@ -325,7 +324,7 @@ const removeLocker = async (id: number) => {
         </template>
 
         <div class="p-6 bg-white rounded shadow">
-            <v-row
+            <!--<v-row
                 v-if="pendingLockers.length"
                 class="mb-6"
             >
@@ -388,77 +387,6 @@ const removeLocker = async (id: number) => {
                             class="mt-2 mb-3"
                         >
                             Pendiente
-                        </v-chip>
-                    </v-card>
-                </v-col>
-            </v-row>
-           <!-- <v-row
-                v-if="activeLockers.length"
-                class="mb-4"
-            >
-                <v-col cols="12">
-
-                    <div class="text-subtitle-1 font-weight-bold mb-3">
-                        Casilleros activos
-                    </div>
-
-                </v-col>
-
-                <v-col
-                    v-for="item in activeLockers"
-                    :key="item.id"
-                    cols="6"
-                    sm="4"
-                    md="3"
-                    lg="2"
-                >
-                    <v-card
-                        class="pa-2 text-center"
-                        color="primary"
-                        variant="tonal"
-                    >
-                        <v-btn
-                            icon
-                            size="x-small"
-                            variant="text"
-                            color="error"
-                            class="position-absolute top-0 right-0 ma-1"
-                            @click.stop="removeLocker(item.id)"
-                        >
-                            <v-icon size="18">
-                                mdi-close
-                            </v-icon>
-
-                            <v-tooltip activator="parent" location="top">
-                                Dar de baja
-                            </v-tooltip>
-                        </v-btn>
-                        <v-icon size="22">
-                            mdi-locker
-                        </v-icon>
-
-                        <div class="text-caption">
-                            Casillero
-                        </div>
-
-                        <div class="text-h6 font-weight-bold">
-                            {{ item.locker.number }}
-                        </div>
-
-                        <div class="text-caption mt-1">
-                            👤 {{ item.member.first_name }}
-                        </div>
-
-                        <div class="text-caption text-medium-emphasis">
-                            {{ item.member.last_name }}
-                        </div>
-
-                        <v-chip
-                            size="x-small"
-                            color="green"
-                            class="mt-2"
-                        >
-                            Activo
                         </v-chip>
                     </v-card>
                 </v-col>
