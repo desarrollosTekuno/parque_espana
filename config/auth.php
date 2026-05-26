@@ -105,6 +105,15 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | OTP de recuperación de contraseña (app móvil)
+    |--------------------------------------------------------------------------
+    | Vigencia en minutos del código OTP enviado al socio.
+    | Configurable por ambiente. Ejemplo: 1440 = 24 horas.
+    */
+    'otp_expiry_minutes' => env('PASSWORD_RESET_OTP_EXPIRY_MINUTES', 1440),
+
+    /*
+    |--------------------------------------------------------------------------
     | Password Confirmation Timeout
     |--------------------------------------------------------------------------
     |

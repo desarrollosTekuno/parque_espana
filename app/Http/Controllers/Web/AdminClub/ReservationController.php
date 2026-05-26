@@ -24,7 +24,7 @@ use App\Exceptions\ReservationException;
 
 class ReservationController extends Controller {
 
-    public function _construct()
+    public function __construct()
     {
         $this->middleware('permission:reservations.index')->only('index');
         $this->middleware('permission:reservations.store')->only('store');

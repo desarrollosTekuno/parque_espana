@@ -71,6 +71,7 @@ class DocumentTypeSeeder extends Seeder
                 'name' => 'INE',
                 'description' => 'Documento oficial de identificación emitido por el Instituto Nacional Electoral en México.',
                 'allowed_extensions' => 'pdf,jpg,png',
+                'min_age' => 18, // Solo se requiere para mayores de edad
             ],
             // comprobante de domicilio
             [
@@ -117,7 +118,7 @@ class DocumentTypeSeeder extends Seeder
         foreach ($documentTypes as $type) {
             DocumentType::updateOrCreate(
                 ['code' => $type['code']],
-                ['name' => $type['name'], 'description' => $type['description'], 'allowed_extensions' => $type['allowed_extensions']]
+                ['name' => $type['name'], 'description' => $type['description'], 'allowed_extensions' => $type['allowed_extensions'], 'min_age' => $type['min_age'] ?? null]
             );
         }
     }

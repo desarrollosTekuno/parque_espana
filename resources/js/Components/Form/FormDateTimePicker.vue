@@ -144,7 +144,7 @@ const onTimeInput = (e: Event) => {
 
 <template>
   <!-- INPUT PRINCIPAL -->
-  <v-text-field
+  <!-- <v-text-field
     :label="label"
     :model-value="formatted"
     readonly
@@ -155,7 +155,7 @@ const onTimeInput = (e: Event) => {
     :error="error"
     :error-messages="errorMessages"
     :rules="rules"
-  />
+  /> -->
 
   <!-- INLINE PICKER -->
   <div class="d-flex ga-3 mt-2">

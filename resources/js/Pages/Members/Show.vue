@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import AccountTreeNode from "@/Components/AccountTreeNode.vue";
 import BaseButton from "@/Components/BaseButton.vue";
+import CustomFileUploadField from "@/Components/CustomFileUploadField.vue";
 import MonthPicker from "@/Components/MonthPicker.vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
+import { fileExactCountRule, fileMaxSizeRule, fileTypeRule, requiredFileRule } from "@/constants/validationRules";
 import { Head, router, useForm, usePage  } from "@inertiajs/vue3";
 import Swal from "sweetalert2";
 import { customToastSwal } from "@/utils/swal";
@@ -64,6 +66,23 @@ interface MemberEmployment {
     company_phone: string | null;
 }
 
+interface UploadedDoc {
+    id: number;
+    uploaded_at: string | null;
+}
+
+interface MemberDocumentItem {
+    document_type_id: number;
+    name: string;
+    allowed_extensions: string[];
+    max_file_size_kb: number | null;
+    is_required: boolean;
+    allow_multiple: boolean;
+    number_files: number;
+    already_uploaded: boolean;
+    uploaded_docs: UploadedDoc[];
+}
+
 interface AccountMemberItem {
     member_id: number;
     full_name: string;
@@ -83,6 +102,7 @@ interface AccountMemberItem {
     school_name: string | null;
     address: MemberAddress;
     employment: MemberEmployment;
+    documents: MemberDocumentItem[];
 }
 
 interface MembershipAccount {
@@ -171,9 +191,10 @@ const fetchHistory = async () => {
 
 onMounted(fetchHistory);
 
+const activeTab = ref('cuenta');
 const showAbsencePermitDialog = ref(false);
-const absencePermitFileInput = ref<HTMLInputElement | null>(null);
-const absencePermitFileName = ref("");
+const absencePermitFormRef = ref<{ validate(): Promise<{ valid: boolean }> } | null>(null);
+const permitFiles = ref<File[] | null>(null);
 const absencePermitForm = useForm({
     start_month: "",
     end_month: "",
@@ -182,6 +203,17 @@ const absencePermitForm = useForm({
     absence_permit_document: null as File | null,
 });
 
+const permitDocRules = [
+    requiredFileRule,
+    fileTypeRule(["pdf", "jpg", "jpeg", "png"]),
+    fileMaxSizeRule(2),
+];
+
+const permitDocRules = [
+    requiredFileRule,
+    fileTypeRule(["pdf", "jpg", "jpeg", "png"]),
+    fileMaxSizeRule(2),
+];
 const currentMonth = computed(() => {
     const now = new Date();
     const mm = String(now.getMonth() + 1).padStart(2, "0");
@@ -281,7 +313,14 @@ const submitAbsencePermit = () => {
             showAbsencePermitDialog.value = false;
             absencePermitForm.reset();
             absencePermitForm.charge_percentage = 25;
-            absencePermitFileName.value = "";
+            permitFiles.value = null;
+        },
+        onError: () => {
+            customToastSwal({
+                title: `Error: ${absencePermitForm.errors.messageError || "No se pudo registrar el permiso."}`,
+                text: absencePermitForm.errors.exception || "",
+                icon: "error",
+            });
         },
     });
 };
@@ -300,6 +339,7 @@ const cancelAbsencePermit = (absencePermitId: number) => {
 };
 // Locker actions
 const showEditLockerModal = ref(false);
+const editLockerFile = ref(null);
 const editingMember = ref(null);
 const editSelectedLocker = ref(null);
 const availableEditLockers = ref([]);
@@ -374,31 +414,29 @@ const updateLocker = async () => {
         {
             preserveScroll: true,
 
-            onSuccess: () => {
+        onSuccess: () => {
+            showEditLockerModal.value = false;
 
-                showEditLockerModal.value = false;
+            editLockerFile.value = null;
+            editSelectedLocker.value = null;
 
-                customToastSwal({
-                    title: 'Casillero actualizado',
-                    icon: 'success'
-                });
+            customToastSwal({
+                title: 'Casillero actualizado',
+                icon: 'success'
+            });
 
-                router.reload({
-                    only: ['account']
-                });
-            },
+            router.reload({ only: ['account'] });
+        },
 
-            onError: (errors) => {
+        onError: (errors) => {
+            console.error(errors);
 
-                console.error(errors);
-
-                customToastSwal({
-                    title: 'No se pudo actualizar el casillero',
-                    icon: 'error'
-                });
-            }
+            customToastSwal({
+                title: 'No se pudo actualizar el casillero',
+                icon: 'error'
+            });
         }
-    );
+    });
 };
 const removeLocker = async (id: number) => {
     const result = await Swal.fire({
@@ -485,57 +523,27 @@ watch(editLockerSearch, () => {
                         <v-row>
                             <v-col cols="12" md="4">
                                 <v-card class="pa-4 h-100" variant="tonal">
-                                    <div class="text-caption text-medium-emphasis">
-                                        Cuenta
-                                    </div>
-                                    <div class="text-h6 font-weight-bold">
-                                        {{ props.account.membership_number || "-" }}
-                                    </div>
-                                    <div class="text-body-2 mt-2">
-                                        {{ props.account.account_club_code || "-" }} ·
-                                        {{ props.account.account_club_name || "Sin club" }}
-                                    </div>
-                                    <div class="text-body-2 mt-2">
-                                        Cuenta {{ accountTypeLabel }}
-                                    </div>
-                                    <div class="text-body-2">
-                                        Estatus {{ statusLabel(props.account.status) }}
-                                    </div>
+                                    <div class="text-caption text-medium-emphasis">Cuenta</div>
+                                    <div class="text-h6 font-weight-bold">{{ props.account.membership_number || "-" }}</div>
+                                    <div class="text-body-2 mt-2">{{ props.account.account_club_code || "-" }} · {{ props.account.account_club_name || "Sin club" }}</div>
+                                    <div class="text-body-2 mt-2">Cuenta {{ accountTypeLabel }}</div>
+                                    <div class="text-body-2">Estatus {{ statusLabel(props.account.status) }}</div>
                                 </v-card>
                             </v-col>
 
                             <v-col cols="12" md="4">
                                 <v-card class="pa-4 h-100" variant="tonal">
-                                    <div class="text-caption text-medium-emphasis">
-                                        Titular actual
-                                    </div>
-                                    <div class="text-h6 font-weight-bold">
-                                        {{ props.account.primary_holder?.full_name || "-" }}
-                                    </div>
-                                    <div class="text-body-2 mt-2">
-                                        {{ props.account.primary_holder?.email || "Sin correo" }}
-                                    </div>
-                                    <div class="text-body-2">
-                                        {{ props.account.primary_holder?.phone || "Sin teléfono" }}
-                                    </div>
+                                    <div class="text-caption text-medium-emphasis">Titular actual</div>
+                                    <div class="text-h6 font-weight-bold">{{ props.account.primary_holder?.full_name || "-" }}</div>
+                                    <div class="text-body-2 mt-2">{{ props.account.primary_holder?.email || "Sin correo" }}</div>
+                                    <div class="text-body-2">{{ props.account.primary_holder?.phone || "Sin teléfono" }}</div>
                                 </v-card>
                             </v-col>
-
                             <v-col cols="12" md="4">
                                 <v-card class="pa-4 h-100" variant="tonal">
-                                    <div class="text-caption text-medium-emphasis">
-                                        Cuota actual
-                                    </div>
-                                    <div class="text-h6 font-weight-bold">
-                                        {{
-                                            currencyFormatter.format(
-                                                props.account.current_monthly_fee,
-                                            )
-                                        }}
-                                    </div>
-                                    <div class="text-body-2 mt-2">
-                                        Total actual a cobrar
-                                    </div>
+                                    <div class="text-caption text-medium-emphasis">Cuota actual</div>
+                                    <div class="text-h6 font-weight-bold">{{ currencyFormatter.format(props.account.current_monthly_fee) }}</div>
+                                    <div class="text-body-2 mt-2">Total actual a cobrar</div>
                                 </v-card>
                             </v-col>
                         </v-row>

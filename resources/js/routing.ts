@@ -107,6 +107,7 @@ const routes: Routing[] = [
                 title: "Transiciones por edad",
                 icon: "mdi-account-clock-outline",
                 value: "transiciones-edad",
+                showBadge: true,
             },
             {
                 name: "member-access.index",
@@ -120,6 +121,7 @@ const routes: Routing[] = [
     {
         name: [
             "billing.index",
+            "billing.charges.index",
             "billing-concepts.index",
             "payment-methods.index",
             "cash-cuts.index",
@@ -151,8 +153,14 @@ const routes: Routing[] = [
                 value: "cargos-pendientes",
             },
             {
+                name: "billing.charges.index",
+                title: "Desglose de cargos",
+                icon: "mdi-format-list-bulleted",
+                value: "desglose-cargos",
+            },
+            {
                 name: "cash-cuts.index",
-                title: "Mis cortes de caja",
+                title: "Cortes de caja",
                 icon: "mdi-cash-register",
                 value: "cortes-caja",
             },
@@ -197,6 +205,27 @@ const routes: Routing[] = [
         value: "usuarios",
         group: null,
     },
+    {
+        name: ["email-configs.index", "email-notifications.index"],
+        title: "Notificaciones correo",
+        icon: "mdi-email-multiple-outline",
+        value: "notificaciones-correo",
+        group: "Notificaciones correo",
+        groupItems: [
+            {
+                name: "email-configs.index",
+                title: "Configuración SMTP",
+                icon: "mdi mdi-email-fast-outline",
+                value: "configuracion-correo",
+            },
+            {
+                name: "email-notifications.index",
+                title: "Envío de correos",
+                icon: "mdi-email-outline",
+                value: "correo-socios",
+            },
+        ],
+    },
     // Amenidades
     {
         name: ["amenities.index", "blockedPeriods.index"],
@@ -233,6 +262,22 @@ const routes: Routing[] = [
                 icon: "mdi-calendar-check",
                 value: "reservaciones",
             },
+            {
+                name: "system-variables.index",
+                title: "Variables del Sistema",
+                icon: "mdi-cog",
+                value: "variables-sistema",
+            }
+        ]
+    },
+    // Listas de invitados
+    {
+        name: ["guest-lists.index"],
+        title: "Listas de invitados",
+        icon: "mdi-account-group-outline",
+        value: "listas-invitadosMenu",
+        group: "Listas de invitados",
+        groupItems: [
             {
                 name: "guest-lists.index",
                 title: "Listas de invitados",

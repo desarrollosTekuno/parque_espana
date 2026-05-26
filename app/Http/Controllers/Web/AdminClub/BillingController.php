@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web\AdminClub;
 use App\Http\Controllers\Controller;
 use App\Models\Administrator\Club;
 use App\Models\Billing\Charge;
+use App\Models\Billing\ChargeConcept;
 use App\Models\Members\Locker;
 use App\Models\AdminClub\BusinessAd;
 use App\Models\Billing\PaymentMethod;
@@ -207,43 +208,11 @@ class BillingController extends Controller
                 ->orderBy('name')
                 ->get();
 
-            $clubPaymentMethods = Club::query()
-                ->with([
-                    'clubPaymentMethods' => fn ($query) => $query
-                        ->where('is_active', true)
-                        ->orderBy('display_order'),
-                    'clubPaymentMethods.paymentMethod',
-                ])
-                ->orderBy('name')
-                ->get()
-                ->map(function (Club $club) {
-                    return [
-                        'id' => $club->id,
-                        'code' => $club->code,
-                        'name' => $club->name,
-                        'payment_methods' => $club->clubPaymentMethods
-                            ->map(function ($clubPaymentMethod) {
-                                return [
-                                    'id' => $clubPaymentMethod->paymentMethod?->id,
-                                    'code' => $clubPaymentMethod->paymentMethod?->code,
-                                    'name' => $clubPaymentMethod->paymentMethod?->name,
-                                    'requires_reference' => (bool) $clubPaymentMethod->paymentMethod?->requires_reference,
-                                    'requires_bank_name' => (bool) $clubPaymentMethod->paymentMethod?->requires_bank_name,
-                                    'requires_check_number' => (bool) $clubPaymentMethod->paymentMethod?->requires_check_number,
-                                    'affects_cash_cut' => (bool) $clubPaymentMethod->paymentMethod?->affects_cash_cut,
-                                ];
-                            })
-                            ->filter(fn (array $method) => !empty($method['id']))
-                            ->values(),
-                    ];
-                })
-                ->values();
-
             return Inertia::render('Billing/Index', [
                 'accounts' => $accounts,
                 'summary' => $summary,
                 'clubOptions' => $clubOptions,
-                'clubPaymentMethods' => $clubPaymentMethods,
+                'clubPaymentMethods' => $this->resolveClubPaymentMethods(),
                 'filters' => [
                     'search' => $search,
                     'club_id' => $clubId ? (int) $clubId : null,
@@ -417,6 +386,187 @@ class BillingController extends Controller
                 'exception' => $e->getMessage(),
             ]);
         }
+    }
+
+    public function chargesList(Request $request)
+    {
+        try {
+            $prefix = 'charges';
+            $driver = DB::getDriverName();
+            $search = $request->input("{$prefix}_search");
+            $clubId = $request->input("{$prefix}_club_id");
+            $conceptCode = $request->input("{$prefix}_concept_code");
+            $sessionClubId = session('club_id');
+
+            $chargeQuery = Charge::query()
+                ->with([
+                    'concept',
+                    'membership.club',
+                    'membership.membershipType',
+                    'membershipAccount.primaryHolder.member',
+                ])
+                ->whereIn('status', ['pending', 'partial'])
+                ->when(
+                    $clubId,
+                    fn (Builder $q) => $q->whereHas('membership', fn (Builder $mq) => $mq->where('club_id', $clubId))
+                )
+                ->when(
+                    $conceptCode,
+                    fn (Builder $q) => $q->whereHas('concept', fn (Builder $cq) => $cq->where('code', $conceptCode))
+                )
+                ->when($search, function (Builder $q) use ($search, $driver) {
+                    $like = $driver === 'pgsql' ? 'ilike' : 'like';
+                    $concatFn = $driver === 'pgsql'
+                        ? "CONCAT(first_name, ' ', last_name, ' ', COALESCE(second_last_name, ''))"
+                        : "CONCAT(first_name, ' ', last_name, ' ', IFNULL(second_last_name, ''))";
+
+                    $q->where(function (Builder $inner) use ($search, $like, $concatFn) {
+                        $inner->whereHas('membershipAccount', function (Builder $aq) use ($search, $like, $concatFn) {
+                            $aq->where('membership_number', $like, "%{$search}%")
+                                ->orWhereHas('primaryHolder.member', function (Builder $mq) use ($search, $like, $concatFn) {
+                                    $mq->where('first_name', $like, "%{$search}%")
+                                        ->orWhere('last_name', $like, "%{$search}%")
+                                        ->orWhere('second_last_name', $like, "%{$search}%")
+                                        ->orWhere('email', $like, "%{$search}%")
+                                        ->orWhereRaw("{$concatFn} {$like} ?", ["%{$search}%"]);
+                                });
+                        })->orWhereHas('concept', fn (Builder $cq) => $cq->where('name', $like, "%{$search}%"));
+                    });
+                });
+
+            $summaryBase = clone $chargeQuery;
+            $summary = [
+                'total_outstanding' => (float) (clone $summaryBase)->sum('balance'),
+                'overdue_outstanding' => (float) (clone $summaryBase)
+                    ->whereNotNull('due_date')
+                    ->where('due_date', '<', now()->toDateString())
+                    ->sum('balance'),
+                'monthly_outstanding' => (float) (clone $summaryBase)
+                    ->whereHas('concept', fn (Builder $q) => $q->where('code', 'MONTHLY_FEE'))
+                    ->sum('balance'),
+                'inscription_outstanding' => (float) (clone $summaryBase)
+                    ->whereHas('concept', fn (Builder $q) => $q->where('code', 'INSCRIPTION'))
+                    ->sum('balance'),
+                'accounts_with_balance' => (clone $summaryBase)->distinct('membership_account_id')->count('membership_account_id'),
+            ];
+
+            $charges = $chargeQuery
+                ->orderByRaw('CASE WHEN due_date IS NULL THEN 1 ELSE 0 END')
+                ->orderBy('due_date')
+                ->orderBy('id')
+                ->paginate(
+                    $request->input("{$prefix}_per_page", 15),
+                    ['*'],
+                    "{$prefix}_page",
+                    $request->input("{$prefix}_page", 1)
+                )
+                ->through(function (Charge $charge) {
+                    $account = $charge->membershipAccount;
+                    $holder = $account?->primaryHolder?->member;
+                    $fullName = trim(collect([
+                        $holder?->first_name,
+                        $holder?->last_name,
+                        $holder?->second_last_name,
+                    ])->filter()->implode(' '));
+
+                    return array_merge(
+                        [
+                            'membership_number' => $account?->membership_number,
+                            'holder_name' => $fullName ?: '—',
+                            'membership_account_id' => $account?->id,
+                        ],
+                        $this->buildChargePayload($charge),
+                    );
+                })
+                ->appends($request->all());
+
+            $clubOptions = Club::query()
+                ->select('id', 'code', 'name')
+                ->orderBy('name')
+                ->get();
+
+            $conceptOptions = ChargeConcept::query()
+                ->select('id', 'code', 'name')
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get();
+
+            return Inertia::render('Billing/ChargesList', [
+                'charges' => $charges,
+                'summary' => $summary,
+                'clubOptions' => $clubOptions,
+                'conceptOptions' => $conceptOptions,
+                'clubPaymentMethods' => $this->resolveClubPaymentMethods(),
+                'filters' => [
+                    'search' => $search,
+                    'club_id' => $clubId ? (int) $clubId : null,
+                    'concept_code' => $conceptCode,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            report($e);
+
+            return Inertia::render('Billing/ChargesList', [
+                'charges' => ['data' => [], 'total' => 0],
+                'summary' => [
+                    'total_outstanding' => 0,
+                    'overdue_outstanding' => 0,
+                    'monthly_outstanding' => 0,
+                    'inscription_outstanding' => 0,
+                    'accounts_with_balance' => 0,
+                ],
+                'clubOptions' => [],
+                'conceptOptions' => [],
+                'clubPaymentMethods' => [],
+                'filters' => [
+                    'search' => $request->input('charges_search'),
+                    'club_id' => $request->input('charges_club_id'),
+                    'concept_code' => $request->input('charges_concept_code'),
+                ],
+                'messageError' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    protected function resolveClubPaymentMethods(): \Illuminate\Support\Collection
+    {
+        $canUseNonCashCut = auth()->user()?->can('billing.payments.non-cash-cut') ?? false;
+
+        return Club::query()
+            ->with([
+                'clubPaymentMethods' => fn ($query) => $query
+                    ->where('is_active', true)
+                    ->orderBy('display_order'),
+                'clubPaymentMethods.paymentMethod',
+            ])
+            ->orderBy('name')
+            ->get()
+            ->map(function (Club $club) use ($canUseNonCashCut) {
+                return [
+                    'id' => $club->id,
+                    'code' => $club->code,
+                    'name' => $club->name,
+                    'payment_methods' => $club->clubPaymentMethods
+                        ->map(function ($clubPaymentMethod) {
+                            return [
+                                'id' => $clubPaymentMethod->paymentMethod?->id,
+                                'code' => $clubPaymentMethod->paymentMethod?->code,
+                                'name' => $clubPaymentMethod->paymentMethod?->name,
+                                'requires_reference' => (bool) $clubPaymentMethod->paymentMethod?->requires_reference,
+                                'requires_bank_name' => (bool) $clubPaymentMethod->paymentMethod?->requires_bank_name,
+                                'requires_check_number' => (bool) $clubPaymentMethod->paymentMethod?->requires_check_number,
+                                'affects_cash_cut' => (bool) $clubPaymentMethod->paymentMethod?->affects_cash_cut,
+                            ];
+                        })
+                        ->filter(function (array $method) use ($canUseNonCashCut) {
+                            if (empty($method['id'])) return false;
+                            if (!$method['affects_cash_cut'] && !$canUseNonCashCut) return false;
+                            return true;
+                        })
+                        ->values(),
+                ];
+            })
+            ->values();
     }
 
     protected function buildChargePayload(Charge $charge): array

@@ -8,6 +8,7 @@ use App\Models\Billing\Charge;
 use App\Models\Billing\Payment;
 use App\Models\User;
 use App\Traits\SerializesDates;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -23,6 +24,19 @@ class MembershipAccount extends Model
     ];
 
     protected $table = 'memberships.accounts';
+
+    /**
+     * Filtra cuentas que tienen al menos una membresía activa y primaria en el club dado.
+     * Basado en memberships.memberships (club_id).
+     */
+    public function scopeForClub(Builder $query, int $clubId): Builder
+    {
+        return $query->whereHas('memberships', function (Builder $q) use ($clubId) {
+            $q->where('club_id', $clubId)
+              ->where('status', 'active')
+              ->where('is_primary', true);
+        });
+    }
 
     public function accountGroup()
     {

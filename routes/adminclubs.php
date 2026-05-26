@@ -22,6 +22,7 @@ use App\Http\Controllers\Web\AdminClub\Feedback\FeedbackManagementController;
 use App\Http\Controllers\Web\AdminClub\Feedback\FeedbackPriorityController;
 use App\Http\Controllers\Web\AdminClub\Feedback\FeedbackStatusController;
 use App\Http\Controllers\Web\AdminClub\Feedback\FeedbackTicketTypeController;
+use App\Http\Controllers\Web\AdminClub\GuestListVariableController;
 use App\Http\Controllers\Web\AdminClub\ReservationGuestListController;
 use App\Http\Controllers\Web\AdminClub\SurveyResultController;
 use App\Http\Controllers\Web\AdminClub\AccountCancellationController;
@@ -34,6 +35,8 @@ use App\Http\Controllers\Web\AdminClub\LockerController;
 use App\Http\Controllers\Web\AdminClub\CashCutController;
 use App\Http\Controllers\Web\AdminClub\GlobalCashCutController;
 use App\Http\Controllers\Web\AdminClub\DocumentTypeController;
+use App\Http\Controllers\Web\Administrator\EmailConfigController;
+use App\Http\Controllers\Web\Administrator\EmailNotificationController;
 use App\Http\Controllers\Web\AdminClub\MembershipTypeController;
 use App\Http\Controllers\Web\AdminClub\PaymentMethodController;
 use Illuminate\Support\Facades\Route;
@@ -55,7 +58,10 @@ Route::get('/amenity-resource/{amenityResource}/slots', [ReservationController::
     ->name('reservations.slots');
 
 Route::resource('/guest-lists', ReservationGuestListController::class)->only(['index', 'update'])->names('guest-lists');
+Route::resource('/guest-list-variables', GuestListVariableController::class)->only(['index', 'store', 'update', 'destroy']);
+
 Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
+Route::get('/billing/charges', [BillingController::class, 'chargesList'])->name('billing.charges.index');
 Route::post('/billing/payments', [BillingController::class, 'storePayment'])->name('billing.payments.store');
 
 // cash cuts
@@ -91,6 +97,16 @@ Route::resource('/document-types', DocumentTypeController::class)
 Route::resource('/interclub-package-rules', InterclubPackageRuleController::class)
     ->only(['index', 'store', 'update', 'destroy'])
     ->names('interclub-package-rules');
+
+Route::resource('/email-configs', EmailConfigController::class)
+    ->only(['index', 'store', 'update', 'destroy'])
+    ->names('email-configs');
+
+Route::resource('/email-notifications', EmailNotificationController::class)->only(['index', 'store', 'update', 'destroy'])->names('email-notifications');
+Route::get('/email-notifications/members', [EmailNotificationController::class, 'getMembers'])->name('email-notifications.members');
+Route::get('/email-notifications/recipients-preview', [EmailNotificationController::class, 'recipientsPreview'])->name('email-notifications.recipients-preview');
+Route::patch('/email-notifications/{id}/cancel', [EmailNotificationController::class, 'cancel'])->name('email-notifications.cancel');
+Route::get('/email-notifications/export', [EmailNotificationController::class, 'export'])->name('email-notifications.export');
 
 // announcements
 Route::resource('/announcements', AnnouncementController::class)->names('announcements');
@@ -146,6 +162,8 @@ Route::get('/members/{membership}/manage', [MemberController::class, 'show'])
     ->name('members.manage.show');
 Route::get('/members/{membership}/history', [MemberController::class, 'membershipHistory'])
     ->name('members.manage.history');
+Route::post('/members/{membership}/documents', [MemberController::class, 'storeDocument'])
+    ->name('members.documents.store');
 Route::post('/members/{membership}/absence-permits', [MemberController::class, 'storeAbsencePermit'])
     ->name('members.absence-permits.store');
 Route::patch('/members/{membership}/absence-permits/{absencePermit}/cancel', [MemberController::class, 'cancelAbsencePermit'])
@@ -189,7 +207,9 @@ Route::post('/members/{membership}/reactivate', [AccountReactivationController::
 // Transiciones de edad pendientes
 Route::get('/age-transitions', [AgeTransitionController::class, 'index'])
     ->name('members.age-transitions.index');
-Route::patch('/age-transitions/{ageTransition}/promote', [AgeTransitionController::class, 'promote'])
+Route::get('/age-transitions/{ageTransition}/promote/create', [AgeTransitionController::class, 'createPromote'])
+    ->name('members.age-transitions.promote.create');
+Route::post('/age-transitions/{ageTransition}/promote', [AgeTransitionController::class, 'promote'])
     ->name('members.age-transitions.promote');
 Route::patch('/age-transitions/{ageTransition}/dismiss', [AgeTransitionController::class, 'dismiss'])
     ->name('members.age-transitions.dismiss');

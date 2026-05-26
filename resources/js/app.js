@@ -22,96 +22,97 @@ import VueSweetalert2 from "vue-sweetalert2";
 import "sweetalert2/dist/sweetalert2.min.css";
 import vue3Spinner from "vue3-spinner";
 import { isLoading } from "./loading";
+import { registerFirebaseForegroundListener } from "./services/firebaseNotificationService";
 
 const appName = import.meta.env.VITE_APP_NAME || "Laravel";
 
 const options = {
-  confirmButtonColor: "#41b882",
-  cancelButtonColor: "#ff7674",
+    confirmButtonColor: "#41b882",
+    cancelButtonColor: "#ff7674",
 };
 
-
 const vuetify = createVuetify({
-  components,
-  directives,
+    components,
+    directives,
 
-  locale: {
-    locale: "es",
-    messages: { es: vuetifyEs },
-  },
-
-  date: {
-    adapter: DateFnsAdapter,
     locale: {
-      es: esDate,
-      en: enUS,
+        locale: "es",
+        messages: { es: vuetifyEs },
     },
-  },
 
-  icons: {
-    defaultSet: "mdi",
-    sets: { mdi },
-  },
-
-  theme: {
-    defaultTheme: "myTheme",
-    themes: {
-      myTheme: {
-        dark: false,
-        colors: {
-          primary: "#0097B2",
-          secondary: "#D4172A",
-          warning: "#F4B403",
-          info: "#004AAD",
-          accent: "#EE70A8",
-          background: "#FEFEFE",
-          surface: "#FEFEFE",
+    date: {
+        adapter: DateFnsAdapter,
+        locale: {
+            es: esDate,
+            en: enUS,
         },
-      },
-      myDarkTheme: {
-        dark: true,
-        colors: {
-          primary: "#0097B2",
-          secondary: "#D4172A",
-          background: "#000000",
-          surface: "#111111",
-        },
-      },
     },
-  },
+
+    icons: {
+        defaultSet: "mdi",
+        sets: { mdi },
+    },
+
+    theme: {
+        defaultTheme: "myTheme",
+        themes: {
+            myTheme: {
+                dark: false,
+                colors: {
+                    primary: "#0097B2",
+                    secondary: "#D4172A",
+                    warning: "#F4B403",
+                    info: "#004AAD",
+                    accent: "#EE70A8",
+                    background: "#FEFEFE",
+                    surface: "#FEFEFE",
+                },
+            },
+            myDarkTheme: {
+                dark: true,
+                colors: {
+                    primary: "#0097B2",
+                    secondary: "#D4172A",
+                    background: "#000000",
+                    surface: "#111111",
+                },
+            },
+        },
+    },
 });
 
-
 createInertiaApp({
-  title: (title) => `${title} - ${appName}`,
+    title: (title) => `${title} - ${appName}`,
 
-  resolve: (name) =>
-    resolvePageComponent(
-      `./Pages/${name}.vue`,
-      import.meta.glob("./Pages/**/*.vue")
-    ),
+    resolve: (name) =>
+        resolvePageComponent(
+            `./Pages/${name}.vue`,
+            import.meta.glob("./Pages/**/*.vue"),
+        ),
 
-  setup({ el, App, props, plugin }) {
-    const vueApp = createApp({ render: () => h(App, props) })
-      .use(plugin)
-      .use(ZiggyVue)
-      .use(vuetify)
-      .use(vue3Spinner)
-      .use(VueSweetalert2, options);
+    setup({ el, App, props, plugin }) {
+        const vueApp = createApp({ render: () => h(App, props) })
+            .use(plugin)
+            .use(ZiggyVue)
+            .use(vuetify)
+            .use(vue3Spinner)
+            .use(VueSweetalert2, options);
 
-    const page = usePage();
+        const page = usePage();
 
-    vueApp.config.globalProperties.$can = computed(
-      () => page.props.auth?.permissions || []
-    );
+        vueApp.config.globalProperties.$can = computed(
+            () => page.props.auth?.permissions || [],
+        );
 
-    vueApp.config.globalProperties.$roles = computed(
-      () => page.props.auth?.roles || []
-    );
+        vueApp.config.globalProperties.$roles = computed(
+            () => page.props.auth?.roles || [],
+        );
 
-    Inertia.on("start", () => (isLoading.value = true));
-    Inertia.on("finish", () => (isLoading.value = false));
+        Inertia.on("start", () => (isLoading.value = true));
+        Inertia.on("finish", () => (isLoading.value = false));
 
-    return vueApp.mount(el);
-  },
+        registerFirebaseForegroundListener();
+
+        return vueApp.mount(el);
+    },
 });

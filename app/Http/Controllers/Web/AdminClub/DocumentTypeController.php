@@ -41,14 +41,14 @@ class DocumentTypeController extends Controller
             }
 
             $sortMap = [
-                'id' => 'id',
-                'code' => 'code',
-                'name' => 'name',
+                'id'         => 'id',
+                'code'       => 'code',
+                'name'       => 'name',
                 'created_at' => 'created_at',
             ];
 
-            $sort = $request->input("{$prefix}_sort", 'name');
-            $order = $request->input("{$prefix}_order", 'asc');
+            $sort       = $request->input("{$prefix}_sort", 'name');
+            $order      = $request->input("{$prefix}_order", 'asc');
             $sortColumn = $sortMap[$sort] ?? 'name';
 
             $documentTypes = $query
@@ -60,18 +60,7 @@ class DocumentTypeController extends Controller
                     "{$prefix}_page",
                     $request->input("{$prefix}_page", 1)
                 )
-                ->through(fn (DocumentType $type) => [
-                    'id' => $type->id,
-                    'code' => $type->code,
-                    'name' => $type->name,
-                    'description' => $type->description,
-                    'allowed_extensions' => $type->allowed_extensions,
-                    'relationship_ids' => $type->relationships->pluck('id')->values(),
-                    'relationships' => $type->relationships->map(fn (Relationship $r) => [
-                        'id' => $r->id,
-                        'name' => $r->name,
-                    ])->values(),
-                ])
+                ->through(fn (DocumentType $type) => $this->formatType($type))
                 ->appends($request->all());
 
             $allRelationships = Relationship::query()
@@ -81,9 +70,9 @@ class DocumentTypeController extends Controller
                 ->map(fn (Relationship $r) => ['id' => $r->id, 'name' => $r->name]);
 
             return Inertia::render('AdminClubs/DocumentTypes/Index', [
-                'documentTypes' => $documentTypes,
+                'documentTypes'    => $documentTypes,
                 'allRelationships' => $allRelationships,
-                'filters' => [
+                'filters'          => [
                     'search' => $request->input("{$prefix}_search"),
                 ],
             ]);
@@ -91,10 +80,10 @@ class DocumentTypeController extends Controller
             report($e);
 
             return Inertia::render('AdminClubs/DocumentTypes/Index', [
-                'documentTypes' => ['data' => [], 'total' => 0],
+                'documentTypes'    => ['data' => [], 'total' => 0],
                 'allRelationships' => [],
-                'filters' => ['search' => $request->input('documentTypes_search')],
-                'messageError' => $e->getMessage(),
+                'filters'          => ['search' => $request->input('documentTypes_search')],
+                'messageError'     => $e->getMessage(),
             ]);
         }
     }
@@ -113,14 +102,14 @@ class DocumentTypeController extends Controller
         } catch (\Illuminate\Validation\ValidationException $e) {
             return redirect()->back()->withErrors(array_merge($e->errors(), [
                 'messageError' => collect($e->errors())->flatten()->first() ?? 'Ocurrió un error de validación.',
-                'exception' => '',
+                'exception'    => '',
             ]));
         } catch (\Exception $e) {
             report($e);
 
             return redirect()->back()->withErrors([
                 'messageError' => 'Ocurrió un error al crear el tipo de documento.',
-                'exception' => $e->getMessage(),
+                'exception'    => $e->getMessage(),
             ]);
         }
     }
@@ -139,14 +128,14 @@ class DocumentTypeController extends Controller
         } catch (\Illuminate\Validation\ValidationException $e) {
             return redirect()->back()->withErrors(array_merge($e->errors(), [
                 'messageError' => collect($e->errors())->flatten()->first() ?? 'Ocurrió un error de validación.',
-                'exception' => '',
+                'exception'    => '',
             ]));
         } catch (\Exception $e) {
             report($e);
 
             return redirect()->back()->withErrors([
                 'messageError' => 'Ocurrió un error al actualizar el tipo de documento.',
-                'exception' => $e->getMessage(),
+                'exception'    => $e->getMessage(),
             ]);
         }
     }
@@ -162,9 +151,30 @@ class DocumentTypeController extends Controller
 
             return redirect()->back()->withErrors([
                 'messageError' => 'Ocurrió un error al eliminar el tipo de documento.',
-                'exception' => $e->getMessage(),
+                'exception'    => $e->getMessage(),
             ]);
         }
+    }
+
+    // ─── Helpers ─────────────────────────────────────────────────────────────
+
+    protected function formatType(DocumentType $type): array
+    {
+        return [
+            'id'                => $type->id,
+            'code'              => $type->code,
+            'name'              => $type->name,
+            'description'       => $type->description,
+            'allowed_extensions' => $type->allowed_extensions,
+            'min_age'           => $type->min_age !== null ? (int) $type->min_age : null,
+            'max_age'           => $type->max_age !== null ? (int) $type->max_age : null,
+            'max_file_size_kb'  => $type->max_file_size_kb !== null ? (int) $type->max_file_size_kb : null,
+            'relationship_ids'  => $type->relationships->pluck('id')->values(),
+            'relationships'     => $type->relationships->map(fn (Relationship $r) => [
+                'id'   => $r->id,
+                'name' => $r->name,
+            ])->values(),
+        ];
     }
 
     protected function validateType(Request $request, ?DocumentType $type = null): array
@@ -176,10 +186,17 @@ class DocumentTypeController extends Controller
                 'max:50',
                 Rule::unique(DocumentType::class, 'code')->ignore($type?->id),
             ],
-            'name' => ['required', 'string', 'max:255'],
-            'description' => ['nullable', 'string', 'max:1000'],
+            'name'               => ['required', 'string', 'max:255'],
+            'description'        => ['nullable', 'string', 'max:1000'],
             'allowed_extensions' => ['nullable', 'string', 'max:255'],
-            'relationship_ids' => ['nullable', 'array'],
+            'min_age'            => ['nullable', 'integer', 'min:0', 'max:120'],
+            'max_age'            => array_filter([
+                'nullable', 'integer', 'min:0', 'max:120',
+                // Solo validar gte cuando min_age viene con valor numérico
+                $request->filled('min_age') && is_numeric($request->input('min_age')) ? 'gte:min_age' : null,
+            ]),
+            'max_file_size_kb'   => ['nullable', 'integer', 'min:1', 'max:65535'],
+            'relationship_ids'   => ['nullable', 'array'],
             'relationship_ids.*' => ['integer', new ExistsInSchema('catalogs', 'relationships')],
         ]);
     }
@@ -187,12 +204,15 @@ class DocumentTypeController extends Controller
     protected function typeAttributes(array $validated): array
     {
         return [
-            'code' => strtoupper(trim($validated['code'])),
-            'name' => trim($validated['name']),
-            'description' => isset($validated['description']) ? trim((string) $validated['description']) : null,
+            'code'              => strtoupper(trim($validated['code'])),
+            'name'              => trim($validated['name']),
+            'description'       => isset($validated['description']) ? trim((string) $validated['description']) : null,
             'allowed_extensions' => isset($validated['allowed_extensions'])
                 ? strtolower(trim((string) $validated['allowed_extensions']))
                 : null,
+            'min_age'           => $validated['min_age'] ?? null,
+            'max_age'           => $validated['max_age'] ?? null,
+            'max_file_size_kb'  => $validated['max_file_size_kb'] ?? null,
         ];
     }
 }

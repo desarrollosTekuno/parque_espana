@@ -80,6 +80,9 @@ interface DocumentType {
     id: number;
     name: string;
     allowed_extensions: string;
+    min_age: number | null;
+    max_age: number | null;
+    max_file_size_kb: number | null;
     pivot: {
         membership_type_id: number;
         document_type_id: number;
@@ -136,6 +139,7 @@ interface MemberDocumentForm {
     document_id: number | null;
     name: string;
     allowed_extensions: string[];
+    max_file_size_kb: number | null;
     is_required: boolean;
     allow_multiple: boolean;
     number_files: number;
@@ -579,13 +583,12 @@ const getRelationshipIdForDocuments = (member: MemberForm) => {
     return member.relationship_id;
 };
 
+const DEFAULT_MAX_FILE_SIZE_KB = 2048;
+
 const shouldIncludeDocumentByAge = (doc: DocumentType, age: number | null) => {
     if (age === null) return true;
-
-    if (doc.name === "INE") {
-        return age >= 18;
-    }
-
+    if (doc.min_age !== null && age < doc.min_age) return false;
+    if (doc.max_age !== null && age > doc.max_age) return false;
     return true;
 };
 
@@ -633,6 +636,7 @@ const buildMemberDocuments = (
                           .split(",")
                           .map((ext) => ext.trim().toLowerCase())
                     : [],
+                max_file_size_kb: doc.max_file_size_kb ?? null,
                 is_required: doc.pivot.is_required,
                 allow_multiple: doc.pivot.allow_multiple,
                 number_files: doc.pivot.number_files,
@@ -667,6 +671,7 @@ const buildDocumentsForRelationship = (
                           .split(",")
                           .map((ext) => ext.trim().toLowerCase())
                     : [],
+                max_file_size_kb: doc.max_file_size_kb ?? null,
                 is_required: doc.pivot.is_required,
                 allow_multiple: doc.pivot.allow_multiple,
                 number_files: doc.pivot.number_files,
@@ -1103,6 +1108,7 @@ watch(hasSpouse, (spousePresent) => {
                 allowed_extensions: doc.allowed_extensions
                     ? doc.allowed_extensions.split(",").map((e) => e.trim().toLowerCase())
                     : [],
+                max_file_size_kb: doc.max_file_size_kb ?? null,
                 is_required: doc.pivot?.is_required ?? false,
                 allow_multiple: doc.pivot?.allow_multiple ?? false,
                 number_files: doc.pivot?.number_files ?? 1,
@@ -2688,7 +2694,7 @@ const memberLabel = (member: MemberForm) => {
                                                                     ? [requiredFileRule, fileExactCountRule(doc.number_files)]
                                                                     : []),
                                                                 fileTypeRule(doc.allowed_extensions),
-                                                                fileMaxSizeRule(2)
+                                                                fileMaxSizeRule((doc.max_file_size_kb ?? DEFAULT_MAX_FILE_SIZE_KB) / 1024)
                                                             ]"
                                                             clearable
                                                         />

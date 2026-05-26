@@ -5,7 +5,10 @@ import { ref, watch } from "vue";
 import { debounce } from "lodash";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import BaseButton from "@/Components/BaseButton.vue";
-import { required, allowedExtensions } from '@/constants/validationRules';
+import { required, allowedExtensions } from "@/constants/validationRules";
+
+// ─── Interfaces ───────────────────────────────────────────────────────────────
+
 interface RelationshipOption {
     id: number;
     name: string;
@@ -17,6 +20,9 @@ interface DocumentTypeItem {
     name: string;
     description: string | null;
     allowed_extensions: string | null;
+    min_age: number | null;
+    max_age: number | null;
+    max_file_size_kb: number | null;
     relationship_ids: number[];
     relationships: RelationshipOption[];
 }
@@ -25,7 +31,10 @@ interface Props {
     documentTypes?: any;
     allRelationships?: RelationshipOption[];
     filters?: Record<string, string | number | null>;
+    messageError?: string;
 }
+
+// ─── Props / page ─────────────────────────────────────────────────────────────
 
 const props = withDefaults(defineProps<Props>(), {
     documentTypes: null,
@@ -35,10 +44,13 @@ const props = withDefaults(defineProps<Props>(), {
 
 const page = usePage<any>();
 const can = page.props.auth.permissions;
+
+// ─── Table state ──────────────────────────────────────────────────────────────
+
 const showModal = ref(false);
 const formSendRef = ref();
 const loading = ref(false);
-const items = ref(props.documentTypes?.data ?? []);
+const items = ref<DocumentTypeItem[]>(props.documentTypes?.data ?? []);
 const total = ref(props.documentTypes?.total ?? 0);
 const search = ref(String(props.filters?.search ?? ""));
 const prefix = "documentTypes";
@@ -52,9 +64,13 @@ const options = ref({
 const headers = [
     { title: "Tipo de documento", key: "name" },
     { title: "Parentescos", key: "relationships", sortable: false },
-    { title: "Extensiones permitidas", key: "allowed_extensions", sortable: false },
-    { title: "Acciones", key: "actions", sortable: false },
+    { title: "Extensiones", key: "allowed_extensions", sortable: false },
+    { title: "Rango de edad", key: "age_range", sortable: false },
+    { title: "Tamaño máx.", key: "max_file_size_kb", sortable: false },
+    { title: "Acciones", key: "actions", sortable: false, align: "end" as const },
 ];
+
+// ─── Form ─────────────────────────────────────────────────────────────────────
 
 interface DocumentTypeForm {
     id: number | null;
@@ -62,6 +78,9 @@ interface DocumentTypeForm {
     name: string;
     description: string | null;
     allowed_extensions: string | null;
+    min_age: number | null;
+    max_age: number | null;
+    max_file_size_kb: number | null;
     relationship_ids: number[];
 }
 
@@ -71,6 +90,9 @@ const form = useForm<DocumentTypeForm>({
     name: "",
     description: null,
     allowed_extensions: null,
+    min_age: null,
+    max_age: null,
+    max_file_size_kb: null,
     relationship_ids: [],
 });
 
@@ -82,6 +104,9 @@ const resetForm = () => {
     form.name = "";
     form.description = null;
     form.allowed_extensions = null;
+    form.min_age = null;
+    form.max_age = null;
+    form.max_file_size_kb = null;
     form.relationship_ids = [];
 };
 
@@ -97,6 +122,9 @@ const openEdit = (item: DocumentTypeItem) => {
     form.name = item.name;
     form.description = item.description;
     form.allowed_extensions = item.allowed_extensions;
+    form.min_age = item.min_age;
+    form.max_age = item.max_age;
+    form.max_file_size_kb = item.max_file_size_kb;
     form.relationship_ids = [...item.relationship_ids];
     showModal.value = true;
 };
@@ -106,14 +134,46 @@ const close = () => {
     showModal.value = false;
 };
 
-const extensionsList = (raw: string | null) => {
-    if (!raw) return [];
-    return raw.split(",").map((e) => e.trim()).filter(Boolean);
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const extensionsList = (raw: string | null) =>
+    raw
+        ? raw.split(",").map((e) => e.trim()).filter(Boolean)
+        : [];
+
+/** Display a KB value as "X MB" or "X KB" */
+const formatFileSize = (kb: number | null): string => {
+    if (kb === null) return "2 MB (default)";
+    if (kb >= 1024) return `${(kb / 1024).toFixed(kb % 1024 === 0 ? 0 : 1)} MB`;
+    return `${kb} KB`;
+};
+
+/** Display age range chip label */
+const ageRangeLabel = (item: DocumentTypeItem): string | null => {
+    if (item.min_age === null && item.max_age === null) return null;
+    if (item.min_age !== null && item.max_age !== null)
+        return `${item.min_age}–${item.max_age} años`;
+    if (item.min_age !== null) return `≥ ${item.min_age} años`;
+    return `≤ ${item.max_age} años`;
+};
+
+// ─── CRUD ─────────────────────────────────────────────────────────────────────
+
+/** Convierte un valor de input numérico a integer | null (evita NaN / cadena vacía). */
+const toIntOrNull = (v: unknown): number | null => {
+    if (v === null || v === undefined || v === "") return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.round(n) : null;
 };
 
 const save = () => {
     formSendRef.value?.validate().then(({ valid: isValid }: { valid: boolean }) => {
         if (!isValid) return;
+
+        // Normalizar campos numéricos nullable antes de enviar
+        form.min_age         = toIntOrNull(form.min_age);
+        form.max_age         = toIntOrNull(form.max_age);
+        form.max_file_size_kb = toIntOrNull(form.max_file_size_kb);
 
         const callbacks = {
             preserveScroll: true,
@@ -169,37 +229,37 @@ const destroy = (item: DocumentTypeItem) => {
     });
 };
 
+// ─── Fetch ────────────────────────────────────────────────────────────────────
+
 const fetchItems = () => {
     loading.value = true;
 
-    const params = {
-        [`${prefix}_page`]: options.value.page,
-        [`${prefix}_per_page`]: options.value.itemsPerPage,
-        [`${prefix}_search`]: search.value,
-        [`${prefix}_sort`]: options.value.sortBy?.[0]?.key ?? "name",
-        [`${prefix}_order`]: options.value.sortBy?.[0]?.order ?? "asc",
-    };
-
-    router.get(route("document-types.index"), params, {
-        preserveState: true,
-        replace: true,
-        preserveScroll: true,
-        onSuccess: (pageResponse) => {
-            items.value = pageResponse.props[prefix]?.data ?? [];
-            total.value = pageResponse.props[prefix]?.total ?? 0;
-            loading.value = false;
+    router.get(
+        route("document-types.index"),
+        {
+            [`${prefix}_page`]:     options.value.page,
+            [`${prefix}_per_page`]: options.value.itemsPerPage,
+            [`${prefix}_search`]:   search.value,
+            [`${prefix}_sort`]:     options.value.sortBy?.[0]?.key ?? "name",
+            [`${prefix}_order`]:    options.value.sortBy?.[0]?.order ?? "asc",
         },
-        onError: () => {
-            loading.value = false;
+        {
+            preserveState: true,
+            replace: true,
+            preserveScroll: true,
+            onSuccess: (pageResponse) => {
+                items.value = pageResponse.props[prefix]?.data ?? [];
+                total.value = pageResponse.props[prefix]?.total ?? 0;
+                loading.value = false;
+            },
+            onError: () => {
+                loading.value = false;
+            },
         },
-    });
+    );
 };
 
-watch(
-    [options, search],
-    debounce(fetchItems, 400),
-    { deep: true },
-);
+watch([options, search], debounce(fetchItems, 400), { deep: true });
 </script>
 
 <template>
@@ -218,6 +278,16 @@ watch(
         </template>
 
         <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
+
+            <v-alert
+                v-if="props.messageError"
+                type="error"
+                class="ma-4"
+                closable
+            >
+                {{ props.messageError }}
+            </v-alert>
+
             <v-row>
                 <v-col cols="12">
                     <v-data-table-server
@@ -240,12 +310,17 @@ watch(
                                     <v-text-field
                                         v-model="search"
                                         label="Buscar"
+                                        prepend-inner-icon="mdi-magnify"
                                         clearable
+                                        variant="outlined"
+                                        density="compact"
+                                        hide-details
                                     />
                                 </v-col>
                             </v-row>
                         </template>
 
+                        <!-- Nombre + código -->
                         <template #item.name="{ item }">
                             <div class="font-weight-medium">
                                 {{ item.code }} · {{ item.name }}
@@ -255,11 +330,12 @@ watch(
                             </div>
                         </template>
 
+                        <!-- Parentescos -->
                         <template #item.relationships="{ item }">
                             <div v-if="item.relationships.length === 0" class="text-caption text-medium-emphasis">
                                 N/A
                             </div>
-                            <div v-else class="d-flex flex-wrap ga-1">
+                            <div v-else class="d-flex flex-wrap ga-1 py-1">
                                 <v-chip
                                     v-for="rel in item.relationships"
                                     :key="rel.id"
@@ -272,8 +348,9 @@ watch(
                             </div>
                         </template>
 
+                        <!-- Extensiones -->
                         <template #item.allowed_extensions="{ item }">
-                            <div v-if="extensionsList(item.allowed_extensions).length" class="d-flex flex-wrap ga-1">
+                            <div v-if="extensionsList(item.allowed_extensions).length" class="d-flex flex-wrap ga-1 py-1">
                                 <v-chip
                                     v-for="ext in extensionsList(item.allowed_extensions)"
                                     :key="ext"
@@ -287,6 +364,27 @@ watch(
                             <span v-else class="text-caption text-medium-emphasis">Todas</span>
                         </template>
 
+                        <!-- Rango de edad -->
+                        <template #item.age_range="{ item }">
+                            <v-chip
+                                v-if="ageRangeLabel(item)"
+                                size="small"
+                                color="info"
+                                variant="tonal"
+                            >
+                                {{ ageRangeLabel(item) }}
+                            </v-chip>
+                            <span v-else class="text-caption text-medium-emphasis">Sin restricción</span>
+                        </template>
+
+                        <!-- Tamaño máximo -->
+                        <template #item.max_file_size_kb="{ item }">
+                            <span :class="item.max_file_size_kb === null ? 'text-caption text-medium-emphasis' : ''">
+                                {{ formatFileSize(item.max_file_size_kb) }}
+                            </span>
+                        </template>
+
+                        <!-- Acciones -->
                         <template #item.actions="{ item }">
                             <BaseButton
                                 v-if="can.includes('document-types.update')"
@@ -304,7 +402,8 @@ watch(
             </v-row>
         </div>
 
-        <v-dialog v-model="showModal" max-width="640" persistent>
+        <!-- ─── Dialog ────────────────────────────────────────────────────── -->
+        <v-dialog v-model="showModal" max-width="680" persistent>
             <v-form ref="formSendRef" @submit.prevent="save">
                 <v-card
                     prepend-icon="mdi-file-document-outline"
@@ -312,24 +411,27 @@ watch(
                 >
                     <v-card-text>
                         <v-row>
+                            <!-- Código -->
                             <v-col cols="12" md="4">
                                 <v-text-field
                                     v-model="form.code"
                                     label="Código"
-                                    :rules="[(v: unknown) => !!v || 'Campo requerido']"
+                                    :rules="[required]"
                                     :error-messages="form.errors.code"
                                 />
                             </v-col>
 
+                            <!-- Nombre -->
                             <v-col cols="12" md="8">
                                 <v-text-field
                                     v-model="form.name"
                                     label="Nombre"
-                                    :rules="[(v: unknown) => !!v || 'Campo requerido']"
+                                    :rules="[required]"
                                     :error-messages="form.errors.name"
                                 />
                             </v-col>
 
+                            <!-- Descripción -->
                             <v-col cols="12">
                                 <v-textarea
                                     v-model="form.description"
@@ -340,7 +442,8 @@ watch(
                                 />
                             </v-col>
 
-                            <v-col cols="12">
+                            <!-- Extensiones -->
+                            <v-col cols="12" md="8">
                                 <v-text-field
                                     v-model="form.allowed_extensions"
                                     label="Extensiones permitidas"
@@ -351,8 +454,70 @@ watch(
                                 />
                             </v-col>
 
+                            <!-- Tamaño máximo -->
+                            <v-col cols="12" md="4">
+                                <v-text-field
+                                    v-model="form.max_file_size_kb"
+                                    label="Tamaño máximo"
+                                    type="number"
+                                    min="1"
+                                    max="65535"
+                                    :hint="form.max_file_size_kb ? formatFileSize(form.max_file_size_kb) : 'Default: 2 MB'"
+                                    persistent-hint
+                                    suffix="KB"
+                                    :error-messages="form.errors.max_file_size_kb"
+                                    clearable
+                                />
+                            </v-col>
+
                             <v-col cols="12">
                                 <v-divider class="mb-3" />
+                            </v-col>
+
+                            <!-- Rango de edad -->
+                            <v-col cols="12">
+                                <div class="text-subtitle-2 font-weight-bold mb-1">
+                                    Restricción de edad
+                                </div>
+                                <p class="text-caption text-medium-emphasis mb-3">
+                                    Dejar en blanco si aplica a cualquier edad.
+                                    Ejemplo: INE → edad mínima 18.
+                                </p>
+                            </v-col>
+
+                            <v-col cols="12" md="6">
+                                <v-text-field
+                                    v-model="form.min_age"
+                                    label="Edad mínima"
+                                    type="number"
+                                    min="0"
+                                    max="120"
+                                    suffix="años"
+                                    hint="Inclusive. Ej: 18 para mayores de edad."
+                                    persistent-hint
+                                    clearable
+                                    :error-messages="form.errors.min_age"
+                                />
+                            </v-col>
+
+                            <v-col cols="12" md="6">
+                                <v-text-field
+                                    v-model="form.max_age"
+                                    label="Edad máxima"
+                                    type="number"
+                                    min="0"
+                                    max="120"
+                                    suffix="años"
+                                    hint="Inclusive. Ej: 17 para menores de edad."
+                                    persistent-hint
+                                    clearable
+                                    :error-messages="form.errors.max_age"
+                                />
+                            </v-col>
+
+                            <v-col cols="12">
+                                <v-divider class="mb-3" />
+                                <!-- Parentescos -->
                                 <v-select
                                     v-model="form.relationship_ids"
                                     :items="allRelationships"
@@ -362,7 +527,7 @@ watch(
                                     multiple
                                     chips
                                     closable-chips
-                                    hint="Sin selección = no se requiere para ningún parentesco."
+                                    hint="Sin selección = aplica a todos los parentescos."
                                     persistent-hint
                                     :error-messages="form.errors.relationship_ids"
                                 />

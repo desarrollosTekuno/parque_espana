@@ -50,8 +50,8 @@ class AmenityAvailabilityService
                 // 🔴 Verificar bloqueos
                 $isBlocked = BlockedPeriod::where('resource_id', $amenityResource->id)
                     ->where(function ($q) use ($slotStart, $slotEnd) {
-                        $q->where('start_datetime', '<', $slotEnd)
-                          ->where('end_datetime', '>', $slotStart);
+                        $q->where('start_time', '<', $slotEnd)
+                          ->where('end_time', '>', $slotStart);
                     })
                     ->exists();
 

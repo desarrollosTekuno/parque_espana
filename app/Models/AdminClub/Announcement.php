@@ -4,13 +4,14 @@ namespace App\Models\AdminClub;
 
 use App\Models\Administrator\Club;
 use App\Models\AdminClub\AnnouncementImage;
+use App\Traits\SerializesDates;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Storage;
 
 class Announcement extends Model {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, SerializesDates;
 
     protected $table = 'announcements.announcements';
 

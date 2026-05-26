@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import AppLayout from "@/Layouts/AppLayout.vue";
-import { customToastSwal, customConfirmSwal } from "@/utils/swal";
+import { customToastSwal } from "@/utils/swal";
 import { Head, router } from "@inertiajs/vue3";
 import { ref, watch } from "vue";
 
@@ -8,15 +8,9 @@ interface AgeTransitionItem {
     id: number;
     member_id: number;
     member_name: string;
+    age: number | null;
     membership_id: number;
     membership_account_id: number;
-    club_code: string | null;
-    from_membership_type: string | null;
-    target_membership_type: string | null;
-    target_membership_type_id: number;
-    transition_type: "family_to_solidaria" | "solidaria_to_individual";
-    monthly_fee: number;
-    has_multiple_clubs: boolean;
     status: "pending" | "promoted" | "dismissed";
     identified_at: string | null;
     promoted_at: string | null;
@@ -29,7 +23,6 @@ interface AgeTransitionItem {
 interface Filters {
     search?: string;
     status?: string;
-    transition_type?: string;
 }
 
 interface Props {
@@ -49,12 +42,10 @@ const prefix = "age_transitions";
 
 const search = ref(props.filters.search ?? "");
 const statusFilter = ref(props.filters.status ?? "pending");
-const transitionTypeFilter = ref(props.filters.transition_type ?? "");
 
 const items = ref<AgeTransitionItem[]>(props.transitions.data);
 const totalItems = ref(props.transitions.total);
 const loading = ref(false);
-const promotingId = ref<number | null>(null);
 const dismissingItem = ref<AgeTransitionItem | null>(null);
 const dismissalReason = ref("");
 const dismissDialog = ref(false);
@@ -68,12 +59,7 @@ const options = ref({
 
 const headers = [
     { title: "Integrante", key: "member_name", sortable: false },
-    { title: "Club", key: "club_code", sortable: false },
-    { title: "Tipo actual", key: "from_membership_type", sortable: false },
-    { title: "Tipo destino", key: "target_membership_type", sortable: false },
-    { title: "Transición", key: "transition_type", sortable: false },
-    { title: "Cuota mensual", key: "monthly_fee", sortable: false },
-    { title: "Multiclub", key: "has_multiple_clubs", sortable: false },
+    { title: "Edad", key: "age", sortable: false },
     { title: "Estado", key: "status", sortable: false },
     { title: "Identificado", key: "identified_at", sortable: false },
     { title: "Acciones", key: "actions", sortable: false, align: "end" as const },
@@ -85,18 +71,6 @@ const statusOptions = [
     { title: "Descartados", value: "dismissed" },
     { title: "Todos", value: "all" },
 ];
-
-const transitionTypeOptions = [
-    { title: "Todos", value: "" },
-    { title: "Familiar → Solidaria", value: "family_to_solidaria" },
-    { title: "Solidaria → Individual", value: "solidaria_to_individual" },
-];
-
-function transitionLabel(type: string): string {
-    if (type === "family_to_solidaria") return "Familiar → Solidaria";
-    if (type === "solidaria_to_individual") return "Solidaria → Individual";
-    return type;
-}
 
 function statusLabel(status: string): string {
     if (status === "pending") return "Pendiente";
@@ -121,14 +95,6 @@ function formatDate(isoString: string | null): string {
     }).format(new Date(isoString));
 }
 
-function formatCurrency(amount: number): string {
-    return new Intl.NumberFormat("es-MX", {
-        style: "currency",
-        currency: "MXN",
-        minimumFractionDigits: 2,
-    }).format(amount);
-}
-
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 function fetchItems() {
@@ -142,7 +108,6 @@ function fetchItems() {
                 [`${prefix}_per_page`]: options.value.itemsPerPage,
                 [`${prefix}_search`]: search.value || undefined,
                 [`${prefix}_status`]: statusFilter.value || undefined,
-                [`${prefix}_transition_type`]: transitionTypeFilter.value || undefined,
             },
             {
                 preserveState: true,
@@ -160,37 +125,10 @@ function fetchItems() {
     }, 400);
 }
 
-watch([options, search, statusFilter, transitionTypeFilter], fetchItems, { deep: true });
+watch([options, search, statusFilter], fetchItems, { deep: true });
 
-async function promoteTransition(item: AgeTransitionItem) {
-    const confirmed = await customConfirmSwal({
-        title: "¿Promover esta transición?",
-        text: `Se creará una nueva membresía de tipo "${item.target_membership_type}" para ${item.member_name}. Esta acción no se puede deshacer.`,
-        confirmButtonText: "Sí, promover",
-    });
-
-    if (!confirmed) return;
-
-    promotingId.value = item.id;
-    router.patch(
-        route("members.age-transitions.promote", item.id),
-        {},
-        {
-            preserveState: true,
-            preserveScroll: true,
-            onSuccess: () => {
-                customToastSwal({ title: "Transición promovida correctamente.", icon: "success" });
-                fetchItems();
-            },
-            onError: (errors: Record<string, string>) => {
-                const msg = errors.messageError ?? "Ocurrió un error al promover la transición.";
-                customToastSwal({ title: msg, icon: "error" });
-            },
-            onFinish: () => {
-                promotingId.value = null;
-            },
-        }
-    );
+function promoteTransition(item: AgeTransitionItem) {
+    router.visit(route("members.age-transitions.promote.create", item.id));
 }
 
 function openDismissDialog(item: AgeTransitionItem) {
@@ -247,7 +185,7 @@ function confirmDismiss() {
                 <v-card variant="outlined" class="pa-4 mb-4">
                     <div class="text-subtitle-2 font-weight-bold mb-3">Filtros</div>
                     <v-row dense>
-                        <v-col cols="12" md="4">
+                        <v-col cols="12" md="5">
                             <v-text-field
                                 v-model="search"
                                 label="Buscar por nombre"
@@ -259,26 +197,13 @@ function confirmDismiss() {
                             />
                         </v-col>
 
-                        <v-col cols="12" md="3">
+                        <v-col cols="12" md="4">
                             <v-select
                                 v-model="statusFilter"
                                 :items="statusOptions"
                                 item-title="title"
                                 item-value="value"
                                 label="Estado"
-                                variant="outlined"
-                                density="compact"
-                                hide-details
-                            />
-                        </v-col>
-
-                        <v-col cols="12" md="3">
-                            <v-select
-                                v-model="transitionTypeFilter"
-                                :items="transitionTypeOptions"
-                                item-title="title"
-                                item-value="value"
-                                label="Tipo de transición"
                                 variant="outlined"
                                 density="compact"
                                 hide-details
@@ -297,19 +222,8 @@ function confirmDismiss() {
                     item-value="id"
                     density="compact"
                 >
-                    <template #item.transition_type="{ item }">
-                        {{ transitionLabel(item.transition_type) }}
-                    </template>
-
-                    <template #item.monthly_fee="{ item }">
-                        {{ formatCurrency(item.monthly_fee) }}
-                    </template>
-
-                    <template #item.has_multiple_clubs="{ item }">
-                        <v-icon v-if="item.has_multiple_clubs" color="primary" size="small">
-                            mdi-check-circle-outline
-                        </v-icon>
-                        <span v-else class="text-medium-emphasis">—</span>
+                    <template #item.age="{ item }">
+                        {{ item.age !== null ? item.age + ' años' : '—' }}
                     </template>
 
                     <template #item.status="{ item }">
@@ -340,7 +254,6 @@ function confirmDismiss() {
                                         color="success"
                                         size="small"
                                         variant="text"
-                                        :loading="promotingId === item.id"
                                         @click="promoteTransition(item)"
                                     />
                                 </template>
