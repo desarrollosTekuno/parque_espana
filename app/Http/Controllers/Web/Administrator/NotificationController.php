@@ -33,13 +33,11 @@ class NotificationController extends Controller {
     }
 
     public function index(Request $request) {
-        $notifications = $this->getNotifications($request);
         $club_id = session('club_id');
+        $notifications = $this->getNotifications($request);
+        $channels = NotificationChannel::get();
 
-        return Inertia::render('Administrator/Notifications/Index', [
-            'notifications' => $notifications,
-            'club_id' => $club_id,
-        ]);
+        return Inertia::render('Administrator/Notifications/Index', compact('notifications', 'channels', 'club_id'));
     }
 
     private function getNotifications(Request $request) {
@@ -112,26 +110,16 @@ class NotificationController extends Controller {
             'scheduled_date' => ['nullable'],
             'scheduled_time' => ['nullable'],
             'selected_recipient_ids' => ['nullable', 'array'],
-            'selected_recipient_ids.*' => ['nullable', 'integer', 'exists:members.members,id'],
+            'selected_recipient_ids.*' => ['nullable', 'integer'],
             'attachments' => ['nullable', 'array'],
             'attachments.*' => ['nullable', 'file'],
+            'channels_to_send' => ['required', 'array'],
+            'channels_to_send.*' => ['required', 'string'],
         ]);
 
+        $channelsToSend = $validated['channels_to_send'];
+
         $clubId = session('club_id');
-
-        if (!$clubId) {
-            return back()->withErrors(['club_id' => 'No hay un club activo en la sesion.']);
-        }
-
-        $emailConfig = EmailConfig::query()
-            ->where('entity_id', $clubId)
-            ->where('is_active', true)
-            ->first();
-
-        if (!$emailConfig) {
-            return back()->withErrors(['email_config' => 'El club activo no tiene un SMTP activo configurado.']);
-        }
-
         $statusCode = 'pending';
         $channel = NotificationChannel::query()->where('code', 'email')->first();
 
@@ -180,10 +168,28 @@ class NotificationController extends Controller {
         });
 
         if (!$isScheduled && $notification) {
-            SendEmailNotificationJob::dispatch($notification->id);
+            $this->dispatchEmailNotification($notification, $channelsToSend);
         }
 
         return redirect()->back()->with('success', 'Correo registrado con exito.');
+    }
+
+    private function dispatchEmailNotification(Notification $notification, array $channelsToSend) {
+        $sendEmail = false;
+
+        foreach ($channelsToSend as $channel) {
+            if ($channel === 'email') {
+                $sendEmail = true;
+            }
+
+            if ($channel === 'push') {
+
+            }
+        }
+
+        if ($sendEmail) {
+            SendEmailNotificationJob::dispatch($notification->id);
+        }
     }
 
     public function cancel($id) {
@@ -291,13 +297,9 @@ class NotificationController extends Controller {
 
         $data = Member::query()
             ->select('id', 'first_name', 'last_name', 'second_last_name', 'email', 'user_id')
-            ->where(function ($query) {
-                $query->whereNotNull('email')
-                    ->where('email', '<>', '')
-                    ->orWhereHas('user', function ($userQuery) {
-                        $userQuery->whereNotNull('email')
-                            ->where('email', '<>', '');
-                    });
+            ->whereHas('user', function ($userQuery) {
+                $userQuery->whereNotNull('email')
+                    ->where('email', '<>', '');
             })
             ->whereHas('accountMemberships.membershipAccount.memberships', function ($membershipQuery) use ($clubId) {
                 $membershipQuery->where('club_id', $clubId)
@@ -309,7 +311,7 @@ class NotificationController extends Controller {
             ->get();
 
         $recipients = $data->map(function (Member $member) {
-            $destination = $member->user?->email ?: $member->email;
+            $destination = $member->user?->email;
 
             return [
                 'id' => $member->id,

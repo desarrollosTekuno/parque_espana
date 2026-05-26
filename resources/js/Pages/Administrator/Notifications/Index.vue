@@ -6,7 +6,7 @@ import { fileMaxCountRule, fileMaxSizeRule, fileTypeRule, required } from "@/con
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import { Head, router, useForm } from "@inertiajs/vue3";
 import { debounce } from "lodash";
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import axios from "axios";
 
 /* ====================== Props ====================== */
@@ -38,6 +38,9 @@ interface Props {
     notifications: {
         data: NotificationItem[];
         total: number;
+    };
+    channels: {
+        data: Array<{ id: number; name: string; code: string }>;
     };
 }
 
@@ -102,9 +105,66 @@ const form = useForm({
     scheduled_date: "",
     scheduled_time: "",
     selected_recipient_ids: [] as number[],
+    channels_to_send: ["email"] as string[],
 });
 
 /* ====================== Computed ====================== */
+const minScheduledDate = computed(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+});
+
+const minScheduledTime = computed(() => {
+    if (form.scheduled_date !== minScheduledDate.value) {
+        return undefined;
+    }
+
+    const now = new Date();
+    const hours = String(now.getHours()).padStart(2, "0");
+    const minutes = String(now.getMinutes()).padStart(2, "0");
+
+    return `${hours}:${minutes}`;
+});
+
+const scheduledDateRule = (value: string) => {
+    if (form.send_type !== "scheduled") {
+        return true;
+    }
+
+    if (!value) {
+        return "El campo es requerido";
+    }
+
+    if (value < minScheduledDate.value) {
+        return "No puedes programar una fecha anterior a hoy";
+    }
+
+    return true;
+};
+
+const scheduledTimeRule = (value: string) => {
+    if (form.send_type !== "scheduled") {
+        return true;
+    }
+
+    if (!value) {
+        return "El campo es requerido";
+    }
+
+    if (form.scheduled_date !== minScheduledDate.value) {
+        return true;
+    }
+
+    if (minScheduledTime.value && value < minScheduledTime.value) {
+        return "No puedes programar una hora anterior a la actual";
+    }
+
+    return true;
+};
 
 /* ====================== Funciones ====================== */
 const create = () => {
@@ -116,6 +176,7 @@ const create = () => {
     form.send_type = "now";
     form.scheduled_date = "";
     form.scheduled_time = "";
+    form.channels_to_send = ["email"];
     getMembers();
 };
 
@@ -330,8 +391,15 @@ const save = () => {
             });
         },
         onError: () => {
+            const errorMessage =
+                form.errors.scheduled_time ||
+                form.errors.scheduled_date ||
+                form.errors.title ||
+                form.errors.body ||
+                "No se pudo registrar el correo.";
+
             customToastSwal({
-                title: "No se pudo registrar el correo.",
+                title: errorMessage,
                 icon: "error",
             });
         },
@@ -395,6 +463,24 @@ watch(
 
 watch([options, search], debounce(fetchItems, 400), { deep: true });
 watch([type, dateFrom, dateTo], debounce(fetchItems, 400));
+
+watch(
+    () => form.scheduled_date,
+    () => {
+        if (form.scheduled_date && form.scheduled_date < minScheduledDate.value) {
+            form.scheduled_date = minScheduledDate.value;
+        }
+
+        if (
+            form.scheduled_date === minScheduledDate.value &&
+            form.scheduled_time &&
+            minScheduledTime.value &&
+            form.scheduled_time < minScheduledTime.value
+        ) {
+            form.scheduled_time = minScheduledTime.value;
+        }
+    }
+);
 
 watch([recipients, () => form.selected_recipient_ids], () => {
         recipientsCount.value = recipients.value.length;
@@ -543,6 +629,7 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                 <v-card title="Nueva notificacion">
                     <v-card-text>
                         <v-row>
+
                             <v-col cols="12">
                                     <div class="mb-2 text-subtitle-2">Selecciona a quienes se les enviara el correo</div>
                                     <v-btn-toggle v-model="form.scope" class="w-100" color="primary" mandatory @update:model-value="onScopeChange">
@@ -568,8 +655,19 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                                     </div>
                             </v-col>
 
-                            <v-col v-if="form.scope == 'G'" cols="12">
-
+                            <v-col cols="12">
+                                <v-select
+                                    v-model="form.channels_to_send"
+                                    :items="channels"
+                                    item-title="name"
+                                    item-value="code"
+                                    multiple
+                                    chips
+                                    clearable
+                                    :rules="[required]"
+                                    label="Canal de envio"
+                                    required
+                                />
                             </v-col>
 
                             <v-col v-if="form.scope == 'I'" cols="12">
@@ -621,12 +719,12 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                                     prepend-icon=""
                                     append-inner-icon="mdi-paperclip"
                                     accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-                                    hint="Puedes adjuntar varios archivos (PDF, Office o imagen). Maximo 5 archivos de 10MB c/u."
+                                    hint="Puedes adjuntar varios archivos (PDF, Office o imagen). Maximo 5 archivos de 2MB c/u."
                                     persistent-hint
                                     :rules="[
                                         fileMaxCountRule(5),
                                         fileTypeRule(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png']),
-                                        fileMaxSizeRule(10),
+                                        fileMaxSizeRule(2),
                                     ]"
                                 />
                             </v-col>
@@ -651,7 +749,8 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                                     v-model="form.scheduled_date"
                                     label="Fecha"
                                     type="date"
-                                    :rules="[required]"
+                                    :min="minScheduledDate"
+                                    :rules="[required, scheduledDateRule]"
                                     required
                                 />
                             </v-col>
@@ -661,7 +760,8 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                                     v-model="form.scheduled_time"
                                     label="Hora"
                                     type="time"
-                                    :rules="[required]"
+                                    :min="minScheduledTime"
+                                    :rules="[required, scheduledTimeRule]"
                                     required
                                 />
                             </v-col>
