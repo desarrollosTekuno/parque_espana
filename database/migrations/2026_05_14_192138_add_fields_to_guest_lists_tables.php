@@ -15,6 +15,8 @@ return new class extends Migration
             $table->renameColumn('subtotal', 'billable_subtotal');
             $table->string('title', 100)->nullable();
             $table->text('description')->nullable();
+            $table->date('date')->nullable();
+            $table->time('time')->nullable();
             $table->integer('total_billable_guests')->nullable();
             $table->decimal('non_billable_subtotal', 12, 2)->nullable();
             $table->unsignedBigInteger('member_id')->nullable();
@@ -37,6 +39,8 @@ return new class extends Migration
         Schema::table('guest_lists.guest_lists', function (Blueprint $table) {
             $table->renameColumn('billable_subtotal', 'subtotal');
             $table->dropColumn('title');
+            $table->dropColumn('date');
+            $table->dropColumn('time');
             $table->dropColumn('description');
             $table->dropColumn('total_billable_guests');
             $table->dropColumn('non_billable_subtotal');

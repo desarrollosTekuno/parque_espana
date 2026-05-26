@@ -1,0 +1,745 @@
+<script setup lang="ts">
+import AppLayout from "@/Layouts/AppLayout.vue";
+import { Head, router, useForm, usePage } from "@inertiajs/vue3";
+import { computed, ref, watch } from "vue";
+import { debounce } from "lodash";
+import { customConfirmSwal, customToastSwal } from "@/utils/swal";
+import BaseButton from "@/Components/BaseButton.vue";
+import { required, maxLength, selectRequired } from "@/constants/validationRules";
+
+declare function route(name: string, params?: any): string;
+const formFileSendRef = ref();
+
+interface ClubFileItem {
+    id: number;
+    file_original_name: string;
+    file_mime_type: string | null;
+    file_size_formatted: string;
+    file_url: string | null;
+    is_active: boolean;
+    display_order: number;
+}
+
+interface FileFormatItem {
+    id: number;
+    code: string;
+    name: string;
+    description: string | null;
+    is_required: boolean;
+    is_active: boolean;
+    allowed_mime_types: string[] | null;
+    max_size_bytes: number | null;
+    club_file: ClubFileItem | null;
+}
+
+interface CurrentClub {
+    id: number;
+    name: string;
+    code: string;
+}
+
+interface Props {
+    files?: any;
+    currentClub?: CurrentClub | null;
+    filters?: Record<string, string | number | null>;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+    files: null,
+    currentClub: null,
+    filters: () => ({}),
+});
+
+const page = usePage<any>();
+const can = (page.props as any).auth?.permissions as string[] ?? [];
+
+// ── Estado general ──────────────────────────────────────────────────
+const loading = ref(false);
+const items = ref<FileFormatItem[]>(props.files?.data ?? []);
+const total = ref<number>(props.files?.total ?? 0);
+const search = ref(String(props.filters?.search ?? ""));
+const prefix = "files";
+
+const options = ref({
+    page: 1,
+    itemsPerPage: 25,
+    sortBy: [{ key: "id", order: "asc" }],
+});
+
+// ── MIME types comunes para el selector ─────────────────────────────
+const commonMimeTypes = [
+    { title: "PDF", value: "application/pdf" },
+    { title: "Word (.doc)", value: "application/msword" },
+    { title: "Word (.docx)", value: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
+    { title: "Excel (.xls)", value: "application/vnd.ms-excel" },
+    { title: "Excel (.xlsx)", value: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
+    { title: "Imagen JPEG", value: "image/jpeg" },
+    { title: "Imagen PNG", value: "image/png" },
+    { title: "Imagen GIF", value: "image/gif" },
+];
+
+// ── Headers de tabla ─────────────────────────────────────────────────
+const headers = computed(() => [
+    { title: "Código", key: "code", width: 120, sortable: false },
+    { title: "Formato", key: "name", sortable: false },
+    { title: "Req.", key: "is_required", width: 80, sortable: false },
+    { title: "Activo", key: "is_active", width: 90, sortable: false },
+    {
+        title: props.currentClub?.code
+            ? `Archivo — ${props.currentClub.code}`
+            : "Archivo del Club",
+        key: "club_file",
+        sortable: false,
+    },
+    { title: "Acciones", key: "actions", sortable: false, width: 160 },
+]);
+
+// ── Modal: Crear / Editar formato ────────────────────────────────────
+const showFormatModal = ref(false);
+
+interface FormatForm {
+    id: number | null;
+    code: string;
+    name: string;
+    description: string | null;
+    is_required: boolean;
+    is_active: boolean;
+    allowed_mime_types: string[];
+    max_size_mb: number | null;
+}
+
+const formatForm = useForm<FormatForm>({
+    id: null,
+    code: "",
+    name: "",
+    description: null,
+    is_required: true,
+    is_active: true,
+    allowed_mime_types: [],
+    max_size_mb: null,
+});
+
+const resetFormatForm = () => {
+    formatForm.reset();
+    formatForm.clearErrors();
+    formatForm.id = null;
+    formatForm.code = "";
+    formatForm.name = "";
+    formatForm.description = null;
+    formatForm.is_required = true;
+    formatForm.is_active = true;
+    formatForm.allowed_mime_types = [];
+    formatForm.max_size_mb = null;
+};
+
+const openCreateFormat = () => {
+    resetFormatForm();
+    showFormatModal.value = true;
+};
+
+const openEditFormat = (item: FileFormatItem) => {
+    resetFormatForm();
+    formatForm.id = item.id;
+    formatForm.code = item.code;
+    formatForm.name = item.name;
+    formatForm.description = item.description;
+    formatForm.is_required = item.is_required;
+    formatForm.is_active = item.is_active;
+    formatForm.allowed_mime_types = item.allowed_mime_types ?? [];
+    formatForm.max_size_mb = item.max_size_bytes ? +(item.max_size_bytes / 1_048_576).toFixed(1) : null;
+    showFormatModal.value = true;
+};
+
+const closeFormatModal = () => {
+    resetFormatForm();
+    showFormatModal.value = false;
+};
+
+const saveFormat = async () => {
+    formFileSendRef.value?.validate().then(({ valid: isValid }) => {
+        if (!isValid) {
+            return;
+        } else {
+            if (formatForm.id) {
+                formatForm.put(route("files.update", formatForm.id), {
+                    onSuccess: () => {
+                        customToastSwal({
+                            title: page.props.flash.success || "",
+                            icon: "success",
+                        });
+                        closeFormatModal();
+                        fetchItems();
+                    },
+                    onError: () => {
+                        customToastSwal({
+                            title: `Error: ${formatForm.errors.messageError}`,
+                            text: `${formatForm.errors.exception}`,
+                            icon: "error",
+                        });
+                    },
+                });
+
+            } else {
+                formatForm.post(route("files.store"), {
+                    onSuccess: () => {
+                        customToastSwal({
+                            title: page.props.flash.success || "",
+                            icon: "success",
+                        });
+                        closeFormatModal();
+                        fetchItems();
+                    },
+                    onError: () => {
+                        customToastSwal({
+                            title: `Error: ${formatForm.errors.messageError}`,
+                            text: `${formatForm.errors.exception}`,
+                            icon: "error",
+                        });
+                    },
+                });
+            }
+        }
+    });
+};
+
+const destroyFormat = (item: FileFormatItem) => {
+    customConfirmSwal({
+        title: `¿Eliminar el formato "${item.name}"?`,
+        text: "Esto eliminará también los archivos de todos los clubes.",
+    }).then((result) => {
+        if (!result.isConfirmed) return;
+
+        router.delete(route("files.destroy", item.id), {
+            preserveScroll: true,
+            onSuccess: () => {
+                customToastSwal({
+                    title: (page.props as any).flash?.success || "Eliminado correctamente",
+                    icon: "success"
+                });
+                fetchItems();
+            },
+            onError: (errors: any) => {
+                customToastSwal({
+                    title: `Error: ${errors.messageError ?? "Error al eliminar"}`,
+                    text: errors.exception ?? "",
+                    icon: "error",
+                });
+            },
+        });
+    });
+};
+
+// ── Modal: Subir archivo del club ────────────────────────────────────
+const showUploadModal = ref(false);
+const uploadTargetFormat = ref<FileFormatItem | null>(null);
+const fileInputRef = ref<HTMLInputElement | null>(null);
+const selectedFile = ref<File | null>(null);
+const selectedFileName = ref<string | null>(null);
+
+const openUploadModal = (item: FileFormatItem) => {
+    uploadTargetFormat.value = item;
+    selectedFile.value = null;
+    selectedFileName.value = null;
+    if (fileInputRef.value) fileInputRef.value.value = "";
+    showUploadModal.value = true;
+};
+
+const closeUploadModal = () => {
+    showUploadModal.value = false;
+    uploadTargetFormat.value = null;
+    selectedFile.value = null;
+    selectedFileName.value = null;
+};
+
+const onFileChange = (e: Event) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+
+    const maxBytes = uploadTargetFormat.value?.max_size_bytes ?? 20 * 1024 * 1024;
+    if (file.size > maxBytes) {
+        customToastSwal({ title: `El archivo supera el tamaño máximo (${formatBytes(maxBytes)})`, icon: "error" });
+        (e.target as HTMLInputElement).value = "";
+        return;
+    }
+
+    selectedFile.value = file;
+    selectedFileName.value = file.name;
+};
+
+const triggerFileInput = () => fileInputRef.value?.click();
+
+const uploadClubFile = async () => {
+    if (!selectedFile.value) {
+        customToastSwal({ title: "Debes seleccionar un archivo", icon: "error" });
+        return;
+    }
+
+    const data = new FormData();
+    data.append("file", selectedFile.value);
+    data.append("club_id", String((page.props as any).auth.currentClub));
+
+    router.post(route("files.club-file.upload", uploadTargetFormat.value!.id), data, {
+        forceFormData: true,
+        onSuccess: () => {
+            customToastSwal({ title: (page.props as any).flash?.success || "Archivo cargado correctamente", icon: "success" });
+            closeUploadModal();
+            fetchItems();
+        },
+        onError: (errors: any) => {
+            customToastSwal({
+                title: `Error: ${errors.messageError ?? "Error al cargar"}`,
+                text: errors.exception ?? "",
+                icon: "error",
+            });
+        },
+    });
+};
+
+const destroyClubFile = (item: FileFormatItem) => {
+    customConfirmSwal({
+        title: `¿Eliminar el archivo de "${item.name}"?`,
+        text: "Se eliminará el archivo subido por este club.",
+    }).then((result) => {
+        if (!result.isConfirmed) return;
+
+        router.delete(route("files.club-file.destroy", item.id), {
+            data: { club_id: (page.props as any).auth.currentClub },
+            preserveScroll: true,
+            onSuccess: () => {
+                customToastSwal({ title: (page.props as any).flash?.success || "Eliminado correctamente", icon: "success" });
+                fetchItems();
+            },
+            onError: (errors: any) => {
+                customToastSwal({
+                    title: `Error: ${errors.messageError ?? "Error al eliminar"}`,
+                    text: errors.exception ?? "",
+                    icon: "error",
+                });
+            },
+        });
+    });
+};
+
+const downloadClubFile = (item: FileFormatItem) => {
+    if (item.club_file?.file_url) window.open(item.club_file.file_url, "_blank");
+};
+
+// ── Helpers ─────────────────────────────────────────────────────────
+const formatBytes = (bytes: number): string => {
+    if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(1)} MB`;
+    if (bytes >= 1_024) return `${(bytes / 1_024).toFixed(0)} KB`;
+    return `${bytes} B`;
+};
+
+const getFileIcon = (mime: string | null) => {
+    if (!mime) return "mdi-file-outline";
+    if (mime.startsWith("image/")) return "mdi-file-image";
+    if (mime === "application/pdf") return "mdi-file-pdf-box";
+    if (mime.includes("word") || mime.includes("document")) return "mdi-file-word";
+    if (mime.includes("excel") || mime.includes("spreadsheet")) return "mdi-file-excel";
+    if (mime.includes("zip") || mime.includes("compressed")) return "mdi-zip-box";
+    return "mdi-file-outline";
+};
+
+const getFileIconColor = (mime: string | null) => {
+    if (!mime) return "grey";
+    if (mime.startsWith("image/")) return "teal";
+    if (mime === "application/pdf") return "red";
+    if (mime.includes("word") || mime.includes("document")) return "blue";
+    if (mime.includes("excel") || mime.includes("spreadsheet")) return "green";
+    if (mime.includes("zip") || mime.includes("compressed")) return "orange";
+    return "grey";
+};
+
+// ── Fetch ────────────────────────────────────────────────────────────
+const fetchItems = () => {
+    loading.value = true;
+
+    const params = {
+        club_id: (page.props as any).auth.currentClub,
+        [`${prefix}_page`]: options.value.page,
+        [`${prefix}_per_page`]: options.value.itemsPerPage,
+        [`${prefix}_search`]: search.value,
+    };
+
+    router.get(route("files.index"), params, {
+        preserveState: true,
+        replace: true,
+        preserveScroll: true,
+        onSuccess: (pageResponse) => {
+            items.value = pageResponse.props[prefix]?.data ?? [];
+            total.value = pageResponse.props[prefix]?.total ?? 0;
+            loading.value = false;
+        },
+        onError: () => {
+            loading.value = false;
+        },
+    });
+};
+
+watch([options, search], debounce(fetchItems, 400), { deep: true });
+watch(() => (page.props as any).auth.currentClub, fetchItems);
+</script>
+
+<template>
+    <Head title="Archivos del Parque" />
+
+    <AppLayout>
+        <template #header>Archivos del Parque</template>
+        <template #options>
+            <BaseButton
+                v-if="can.includes('files.store')"
+                variant="elevated"
+                :icon-only="false"
+                action="add"
+                @click="openCreateFormat"
+            />
+        </template>
+
+        <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
+            <v-row>
+                <v-col cols="12">
+                    <v-alert
+                        v-if="currentClub"
+                        type="info"
+                        variant="tonal"
+                        class="mx-4 mt-4"
+                    >
+                        Mostrando archivos para
+                        <strong>{{ currentClub.name }} ({{ currentClub.code }})</strong>.
+                        Cada fila muestra el archivo que este club tiene cargado para cada formato requerido.
+                    </v-alert>
+
+                    <v-data-table-server
+                        fixed-header
+                        hover
+                        height="560px"
+                        :headers="headers"
+                        :items="items"
+                        :items-length="total"
+                        :loading="loading"
+                        v-model:options="options"
+                        class="elevation-1"
+                        :items-per-page-options="[10, 25, 50]"
+                        items-per-page-text="Mostrar"
+                        no-data-text="No hay formatos de archivos configurados"
+                    >
+                        <template #top>
+                            <v-row class="px-4 pt-4">
+                                <v-col cols="12" md="12">
+                                    <v-text-field
+                                        v-model="search"
+                                        label="Buscar por código, nombre o descripción"
+                                        clearable
+                                        prepend-inner-icon="mdi-magnify"
+                                    />
+                                </v-col>
+                            </v-row>
+                        </template>
+
+                        <!-- CÓDIGO -->
+                        <template #item.code="{ item }">
+                            <code class="text-caption bg-grey-lighten-4 px-2 py-1 rounded">{{ item.code }}</code>
+                        </template>
+
+                        <!-- NOMBRE / DESCRIPCIÓN -->
+                        <template #item.name="{ item }">
+                            <div class="font-weight-medium">{{ item.name }}</div>
+                            <div v-if="item.description" class="text-caption text-medium-emphasis">
+                                {{ item.description }}
+                            </div>
+                        </template>
+
+                        <!-- REQUERIDO -->
+                        <template #item.is_required="{ item }">
+                            <v-icon
+                                :icon="item.is_required ? 'mdi-check-circle' : 'mdi-minus-circle-outline'"
+                                :color="item.is_required ? 'error' : 'grey'"
+                                size="20"
+                                :title="item.is_required ? 'Requerido' : 'Opcional'"
+                            />
+                        </template>
+
+                        <!-- ACTIVO -->
+                        <template #item.is_active="{ item }">
+                            <v-chip
+                                size="small"
+                                :color="item.is_active ? 'success' : 'default'"
+                                variant="tonal"
+                            >
+                                {{ item.is_active ? "Activo" : "Inactivo" }}
+                            </v-chip>
+                        </template>
+
+                        <!-- ARCHIVO DEL CLUB -->
+                        <template #item.club_file="{ item }">
+                            <div v-if="item.club_file" class="d-flex align-center gap-2 py-1">
+                                <v-icon
+                                    :color="getFileIconColor(item.club_file.file_mime_type)"
+                                    :icon="getFileIcon(item.club_file.file_mime_type)"
+                                    size="22"
+                                />
+                                <div>
+                                    <div class="text-caption font-weight-medium" style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">
+                                        {{ item.club_file.file_original_name }}
+                                    </div>
+                                    <div class="text-caption text-medium-emphasis">
+                                        {{ item.club_file.file_size_formatted }}
+                                    </div>
+                                </div>
+                            </div>
+                            <v-chip v-else size="small" variant="tonal" color="warning">
+                                Sin archivo
+                            </v-chip>
+                        </template>
+
+                        <!-- ACCIONES -->
+                        <template #item.actions="{ item }">
+                            <!-- Acciones del archivo del club -->
+                            <v-btn
+                                v-if="item.club_file?.file_url"
+                                icon="mdi-download"
+                                size="small"
+                                variant="text"
+                                color="primary"
+                                title="Descargar archivo"
+                                @click="downloadClubFile(item)"
+                            />
+                            <v-btn
+                                v-if="can.includes('files.club-file.upload')"
+                                :icon="item.club_file ? 'mdi-file-replace-outline' : 'mdi-upload'"
+                                size="small"
+                                variant="text"
+                                :color="item.club_file ? 'orange' : 'success'"
+                                :title="item.club_file ? 'Reemplazar archivo' : 'Subir archivo'"
+                                @click="openUploadModal(item)"
+                            />
+                            <v-btn
+                                v-if="item.club_file && can.includes('files.club-file.destroy')"
+                                icon="mdi-file-remove-outline"
+                                size="small"
+                                variant="text"
+                                color="error"
+                                title="Eliminar archivo del club"
+                                @click="destroyClubFile(item)"
+                            />
+
+                            <v-divider vertical class="mx-1" style="height:24px" />
+
+                            <!-- Acciones del formato -->
+                            <BaseButton
+                                v-if="can.includes('files.update')"
+                                action="edit"
+                                @click="openEditFormat(item)"
+                            />
+                            <BaseButton
+                                v-if="can.includes('files.destroy')"
+                                action="delete"
+                                @click="destroyFormat(item)"
+                            />
+                        </template>
+                    </v-data-table-server>
+                </v-col>
+            </v-row>
+        </div>
+
+        <!-- Modal para crear / editar formato -->
+        <v-dialog v-model="showFormatModal" max-width="600" persistent>
+            <v-form @submit.prevent="saveFormat" ref="formFileSendRef">
+                <v-card
+                prepend-icon="mdi-file-cog-outline"
+                :title="formatForm.id ? 'Editar formato de archivo' : 'Nuevo formato de archivo'"
+                >
+                    <v-card-text class="overflow-y-auto h-full">
+                        <v-row>
+                            <v-col cols="12" md="12">
+                                <v-text-field
+                                    v-model="formatForm.code"
+                                    label="Código *"
+                                    :error-messages="formatForm.errors.code"
+                                    hint="Identificador único, sin espacios"
+                                    persistent-hint
+                                    :rules="[required, maxLength(50)]"
+                                />
+                            </v-col>
+
+                            <v-col cols="12" md="12">
+                                <v-text-field
+                                    v-model="formatForm.name"
+                                    label="Nombre *"
+                                    :error-messages="formatForm.errors.name"
+                                    :rules="[required, maxLength(200)]"
+                                />
+                            </v-col>
+
+                            <v-col cols="12">
+                                <v-textarea
+                                    v-model="formatForm.description"
+                                    label="Descripción"
+                                    rows="3"
+                                    auto-grow
+                                    :error-messages="formatForm.errors.description"
+                                />
+                            </v-col>
+
+                            <v-col cols="12" md="6">
+                                <v-switch
+                                    v-model="formatForm.is_required"
+                                    color="error"
+                                    label="Requerido"
+                                    hide-details
+                                />
+                            </v-col>
+
+                            <v-col cols="12" md="6">
+                                <v-switch
+                                    v-model="formatForm.is_active"
+                                    color="success"
+                                    label="Activo"
+                                    hide-details
+                                />
+                            </v-col>
+
+                            <v-col cols="12">
+                                <v-select
+                                    v-model="formatForm.allowed_mime_types"
+                                    :items="commonMimeTypes"
+                                    item-title="title"
+                                    item-value="value"
+                                    label="Tipos de archivo permitidos"
+                                    multiple
+                                    chips
+                                    closable-chips
+                                    clearable
+                                    :rules="[selectRequired]"
+                                />
+                            </v-col>
+
+                            <v-col cols="12" md="6">
+                                <v-text-field
+                                    v-model.number="formatForm.max_size_mb"
+                                    label="Tamaño máximo (MB)"
+                                    type="number"
+                                    min="0.1"
+                                    max="100"
+                                    step="0.5"
+                                    :error-messages="formatForm.errors.max_size_mb"
+                                    hint="Deja vacío para usar el límite por defecto (2 MB)"
+                                    persistent-hint
+                                />
+                            </v-col>
+                        </v-row>
+                    </v-card-text>
+
+                    <v-card-actions>
+                        <v-spacer />
+                        <BaseButton
+                            :icon-only="false"
+                            variant="tonal"
+                            action="cancel"
+                            @click="closeFormatModal"
+                        />
+                        <BaseButton
+                            :icon-only="false"
+                            :text="formatForm.id ? 'Actualizar' : 'Crear'"
+                            variant="flat"
+                            action="save"
+                            :loading="formatForm.processing"
+                            @click="saveFormat"
+                        />
+                    </v-card-actions>
+                </v-card>
+            </v-form>
+        </v-dialog>
+
+        <!-- ── MODAL: Subir archivo del club ── -->
+        <v-dialog v-model="showUploadModal" max-width="480" persistent>
+            <v-card prepend-icon="mdi-upload" :title="uploadTargetFormat?.club_file ? 'Reemplazar archivo' : 'Subir archivo'">
+                <v-card-text>
+                    <v-alert
+                        v-if="uploadTargetFormat"
+                        type="info"
+                        variant="tonal"
+                        class="mb-4"
+                        density="compact"
+                    >
+                        <strong>{{ uploadTargetFormat.name }}</strong>
+                        <div v-if="uploadTargetFormat.allowed_mime_types?.length" class="text-caption mt-1">
+                            Tipos permitidos: {{ uploadTargetFormat.allowed_mime_types.join(", ") }}
+                        </div>
+                        <div class="text-caption">
+                            Tamaño máximo: {{ uploadTargetFormat.max_size_bytes ? formatBytes(uploadTargetFormat.max_size_bytes) : "20 MB" }}
+                        </div>
+                    </v-alert>
+
+                    <input
+                        ref="fileInputRef"
+                        type="file"
+                        class="d-none"
+                        :accept="uploadTargetFormat?.allowed_mime_types?.join(',') || undefined"
+                        @change="onFileChange"
+                    />
+                    <div
+                        class="file-upload-zone"
+                        :class="{ 'file-upload-zone--filled': selectedFileName }"
+                        @click="triggerFileInput"
+                    >
+                        <v-icon
+                            :color="selectedFileName ? 'primary' : 'grey-lighten-1'"
+                            :icon="selectedFileName ? 'mdi-file-check' : 'mdi-upload'"
+                            size="36"
+                        />
+                        <div class="mt-2 text-center">
+                            <span v-if="selectedFileName" class="text-body-2 font-weight-medium text-primary">
+                                {{ selectedFileName }}
+                            </span>
+                            <template v-else>
+                                <span class="text-body-2 text-medium-emphasis d-block">
+                                    Haz clic para seleccionar un archivo
+                                </span>
+                                <span class="text-caption text-disabled d-block">
+                                    Máx. {{ uploadTargetFormat?.max_size_bytes ? formatBytes(uploadTargetFormat.max_size_bytes) : "20 MB" }}
+                                </span>
+                            </template>
+                        </div>
+                    </div>
+                </v-card-text>
+
+                <v-card-actions>
+                    <v-spacer />
+                    <BaseButton :icon-only="false" variant="tonal" action="cancel" @click="closeUploadModal" />
+                    <BaseButton
+                        :icon-only="false"
+                        :text="uploadTargetFormat?.club_file ? 'Reemplazar' : 'Subir'"
+                        variant="flat"
+                        action="save"
+                        @click="uploadClubFile"
+                    />
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+    </AppLayout>
+</template>
+
+<style scoped>
+.file-upload-zone {
+    border: 2px dashed rgba(0, 0, 0, 0.15);
+    border-radius: 12px;
+    padding: 32px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background-color 0.2s;
+}
+
+.file-upload-zone:hover {
+    border-color: rgb(var(--v-theme-primary));
+    background-color: rgba(var(--v-theme-primary), 0.04);
+}
+
+.file-upload-zone--filled {
+    border-color: rgb(var(--v-theme-primary));
+    background-color: rgba(var(--v-theme-primary), 0.04);
+}
+</style>

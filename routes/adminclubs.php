@@ -36,14 +36,16 @@ use App\Http\Controllers\Web\AdminClub\CashCutController;
 use App\Http\Controllers\Web\AdminClub\GlobalCashCutController;
 use App\Http\Controllers\Web\AdminClub\DocumentTypeController;
 use App\Http\Controllers\Web\Administrator\EmailConfigController;
-use App\Http\Controllers\Web\Administrator\NotificationController;
+use App\Http\Controllers\Web\Administrator\EmailNotificationController;
+use App\Http\Controllers\Web\AdminClub\FileController;
+use App\Http\Controllers\Web\AdminClub\GuestListPaymentController;
 use App\Http\Controllers\Web\AdminClub\MembershipTypeController;
 use App\Http\Controllers\Web\AdminClub\PaymentMethodController;
 use Illuminate\Support\Facades\Route;
 
 // amenities
 Route::resource('/amenities', AmenityController::class)->names('amenities');
-Route::resource('/amenityResource', AmenityResourceController::class)->names('amenityResource'); 
+Route::resource('/amenityResource', AmenityResourceController::class)->names('amenityResource');
 Route::post('/amenitySchedule', [AmenityScheduleController::class, 'store'])->name('amenitySchedule.store');
 Route::resource('/blockedPeriods', BlockedPeriodController::class)->names('blockedPeriods');
 Route::get('/amenity-resource/{resource}/calendar', [AmenityResourceController::class, 'calendar'])->name('amenityResource.calendar');
@@ -55,6 +57,7 @@ Route::resource('/system-variables', SystemVariableController::class)->only(['in
 // guest lists
 Route::resource('/guest-lists', ReservationGuestListController::class)->only(['index', 'update'])->names('guest-lists');
 Route::resource('/guest-list-variables', GuestListVariableController::class)->only(['index', 'store', 'update', 'destroy']);
+Route::resource('/guest-list-payments', GuestListPaymentController::class)->only(['index'])->names('guest-list-payments');
 
 Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
 Route::get('/billing/charges', [BillingController::class, 'chargesList'])->name('billing.charges.index');
@@ -237,6 +240,21 @@ Route::delete('/members/lockers/{id}/cancel',[LockerController::class, 'cancel']
         ->name('members.lockers.cancel');
 Route::get('lockers/available-for-change',[LockerController::class, 'availableForChange'])
         ->name('lockers.available.for.change');
+
+
+// Files
+// Route::prefix('/files')->name('files.')->group(function () {
+//     Route::get('/', [FileController::class, 'index'])->name('index');
+//     Route::post('/', [FileController::class, 'store'])->name('store');
+//     Route::post('/{file}', [FileController::class, 'update'])->name('update');
+//     Route::delete('/{file}', [FileController::class, 'destroy'])->name('destroy');
+//     Route::post('/{file}/club-file', [FileController::class, 'uploadClubFile'])->name('club-file.upload');
+//     Route::delete('/{file}/club-file', [FileController::class, 'destroyClubFile'])->name('club-file.destroy');
+// });
+
+Route::resource('/files', FileController::class)->only(['index', 'store', 'update', 'destroy'])->names('files');
+Route::post('files/{file}/club-file', [FileController::class, 'uploadClubFile'])->name('files.club-file.upload');
+Route::delete('files/{file}/club-file', [FileController::class, 'destroyClubFile'])->name('files.club-file.destroy');
 
 
 // Acts

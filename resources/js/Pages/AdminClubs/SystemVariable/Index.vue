@@ -82,7 +82,7 @@ const save = () => {
                             text: `${form.errors.exception}`,
                             icon: "error",
                         });
-                        // console.log(form.errors);
+                        console.log(form.errors);
                     },
                 });
             }

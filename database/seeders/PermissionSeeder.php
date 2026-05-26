@@ -218,7 +218,25 @@ class PermissionSeeder extends Seeder
             // Feedback Management
             ['module' => 'Quejas y Sugerencias', 'name' => 'feedback-management.index', 'description' => 'Ver gestion de casos de quejas y sugerencias', 'contexts' => ['web']],
             ['module' => 'Quejas y Sugerencias', 'name' => 'feedback-management.update', 'description' => 'Gestionar casos de quejas y sugerencias', 'contexts' => ['web']],
+
+            // Guest Lists
+            ['module' => 'Listas de Invitados', 'name' => 'guest-lists.index', 'description' => 'Ver listas de invitados', 'contexts' => ['web']],
+            ['module' => 'Listas de Invitados', 'name' => 'guest-lists.update', 'description' => 'Actualizar estatus de lista de invitados', 'contexts' => ['web']],
+            ['module' => 'Listas de Invitados', 'name' => 'guest-list-variables.index', 'description' => 'Ver variables de listas de invitados', 'contexts' => ['web']],
+            ['module' => 'Listas de Invitados', 'name' => 'guest-list-variables.store', 'description' => 'Crear variables de listas de invitados', 'contexts' => ['web']],
+            ['module' => 'Listas de Invitados', 'name' => 'guest-list-variables.update', 'description' => 'Actualizar variables de listas de invitados', 'contexts' => ['web']],
+            ['module' => 'Listas de Invitados', 'name' => 'guest-list-variables.destroy', 'description' => 'Eliminar variables de listas de invitados', 'contexts' => ['web']],
+            ['module' => 'Listas de Invitados', 'name' => 'guest-list-payments.index', 'description' => 'Ver pagos de listas de invitados', 'contexts' => ['web']],
+
+            // Files
+            ['module' => 'Archivos', 'name' => 'files.index', 'description' => 'Ver archivos', 'contexts' => ['Web']],
+            ['module' => 'Archivos', 'name' => 'files.store', 'description' => 'Crear formato de archivo', 'contexts' => ['Web']],
+            ['module' => 'Archivos', 'name' => 'files.update', 'description' => 'Editar formato de archivo', 'contexts' => ['Web']],
+            ['module' => 'Archivos', 'name' => 'files.destroy', 'description' => 'Eliminar formato de archivo', 'contexts' => ['Web']],
+            ['module' => 'Archivos', 'name' => 'files.club-file.upload', 'description' => 'Subir archivo del club', 'contexts' => ['Web']],
+            ['module' => 'Archivos', 'name' => 'files.club-file.destroy', 'description' => 'Eliminar archivo del club', 'contexts' => ['Web']]
         ];
+
         foreach ($permissions as $permission) {
             $record = Permission::updateOrCreate(
                 ['name' => $permission['name']],

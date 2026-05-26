@@ -13,4 +13,11 @@ class ReservationGuestListItem extends Model {
 
     protected $guarded = ['id', 'created_at', 'updated_at'];
     protected $dates = ['deleted_at'];
+
+    // scope para obtener solo los invitados que no pagara el socio y no son cortesias
+    public function scopeNotBillableNotComped($query)
+    {
+        return $query->where('is_billable_to_member', false)
+                     ->where('is_comped', false);
+    }
 }
