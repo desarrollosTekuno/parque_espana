@@ -12,10 +12,10 @@ class ConsecutiveReservationRule
     public function validate(ReservationContext $context): void
     {
         $data = $context->data;
-        $user = $context->user;
+        $member = $context->member;
 
         // Valida que no exista una reservación antes o despues de la nueva por usuario
-        $reservations = Reservation::where('user_id', $user->id)
+        $reservations = Reservation::where('member_id', $member->id)
             ->where('amenity_resource_id', $data['amenity_resource_id'])
             ->where('club_id', $data['club_id'])
             ->where('reservation_status_id', '!=', ReservationStatus::CANCELADA)

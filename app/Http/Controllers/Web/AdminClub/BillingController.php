@@ -314,12 +314,25 @@ class BillingController extends Controller
                     if (!$locker) {
                         return;
                     }
-                    // Validar que siga reservado
+
+                     // Actualizar monto pagado
+                     $assignment = LockerAssignment::where('locker_id', $lockerId)
+                        ->where('member_id', $memberId)
+                        ->where('year', now()->year)
+                        ->whereNull('deleted_at')
+                        ->first();
+
+                    if (!$assignment) {
+                        return;
+                    }
+                    $assignment->increment('amount_paid', $amount);
+
+                    /* Validar que siga reservado
                     if ($locker->status !== 'pago_pendiente') {
                         return;
                     }
                     // Evitar duplicados
-                    $alreadyAssigned = LockerAssignment::where('member_id', $memberId)
+                    $alreadyAssigned = LockerAssignment::where('member_id', $memberId) 
                         ->where('year', now()->year)
                         ->whereNull('deleted_at')
                         ->exists();
@@ -335,10 +348,10 @@ class BillingController extends Controller
 
                     if ($lockerAlreadyAssigned) {
                         return;
-                    }
+                    }*/
 
                     // Crear asignación
-                    LockerAssignment::create([
+                   /* LockerAssignment::create([
                         'locker_id' => $locker->id,
                         'member_id' => $memberId,
                         'amount_paid' => $amount,
@@ -350,7 +363,7 @@ class BillingController extends Controller
                     // Actualizar locker
                     $locker->update([
                         'status' => 'ocupado',
-                    ]);
+                    ]);*/
                 });
             }
 

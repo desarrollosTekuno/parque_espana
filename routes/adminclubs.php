@@ -41,6 +41,7 @@ use App\Http\Controllers\Web\AdminClub\FileController;
 use App\Http\Controllers\Web\AdminClub\GuestListPaymentController;
 use App\Http\Controllers\Web\AdminClub\MembershipTypeController;
 use App\Http\Controllers\Web\AdminClub\PaymentMethodController;
+use App\Http\Controllers\Web\AdminClub\LockerAssignmentHistoryController;
 use Illuminate\Support\Facades\Route;
 
 // amenities
@@ -50,11 +51,15 @@ Route::post('/amenitySchedule', [AmenityScheduleController::class, 'store'])->na
 Route::resource('/blockedPeriods', BlockedPeriodController::class)->names('blockedPeriods');
 Route::get('/amenity-resource/{resource}/calendar', [AmenityResourceController::class, 'calendar'])->name('amenityResource.calendar');
 
-// reservations
-Route::resource('/reservations', ReservationController::class)->only(['index', 'update'])->names('reservations');
+Route::resource('/reservations', ReservationController::class)->only(['index', 'update', 'store'])->names('reservations');
 Route::resource('/system-variables', SystemVariableController::class)->only(['index', 'store', 'update', 'destroy'])->names('system-variables');
+Route::get('/reservations/calendar', [ReservationController::class, 'calendar'])
+    ->name('reservations.calendar');
+Route::post('/reservations/{reservation}/cancel', [ReservationController::class, 'cancel'])
+    ->name('reservations.cancel');
+Route::get('/amenity-resource/{amenityResource}/slots', [ReservationController::class, 'slots'])
+    ->name('reservations.slots');
 
-// guest lists
 Route::resource('/guest-lists', ReservationGuestListController::class)->only(['index', 'update'])->names('guest-lists');
 Route::resource('/guest-list-variables', GuestListVariableController::class)->only(['index', 'store', 'update', 'destroy']);
 Route::resource('/guest-list-payments', GuestListPaymentController::class)->only(['index'])->names('guest-list-payments');
@@ -240,6 +245,8 @@ Route::delete('/members/lockers/{id}/cancel',[LockerController::class, 'cancel']
         ->name('members.lockers.cancel');
 Route::get('lockers/available-for-change',[LockerController::class, 'availableForChange'])
         ->name('lockers.available.for.change');
+Route::get('/members/{member}/locker-history', [LockerAssignmentHistoryController::class, 'index'])
+        ->name('members.lockers.history');
 
 
 // Files

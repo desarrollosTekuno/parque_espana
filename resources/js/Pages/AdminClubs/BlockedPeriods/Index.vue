@@ -181,11 +181,13 @@ const formatDateForInput = (val:string|null)=>{
     if(!val) return null;
     return val.replace(" ","T").slice(0,16);
 };
-const formatDateTable = (val:string|null)=>{
-    if(!val) return "-";
-    const [date,time] = val.split(" ");
-    const [y,m,d] = date.split("-");
-    const [h,min] = time.split(":");
+const formatDateTable = (val: string | null) => {
+    if (!val) return "-";
+
+    const [datePart, timePart] = val.split('T');
+    const [y, m, d] = datePart.split('-');
+    const [h, min] = timePart.split(':');
+
     return `${d}/${m}/${y} ${h}:${min}`;
 };
 
@@ -241,6 +243,7 @@ watch(
     { deep:true }
 
 );
+console.log('BlockedPeriods:', props.blockedPeriods)
 </script>
 <template>
     <Head title="Bloqueos" />

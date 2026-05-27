@@ -13,17 +13,27 @@ class CancelReservationRule implements ReservationRule
     {
         $reservation = $context->reservation;
 
-        // valida los dias de anticipacion para cancelar una reservacion
-        $days = SystemVariable::where('name', 'dias_para_cancelar_reserva')->first()->value;
+        $days = (int) SystemVariable::where('name', 'dias_para_cancelar_reserva')->value('value');
 
-        $startDate = Carbon::parse($reservation->start_datetime)->startOfDay();
-        $today = Carbon::now()->startOfDay();
+        $tz = 'America/Mexico_City';
 
-        $limitDate = $startDate->copy()->subDays($days);
+        $startDate = Carbon::parse($reservation->start_datetime, 'UTC')
+            ->setTimezone($tz)
+            ->startOfDay();
 
-        if ($today->gt($limitDate))
-        {
-            throw new ReservationException('No puedes cancelar una reservación con menos de ' . $days . ' días de anticipación');
+        $today = Carbon::now($tz)->startOfDay();
+
+        if ($startDate->lte($today)) {
+            throw new ReservationException('No puedes cancelar una reservación del mismo día o pasada');
+        }
+
+        $diffDays = $today->diffInDays($startDate);
+        $diasContandoHoy = $diffDays + 1;
+
+        if ($diasContandoHoy < $days) {
+            throw new ReservationException(
+                'No puedes cancelar una reservación con menos de ' . $days . ' días de anticipación'
+            );
         }
     }
 }

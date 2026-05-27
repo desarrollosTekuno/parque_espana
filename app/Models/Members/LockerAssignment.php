@@ -16,11 +16,13 @@ class LockerAssignment extends Model
     protected $fillable = [
         'locker_id',
         'member_id',
+        'club_id',
         'start_date',
         'end_date',
         'amount_paid',
         'year',
         'cancellation_reason',
+        'file_path',
     ];
 
     protected $casts = [

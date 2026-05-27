@@ -2885,10 +2885,20 @@ class MemberController extends Controller
         $employment = $member?->employmentInfo;
 
         $lockerAssignment = LockerAssignment::with('locker')
-            ->where('member_id', $member?->id)
+            ->where('member_id', $member->id)
             ->where('year', now()->year)
+            ->where('club_id', session('club_id'))
             ->whereNull('deleted_at')
-            ->first();
+            ->get()
+            ->map(function ($assignment) {
+                return [
+                    'assignment_id' => $assignment->id,
+                    'locker_id' => $assignment->locker_id,
+                    'number' => $assignment->locker->number,
+                    'status' => $assignment->locker->status,
+                    'category' => $assignment->locker->category,
+                ];
+            });
 
         $uploadedDocs = $member?->documents ?? collect();
         $relationshipId = $accountMember->is_primary_holder ? 1 : $accountMember->relationship_id;
@@ -2959,13 +2969,7 @@ class MemberController extends Controller
                 'company_address' => $employment?->company_address,
                 'company_phone' => $employment?->company_phone,
             ],
-            'locker' => $lockerAssignment ? [
-                'assignment_id' => $lockerAssignment->id,
-                'number' => $lockerAssignment->locker?->number,
-                'status' => $lockerAssignment->locker?->status,
-                'category' => $lockerAssignment->locker?->category,
-            ] : null,
-            'documents' => $documents,
+            'locker' => $lockerAssignment->values(),
         ];
     }
 

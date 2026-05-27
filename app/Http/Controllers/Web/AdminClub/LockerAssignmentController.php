@@ -74,10 +74,7 @@ class LockerAssignmentController extends Controller
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            if (
-                $locker->status !== 'disponible' &&
-                !($locker->status === 'pago_pendiente')
-            ) {
+            if ($locker->status !== 'disponible' /*&& !($locker->status === 'pago_pendiente')*/) {
                 return back()->withErrors([
                     'locker' => 'El casillero ya no está disponible'
                 ]);
@@ -85,7 +82,21 @@ class LockerAssignmentController extends Controller
 
             // reservar
             $locker->update([
-                'status' => 'pago_pendiente',
+                'status' => 'ocupado',
+            ]);
+
+            
+            $path = $request->file('file')->store('locker_assignments', 'public');
+
+            LockerAssignment::create([
+                'locker_id' => $locker->id,
+                'club_id' => session('club_id'),
+                'member_id' => $request->member_id,
+                'amount_paid' => 0,
+                'start_date' => now(),
+                'end_date' => now()->endOfYear(),
+                'year' => now()->year,
+                'file_path' => $path,
             ]);
 
             $concept = ChargeConcept::query()
@@ -95,7 +106,7 @@ class LockerAssignmentController extends Controller
             
             // cálculo proporcional
             $annualCost = $concept->clubAmounts
-                ->where('club_id', $request->club_id)
+                ->where('club_id', session('club_id'))
                 ->first()
                 ?->amount ?? $concept->default_amount;
             $month = now()->month;
@@ -118,7 +129,7 @@ class LockerAssignmentController extends Controller
                 'status' => 'pending',
                 'metadata' => [
                     'locker_id' => $locker->id,
-                    'club_id' => $request->club_id,
+                    'club_id' => session('club_id'),
                     'concept_amount_source' => 'club_or_default',
                 ]
             ]);
@@ -134,6 +145,7 @@ class LockerAssignmentController extends Controller
         DB::transaction(function () use ($request) {
 
             $assignment = LockerAssignment::where('member_id', $request->member_id)
+                ->where('locker_id', $request->old_locker_id)
                 ->whereNull('deleted_at')
                 ->first();
 
@@ -156,6 +168,9 @@ class LockerAssignmentController extends Controller
                 ]);
 
             // guardar historial
+            if ($request->hasFile('file')) {
+                $path = $request->file('file')->store('locker_assignments', 'public');
+            }
             LockerAssignmentHistory::create([
                 'locker_assignment_id' => $assignment->id,
                 'member_id' => $request->member_id,
@@ -163,6 +178,7 @@ class LockerAssignmentController extends Controller
                 'new_locker_id' => $request->new_locker_id,
                 'changed_at' => now(),
                 'changed_by' => Auth::id(),
+                'file_path' => $path,
             ]);
 
             // actualizar asignación actual

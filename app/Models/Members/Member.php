@@ -25,6 +25,14 @@ class Member extends Model
     protected $connection = 'pgsql';
     protected $appends = ['full_name', 'age'];
 
+    public function scopeByClub($query, $clubId)
+    {
+        return $query->whereHas('accounts', function ($q) use ($clubId) {
+            $q->where('club_id', $clubId)
+            ->where('status', 'active');
+        });
+    }
+
     protected static function newFactory(): MemberFactory
     {
         return MemberFactory::new();
