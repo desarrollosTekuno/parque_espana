@@ -8,6 +8,7 @@ use App\Models\Files\File;
 use App\Rules\ExistsInSchema;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -253,8 +254,6 @@ class FileController extends Controller
 
             $maxKb = (int) ceil($file->max_size_bytes / 1024);
 
-            // return $maxKb;
-
             $rules = ['file' => "required|file|max:{$maxKb}"];
             if (!empty($file->allowed_mime_types)) {
                 $rules['file'] .= '|mimetypes:' . implode(',', $file->allowed_mime_types);
@@ -274,13 +273,10 @@ class FileController extends Controller
                 $this->deleteFile($existing->file_path);
             }
 
-            /** @var \Illuminate\Http\UploadedFile $uploadedFile */
             $uploadedFile = $request->file('file');
             $uploaded     = $this->uploadFile($uploadedFile);
 
-            $displayOrder = $existing
-                ? $existing->display_order
-                : (ClubFile::where('club_id', $clubId)->max('display_order') ?? 0) + 1;
+            $displayOrder = $existing ? $existing->display_order : (ClubFile::where('club_id', $clubId)->max('display_order') ?? 0) + 1;
 
             $data = [
                 'club_id'            => $clubId,
@@ -308,13 +304,13 @@ class FileController extends Controller
         }
     }
 
-    public function destroyClubFile(Request $request, int|string $id)
+    public function destroyClubFile(Request $request, File $file)
     {
-        $clubId = (int) ($request->club_id ?? session('club_id'));
-
         try {
+            $clubId = (int) ($request->club_id ?? session('club_id'));
+
             $clubFile = ClubFile::where('club_id', $clubId)
-                ->where('file_id', $id)
+                ->where('file_id', $file->id)
                 ->firstOrFail();
 
             $this->deleteFile($clubFile->file_path);
@@ -329,12 +325,12 @@ class FileController extends Controller
         }
     }
 
-    private function uploadFile(\Illuminate\Http\UploadedFile $file): array
+    private function uploadFile(UploadedFile $file): array
     {
         $directory = 'club-files';
         $filename  = Str::uuid() . '.' . $file->getClientOriginalExtension();
 
-        Storage::disk('local')->putFileAs($directory, $file, $filename, 'private');
+        Storage::disk('spaces')->putFileAs($directory, $file, $filename, 'private');
 
         return [
             'path'          => "{$directory}/{$filename}",
