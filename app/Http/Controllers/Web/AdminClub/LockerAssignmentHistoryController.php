@@ -1,0 +1,49 @@
+<?php
+
+namespace App\Http\Controllers\Web\AdminClub;
+
+use Illuminate\Routing\Controller;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use App\Models\Members\Member;
+use App\Models\Members\LockerAssignmentHistory;
+use Illuminate\Support\Facades\Validator;
+use Inertia\Inertia;
+
+
+class LockerAssignmentHistoryController extends Controller {
+
+public function __construct()
+    {
+        $this->middleware('permission:members.lockers.history')->only('history');
+    }
+
+    public function index(Member $member) 
+    {
+        $history = LockerAssignmentHistory::with([
+                'oldLocker:id,number',
+                'newLocker:id,number',
+            ])
+            ->where('member_id', $member->id)
+            ->latest()
+            ->paginate(10);
+
+        $history->getCollection()->transform(function ($item) {
+            return [
+                'id' => $item->id,
+                'created_at' => $item->created_at->toISOString(), 
+                'old_locker' => $item->oldLocker,
+                'new_locker' => $item->newLocker,
+                'file_url' => $item->file_path
+                    ? Storage::url($item->file_path)
+                    : null,
+            ];
+        });
+
+        return response()->json($history);
+    }
+
+    public function MyFunction(Request $request) {
+        return "MyFunction";
+    }
+}

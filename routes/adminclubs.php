@@ -39,6 +39,7 @@ use App\Http\Controllers\Web\Administrator\EmailConfigController;
 use App\Http\Controllers\Web\Administrator\EmailNotificationController;
 use App\Http\Controllers\Web\AdminClub\MembershipTypeController;
 use App\Http\Controllers\Web\AdminClub\PaymentMethodController;
+use App\Http\Controllers\Web\AdminClub\LockerAssignmentHistoryController;
 use Illuminate\Support\Facades\Route;
 
 // amenities
@@ -241,6 +242,8 @@ Route::delete('/members/lockers/{id}/cancel',[LockerController::class, 'cancel']
         ->name('members.lockers.cancel');
 Route::get('lockers/available-for-change',[LockerController::class, 'availableForChange'])
         ->name('lockers.available.for.change');
+Route::get('/members/{member}/locker-history', [LockerAssignmentHistoryController::class, 'index'])
+        ->name('members.lockers.history');
 
 
 // Acts

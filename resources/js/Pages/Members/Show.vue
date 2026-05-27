@@ -202,13 +202,6 @@ const absencePermitForm = useForm({
     notes: "",
     absence_permit_document: null as File | null,
 });
-
-const permitDocRules = [
-    requiredFileRule,
-    fileTypeRule(["pdf", "jpg", "jpeg", "png"]),
-    fileMaxSizeRule(2),
-];
-
 const permitDocRules = [
     requiredFileRule,
     fileTypeRule(["pdf", "jpg", "jpeg", "png"]),
@@ -390,6 +383,14 @@ const updateLocker = async () => {
         return;
     }
 
+    if (!editLockerFile.value) {
+        customToastSwal({
+            title: 'Adjunta el comprobante',
+            icon: 'warning'
+        });
+        return;
+    }
+console.log(editLockerFile.value);
     const result = await Swal.fire({
         title: '¿Cambiar casillero?',
         text: 'El integrante será asignado al nuevo casillero seleccionado.',
@@ -401,18 +402,18 @@ const updateLocker = async () => {
         allowOutsideClick: false
     });
 
-    if (!result.isConfirmed) {
-        return;
-    }
-    router.post(
-        route('members.lockers.change'),
-        {
-            member_id: editingMember.value.member_id,
-            old_locker_id: editingMember.value.currentLocker.locker_id,
-            new_locker_id: editSelectedLocker.value,
-        },
-        {
-            preserveScroll: true,
+    if (!result.isConfirmed) return;
+
+    const formData = new FormData();
+
+    formData.append('member_id', editingMember.value.member_id);
+    formData.append('old_locker_id', editingMember.value.currentLocker.locker_id);
+    formData.append('new_locker_id', editSelectedLocker.value);
+    formData.append('file', editLockerFile.value);
+
+    router.post(route('members.lockers.change'), formData, {
+        forceFormData: true,
+        preserveScroll: true,
 
         onSuccess: () => {
             showEditLockerModal.value = false;
@@ -468,6 +469,74 @@ const removeLocker = async (id: number) => {
         }
     });
 };
+
+// Historico de casilleros
+const showLockerHistoryModal = ref(false);
+const historySearch = ref('');
+const dateFrom = ref(null);
+const dateTo = ref(null);
+const reverseOrder = ref(false);
+const lockerHistory = ref([]);
+const loadingHistory = ref(false);
+
+const options = ref({
+    page: 1,
+    itemsPerPage: 5,
+    sortBy: ['created_at'],
+    sortDesc: [true],
+});
+
+const headers = [
+    { title: 'Fecha', key: 'created_at', sortable: true },
+    { title: 'Cambio', key: 'change', sortable: false },
+    { title: 'Usuario', key: 'user', sortable: true },
+    { title: 'Comprobante', key: 'file', sortable: false },
+];
+
+const openLockerHistory = async (member) => {
+    console.log(member);
+    showLockerHistoryModal.value = true;
+    loadingHistory.value = true;
+
+    try {
+        const response = await axios.get(
+            route('members.lockers.history', { member: member.member_id })
+        );
+
+        lockerHistory.value = response.data.data;
+    } catch (error) {
+        console.error(error);
+    } finally {
+        loadingHistory.value = false;
+    }
+};
+
+const filteredHistory = computed(() => {
+    let data = Array.isArray(lockerHistory.value)
+        ? [...lockerHistory.value]
+        : [];
+
+    const search = historySearch.value?.toLowerCase();
+
+    if (search) {
+        data = data.filter(item =>
+            item.old_locker?.number?.toString().includes(search) ||
+            item.new_locker?.number?.toString().includes(search) ||
+            item.created_at?.toLowerCase().includes(search)
+        );
+    }
+
+    if (dateFrom.value) {
+        data = data.filter(item => item.created_at >= dateFrom.value);
+    }
+
+    if (dateTo.value) {
+        data = data.filter(item => item.created_at <= dateTo.value + 'T23:59:59');
+    }
+
+    return data;
+});
+
 watch(editCurrentPage, () => {
     if (!editingMember.value) {
         return;
@@ -908,7 +977,7 @@ watch(editLockerSearch, () => {
                                     md="6"
                                 >
                                     <v-card variant="outlined" class="pa-4 h-100">
-                                        <div class="d-flex flex-wrap align-center justify-space-between ga-2 mb-3">
+                                        <div class="d-flex flex-wrap align-center justify-space-between ga-2 mb-0">
                                             <div>
                                                 <div class="font-weight-medium">
                                                     {{ member.full_name }}
@@ -962,7 +1031,15 @@ watch(editLockerSearch, () => {
                                                     {{ addressSummary(member) || "-" }}
                                                 </div>
                                             </v-col>
-                                           <v-col cols="12" md="4" class="mt-3">
+                                           <v-col cols="12" md="4" class="mt-0">
+                                                <v-chip v-if="member.locker?.length" class="mt-0 mb-5"
+                                                    color="primary"
+                                                    size="small"
+                                                    variant="flat"
+                                                    @click="openLockerHistory(member)"
+                                                >
+                                                    Historial de casilleros
+                                                </v-chip>
 
                                                 <div v-if="member.locker?.length" class="locker-grid-mini">
                                                    <v-card
@@ -1100,6 +1177,9 @@ watch(editLockerSearch, () => {
                                 :loading="historyLoading"
                                 v-model:page="historyPage"
                                 v-model:items-per-page="historyPerPage"
+                                :footer-props="{
+                                    'items-per-page-options': [5, 10, 15]
+                                }"
                                 :items-per-page-options="[5, 10, 25]"
                                 density="compact"
                                 no-data-text="Sin eventos registrados."
@@ -1229,9 +1309,7 @@ watch(editLockerSearch, () => {
                                 {{ editingMember?.currentLocker?.number }}
                             </div>
                         </v-card>
-
                     </v-col>
-
                 </v-row>
 
                 <!-- TITLE -->
@@ -1362,7 +1440,145 @@ watch(editLockerSearch, () => {
                 </v-btn>
 
             </v-card-actions>
+        </v-card>
+    </v-dialog>
+    <v-dialog v-model="showLockerHistoryModal" max-width="900">
+        <v-card>
+            <v-card-text class="pa-6">
+                <v-row class="mb-0">
+                    <v-col cols="12" md="4">
+                        <v-text-field
+                            v-model="historySearch"
+                            label="Buscar historial"
+                            prepend-inner-icon="mdi-magnify"
+                            variant="outlined"
+                            density="comfortable"
+                            clearable
+                            class="mb-4"
+                        />
+                    </v-col>
 
+                    <v-col cols="12" md="3">
+                        <v-text-field
+                            v-model="dateFrom"
+                            type="date"
+                            label="Desde"
+                            density="comfortable"
+                            hide-details
+                        />
+                    </v-col>
+
+                    <v-col cols="12" md="3">
+                        <v-text-field
+                            v-model="dateTo"
+                            type="date"
+                            label="Hasta"
+                            density="comfortable"
+                            hide-details
+                        />
+                    </v-col>
+
+                    <v-col cols="12" md="2" class="d-flex align-start justify-end">
+                        <BaseButton
+                            variant="elevated"
+                            @click="historySearch = ''; dateFrom = null; dateTo = null;"
+                            color="blue"
+                            text="Limpiar"
+                            icon="mdi-filter-off"
+                        />
+                    </v-col>
+                </v-row>
+               <v-data-table
+                    :headers="headers"
+                    :items="filteredHistory"
+                    v-model:items-per-page="options.itemsPerPage"
+                    v-model:page="options.page"
+                    :items-per-page-options="[5, 10, 15]"
+                    class="custom-table"
+                >
+
+                    <!-- Fecha -->
+                    <template #item.created_at="{ item }">
+                        <div class="text-caption text-medium-emphasis">
+                            {{ new Date(item.created_at).toLocaleString() }}
+                        </div>
+                    </template>
+
+                    <!-- Cambio -->
+                    <template #item.change="{ item }">
+                        <div class="d-flex align-center ga-2">
+
+                            <v-chip size="small" color="gray" variant="tonal">
+                                {{ item.old_locker?.number ?? 'N/A' }}
+                            </v-chip>
+
+                            <v-icon size="16">mdi-arrow-right</v-icon>
+
+                            <v-chip size="small" color="green" variant="tonal">
+                                {{ item.new_locker?.number ?? 'N/A' }}
+                            </v-chip>
+
+                        </div>
+                    </template>
+
+                    <!-- Usuario -->
+                    <template #item.user="{ item }">
+                        <v-chip size="small" variant="outlined">
+                            {{ item.user ?? 'Sistema' }}
+                        </v-chip>
+                    </template>
+
+                    <!-- Archivo -->
+                    <template #item.file="{ item }">
+                        <div class="d-flex ga-2">
+                            <!-- Ver -->
+                            <v-btn
+                                v-if="item.file_url"
+                                size="small"
+                                variant="tonal"
+                                color="primary"
+                                :href="item.file_url"
+                                target="_blank"
+                            >
+                                <v-icon start size="16">mdi-eye</v-icon>
+                                Ver
+                            </v-btn>
+                            <!-- Descargar -->
+                            <v-btn
+                                v-if="item.file_url"
+                                size="small"
+                                variant="outlined"
+                                color="primary"
+                                :href="item.file_url"
+                                download
+                            >
+                                <v-icon start size="16">mdi-download</v-icon>
+                                Descargar
+                            </v-btn>
+                            <span v-if="!item.file_url" class="text-medium-emphasis">—</span>
+                        </div>
+                    </template>
+
+                </v-data-table>
+                    <div class="d-flex justify-space-between align-center mb-2">
+                        <div class="text-caption text-medium-emphasis">
+                            Mostrando {{ filteredHistory.length }} registros
+                        </div>
+                        <v-chip size="small" color="primary" variant="tonal">
+                            Historial
+                        </v-chip>
+                    </div>
+            </v-card-text>
+            <v-card-actions class="px-6 py-4 border-t">
+                <v-spacer />
+
+                <v-btn
+                    variant="text"
+                    @click="showLockerHistoryModal = false"
+                >
+                    Cerrar
+                </v-btn>
+            </v-card-actions>
         </v-card>
     </v-dialog>
 </template>
@@ -1434,7 +1650,20 @@ watch(editLockerSearch, () => {
     align-items: center;
     gap: 2px;
 }
+/* TABLA HISTORIAL CASILLEROS */
+.custom-table {
+    border-radius: 16px;
+    overflow: hidden;
+}
 
+.custom-table .v-data-table__thead {
+    background-color: #f5f7fa;
+}
+
+.custom-table .v-data-table__tr:hover {
+    background-color: rgba(0, 0, 0, 0.03);
+    transition: 0.2s;
+}
 /*Responsive adjustments for the locker grid*/
 @media (max-width: 1400px) {
 

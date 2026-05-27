@@ -106,6 +106,7 @@ const resetForm = () => {
     lockers.value = [];
     hasSearched.value = false;
     showErrors.value = false;
+    lockerFile.value = null;
 };
 
 const assign = async () => {
@@ -137,14 +138,20 @@ const assign = async () => {
         typeof selectedMember.value === "object"
             ? selectedMember.value.value
             : selectedMember.value;
+    
+    const formData = new FormData();
+    formData.append("locker_id", selectedLocker.value);
+    formData.append("member_id", memberId);
+    formData.append("membership_id", props.membershipId);
+    formData.append("account_id", props.accountId);
+    formData.append("club_id", props.clubId);
 
-    router.post(route("members.lockers.reserve"), {
-        locker_id: selectedLocker.value,
-        member_id: memberId,
-        membership_id: props.membershipId,
-        account_id: props.accountId,
-        club_id: props.clubId,
-    }, {
+    if (lockerFile.value) {
+        formData.append("file", lockerFile.value);
+    }
+    router.post(route("members.lockers.reserve"), formData, {
+        forceFormData: true,
+
         onSuccess: () => {
             customToastSwal({
                 title: "Casillero asignado correctamente",
@@ -152,6 +159,7 @@ const assign = async () => {
             });
             resetForm();
             loadMyLockers(); 
+            lockerFile.value = null;
         },
         onError: () => {
             customToastSwal({
@@ -176,7 +184,7 @@ const memberOptions = computed(() =>
     }))
 );
 const canAssign = computed(() => {
-    return selectedMember.value && selectedLocker.value && category.value;
+    return selectedMember.value && selectedLocker.value && category.value && lockerFile.value;
 });
 const toggleLocker = (id: number) => {
     selectedLocker.value = selectedLocker.value === id ? null : id;
@@ -297,6 +305,9 @@ const removeLocker = async (id: number) => {
         }
     });
 };*/
+
+//Carga de archivo 
+const lockerFile = ref<File | null>(null);
 </script>
 
 <template>
@@ -508,7 +519,19 @@ const removeLocker = async (id: number) => {
             <v-alert type="info" class="mt-4 mb-5">
                 El casillero se entrega sin candado. Recuerda al miembro llevar el suyo.
             </v-alert>
-
+            <v-file-input
+                v-model="lockerFile"
+                label="Adjuntar comprobante"
+                prepend-icon="mdi-paperclip"
+                variant="outlined"
+                density="comfortable"
+                accept="image/*,.pdf"
+                show-size
+                clearable
+                class="mt-4"
+                :error="!lockerFile && showErrors"
+                :error-messages="!lockerFile && showErrors ? 'Adjunta un comprobante' : ''"
+            />
             <!-- Acción -->
             <BaseButton
                 class="mt-5"

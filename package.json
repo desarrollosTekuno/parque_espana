@@ -34,6 +34,7 @@
         "@vueup/vue-quill": "^1.2.0",
         "date-fns": "^4.1.0",
         "esbuild": "^0.28.0",
+        "firebase": "^12.13.0",
         "lodash": "^4.17.21",
         "luxon": "^3.7.2",
         "temporal-polyfill": "^0.3.0",

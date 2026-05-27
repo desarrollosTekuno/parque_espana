@@ -2943,49 +2943,6 @@ class MemberController extends Controller
             })
             ->values();
 
-        $uploadedDocs = $member?->documents ?? collect();
-        $relationshipId = $accountMember->is_primary_holder ? 1 : $accountMember->relationship_id;
-        $memberAge = $member?->birthdate ? Carbon::parse($member->birthdate)->age : null;
-
-        $documents = collect($documentTypes ?? [])
-            ->filter(fn ($docType) => $docType->relationships->contains('id', $relationshipId))
-            ->filter(function ($docType) use ($memberAge) {
-                if ($memberAge === null) return true;
-                if ($docType->min_age !== null && $memberAge < (int) $docType->min_age) return false;
-                if ($docType->max_age !== null && $memberAge > (int) $docType->max_age) return false;
-                return true;
-            })
-            ->map(function ($docType) use ($uploadedDocs) {
-                $allowMultiple = (bool) $docType->pivot->allow_multiple;
-                $numberFiles   = (int) $docType->pivot->number_files;
-
-                $docsForType = $uploadedDocs
-                    ->where('document_type_id', $docType->id)
-                    ->map(fn ($d) => [
-                        'id'          => $d->id,
-                        'uploaded_at' => $d->created_at?->toDateString(),
-                    ])
-                    ->values();
-
-                $requiredCount   = $allowMultiple ? $numberFiles : 1;
-                $alreadyUploaded = $docsForType->count() >= $requiredCount;
-
-                return [
-                    'document_type_id'   => $docType->id,
-                    'name'               => $docType->name,
-                    'allowed_extensions' => $docType->allowed_extensions
-                        ? collect(explode(',', $docType->allowed_extensions))->map(fn ($e) => trim(strtolower($e)))->values()
-                        : [],
-                    'max_file_size_kb'   => $docType->max_file_size_kb !== null ? (int) $docType->max_file_size_kb : null,
-                    'is_required'        => (bool) $docType->pivot->is_required,
-                    'allow_multiple'     => $allowMultiple,
-                    'number_files'       => $numberFiles,
-                    'already_uploaded'   => $alreadyUploaded,
-                    'uploaded_docs'      => $docsForType,
-                ];
-            })
-            ->values();
-
         return [
             ...$this->buildAccountMemberPayload($accountMember),
             'relationship_id' => $accountMember->relationship_id,
@@ -3013,7 +2970,6 @@ class MemberController extends Controller
                 'company_phone' => $employment?->company_phone,
             ],
             'locker' => $lockerAssignment->values(),
-            'documents' => $documents,
         ];
     }
 

@@ -22,6 +22,7 @@ class LockerAssignment extends Model
         'amount_paid',
         'year',
         'cancellation_reason',
+        'file_path',
     ];
 
     protected $casts = [

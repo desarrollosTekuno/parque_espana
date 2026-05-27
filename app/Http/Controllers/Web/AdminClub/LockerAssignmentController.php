@@ -85,6 +85,9 @@ class LockerAssignmentController extends Controller
                 'status' => 'ocupado',
             ]);
 
+            
+            $path = $request->file('file')->store('locker_assignments', 'public');
+
             LockerAssignment::create([
                 'locker_id' => $locker->id,
                 'club_id' => session('club_id'),
@@ -93,6 +96,7 @@ class LockerAssignmentController extends Controller
                 'start_date' => now(),
                 'end_date' => now()->endOfYear(),
                 'year' => now()->year,
+                'file_path' => $path,
             ]);
 
             $concept = ChargeConcept::query()
@@ -164,6 +168,9 @@ class LockerAssignmentController extends Controller
                 ]);
 
             // guardar historial
+            if ($request->hasFile('file')) {
+                $path = $request->file('file')->store('locker_assignments', 'public');
+            }
             LockerAssignmentHistory::create([
                 'locker_assignment_id' => $assignment->id,
                 'member_id' => $request->member_id,
@@ -171,6 +178,7 @@ class LockerAssignmentController extends Controller
                 'new_locker_id' => $request->new_locker_id,
                 'changed_at' => now(),
                 'changed_by' => Auth::id(),
+                'file_path' => $path,
             ]);
 
             // actualizar asignación actual
