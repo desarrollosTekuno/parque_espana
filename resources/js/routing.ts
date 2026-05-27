@@ -393,7 +393,7 @@ const routes: Routing[] = [
     // Documentos
     {
         name: ["files.index"],
-        title: "Archivos",
+        title: "Formatos",
         icon: "mdi-file-outline",
         value: "archivos",
         group: "Archivos",
@@ -401,7 +401,7 @@ const routes: Routing[] = [
         groupItems: [
             {
                 name: "files.index",
-                title: "Archivos",
+                title: "Formatos",
                 icon: "mdi-file-outline",
                 value: "archivos",
             }
