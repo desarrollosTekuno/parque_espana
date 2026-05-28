@@ -15,6 +15,8 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
+use ZipArchive;
+use PhpOffice\PhpSpreadsheet\IOFactory as SpreadsheetIOFactory;
 
 class FileController extends Controller
 {
@@ -369,5 +371,76 @@ class FileController extends Controller
         if ($path && Storage::disk('spaces')->exists($path)) {
             Storage::disk('spaces')->delete($path);
         }
+    }
+
+    private function extractVariables($file): array
+    {
+        $path = is_string($file) ? $file : $file->file_path;
+
+        $extension = strtolower(is_string($file) ? pathinfo($file, PATHINFO_EXTENSION) : $file->getClientOriginalExtension());
+
+        return match ($extension) {
+            'docx', 'doc' => $this->extractFromDocx($path),
+            'xlsx', 'xls' => $this->extractFromXlsx($path),
+            default => [],
+        };
+    }
+
+    private function extractFromDocx($path): array
+    {
+        $zip = new ZipArchive();
+
+        if ($zip->open($path) !== true) {
+            throw new \RuntimeException("No se pudo abrir el archivo Word: {$path}");
+        }
+
+        $variables = [];
+
+        // Archivos XML donde Word guarda el contenido
+        $xmlFiles = [
+            'word/document.xml',   // Cuerpo principal
+            'word/header1.xml',    // Encabezado
+            'word/footer1.xml',    // Pie de página
+            'word/header2.xml',
+            'word/footer2.xml',
+        ];
+
+        foreach ($xmlFiles as $xmlFile) {
+            $content = $zip->getFromName($xmlFile);
+            if ($content === false) {
+                continue;
+            }
+
+            // Eliminar tags XML para obtener solo el texto plano
+            $text = strip_tags($content);
+
+            // Buscar variables {{ nombre }} o {{nombre}}
+            preg_match_all('/\{\{\s*(\w+)\s*\}\}/', $text, $matches);
+            $variables = array_merge($variables, $matches[1]);
+        }
+
+        $zip->close();
+
+        return array_values(array_unique($variables));
+    }
+
+    private function extractFromXlsx($path): array
+    {
+        $spreadsheet = SpreadsheetIOFactory::load($path);
+        $variables   = [];
+
+        foreach ($spreadsheet->getAllSheets() as $sheet) {
+            foreach ($sheet->getRowIterator() as $row) {
+                foreach ($row->getCellIterator() as $cell) {
+                    $value = (string) $cell->getValue();
+                    if (str_contains($value, '{{')) {
+                        preg_match_all('/\{\{\s*(\w+)\s*\}\}/', $value, $matches);
+                        $variables = array_merge($variables, $matches[1]);
+                    }
+                }
+            }
+        }
+
+        return array_values(array_unique($variables));
     }
 }
