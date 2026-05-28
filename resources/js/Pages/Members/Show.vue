@@ -414,7 +414,7 @@ const submitDocument = async () => {
 // Locker actions
 // Locker actions
 const showEditLockerModal = ref(false);
-const editLockerFile = ref(null);
+const editLockerFile =  ref<File[] | null>(null);
 const editingMember = ref(null);
 const editSelectedLocker = ref(null);
 const availableEditLockers = ref([]);
@@ -491,8 +491,13 @@ console.log(editLockerFile.value);
     formData.append('member_id', editingMember.value.member_id);
     formData.append('old_locker_id', editingMember.value.currentLocker.locker_id);
     formData.append('new_locker_id', editSelectedLocker.value);
-    formData.append('file', editLockerFile.value);
-
+    formData.append(
+        'file',
+        Array.isArray(editLockerFile.value)
+            ? editLockerFile.value[0]
+            : editLockerFile.value
+    );
+console.log(editLockerFile.value);
     router.post(route('members.lockers.change'), formData, {
         forceFormData: true,
         preserveScroll: true,
@@ -514,8 +519,11 @@ console.log(editLockerFile.value);
         onError: (errors) => {
             console.error(errors);
 
+            const firstError =
+                Object.values(errors)[0];
+
             customToastSwal({
-                title: 'No se pudo actualizar el casillero',
+                title: firstError || 'No se pudo actualizar el casillero',
                 icon: 'error'
             });
         }
@@ -557,7 +565,6 @@ const showLockerHistoryModal = ref(false);
 const historySearch = ref('');
 const dateFrom = ref(null);
 const dateTo = ref(null);
-const reverseOrder = ref(false);
 const lockerHistory = ref([]);
 const loadingHistory = ref(false);
 
@@ -637,7 +644,11 @@ watch(editLockerSearch, () => {
         loadAvailableEditLockers();
     }, 400);
 });
-
+const letterRules = [
+    requiredFileRule,
+    fileTypeRule(["pdf", "jpg", "jpeg", "png"]),
+    fileMaxSizeRule(2),
+];
 </script>
 
 <template>
@@ -824,7 +835,7 @@ watch(editLockerSearch, () => {
                                                         <div class="text-body-2"><strong>Ocupación:</strong> {{ member.occupation || member.school_name || "-" }}</div>
                                                         <div class="text-body-2"><strong>Domicilio:</strong> {{ addressSummary(member) || "-" }}</div>
                                                     </v-col>
-                                                    <v-col cols="12" md="4" class="mt-3">
+                                                    <v-col cols="12" md="4" class="mt-3" v-if="can.includes('members.lockers.history')">
                                                         <v-chip v-if="member.locker?.length" class="mt-0 mb-5"
                                                             color="primary"
                                                             size="small"
@@ -843,7 +854,7 @@ watch(editLockerSearch, () => {
                                                                 color="primary"
                                                             >
                                                                 <!-- EDIT -->
-                                                                <v-tooltip text="Editar casillero" location="top">
+                                                                <v-tooltip text="Editar casillero" location="top"  v-if="can.includes('members.lockers.change')">
                                                                     <template #activator="{ props }">
                                                                         <v-btn
                                                                             v-bind="props"
@@ -859,7 +870,7 @@ watch(editLockerSearch, () => {
                                                                 </v-tooltip>
 
                                                                 <!-- DELETE -->
-                                                                <v-tooltip text="Eliminar casillero" location="top">
+                                                                <v-tooltip text="Eliminar casillero" location="top"  v-if="can.includes('members.lockers.remove')">
                                                                     <template #activator="{ props }">
                                                                         <v-btn
                                                                             v-bind="props"
@@ -1392,7 +1403,7 @@ watch(editLockerSearch, () => {
                             {{ editTotal }} disponibles
                         </v-chip>
                     </v-col>
-                     <v-col cols="12" md="12">
+                    <!--<v-col cols="12" md="12">
                         <v-file-input
                             v-model="editLockerFile"
                             label="Adjuntar comprobante"
@@ -1403,6 +1414,22 @@ watch(editLockerSearch, () => {
                             show-size
                             clearable
                         />
+                    </v-col>-->
+                    <v-col cols="12" md="12">
+                        <div class="font-weight-medium mb-1">
+                            Adjuntar comprobante de cambio de casillero
+                            <span class="text-error">*</span>
+                        </div>
+                        <CustomFileUploadField
+                            v-model="editLockerFile"
+                            label="Seleccionar comprobante"
+                            hint="PDF, JPG o PNG · máx. 2 MB"
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            :rules="letterRules"
+                        />
+                        <!--<div v-if="form.errors.cancellation_letter" class="text-error text-caption mt-1">
+                            {{ form.errors.cancellation_letter }}
+                        </div>-->
                     </v-col>
                 </v-row>
 

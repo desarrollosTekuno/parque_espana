@@ -113,7 +113,7 @@ class LockerController extends Controller {
 
                 return (object)[
                     'id' => $item->id,
-                    'status' => 'pago_pendiente',
+                    'status' => 'ocupado', 
                     'locker' => $locker,
                     'member' => $item->member,
                 ];
