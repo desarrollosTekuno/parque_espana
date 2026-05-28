@@ -7,6 +7,7 @@ import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import BaseButton from "@/Components/BaseButton.vue";
 import { required, maxLength, selectRequired, fileMaxSizeRule, requiredFileRule, fileMimeTypeRule } from "@/constants/validationRules";
 import CustomFileUploadField from "@/Components/CustomFileUploadField.vue";
+import { formatBytes, getFileMeta } from "@/utils/fileUtils";
 
 declare function route(name: string, params?: any): string;
 const showFormatModal = ref(false);
@@ -58,13 +59,10 @@ const can = (page.props as any).auth?.permissions as string[] ?? [];
 
 // MIME types comunes para el selector
 const commonMimeTypes = [
-    { title: "PDF", value: "application/pdf" },
     { title: "Word (.doc)", value: "application/msword" },
     { title: "Word (.docx)", value: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
     { title: "Excel (.xls)", value: "application/vnd.ms-excel" },
-    { title: "Excel (.xlsx)", value: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
-    { title: "Imagen JPEG", value: "image/jpeg" },
-    { title: "Imagen PNG", value: "image/png" }
+    { title: "Excel (.xlsx)", value: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }
 ];
 
 // Genera el texto de ayuda del campo de carga a partir de los MIME types permitidos del formato.
@@ -234,7 +232,10 @@ const uploadClubFile = async () => {
     router.post(route("files.club-file.upload", uploadTargetFormat.value!.id), data, {
         forceFormData: true,
         onSuccess: () => {
-            customToastSwal({ title: (page.props as any).flash?.success || "Archivo cargado correctamente", icon: "success" });
+            customToastSwal({ 
+                title: (page.props as any).flash?.success || "Archivo cargado correctamente", 
+                icon: "success" 
+            });
             closeUploadModal();
             fetchItems();
         },
@@ -276,33 +277,6 @@ const destroyClubFile = (item: FileFormatItem) => {
 const downloadClubFile = (item: FileFormatItem) => {
     if (item.club_file?.file_url) window.open(item.club_file.file_url, "_blank");
 };
-
-
-// ── Helpers ─────────────────────────────────────────────────────────
-const formatBytes = (bytes: number): string => {
-    if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(1)} MB`;
-    if (bytes >= 1_024) return `${(bytes / 1_024).toFixed(0)} KB`;
-    return `${bytes} B`;
-};
-
-const getFileIcon = (mime: string | null) => {
-    if (!mime) return "mdi-file-outline";
-    if (mime.startsWith("image/")) return "mdi-file-image";
-    if (mime === "application/pdf") return "mdi-file-pdf-box";
-    if (mime.includes("word") || mime.includes("document")) return "mdi-file-word";
-    if (mime.includes("excel") || mime.includes("spreadsheet")) return "mdi-file-excel";
-    return "mdi-file-outline";
-};
-
-const getFileIconColor = (mime: string | null) => {
-    if (!mime) return "grey";
-    if (mime.startsWith("image/")) return "teal";
-    if (mime === "application/pdf") return "red";
-    if (mime.includes("word") || mime.includes("document")) return "blue";
-    if (mime.includes("excel") || mime.includes("spreadsheet")) return "green";
-    return "grey";
-};
-
 
 //* INICIO DATATABLE SERVER SIDE */
 // Aquí se definen los encabezados de la tabla, donde key es el nombre de la columna en la base de datos
@@ -457,8 +431,7 @@ watch(() => (page.props as any).auth.currentClub, fetchItems);
                         <template #item.club_file="{ item }">
                             <div v-if="item.club_file" class="d-flex align-center gap-2 py-1">
                                 <v-icon
-                                    :color="getFileIconColor(item.club_file.file_mime_type)"
-                                    :icon="getFileIcon(item.club_file.file_mime_type)"
+                                    v-bind="getFileMeta(item.club_file.file_mime_type)"
                                     size="22"
                                 />
                                 <div>
@@ -489,7 +462,7 @@ watch(() => (page.props as any).auth.currentClub, fetchItems);
                             />
                             <BaseButton
                                 v-if="can.includes('files.club-file.upload')"
-                                :icon="item.club_file ? 'mdi-file-replace-outline' : 'mdi-upload'"
+                                :icon="item.club_file ? 'mdi-file-upload' : 'mdi-upload'"
                                 size="small"
                                 variant="text"
                                 :color="item.club_file ? 'orange' : 'success'"

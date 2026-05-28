@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Storage;
 
 class ClubFile extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $table = 'files.club_files';
 
