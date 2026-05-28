@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Web\Administrator;
 
 use App\Exports\NotificationsExport;
+use App\Jobs\SendBulkNotificationJob;
 use App\Jobs\SendEmailNotificationJob;
 use App\Models\Notifications\EmailConfig;
 use App\Models\Notifications\Notification;
 use App\Models\Notifications\NotificationAttachment;
 use App\Models\Notifications\NotificationChannel;
+use App\Models\Notifications\NotificationDeliveryLog;
 use App\Models\Notifications\NotificationRecipient;
 use App\Models\Notifications\NotificationStatusCatalog;
 use App\Models\Members\Member;
@@ -31,6 +33,7 @@ class NotificationController extends Controller {
         $this->middleware('permission:notifications.destroy')->only('destroy');
         $this->middleware('permission:notifications.store')->only('recipientsPreview');
         $this->middleware('permission:notifications.update')->only('cancel');
+        $this->middleware('permission:notifications.update')->only('retryPush');
         $this->middleware('permission:notifications.index')->only('export');
     }
 
@@ -170,14 +173,15 @@ class NotificationController extends Controller {
         });
 
         if (!$isScheduled && $notification) {
-            $this->dispatchEmailNotification($notification, $channelsToSend);
+            $this->dispatchNotificationChannels($notification, $channelsToSend);
         }
 
         return redirect()->back()->with('success', 'Correo registrado con exito.');
     }
 
-    private function dispatchEmailNotification(Notification $notification, array $channelsToSend) {
+    private function dispatchNotificationChannels(Notification $notification, array $channelsToSend) {
         $sendEmail = false;
+        $sendPush = false;
 
         foreach ($channelsToSend as $channel) {
             if ($channel === 'email') {
@@ -185,13 +189,94 @@ class NotificationController extends Controller {
             }
 
             if ($channel === 'push') {
-
+                $sendPush = true;
             }
         }
 
         if ($sendEmail) {
             SendEmailNotificationJob::dispatch($notification->id);
         }
+
+        if ($sendPush) {
+            $this->dispatchPushNotification($notification);
+        }
+    }
+
+    private function dispatchPushNotification(Notification $notification){
+        $userIds = NotificationRecipient::query()
+            ->where('notification_id', $notification->id)
+            ->whereNotNull('user_id')
+            ->pluck('user_id')
+            ->unique()
+            ->values()
+            ->toArray();
+
+        if ($notification->scope === 'I') {
+            if (empty($userIds)) {
+                NotificationDeliveryLog::create([
+                    'notification_id' => $notification->id,
+                    'channel' => 'push',
+                    'destination' => 'users',
+                    'provider' => 'firebase',
+                    'status' => 'failed',
+                    'error_message' => 'No hay destinatarios con user_id para enviar push.',
+                ]);
+
+                return;
+            }
+
+            NotificationDeliveryLog::create([
+                'notification_id' => $notification->id,
+                'channel' => 'push',
+                'destination' => 'users',
+                'provider' => 'firebase',
+                'status' => 'queued',
+                'metadata' => [
+                    'scope' => 'I',
+                    'users_count' => count($userIds),
+                ],
+            ]);
+
+            SendBulkNotificationJob::dispatch(
+                type: 'users',
+                target: $userIds,
+                title: (string) $notification->title,
+                body: strip_tags((string) $notification->body),
+                data: [
+                    'type' => 'manual_notification',
+                    'notification_id' => (string) $notification->id,
+                    'club_id' => (string) $notification->club_id,
+                ],
+                notificationId: $notification->id,
+            );
+
+            return;
+        }
+
+        NotificationDeliveryLog::create([
+            'notification_id' => $notification->id,
+            'channel' => 'push',
+            'destination' => 'club_' . $notification->club_id,
+            'provider' => 'firebase',
+            'status' => 'queued',
+            'metadata' => [
+                'scope' => 'G',
+                'club_id' => $notification->club_id,
+            ],
+        ]);
+
+        SendBulkNotificationJob::dispatch(
+            type: 'club',
+            target: (int) $notification->club_id,
+            title: (string) $notification->title,
+            body: strip_tags((string) $notification->body),
+            data: [
+                'type' => 'manual_notification',
+                'notification_id' => (string) $notification->id,
+                'club_id' => (string) $notification->club_id,
+            ],
+            notificationId: $notification->id,
+        );
     }
 
     public function cancel($id) {
@@ -211,6 +296,18 @@ class NotificationController extends Controller {
         $filename = 'notificaciones-correo-' . now()->format('Y-m-d-His') . '.xlsx';
 
         return Excel::download(new NotificationsExport($request), $filename);
+    }
+
+    public function retryPush($id) {
+        $notification = Notification::with('status')->findOrFail($id);
+
+        if ($notification->status?->code == 'cancelled') {
+            return back()->withErrors(['push' => 'No se puede reenviar push en una notificacion cancelada.']);
+        }
+
+        $this->dispatchPushNotification($notification);
+
+        return redirect()->back()->with('success', 'Reintento push encolado.');
     }
 
     private function saveNotificationHistory(Notification $notification, Request $request, bool $isScheduled) {

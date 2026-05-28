@@ -111,6 +111,7 @@ Route::resource('/notifications', NotificationController::class)->only(['index',
 Route::get('/notifications/members', [NotificationController::class, 'getMembers'])->name('notifications.members');
 Route::get('/notifications/recipients-preview', [NotificationController::class, 'recipientsPreview'])->name('notifications.recipients-preview');
 Route::patch('/notifications/{id}/cancel', [NotificationController::class, 'cancel'])->name('notifications.cancel');
+Route::patch('/notifications/{id}/retry-push', [NotificationController::class, 'retryPush'])->name('notifications.retry-push');
 Route::get('/notifications/export', [NotificationController::class, 'export'])->name('notifications.export');
 
 // announcements

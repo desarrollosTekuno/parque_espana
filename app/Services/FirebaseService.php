@@ -61,7 +61,8 @@ class FirebaseService
     {
         $stringData = collect($data)->map(fn($v) => (string) $v)->toArray();
 
-        $message = CloudMessage::withTarget('topic', $topic)
+        $message = CloudMessage::new()
+            ->toTopic($topic)
             ->withNotification(Notification::create($title, $body))
             ->withData($stringData);
 

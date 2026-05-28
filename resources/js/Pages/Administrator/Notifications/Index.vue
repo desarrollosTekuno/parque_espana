@@ -30,6 +30,7 @@ interface NotificationItem {
         status: string;
         sent_at: string | null;
         error_message: string | null;
+        created_at?: string | null;
     }>;
 }
 
@@ -79,6 +80,7 @@ const headers = [
     { title: "Alcance", key: "scope", sortable: false },
     { title: "Destinatarios", key: "recipients_count", sortable: false },
     { title: "SMTP", key: "smtp", sortable: false },
+    { title: "Push", key: "push", sortable: false },
     { title: "Estado", key: "status", sortable: false },
     { title: "Fecha", key: "created_at" },
     { title: "Creado por", key: "creator", sortable: false },
@@ -128,6 +130,17 @@ const minScheduledTime = computed(() => {
     const minutes = String(now.getMinutes()).padStart(2, "0");
 
     return `${hours}:${minutes}`;
+});
+
+const sortedHistoryLogs = computed(() => {
+    const logs = selectedNotification.value?.delivery_logs ?? [];
+
+    return [...logs].sort((a, b) => {
+        const aDate = new Date(a.sent_at || a.created_at || 0).getTime();
+        const bDate = new Date(b.sent_at || b.created_at || 0).getTime();
+
+        return bDate - aDate;
+    });
 });
 
 const scheduledDateRule = (value: string) => {
@@ -365,7 +378,100 @@ const getNotificationSmtp = (item: NotificationItem) => {
         return null;
     }
 
-    return item.delivery_logs[0].provider;
+    const emailLog = item.delivery_logs.find((log) => log.channel === "email");
+
+    if (!emailLog) {
+        return null;
+    }
+
+    return emailLog.provider;
+};
+
+const getPushLog = (item: NotificationItem) => {
+    if (!item.delivery_logs || item.delivery_logs.length === 0) {
+        return null;
+    }
+
+    const logs = item.delivery_logs.filter((log) => log.channel === "push");
+
+    if (logs.length === 0) {
+        return null;
+    }
+
+    return logs[logs.length - 1];
+};
+
+const getPushStatusText = (item: NotificationItem) => {
+    const pushLog = getPushLog(item);
+
+    if (!pushLog) {
+        return "Sin envio";
+    }
+
+    if (pushLog.status === "sent") {
+        return "Enviado";
+    }
+
+    if (pushLog.status === "queued") {
+        return "En cola";
+    }
+
+    if (pushLog.status === "failed") {
+        return "Fallido";
+    }
+
+    return pushLog.status;
+};
+
+const getPushStatusColor = (item: NotificationItem) => {
+    const pushLog = getPushLog(item);
+
+    if (!pushLog) {
+        return "default";
+    }
+
+    if (pushLog.status === "sent") {
+        return "success";
+    }
+
+    if (pushLog.status === "queued") {
+        return "warning";
+    }
+
+    if (pushLog.status === "failed") {
+        return "error";
+    }
+
+    return "default";
+};
+
+const retryPush = async (item: NotificationItem) => {
+    const confirmed = await customConfirmSwal({
+        title: "¿Reintentar push?",
+        text: `Se volvera a encolar push para \"${item.title}\".`,
+        confirmText: "Sí, reintentar",
+        actionType: "accept",
+    });
+
+    if (!confirmed) return;
+
+    router.patch(route("notifications.retry-push", item.id), {
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: () => {
+            fetchItems();
+            customToastSwal({
+                title: "Reintento push encolado.",
+                icon: "success",
+            });
+        },
+        onError: () => {
+            customToastSwal({
+                title: "No se pudo reintentar push.",
+                icon: "error",
+            });
+        },
+    });
 };
 
 const isImageFile = (file: File) => {
@@ -592,6 +698,16 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                     </span>
                 </template>
 
+                <template #item.push="{ item }">
+                    <v-chip
+                        size="small"
+                        variant="tonal"
+                        :color="getPushStatusColor(item)"
+                    >
+                        {{ getPushStatusText(item) }}
+                    </v-chip>
+                </template>
+
                 <template #item.created_at="{ item }">
                     {{ getNotificationDate(item) }}
                 </template>
@@ -604,6 +720,13 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                     <BaseButton
                         action="view"
                         @click="openHistoryModal(item)"
+                    />
+                    <BaseButton
+                        :icon-only="true"
+                        icon="mdi-bell-ring-outline"
+                        color="warning"
+                        tooltip="Reintentar push"
+                        @click="retryPush(item)"
                     />
                     <BaseButton
                         v-if="item.status?.code === 'scheduled' || item.status?.code === 'pending'"
@@ -1051,7 +1174,7 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                 <v-card-text>
                     <v-data-table
                         :headers="historyHeaders"
-                        :items="selectedNotification?.delivery_logs || []"
+                        :items="sortedHistoryLogs"
                         :search="historySearch"
                         :items-per-page="10"
                         :items-per-page-options="[10, 25, 50, 100]"
