@@ -56,9 +56,6 @@ class NotificationController extends Controller {
         $query = Notification::query()
             ->with(['creator:id,name', 'status:id,name,code', 'club:id,name', 'deliveryLogs'])
             ->withCount('recipients')
-            ->whereHas('channel', function ($channelQuery) {
-                $channelQuery->where('code', 'email');
-            })
             ->whereIn('club_id', $clubIds);
 
         if ($requestedClubId > 0) {
@@ -127,7 +124,8 @@ class NotificationController extends Controller {
 
         $clubId = session('club_id');
         $statusCode = 'pending';
-        $channel = NotificationChannel::query()->where('code', 'email')->first();
+        $defaultChannelCode = in_array('email', $channelsToSend, true) ? 'email' : 'push';
+        $channel = NotificationChannel::query()->where('code', $defaultChannelCode)->first();
 
         if (isset($validated['send_type']) && $validated['send_type'] === 'scheduled') {
             $statusCode = 'scheduled';
@@ -177,7 +175,7 @@ class NotificationController extends Controller {
             $this->dispatchNotificationChannels($notification, $channelsToSend);
         }
 
-        return redirect()->back()->with('success', 'Correo registrado con exito.');
+        return redirect()->back()->with('success', 'Notificacion registrada con exito.');
     }
 
     private function dispatchNotificationChannels(Notification $notification, array $channelsToSend) {
@@ -337,7 +335,7 @@ class NotificationController extends Controller {
     }
 
     public function export(Request $request) {
-        $filename = 'notificaciones-correo-' . now()->format('Y-m-d-His') . '.xlsx';
+        $filename = 'notificaciones-' . now()->format('Y-m-d-His') . '.xlsx';
 
         return Excel::download(new NotificationsExport($request), $filename);
     }

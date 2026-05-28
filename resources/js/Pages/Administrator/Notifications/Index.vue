@@ -185,7 +185,7 @@ const create = () => {
     form.scope = "G";
     form.club_id = props.club_id;
     form.title = "Prueba de notificacion";
-    form.body = "<p>Correo de prueba temporal.</p>";
+    form.body = "<p>Notificacion de prueba temporal.</p>";
     form.send_type = "now";
     form.scheduled_date = "";
     form.scheduled_time = "";
@@ -504,7 +504,7 @@ const save = () => {
             closeModal();
             fetchItems();
             customToastSwal({
-                title: "Correo registrado con exito.",
+                title: "Notificacion registrada con exito.",
                 icon: "success",
             });
         },
@@ -514,7 +514,7 @@ const save = () => {
                 form.errors.scheduled_date ||
                 form.errors.title ||
                 form.errors.body ||
-                "No se pudo registrar el correo.";
+                "No se pudo registrar la notificacion.";
 
             customToastSwal({
                 title: errorMessage,
@@ -614,11 +614,11 @@ watch([recipients, () => form.selected_recipient_ids], () => {
 </script>
 
 <template>
-    <Head title="Notificaciones por correo" />
+    <Head title="Notificaciones" />
 
     <AppLayout>
         <template #header>
-            <h2 class="text-h5">Notificaciones por correo</h2>
+            <h2 class="text-h5">Panel de Notificaciones</h2>
         </template>
 
         <template #options>
@@ -650,7 +650,7 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                 class="elevation-1"
                 :items-per-page-options="[10, 25, 50, 100]"
                 items-per-page-text=" Mostrar"
-                no-data-text="No hay notificaciones por correo guardadas"
+                no-data-text="No hay notificaciones guardadas"
             >
                 <template #top>
                     <div class="flex-wrap mx-4 d-flex ga-2">
@@ -773,28 +773,11 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                         <v-row>
 
                             <v-col cols="12">
-                                    <div class="mb-2 text-subtitle-2">Selecciona a quienes se les enviara el correo</div>
-                                    <v-btn-toggle v-model="form.scope" class="w-100" color="primary" mandatory @update:model-value="onScopeChange">
-                                        <v-btn value="G" class="flex-grow-1" prepend-icon="mdi mdi-account-group-outline">Por parque</v-btn>
-                                        <v-btn value="I" class="flex-grow-1" prepend-icon="mdi-account">Individual</v-btn>
-                                    </v-btn-toggle>
-                                    <div class="mt-1 text-caption text-medium-emphasis">
-                                        {{ form.scope === 'I' ? 'Selecciona uno o varios miembros.' : 'Se enviara al grupo general.' }}
-                                    </div>
-                                    <div class="px-1 mt-2 d-flex justify-space-between align-center">
-                                        <div class="text-caption text-medium-emphasis">
-                                            {{ form.scope === 'G' ? `Se enviara a ${recipientsCount} miembros del club.` : `Seleccionados: ${selectedRecipientsCount} de ${recipientsCount}` }}
-                                        </div>
-                                        <a
-                                            v-if="form.scope === 'I' && selectedRecipientsCount > 0"
-                                            href="#"
-                                            class="text-primary text-decoration-underline text-caption"
-                                            :style="recipientsCount == 0 ? 'pointer-events:none;opacity:0.5;' : ''"
-                                            @click.prevent="changeRecipientsModal"
-                                        >
-                                            Ver correos
-                                        </a>
-                                    </div>
+                                <div class="mb-2 text-subtitle-2">Selecciona a quienes se les enviara la notificacion</div>
+                                <v-btn-toggle v-model="form.scope" class="w-100" color="primary" mandatory @update:model-value="onScopeChange">
+                                    <v-btn value="G" class="flex-grow-1" prepend-icon="mdi mdi-account-group-outline">Por parque</v-btn>
+                                    <v-btn value="I" class="flex-grow-1" prepend-icon="mdi-account">Individual</v-btn>
+                                </v-btn-toggle>
                             </v-col>
 
                             <v-col cols="12">
@@ -828,6 +811,23 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                                 />
                             </v-col>
 
+                            <v-col cols="12" class="-mt-8">
+                                    <div class="px-1 d-flex justify-space-between align-center">
+                                        <div class="text-caption text-medium-emphasis">
+                                            {{ form.scope === 'G' ? `Se enviara a ${recipientsCount} miembros del club.` : `Seleccionados: ${selectedRecipientsCount} de ${recipientsCount}` }}
+                                        </div>
+                                        <a
+                                            v-if="form.scope === 'I' && selectedRecipientsCount > 0"
+                                            href="#"
+                                            class="text-primary text-decoration-underline text-caption"
+                                            :style="recipientsCount == 0 ? 'pointer-events:none;opacity:0.5;' : ''"
+                                            @click.prevent="changeRecipientsModal"
+                                        >
+                                            Ver destinatarios
+                                        </a>
+                                    </div>
+                            </v-col>
+
                             <v-col cols="12">
                                 <v-text-field
                                     v-model="form.title"
@@ -841,7 +841,7 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                                 <FormQuillEditor
                                     v-model="form.body"
                                     label="Descripcion"
-                                    placeholder="Escribe el contenido del correo..."
+                                    placeholder="Escribe el contenido de la notificacion..."
                                     :required="true"
                                     toolbar="essential"
                                 />
@@ -939,7 +939,7 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                             <v-icon size="20">mdi-email-multiple-outline</v-icon>
                         </v-avatar>
                         <div>
-                            <div class="text-subtitle-1 font-weight-bold">Seleccion de correos</div>
+                            <div class="text-subtitle-1 font-weight-bold">Seleccion de destinatarios</div>
                             <div class="text-caption text-medium-emphasis">Elige quienes recibiran la notificacion</div>
                         </div>
                     </div>
@@ -1004,7 +1004,7 @@ watch([recipients, () => form.selected_recipient_ids], () => {
 
                             <tr v-if="recipients.length === 0">
                                 <td colspan="3" class="py-6 text-center text-medium-emphasis">
-                                    No se encontraron correos.
+                                    No se encontraron destinatarios.
                                 </td>
                             </tr>
                         </tbody>
@@ -1036,7 +1036,7 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                             </div>
 
                             <div class="text-h5 font-weight-bold">
-                                Notificación por correo
+                                Notificacion
                             </div>
 
                             <div class="mt-1 text-body-2 text-medium-emphasis">
@@ -1058,7 +1058,7 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                 <v-card-text class="pa-8 overflow-auto h-[50vh]">
                     <section class="border border-gray-200 rounded-xl ">
                         <div class="px-4 py-3 border-b border-gray-200 bg-slate-50 d-flex align-center justify-space-between ga-3">
-                            <div class="text-caption text-medium-emphasis">Vista previa del correo</div>
+                            <div class="text-caption text-medium-emphasis">Vista previa de la notificacion</div>
                         </div>
 
                         <div class="bg-white border-b border-gray-200">

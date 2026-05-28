@@ -41,9 +41,6 @@ class NotificationsExport implements WithMultipleSheets
         $query = Notification::query()
             ->with(['creator:id,name', 'status:id,name,code', 'club:id,name'])
             ->withCount('recipients')
-            ->whereHas('channel', function ($channelQuery) {
-                $channelQuery->where('code', 'email');
-            })
             ->whereIn('club_id', $clubIds);
 
         if ($requestedClubId > 0) {
