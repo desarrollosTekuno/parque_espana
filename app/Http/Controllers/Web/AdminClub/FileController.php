@@ -313,7 +313,6 @@ class FileController extends Controller
                 ->where('file_id', $file->id)
                 ->firstOrFail();
 
-            $this->deleteFile($clubFile->file_path);
             $clubFile->delete();
 
             return redirect()->back()->with('success', 'Archivo eliminado correctamente.');

@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -24,8 +25,13 @@ return new class extends Migration
             $table->timestamps();
             $table->softDeletes();
 
-            $table->unique(['club_id', 'file_id']);
         });
+
+        DB::statement("
+            CREATE UNIQUE INDEX club_files_unique_active
+            ON files.club_files (club_id, file_id)
+            WHERE deleted_at IS NULL
+        ");
     }
 
     /**
@@ -33,6 +39,9 @@ return new class extends Migration
      */
     public function down(): void
     {
+        DB::statement("
+            DROP INDEX IF EXISTS club_files_unique_active
+        ");
         Schema::dropIfExists('files.club_files');
     }
 };
