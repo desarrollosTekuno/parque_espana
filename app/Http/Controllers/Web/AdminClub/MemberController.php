@@ -34,6 +34,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
+use Illuminate\Support\Facades\Gate;
 
 class MemberController extends Controller
 {
@@ -139,6 +140,8 @@ class MemberController extends Controller
                             && (int) $account->account_members_count > 1,
                         'can_separate_member' => (bool) ($currentMembership?->membershipType?->allows_multiple_members)
                             && (int) $account->account_members_count > 1,
+                        'can_cancel_membership' => Gate::allows('members.cancel.create'),
+                        'can_create_membership' => Gate::allows('members.additional-membership.create'),
                         'active_memberships' => $activeMemberships->map(function (Membership $membership) {
                             return [
                                 'id' => $membership->id,

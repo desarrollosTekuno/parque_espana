@@ -19,6 +19,8 @@ interface MemberItem {
     can_change_membership: boolean;
     can_change_primary_holder: boolean;
     can_separate_member: boolean;
+    can_create_membership: boolean;
+    can_cancel_membership: boolean;
     active_memberships: ActiveMembershipItem[];
 }
 
@@ -469,6 +471,7 @@ const formatDateTime = (value: string | null) => {
                                 />
 
                                 <BaseButton
+                                    v-if="item.can_create_membership"
                                     :icon-only="false"
                                     action="add"
                                     text="Agregar membresía"
@@ -485,6 +488,7 @@ const formatDateTime = (value: string | null) => {
                                 />
 
                                 <BaseButton
+                                    v-if="item.can_cancel_membership"
                                     :icon-only="false"
                                     action="delete"
                                     text="Dar de baja"

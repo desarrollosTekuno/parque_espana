@@ -128,6 +128,9 @@ class PermissionSeeder extends Seeder
             ['module' => 'Membresías', 'name' => 'member-access.index', 'description' => 'Ver acceso de miembros', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'member-access.store', 'description' => 'Asignar acceso a miembros', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'member-access.destroy', 'description' => 'Revocar acceso a miembros', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'members.cancel.create', 'description' => 'Dar de baja membresía', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'members.additional-membership.create', 'description' => 'Agregar nueva membresía', 'contexts' => ['web']],
+
             // Cobranza
             ['module' => 'Cobranza', 'name' => 'billing.index', 'description' => 'Ver módulo de cobranza', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'billing.charges.index', 'description' => 'Ver desglose de cargos pendientes', 'contexts' => ['web']],
