@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\Administrator;
 
 use App\Exports\NotificationsExport;
 use App\Jobs\SendEmailNotificationJob;
+use App\Models\DeviceToken;
 use App\Models\Notifications\EmailConfig;
 use App\Models\Notifications\Notification;
 use App\Models\Notifications\NotificationAttachment;
@@ -229,12 +230,29 @@ class NotificationController extends Controller {
 
     private function sendPushToClub(FirebaseService $firebase, Notification $notification): void
     {
-        $firebase->sendToClub(
+        $sent = $firebase->sendToClub(
             (int) $notification->club_id,
             (string) $notification->title,
             strip_tags((string) $notification->body),
             $this->getPushData($notification)
         );
+
+        if (!$sent) {
+            NotificationDeliveryLog::create([
+                'notification_id' => $notification->id,
+                'channel' => 'push',
+                'destination' => 'club_' . $notification->club_id,
+                'provider' => 'firebase',
+                'status' => 'failed',
+                'error_message' => 'Firebase rechazo el envio al topic del club.',
+                'metadata' => [
+                    'scope' => 'G',
+                    'club_id' => $notification->club_id,
+                ],
+            ]);
+
+            return;
+        }
 
         NotificationDeliveryLog::create([
             'notification_id' => $notification->id,
@@ -334,6 +352,66 @@ class NotificationController extends Controller {
         $this->dispatchPushNotification($notification);
 
         return redirect()->back()->with('success', 'Reintento push encolado.');
+    }
+
+    public function subscribeTestToken(Request $request)
+    {
+        $validated = $request->validate([
+            'token' => ['nullable', 'string'],
+        ]);
+
+        $token = $validated['token'] ?? env('FCM_TEST_TOKEN');
+
+        if (!$token) {
+            $token = DeviceToken::query()
+                ->where('user_id', 3)
+                ->where('is_active', true)
+                ->value('token');
+        }
+
+        if (!$token) {
+            return redirect()->back()->withErrors([
+                'messageError' => 'No se encontro token de prueba. Define FCM_TEST_TOKEN o envialo en la peticion.',
+            ]);
+        }
+
+        $clubId = (int) session('club_id');
+
+        if (!$clubId) {
+            return redirect()->back()->withErrors([
+                'messageError' => 'No se encontro club en sesion para suscribir el token de prueba.',
+            ]);
+        }
+
+        $userId = Auth::id();
+
+        $deviceToken = DeviceToken::query()->where('token', $token)->first();
+
+        if ($deviceToken) {
+            $deviceToken->update([
+                'is_active' => true,
+                'last_seen_at' => now(),
+            ]);
+        } else {
+            DeviceToken::create([
+                'user_id' => $userId,
+                'token' => $token,
+                'platform' => 'web',
+                'device_name' => 'fcm-test',
+                'is_active' => true,
+                'last_seen_at' => now(),
+            ]);
+        }
+
+        $subscribed = app(FirebaseService::class)->subscribeToTopic($token, 'club_' . $clubId);
+
+        if (!$subscribed) {
+            return redirect()->back()->withErrors([
+                'messageError' => 'Token guardado, pero no se pudo suscribir al topic del club. Revisa credenciales Firebase.',
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Token de prueba suscrito al topic: club_' . $clubId);
     }
 
     private function saveNotificationHistory(Notification $notification, Request $request, bool $isScheduled) {

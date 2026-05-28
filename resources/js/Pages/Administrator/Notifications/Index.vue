@@ -193,6 +193,18 @@ const create = () => {
     getMembers();
 };
 
+const subscribeTestToken = () => {
+    router.post(route("notifications.subscribe-test-token"), {}, {
+        preserveScroll: true,
+        onSuccess: () => {
+            customToastSwal("Token de prueba suscrito al club", "success");
+        },
+        onError: () => {
+            customToastSwal("No se pudo suscribir el token de prueba", "error");
+        },
+    });
+};
+
 const fetchItems = async () => {
     loading.value = true;
 
@@ -610,6 +622,13 @@ watch([recipients, () => form.selected_recipient_ids], () => {
         </template>
 
         <template #options>
+            <!-- <BaseButton
+                variant="tonal"
+                :icon-only="false"
+                text="Suscribir token test"
+                icon="mdi-link-plus"
+                @click="subscribeTestToken"
+            /> -->
             <BaseButton
                 variant="elevated"
                 :icon-only="false"

@@ -112,6 +112,7 @@ Route::get('/notifications/members', [NotificationController::class, 'getMembers
 Route::get('/notifications/recipients-preview', [NotificationController::class, 'recipientsPreview'])->name('notifications.recipients-preview');
 Route::patch('/notifications/{id}/cancel', [NotificationController::class, 'cancel'])->name('notifications.cancel');
 Route::patch('/notifications/{id}/retry-push', [NotificationController::class, 'retryPush'])->name('notifications.retry-push');
+Route::post('/notifications/subscribe-test-token', [NotificationController::class, 'subscribeTestToken'])->name('notifications.subscribe-test-token');
 Route::get('/notifications/export', [NotificationController::class, 'export'])->name('notifications.export');
 
 // announcements

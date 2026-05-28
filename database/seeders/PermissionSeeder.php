@@ -52,6 +52,7 @@ class PermissionSeeder extends Seeder
             // Reservaciones
             ['module' => 'Reservaciones', 'name' => 'reservations.index', 'description' => 'Ver reservaciones', 'contexts' => ['web']],
             ['module' => 'Reservaciones', 'name' => 'reservations.store', 'description' => 'Crear reservaciones', 'contexts' => ['web']],
+            ['module' => 'Reservaciones', 'name' => 'reservations.update', 'description' => 'Actualizar reservaciones', 'contexts' => ['web']],
             ['module' => 'Reservaciones', 'name' => 'reservations.cancel', 'description' => 'Cancelar reservaciones', 'contexts' => ['web']],
             ['module' => 'Reservaciones', 'name' => 'reservations.calendar', 'description' => 'Ver calendario de reservaciones', 'contexts' => ['web']],
 
