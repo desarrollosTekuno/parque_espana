@@ -24,8 +24,51 @@ class MemberFactory extends Factory
 
     public function definition(): array
     {
-        $firstNames = ['juan', 'ana', 'luis', 'maria', 'jose', 'laura', 'carlos', 'elena', 'diego', 'sofia'];
-        $lastNames = ['garcia', 'martinez', 'lopez', 'hernandez', 'gonzalez', 'perez', 'sanchez', 'ramirez'];
+        $firstNames = [
+            'Armando',
+            'Carlos V',
+            'Dolores',
+            'Socorro',
+            'Amparo',
+            'Ascencio',
+            'Aquilino',
+            'Benito',
+            'Eulalio',
+            'Inocencio',
+            'Filemón',
+            'Anastasio',
+            'Prudencio',
+            'Perfecto',
+            'Nicanor',
+            'Crispín',
+            'Genaro',
+            'Gumaro',
+            'Teófilo',
+            'Heriberto',
+        ];
+
+        $lastNames = [
+            'III',
+            'Prieto',
+            'Mojica',
+            'Camacho',
+            'Cordero',
+            'Barriga',
+            'Trejo',
+            'Lechuga',
+            'Bonilla',
+            'Cansino',
+            'Paniagua',
+            'Carrillo',
+            'Cabezas',
+            'Mejía',
+            'Pecho',
+            'Patiño',
+            'Palacios',
+            'Verdugo',
+            'Mondragón',
+            'Zamarripa',
+        ];
 
         $firstName = $firstNames[array_rand($firstNames)];
         $lastName = $lastNames[array_rand($lastNames)];
