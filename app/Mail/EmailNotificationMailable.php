@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Storage;
 class EmailNotificationMailable extends Mailable {
     use Queueable, SerializesModels;
 
-    private string $attachmentDisk = 's3';
+    private string $attachmentDisk = 'spaces';
 
     public function __construct(
         public string $subjectText,
@@ -38,7 +38,7 @@ class EmailNotificationMailable extends Mailable {
 
             $attachmentLinks[] = [
                 'name' => $fileName,
-                'url' => Storage::disk($this->attachmentDisk)->url($filePath),
+                'url' => Storage::disk($this->attachmentDisk)->temporaryUrl($filePath, now()->addMinutes(30)),
             ];
         }
 

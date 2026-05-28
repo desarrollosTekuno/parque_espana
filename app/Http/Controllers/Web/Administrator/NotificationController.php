@@ -13,9 +13,11 @@ use App\Models\Notifications\NotificationStatusCatalog;
 use App\Models\Members\Member;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Maatwebsite\Excel\Facades\Excel;
@@ -155,7 +157,7 @@ class NotificationController extends Controller {
             $this->saveNotificationHistory($notification, $request, $isScheduled);
 
             foreach ($request->file('attachments', []) as $file) {
-                $path = $file->store("Notificaciones/Emails/{$notificationUuid}", 's3');
+                $path = $this->uploadNotificationAttachment($file, $notificationUuid);
 
                 NotificationAttachment::create([
                     'notification_id' => $notification->id,
@@ -324,5 +326,14 @@ class NotificationController extends Controller {
             'total' => $recipients->count(),
             'recipients' => $recipients,
         ];
+    }
+
+    private function uploadNotificationAttachment(UploadedFile $file, string $notificationUuid) {
+        $directory = "Notificaciones/Emails/{$notificationUuid}";
+        $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
+
+        Storage::disk('spaces')->putFileAs($directory, $file, $filename, 'public');
+
+        return "{$directory}/{$filename}";
     }
 }

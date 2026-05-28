@@ -37,6 +37,7 @@ use App\Http\Controllers\Web\AdminClub\GlobalCashCutController;
 use App\Http\Controllers\Web\AdminClub\DocumentTypeController;
 use App\Http\Controllers\Web\Administrator\EmailConfigController;
 use App\Http\Controllers\Web\Administrator\EmailNotificationController;
+use App\Http\Controllers\Web\Administrator\NotificationController;
 use App\Http\Controllers\Web\AdminClub\FileController;
 use App\Http\Controllers\Web\AdminClub\GuestListPaymentController;
 use App\Http\Controllers\Web\AdminClub\MembershipTypeController;
