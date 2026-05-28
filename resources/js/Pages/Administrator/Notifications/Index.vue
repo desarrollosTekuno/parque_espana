@@ -184,8 +184,8 @@ const create = () => {
     showModal.value = true;
     form.scope = "G";
     form.club_id = props.club_id;
-    form.title = "Prueba de notificacion";
-    form.body = "<p>Notificacion de prueba temporal.</p>";
+    form.title = "";
+    form.body = "";
     form.send_type = "now";
     form.scheduled_date = "";
     form.scheduled_time = "";
@@ -417,7 +417,7 @@ const getPushStatusText = (item: NotificationItem) => {
     const pushLog = getPushLog(item);
 
     if (!pushLog) {
-        return "Sin envio";
+        return "Sin envío";
     }
 
     if (pushLog.status === "sent") {
@@ -460,7 +460,7 @@ const getPushStatusColor = (item: NotificationItem) => {
 const retryPush = async (item: NotificationItem) => {
     const confirmed = await customConfirmSwal({
         title: "¿Reintentar push?",
-        text: `Se volvera a encolar push para \"${item.title}\".`,
+        text: `Se volverá a encolar push para \"${item.title}\".`,
         confirmText: "Sí, reintentar",
         actionType: "accept",
     });
@@ -504,7 +504,7 @@ const save = () => {
             closeModal();
             fetchItems();
             customToastSwal({
-                title: "Notificacion registrada con exito.",
+                title: "Notificación registrada con éxito.",
                 icon: "success",
             });
         },
@@ -514,7 +514,7 @@ const save = () => {
                 form.errors.scheduled_date ||
                 form.errors.title ||
                 form.errors.body ||
-                "No se pudo registrar la notificacion.";
+                "No se pudo registrar la notificación.";
 
             customToastSwal({
                 title: errorMessage,
@@ -526,8 +526,8 @@ const save = () => {
 
 const cancelNotification = async (item: NotificationItem) => {
     const confirmed = await customConfirmSwal({
-        title: "¿Cancelar notificacion?",
-        text: `Se cancelara "${item.title}" y no se enviara.`,
+        title: "¿Cancelar notificación?",
+        text: `Se cancelará "${item.title}" y no se enviará.`,
         confirmText: "Sí, cancelar",
         actionType: "reject",
     });
@@ -540,7 +540,7 @@ const cancelNotification = async (item: NotificationItem) => {
         onSuccess: () => {
             fetchItems();
             customToastSwal({
-                title: "Notificacion cancelada.",
+                title: "Notificación cancelada.",
                 icon: "success",
             });
         },
@@ -713,7 +713,7 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                         <div class="text-body-2 font-weight-medium">{{ getNotificationSmtp(item) }}</div>
                     </div>
                     <span v-else class="text-caption text-medium-emphasis">
-                        Pendiente de envio
+                        Pendiente de envío
                     </span>
                 </template>
 
@@ -768,12 +768,12 @@ watch([recipients, () => form.selected_recipient_ids], () => {
         <!-- ===================================== MODALES ===================================== -->
         <v-dialog v-model="showModal" max-width="900">
             <v-form ref="formSendRef" @submit.prevent="save">
-                <v-card title="Nueva notificacion">
+                <v-card title="Nueva notificación">
                     <v-card-text>
                         <v-row>
 
                             <v-col cols="12">
-                                <div class="mb-2 text-subtitle-2">Selecciona a quienes se les enviara la notificacion</div>
+                                <div class="mb-2 text-subtitle-2">Selecciona a quienes se les enviará la notificación</div>
                                 <v-btn-toggle v-model="form.scope" class="w-100" color="primary" mandatory @update:model-value="onScopeChange">
                                     <v-btn value="G" class="flex-grow-1" prepend-icon="mdi mdi-account-group-outline">Por parque</v-btn>
                                     <v-btn value="I" class="flex-grow-1" prepend-icon="mdi-account">Individual</v-btn>
@@ -790,7 +790,7 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                                     chips
                                     clearable
                                     :rules="[required]"
-                                    label="Canal de envio"
+                                    label="Canal de envío"
                                     required
                                 />
                             </v-col>
@@ -814,7 +814,7 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                             <v-col cols="12" class="-mt-8">
                                     <div class="px-1 d-flex justify-space-between align-center">
                                         <div class="text-caption text-medium-emphasis">
-                                            {{ form.scope === 'G' ? `Se enviara a ${recipientsCount} miembros del club.` : `Seleccionados: ${selectedRecipientsCount} de ${recipientsCount}` }}
+                                            {{ form.scope === 'G' ? `Se enviará a ${recipientsCount} miembros del club.` : `Seleccionados: ${selectedRecipientsCount} de ${recipientsCount}` }}
                                         </div>
                                         <a
                                             v-if="form.scope === 'I' && selectedRecipientsCount > 0"
@@ -841,7 +841,7 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                                 <FormQuillEditor
                                     v-model="form.body"
                                     label="Descripcion"
-                                    placeholder="Escribe el contenido de la notificacion..."
+                                    placeholder="Escribe el contenido de la notificación..."
                                     :required="true"
                                     toolbar="essential"
                                 />
@@ -874,10 +874,10 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                             <v-col cols="12" md="6">
                                 <v-select
                                     v-model="form.send_type"
-                                    label="Tipo de envio"
+                                    label="Tipo de envío"
                                     :items="[
                                         { title: 'Enviar ahora', value: 'now' },
-                                        { title: 'Programar envio', value: 'scheduled' },
+                                        { title: 'Programar envío', value: 'scheduled' },
                                     ]"
                                     item-title="title"
                                     item-value="value"
@@ -921,7 +921,7 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                         />
                         <BaseButton
                             :icon-only="false"
-                            text="Generar notificacion"
+                            text="Generar notificación"
                             variant="flat"
                             action="save"
                             @click="generatePreview"
@@ -939,8 +939,8 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                             <v-icon size="20">mdi-email-multiple-outline</v-icon>
                         </v-avatar>
                         <div>
-                            <div class="text-subtitle-1 font-weight-bold">Seleccion de destinatarios</div>
-                            <div class="text-caption text-medium-emphasis">Elige quienes recibiran la notificacion</div>
+                            <div class="text-subtitle-1 font-weight-bold">Selección de destinatarios</div>
+                            <div class="text-caption text-medium-emphasis">Elige quiénes recibirán la notificación</div>
                         </div>
                     </div>
 
@@ -954,7 +954,7 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                 <v-card-text class="px-5 py-4">
                     <div class="mb-4 d-flex align-center justify-space-between">
                         <div class="text-caption text-medium-emphasis">
-                            Revisa y confirma los destinatarios del envio general.
+                            Revisa y confirma los destinatarios del envío general.
                         </div>
 
                         <v-btn
@@ -1058,13 +1058,13 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                 <v-card-text class="pa-8 overflow-auto h-[50vh]">
                     <section class="border border-gray-200 rounded-xl ">
                         <div class="px-4 py-3 border-b border-gray-200 bg-slate-50 d-flex align-center justify-space-between ga-3">
-                            <div class="text-caption text-medium-emphasis">Vista previa de la notificacion</div>
+                            <div class="text-caption text-medium-emphasis">Vista previa de la notificación</div>
                         </div>
 
                         <div class="bg-white border-b border-gray-200">
                             <div class="px-5 py-4 border-b border-gray-200 bg-slate-50/60">
                                 <div class="mb-1 text-caption text-medium-emphasis">Titulo</div>
-                                <div class="text-body-1 font-weight-bold">{{ form.title || "Sin titulo" }}</div>
+                                <div class="text-body-1 font-weight-bold">{{ form.title || "Sin título" }}</div>
                             </div>
 
                             <div class="flex-wrap px-5 py-3 d-flex ga-4 text-body-2">
@@ -1080,7 +1080,7 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                                         class="ml-2 text-caption text-primary text-decoration-underline"
                                         @click.prevent="changeRecipientsModal"
                                     >
-                                        Ver mas
+                                        Ver más
                                     </a>
                                 </div>
                             </div>
@@ -1180,7 +1180,7 @@ watch([recipients, () => form.selected_recipient_ids], () => {
             <v-card>
                 <v-card-title class="d-flex align-center justify-space-between">
                     <div>
-                        <div class="text-h6">Historial de envio</div>
+                        <div class="text-h6">Historial de envío</div>
                         <div class="text-caption text-medium-emphasis">
                             {{ selectedNotification?.title || "Notificacion" }}
                         </div>
@@ -1198,7 +1198,7 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                         :items-per-page="10"
                         :items-per-page-options="[10, 25, 50, 100]"
                         items-per-page-text=" Mostrar"
-                        no-data-text="Todavia no hay historial de envio para esta notificacion"
+                        no-data-text="Todavía no hay historial de envío para esta notificación"
                         class="border rounded-lg"
                     >
                         <template #top>

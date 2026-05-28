@@ -175,7 +175,7 @@ class NotificationController extends Controller {
             $this->dispatchNotificationChannels($notification, $channelsToSend);
         }
 
-        return redirect()->back()->with('success', 'Notificacion registrada con exito.');
+        return redirect()->back()->with('success', 'Notificación registrada con éxito.');
     }
 
     private function dispatchNotificationChannels(Notification $notification, array $channelsToSend) {
@@ -226,8 +226,7 @@ class NotificationController extends Controller {
         }
     }
 
-    private function sendPushToClub(FirebaseService $firebase, Notification $notification): void
-    {
+    private function sendPushToClub(FirebaseService $firebase, Notification $notification) {
         $sent = $firebase->sendToClub(
             (int) $notification->club_id,
             (string) $notification->title,
@@ -242,7 +241,7 @@ class NotificationController extends Controller {
                 'destination' => 'club_' . $notification->club_id,
                 'provider' => 'firebase',
                 'status' => 'failed',
-                'error_message' => 'Firebase rechazo el envio al topic del club.',
+                'error_message' => 'Firebase rechazó el envío al topic del club.',
                 'metadata' => [
                     'scope' => 'G',
                     'club_id' => $notification->club_id,
@@ -266,8 +265,7 @@ class NotificationController extends Controller {
         ]);
     }
 
-    private function sendPushToUsers(FirebaseService $firebase, Notification $notification): void
-    {
+    private function sendPushToUsers(FirebaseService $firebase, Notification $notification) {
         $userIds = NotificationRecipient::query()
             ->where('notification_id', $notification->id)
             ->whereNotNull('user_id')
@@ -312,8 +310,7 @@ class NotificationController extends Controller {
         ]);
     }
 
-    private function getPushData(Notification $notification): array
-    {
+    private function getPushData(Notification $notification) {
         return [
             'type' => 'manual_notification',
             'notification_id' => (string) $notification->id,
@@ -331,7 +328,7 @@ class NotificationController extends Controller {
         $cancelledStatus = NotificationStatusCatalog::query()->where('code', 'cancelled')->first();
         $notification->update(['status_id' => $cancelledStatus?->id]);
 
-        return redirect()->back()->with('success', 'Notificacion cancelada.');
+        return redirect()->back()->with('success', 'Notificación cancelada.');
     }
 
     public function export(Request $request) {
@@ -344,7 +341,7 @@ class NotificationController extends Controller {
         $notification = Notification::with('status')->findOrFail($id);
 
         if ($notification->status?->code == 'cancelled') {
-            return back()->withErrors(['push' => 'No se puede reenviar push en una notificacion cancelada.']);
+            return back()->withErrors(['push' => 'No se puede reenviar push en una notificación cancelada.']);
         }
 
         $this->dispatchPushNotification($notification);
@@ -352,8 +349,7 @@ class NotificationController extends Controller {
         return redirect()->back()->with('success', 'Reintento push encolado.');
     }
 
-    public function subscribeTestToken(Request $request)
-    {
+    public function subscribeTestToken(Request $request) {
         $validated = $request->validate([
             'token' => ['nullable', 'string'],
         ]);
