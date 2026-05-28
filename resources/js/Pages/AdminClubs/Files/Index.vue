@@ -34,6 +34,7 @@ interface FileFormatItem {
     allowed_mime_types: string[];
     max_size_bytes: number;
     club_file: ClubFileItem | null;
+    module: string;
 }
 
 interface CurrentClub {
@@ -46,24 +47,20 @@ interface Props {
     files?: any;
     currentClub?: CurrentClub | null;
     filters?: Record<string, string | number | null>;
+    modules?: string[];
+    commonMimeTypes?: { title: string; value: string }[];
 }
 
 const props = withDefaults(defineProps<Props>(), {
     files: null,
     currentClub: null,
     filters: () => ({}),
+    modules: () => [],
+    commonMimeTypes: () => [],
 });
 
 const page = usePage<any>();
 const can = (page.props as any).auth?.permissions as string[] ?? [];
-
-// MIME types comunes para el selector
-const commonMimeTypes = [
-    { title: "Word (.doc)", value: "application/msword" },
-    { title: "Word (.docx)", value: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
-    { title: "Excel (.xls)", value: "application/vnd.ms-excel" },
-    { title: "Excel (.xlsx)", value: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }
-];
 
 // Genera el texto de ayuda del campo de carga a partir de los MIME types permitidos del formato.
 const uploadHint = computed(() => {
@@ -81,6 +78,7 @@ interface FormatForm {
     is_active: boolean;
     allowed_mime_types: string[];
     max_size_mb: number | null;
+    module: string;
 }
 
 const formatForm = useForm<FormatForm>({
@@ -92,6 +90,7 @@ const formatForm = useForm<FormatForm>({
     is_active: true,
     allowed_mime_types: [],
     max_size_mb: null,
+    module: "",
 });
 
 const resetFormatForm = () => {
@@ -105,6 +104,7 @@ const resetFormatForm = () => {
     formatForm.is_active = true;
     formatForm.allowed_mime_types = [];
     formatForm.max_size_mb = null;
+    formatForm.module = "";
 };
 
 const openCreateFormat = () => {
@@ -122,6 +122,7 @@ const openEditFormat = (item: FileFormatItem) => {
     formatForm.is_active = item.is_active;
     formatForm.allowed_mime_types = item.allowed_mime_types ?? [];
     formatForm.max_size_mb = item.max_size_bytes ? +(item.max_size_bytes / 1_048_576).toFixed(1) : null;
+    formatForm.module = item.module;
     showFormatModal.value = true;
 };
 
@@ -232,9 +233,9 @@ const uploadClubFile = async () => {
     router.post(route("files.club-file.upload", uploadTargetFormat.value!.id), data, {
         forceFormData: true,
         onSuccess: () => {
-            customToastSwal({ 
-                title: (page.props as any).flash?.success || "Archivo cargado correctamente", 
-                icon: "success" 
+            customToastSwal({
+                title: (page.props as any).flash?.success || "Archivo cargado correctamente",
+                icon: "success"
             });
             closeUploadModal();
             fetchItems();
@@ -519,6 +520,17 @@ watch(() => (page.props as any).auth.currentClub, fetchItems);
                             </v-col>
 
                             <v-col cols="12" md="12">
+                                <v-select
+                                    v-model="formatForm.module"
+                                    :items="modules"
+                                    label="Módulo"
+                                    clearable
+                                    :error-messages="formatForm.errors.module"
+                                    :rules="[selectRequired]"
+                                />
+                            </v-col>
+
+                            <v-col cols="12" md="12">
                                 <v-text-field
                                     v-model="formatForm.name"
                                     label="Nombre"
@@ -566,6 +578,7 @@ watch(() => (page.props as any).auth.currentClub, fetchItems);
                                     chips
                                     closable-chips
                                     clearable
+                                    :error-messages="formatForm.errors.allowed_mime_types"
                                     :rules="[selectRequired]"
                                 />
                             </v-col>
