@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Web\Administrator;
 
 use App\Exports\NotificationsExport;
-use App\Jobs\SendBulkNotificationJob;
 use App\Jobs\SendEmailNotificationJob;
 use App\Models\Notifications\EmailConfig;
 use App\Models\Notifications\Notification;
@@ -14,6 +13,7 @@ use App\Models\Notifications\NotificationRecipient;
 use App\Models\Notifications\NotificationStatusCatalog;
 use App\Models\Members\Member;
 use App\Models\User;
+use App\Services\FirebaseService;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Routing\Controller;
@@ -203,6 +203,55 @@ class NotificationController extends Controller {
     }
 
     private function dispatchPushNotification(Notification $notification){
+        $firebase = app(FirebaseService::class);
+
+        try {
+            if ($notification->scope === 'G') {
+                $this->sendPushToClub($firebase, $notification);
+
+                return;
+            }
+
+            $this->sendPushToUsers($firebase, $notification);
+        } catch (\Throwable $e) {
+            report($e);
+
+            NotificationDeliveryLog::create([
+                'notification_id' => $notification->id,
+                'channel' => 'push',
+                'destination' => $notification->scope === 'G' ? ('club_' . $notification->club_id) : 'users',
+                'provider' => 'firebase',
+                'status' => 'failed',
+                'error_message' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function sendPushToClub(FirebaseService $firebase, Notification $notification): void
+    {
+        $firebase->sendToClub(
+            (int) $notification->club_id,
+            (string) $notification->title,
+            strip_tags((string) $notification->body),
+            $this->getPushData($notification)
+        );
+
+        NotificationDeliveryLog::create([
+            'notification_id' => $notification->id,
+            'channel' => 'push',
+            'destination' => 'club_' . $notification->club_id,
+            'provider' => 'firebase',
+            'status' => 'sent',
+            'sent_at' => now(),
+            'metadata' => [
+                'scope' => 'G',
+                'club_id' => $notification->club_id,
+            ],
+        ]);
+    }
+
+    private function sendPushToUsers(FirebaseService $firebase, Notification $notification): void
+    {
         $userIds = NotificationRecipient::query()
             ->where('notification_id', $notification->id)
             ->whereNotNull('user_id')
@@ -211,72 +260,49 @@ class NotificationController extends Controller {
             ->values()
             ->toArray();
 
-        if ($notification->scope === 'I') {
-            if (empty($userIds)) {
-                NotificationDeliveryLog::create([
-                    'notification_id' => $notification->id,
-                    'channel' => 'push',
-                    'destination' => 'users',
-                    'provider' => 'firebase',
-                    'status' => 'failed',
-                    'error_message' => 'No hay destinatarios con user_id para enviar push.',
-                ]);
-
-                return;
-            }
-
+        if (empty($userIds)) {
             NotificationDeliveryLog::create([
                 'notification_id' => $notification->id,
                 'channel' => 'push',
                 'destination' => 'users',
                 'provider' => 'firebase',
-                'status' => 'queued',
-                'metadata' => [
-                    'scope' => 'I',
-                    'users_count' => count($userIds),
-                ],
+                'status' => 'failed',
+                'error_message' => 'No hay destinatarios con user_id para enviar push.',
             ]);
 
-            SendBulkNotificationJob::dispatch(
-                type: 'users',
-                target: $userIds,
-                title: (string) $notification->title,
-                body: strip_tags((string) $notification->body),
-                data: [
-                    'type' => 'manual_notification',
-                    'notification_id' => (string) $notification->id,
-                    'club_id' => (string) $notification->club_id,
-                ],
-                notificationId: $notification->id,
-            );
-
             return;
+        }
+
+        foreach ($userIds as $userId) {
+            $firebase->sendToUser(
+                (int) $userId,
+                (string) $notification->title,
+                strip_tags((string) $notification->body),
+                $this->getPushData($notification)
+            );
         }
 
         NotificationDeliveryLog::create([
             'notification_id' => $notification->id,
             'channel' => 'push',
-            'destination' => 'club_' . $notification->club_id,
+            'destination' => 'users',
             'provider' => 'firebase',
-            'status' => 'queued',
+            'status' => 'sent',
+            'sent_at' => now(),
             'metadata' => [
-                'scope' => 'G',
-                'club_id' => $notification->club_id,
+                'scope' => 'I',
+                'users_count' => count($userIds),
             ],
         ]);
+    }
 
-        SendBulkNotificationJob::dispatch(
-            type: 'club',
-            target: (int) $notification->club_id,
-            title: (string) $notification->title,
-            body: strip_tags((string) $notification->body),
-            data: [
-                'type' => 'manual_notification',
-                'notification_id' => (string) $notification->id,
-                'club_id' => (string) $notification->club_id,
-            ],
-            notificationId: $notification->id,
-        );
+    private function getPushData(Notification $notification): array
+    {
+        return [
+            'type' => 'manual_notification',
+            'notification_id' => (string) $notification->id,
+            'club_id' => (string) $notification->club_id,
+        ];
     }
 
     public function cancel($id) {
