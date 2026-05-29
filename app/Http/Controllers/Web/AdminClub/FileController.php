@@ -28,6 +28,7 @@ class FileController extends Controller
         $this->middleware('permission:files.destroy')->only('destroy');
         $this->middleware('permission:files.club-file.upload')->only('uploadClubFile');
         $this->middleware('permission:files.club-file.destroy')->only('destroyClubFile');
+        $this->middleware('permission:files.variables')->only('previewVariables');
     }
 
     public function index(Request $request)
@@ -373,9 +374,18 @@ class FileController extends Controller
         }
     }
 
-    private function extractVariables($file): array
+    public function previewVariables(Request $request)
     {
-        $path = is_string($file) ? $file : $file->file_path;
+        $request->validate(['documento' => 'required|file']);
+        
+        $variables = $this->extractVariables($request->file('documento'));
+
+        return response()->json(['variables' => $variables]);
+    }
+
+    private function extractVariables($file)
+    {
+        $path = is_string($file) ? $file : $file->getRealPath();
 
         $extension = strtolower(is_string($file) ? pathinfo($file, PATHINFO_EXTENSION) : $file->getClientOriginalExtension());
 

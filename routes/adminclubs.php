@@ -255,6 +255,7 @@ Route::get('lockers/available-for-change',[LockerController::class, 'availableFo
 Route::resource('/files', FileController::class)->only(['index', 'store', 'update', 'destroy'])->names('files');
 Route::post('files/{file}/club-file', [FileController::class, 'uploadClubFile'])->name('files.club-file.upload');
 Route::delete('files/{file}/club-file', [FileController::class, 'destroyClubFile'])->name('files.club-file.destroy');
+Route::post('/files/variables', [FileController::class, 'previewVariables'])->name('files.variables');
 
 
 // Acts

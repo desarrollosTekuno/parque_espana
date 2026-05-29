@@ -8,6 +8,7 @@ import BaseButton from "@/Components/BaseButton.vue";
 import { required, maxLength, selectRequired, fileMaxSizeRule, requiredFileRule, fileMimeTypeRule } from "@/constants/validationRules";
 import CustomFileUploadField from "@/Components/CustomFileUploadField.vue";
 import { formatBytes, getFileMeta } from "@/utils/fileUtils";
+import axios from "axios"; 
 
 declare function route(name: string, params?: any): string;
 const showFormatModal = ref(false);
@@ -66,7 +67,7 @@ const can = (page.props as any).auth?.permissions as string[] ?? [];
 const uploadHint = computed(() => {
     const mimes = uploadTargetFormat.value?.allowed_mime_types;
     if (!mimes?.length) return undefined;
-    return mimes.map(mime => commonMimeTypes.find(m => m.value === mime)?.title ?? mime).join(", ");
+    return mimes.map(mime => props.commonMimeTypes.find(m => m.value === mime)?.title ?? mime).join(", ");
 });
 
 interface FormatForm {
@@ -209,10 +210,13 @@ const destroyFormat = (item: FileFormatItem) => {
 const showUploadModal = ref(false);
 const uploadTargetFormat = ref<FileFormatItem | null>(null);
 const selectedFiles = ref<File[]>([]);
+const detectedVariables = ref<string[]>([]);
+const loadingVariables = ref(false);
 
 const openUploadModal = (item: FileFormatItem) => {
     uploadTargetFormat.value = item;
     selectedFiles.value = [];
+    detectedVariables.value = [];
     showUploadModal.value = true;
 };
 
@@ -220,7 +224,28 @@ const closeUploadModal = () => {
     showUploadModal.value = false;
     uploadTargetFormat.value = null;
     selectedFiles.value = [];
+    detectedVariables.value = [];
 };
+
+watch(selectedFiles, async (files) => {
+    detectedVariables.value = [];
+    if (!files?.length) return;
+
+    const file = files[0];
+
+    const formData = new FormData();
+    formData.append('documento', file);
+
+    try {
+        loadingVariables.value = true;
+        const response = await axios.post(route('files.variables'), formData);
+        detectedVariables.value = response.data.variables ?? [];
+    } catch {
+        detectedVariables.value = [];
+    } finally {
+        loadingVariables.value = false;
+    }
+});
 
 const uploadClubFile = async () => {
     const { valid } = await fileRef.value?.validate();
@@ -652,6 +677,34 @@ watch(() => (page.props as any).auth.currentClub, fetchItems);
                                 fileMimeTypeRule(uploadTargetFormat?.allowed_mime_types),
                                 fileMaxSizeRule(uploadTargetFormat?.max_size_bytes / 1_048_576)
                             ]"
+                        />
+
+                        <div v-if="loadingVariables" class="d-flex align-center gap-2 mt-3">
+                            <v-progress-circular indeterminate size="18" width="2" color="primary" />
+                            <span class="text-caption text-medium-emphasis">Leyendo variables del documento...</span>
+                        </div>
+
+                        <div v-else-if="detectedVariables.length" class="mt-3">
+                            <div class="text-caption text-medium-emphasis mb-1">Variables detectadas en el documento:</div>
+                            <div class="d-flex flex-wrap gap-1">
+                                <v-chip
+                                    v-for="variable in detectedVariables"
+                                    :key="variable"
+                                    size="small"
+                                    color="primary"
+                                    variant="tonal"
+                                    :text="variable"
+                                />
+                            </div>
+                        </div>
+
+                        <v-alert
+                            v-else-if="selectedFiles.length && !loadingVariables"
+                            type="warning"
+                            variant="tonal"
+                            density="compact"
+                            class="mt-3"
+                            text="No se encontraron variables en el documento."
                         />
                     </v-card-text>
 

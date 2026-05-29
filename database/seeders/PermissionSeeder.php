@@ -234,8 +234,9 @@ class PermissionSeeder extends Seeder
             ['module' => 'Archivos', 'name' => 'files.update', 'description' => 'Editar formato de archivo', 'contexts' => ['Web']],
             ['module' => 'Archivos', 'name' => 'files.destroy', 'description' => 'Eliminar formato de archivo', 'contexts' => ['Web']],
             ['module' => 'Archivos', 'name' => 'files.club-file.upload', 'description' => 'Subir archivo del club', 'contexts' => ['Web']],
-            ['module' => 'Archivos', 'name' => 'files.club-file.destroy', 'description' => 'Eliminar archivo del club', 'contexts' => ['Web']]
-        ];
+            ['module' => 'Archivos', 'name' => 'files.club-file.destroy', 'description' => 'Eliminar archivo del club', 'contexts' => ['Web']],
+            ['module' => 'Archivos', 'name' => 'files.variables', 'description' => 'Extracción de variables en Formato', 'contexts' => ['Web']]
+            ];
 
         foreach ($permissions as $permission) {
             $record = Permission::updateOrCreate(
