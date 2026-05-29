@@ -3,6 +3,7 @@ import AppLayout from "@/Layouts/AppLayout.vue";
 import BaseButton from "@/Components/BaseButton.vue";
 import { ref, onMounted, computed, watch } from "vue";
 import { router, Head, usePage } from "@inertiajs/vue3";
+import CustomFileUploadField from "@/Components/CustomFileUploadField.vue";
 import { fileExactCountRule, fileMaxSizeRule, fileTypeRule, requiredFileRule } from "@/constants/validationRules";
 import { customToastSwal } from "@/utils/swal";
 import Swal from "sweetalert2";
@@ -148,7 +149,12 @@ const assign = async () => {
     formData.append("club_id", props.clubId);
 
     if (lockerFile.value) {
-        formData.append("file", lockerFile.value);
+        formData.append(
+            "file",
+            Array.isArray(lockerFile.value)
+                ? lockerFile.value[0]
+                : lockerFile.value
+        );
     }
     router.post(route("members.lockers.reserve"), formData, {
         forceFormData: true,
@@ -164,7 +170,7 @@ const assign = async () => {
         },
         onError: () => {
             customToastSwal({
-                title: "Error al reservar casillero",
+                title: errors.file || errors.message || "Error al reservar casillero",
                 icon: "error"
             });
         }

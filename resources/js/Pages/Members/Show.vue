@@ -225,7 +225,7 @@ const currencyFormatter = new Intl.NumberFormat("es-MX", {
     currency: "MXN",
     maximumFractionDigits: 2,
 });
-
+console.log(props.account);
 const accountTypeLabel = computed(() =>
     props.account.account_type === "family" ? "Familiar" : "Individual",
 );
@@ -361,7 +361,7 @@ const documentFileRules = computed(() => {
 
 const viewDocument = async (docId: number) => {
     try {
-        const res = await axios.get(route("member-documents.url", docId));
+        const res = await axios.get(route("member-documents.url", docId)); 
         window.open(res.data.url, "_blank");
     } catch {
         customToastSwal({ title: "No se pudo obtener el documento.", icon: "error" });
@@ -577,21 +577,29 @@ const options = ref({
 
 const headers = [
     { title: 'Fecha', key: 'created_at', sortable: true },
+    { title: 'Integrante', key: 'member_name' },
     { title: 'Cambio', key: 'change', sortable: false },
     { title: 'Usuario', key: 'user', sortable: true },
     { title: 'Comprobante', key: 'file', sortable: false },
 ];
+watch(activeTab, async (tab) => {
+    if (tab === 'historial-casilleros') {
+        await loadLockerHistory();
+    }
 
-const openLockerHistory = async (member) => {
-    console.log(member);
-    showLockerHistoryModal.value = true;
+});
+const loadLockerHistory = async () => {
     loadingHistory.value = true;
-
     try {
-        const response = await axios.get(
-            route('members.lockers.history', { member: member.member_id })
+        const member = props.account.members.find(
+            m => m.is_primary_holder
         );
-
+        if (!member) return;
+        const response = await axios.get(
+            route('members.lockers.history', {
+                member: member.member_id
+            })
+        );
         lockerHistory.value = response.data.data;
     } catch (error) {
         console.error(error);
@@ -719,6 +727,7 @@ const letterRules = [
                             <v-tab value="documentos" prepend-icon="mdi-file-document-multiple">Documentos</v-tab>
                             <v-tab value="ausencias" prepend-icon="mdi-calendar-remove">Ausencias</v-tab>
                             <v-tab value="historial" prepend-icon="mdi-history">Historial</v-tab>
+                            <v-tab value="historial-casilleros" prepend-icon="mdi-locker">Historial casilleros</v-tab>
                             <v-tab
                                 v-if="props.accountTree && (props.accountTree.origin || props.accountTree.derived.length)"
                                 value="arbol"
@@ -835,16 +844,7 @@ const letterRules = [
                                                         <div class="text-body-2"><strong>Ocupación:</strong> {{ member.occupation || member.school_name || "-" }}</div>
                                                         <div class="text-body-2"><strong>Domicilio:</strong> {{ addressSummary(member) || "-" }}</div>
                                                     </v-col>
-                                                    <v-col cols="12" md="4" class="mt-3" v-if="can.includes('members.lockers.history')">
-                                                        <v-chip v-if="member.locker?.length" class="mt-0 mb-5"
-                                                            color="primary"
-                                                            size="small"
-                                                            variant="flat"
-                                                            @click="openLockerHistory(member)"
-                                                        >
-                                                            Historial de casilleros
-                                                        </v-chip>
-
+                                                    <v-col cols="12" md="4" class="mt-3">                                                   
                                                         <div v-if="member.locker?.length" class="locker-grid-mini">
                                                         <v-card
                                                                 v-for="locker in member.locker"
@@ -956,7 +956,13 @@ const letterRules = [
                                                                     {{ doc.allow_multiple ? `Archivo ${idx + 1}` : 'Documento' }}
                                                                     <template v-if="uploaded.uploaded_at"> · {{ uploaded.uploaded_at }}</template>
                                                                 </span>
-                                                                <v-btn size="x-small" variant="text" color="primary" prepend-icon="mdi-eye" @click="viewDocument(uploaded.id)">Ver</v-btn>
+                                                                <v-btn v-if="uploaded.url" size="x-small" variant="text" color="primary" prepend-icon="mdi-eye" :href="uploaded.url" target="_blank">
+                                                                    Ver
+                                                                </v-btn>
+
+                                                                <v-btn v-else size="x-small" variant="text" color="primary" prepend-icon="mdi-eye" @click="viewDocument(uploaded.id)">
+                                                                    Ver
+                                                                </v-btn>
                                                             </div>
                                                         </div>
                                                         <v-spacer />
@@ -968,7 +974,7 @@ const letterRules = [
                                                         </v-btn>
                                                     </v-card>
                                                 </v-col>
-                                            </v-row>
+                                            </v-row>    
                                         </div>
                                     </div>
                                 </v-card>
@@ -1087,6 +1093,89 @@ const letterRules = [
                                             <span class="text-medium-emphasis">{{ item.changed_by_name ?? 'Sistema' }}</span>
                                         </template>
                                     </v-data-table-server>
+                                </v-card>
+                            </v-window-item>
+
+                            <!-- ══ TAB: HISTORIAL CASILLEROS ══ -->
+                            <v-window-item value="historial-casilleros" v-if="can.includes('members.lockers.history')">
+                                <v-card class="pa-4">
+                                    <div class="text-subtitle-1 font-weight-bold mb-4">Historial de casilleros</div>
+                                    <v-data-table
+                                        :headers="headers"
+                                        :items="filteredHistory"
+                                        v-model:items-per-page="options.itemsPerPage"
+                                        v-model:page="options.page"
+                                        :items-per-page-options="[5, 10, 15]"
+                                        class="custom-table"
+                                    >
+
+                                        <!-- Fecha -->
+                                        <template #item.created_at="{ item }">
+                                            <div class="text-caption text-medium-emphasis">
+                                                {{ new Date(item.created_at).toLocaleString() }}
+                                            </div>
+                                        </template>
+                                        <template #item.member_name="{ item }">
+                                            <div class="font-weight-medium">
+                                                {{ item.member_name }}
+                                            </div>
+                                        </template>
+                                        <!-- Cambio -->
+                                        <template #item.change="{ item }">
+                                            <div class="d-flex align-center ga-2">
+
+                                                <v-chip size="small" color="gray" variant="tonal">
+                                                    {{ item.old_locker?.number ?? 'N/A' }}
+                                                </v-chip>
+
+                                                <v-icon size="16">mdi-arrow-right</v-icon>
+
+                                                <v-chip size="small" color="green" variant="tonal">
+                                                    {{ item.new_locker?.number ?? 'N/A' }}
+                                                </v-chip>
+
+                                            </div>
+                                        </template>
+
+                                        <!-- Usuario -->
+                                        <template #item.user="{ item }">
+                                            <v-chip size="small" variant="outlined">
+                                                {{ item.user ?? 'Sistema' }}
+                                            </v-chip>
+                                        </template>
+
+                                        <!-- Archivo -->
+                                        <template #item.file="{ item }">
+                                            <div class="d-flex ga-2">
+                                                <!-- Ver -->
+                                                <v-btn
+                                                    v-if="item.file_url"
+                                                    size="small"
+                                                    variant="tonal"
+                                                    color="primary"
+                                                    :href="item.file_url"
+                                                    target="_blank"
+                                                >
+                                                    <v-icon start size="16">mdi-eye</v-icon>
+                                                    Ver
+                                                </v-btn>
+                                                <!-- Descargar -->
+                                                <v-btn
+                                                    v-if="item.file_url"
+                                                    size="small"
+                                                    variant="outlined"
+                                                    color="primary"
+                                                    :href="item.file_url"
+                                                    download
+                                                >
+                                                    <v-icon start size="16">mdi-download</v-icon>
+                                                    Descargar
+                                                </v-btn>
+                                                <span v-if="!item.file_url" class="text-medium-emphasis">—</span>
+                                            </div>
+                                        </template>
+
+                                    </v-data-table>
                                 </v-card>
                             </v-window-item>
 
@@ -1515,147 +1604,6 @@ const letterRules = [
                     Guardar cambios
                 </v-btn>
 
-            </v-card-actions>
-        </v-card>
-    </v-dialog>
-
-    <!-- Dialog: History modal -->
-     <v-dialog v-model="showLockerHistoryModal" max-width="900">
-        <v-card>
-            <v-card-text class="pa-6">
-                <v-row class="mb-0">
-                    <v-col cols="12" md="4">
-                        <v-text-field
-                            v-model="historySearch"
-                            label="Buscar historial"
-                            prepend-inner-icon="mdi-magnify"
-                            variant="outlined"
-                            density="comfortable"
-                            clearable
-                            class="mb-4"
-                        />
-                    </v-col>
-
-                    <v-col cols="12" md="3">
-                        <v-text-field
-                            v-model="dateFrom"
-                            type="date"
-                            label="Desde"
-                            density="comfortable"
-                            hide-details
-                        />
-                    </v-col>
-
-                    <v-col cols="12" md="3">
-                        <v-text-field
-                            v-model="dateTo"
-                            type="date"
-                            label="Hasta"
-                            density="comfortable"
-                            hide-details
-                        />
-                    </v-col>
-
-                    <v-col cols="12" md="2" class="d-flex align-start justify-end">
-                        <BaseButton
-                            variant="elevated"
-                            @click="historySearch = ''; dateFrom = null; dateTo = null;"
-                            color="blue"
-                            text="Limpiar"
-                            icon="mdi-filter-off"
-                        />
-                    </v-col>
-                </v-row>
-               <v-data-table
-                    :headers="headers"
-                    :items="filteredHistory"
-                    v-model:items-per-page="options.itemsPerPage"
-                    v-model:page="options.page"
-                    :items-per-page-options="[5, 10, 15]"
-                    class="custom-table"
-                >
-
-                    <!-- Fecha -->
-                    <template #item.created_at="{ item }">
-                        <div class="text-caption text-medium-emphasis">
-                            {{ new Date(item.created_at).toLocaleString() }}
-                        </div>
-                    </template>
-
-                    <!-- Cambio -->
-                    <template #item.change="{ item }">
-                        <div class="d-flex align-center ga-2">
-
-                            <v-chip size="small" color="gray" variant="tonal">
-                                {{ item.old_locker?.number ?? 'N/A' }}
-                            </v-chip>
-
-                            <v-icon size="16">mdi-arrow-right</v-icon>
-
-                            <v-chip size="small" color="green" variant="tonal">
-                                {{ item.new_locker?.number ?? 'N/A' }}
-                            </v-chip>
-
-                        </div>
-                    </template>
-
-                    <!-- Usuario -->
-                    <template #item.user="{ item }">
-                        <v-chip size="small" variant="outlined">
-                            {{ item.user ?? 'Sistema' }}
-                        </v-chip>
-                    </template>
-
-                    <!-- Archivo -->
-                    <template #item.file="{ item }">
-                        <div class="d-flex ga-2">
-                            <!-- Ver -->
-                            <v-btn
-                                v-if="item.file_url"
-                                size="small"
-                                variant="tonal"
-                                color="primary"
-                                :href="item.file_url"
-                                target="_blank"
-                            >
-                                <v-icon start size="16">mdi-eye</v-icon>
-                                Ver
-                            </v-btn>
-                            <!-- Descargar -->
-                            <v-btn
-                                v-if="item.file_url"
-                                size="small"
-                                variant="outlined"
-                                color="primary"
-                                :href="item.file_url"
-                                download
-                            >
-                                <v-icon start size="16">mdi-download</v-icon>
-                                Descargar
-                            </v-btn>
-                            <span v-if="!item.file_url" class="text-medium-emphasis">—</span>
-                        </div>
-                    </template>
-
-                </v-data-table>
-                    <div class="d-flex justify-space-between align-center mb-2">
-                        <div class="text-caption text-medium-emphasis">
-                            Mostrando {{ filteredHistory.length }} registros
-                        </div>
-                        <v-chip size="small" color="primary" variant="tonal">
-                            Historial
-                        </v-chip>
-                    </div>
-            </v-card-text>
-            <v-card-actions class="px-6 py-4 border-t">
-                <v-spacer />
-
-                <v-btn
-                    variant="text"
-                    @click="showLockerHistoryModal = false"
-                >
-                    Cerrar
-                </v-btn>
             </v-card-actions>
         </v-card>
     </v-dialog>
