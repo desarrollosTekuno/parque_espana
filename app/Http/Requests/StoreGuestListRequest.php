@@ -27,6 +27,8 @@ class StoreGuestListRequest extends FormRequest
         return [
             'title' => 'required|string|max:100',
             'description' => 'required|string',
+            'date' => 'nullable|date|date_format:d-m-Y',
+            'time' => 'nullable|date_format:H:i',
             'club_id' => ['required', new ExistsInSchema('clubs', 'clubs', 'id')],
             'reservation_id' => ['nullable', new ExistsInSchema('reservations', 'reservations', 'id')],
             'guests' => 'required|array|min:1',
