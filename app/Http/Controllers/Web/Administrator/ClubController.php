@@ -111,6 +111,11 @@ class ClubController extends Controller
     {
         session(['club_id' => $request->club_id]);
 
-        return redirect()->back();
+        // Redirect limpio sin query params para que el frontend use
+        // la sesión actualizada y no el club_id viejo de la URL
+        $referer = $request->headers->get('referer', '/');
+        $cleanUrl = strtok($referer, '?');
+
+        return redirect($cleanUrl);
     }
 }

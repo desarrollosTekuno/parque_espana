@@ -385,7 +385,7 @@ const schedule = async () => {
         return;
     }
 
-    const schedules = formSchedule.days
+    const schedules = formSchedule.days 
         .filter(day => day.active)
         .map(day => ({
             day_of_week: dayMap[day.day],
@@ -751,20 +751,22 @@ const removeIcon = () => {
 
 //    Formulario de recursos y sus funciones
 const showResourceModal = ref(false)
+const resourceFormRef = ref()
 const resourceForm = useForm({
     id: null,
     amenity_id: null,
     name: "",
     capacity: 1,
     slot_duration_minutes: null,
-    is_active: true
+    is_active: true,
+    locations: [] as any[],
 })
 const createResource = () => {
     resourceForm.reset()
     resourceForm.capacity = null
     resourceForm.slot_duration_minutes = null
+    resourceForm.locations = []
     showResourceModal.value = true
-
 }
 const editResource = (resource: any) => {
     resourceForm.id = resource.id
@@ -773,11 +775,115 @@ const editResource = (resource: any) => {
     resourceForm.capacity = resource.capacity
     resourceForm.slot_duration_minutes = resource.slot_duration_minutes
     resourceForm.is_active = resource.is_active
+    resourceForm.locations = resource.locations?.map((l: any) => ({
+        id: l.id,
+        latitude: l.latitude,
+        longitude: l.longitude,
+    })) ?? []
     showResourceModal.value = true
-
 }
-const saveResource = () => {
 
+// Modal de coordenadas
+const showLocationsModal = ref(false)
+const locationsResource = ref<any>(null)
+const locationsFormRef = ref()
+const locationsForm = useForm({
+    amenity_id: null as number | null,
+    name: '',
+    capacity: 1 as number | null,
+    slot_duration_minutes: null as number | null,
+    is_active: true,
+    locations: [] as Array<{
+        id?: number
+        latitude: number | null
+        longitude: number | null
+        qr_image_path?: string | null
+        qr_generated_at?: string | null
+    }>,
+})
+
+const openLocationsModal = (resource: any) => {
+    locationsResource.value = resource
+    locationsForm.amenity_id = resource.amenity_id
+    locationsForm.name = resource.name
+    locationsForm.capacity = resource.capacity
+    locationsForm.slot_duration_minutes = resource.slot_duration_minutes
+    locationsForm.is_active = resource.is_active
+    locationsForm.locations = resource.locations?.length
+        ? resource.locations.map((l: any) => ({
+            id: l.id,
+            latitude: l.latitude,
+            longitude: l.longitude,
+            qr_image_path: l.qr_image_path,
+            qr_generated_at: l.qr_generated_at,
+        }))
+        : [{ latitude: null, longitude: null }]
+    showLocationsModal.value = true
+}
+
+const addCoordinate = () => {
+    locationsForm.locations.push({ latitude: null, longitude: null })
+}
+
+const removeCoordinate = (index: number) => {
+    locationsForm.locations.splice(index, 1)
+}
+
+const saveLocations = () => {
+    customConfirmSwal({
+        title: '¿Guardar coordenadas?',
+        text: 'Confirma para continuar',
+    }).then((result) => {
+        if (!result.isConfirmed) return
+        locationsForm
+            .transform((data) => ({ ...data, _method: 'PUT' }))
+            .post(route('amenityResource.update', locationsResource.value.id), {
+                onSuccess: async (page) => {
+                    const flash = (page.props as any).flash || {}
+                    if (flash.messageError) {
+                        customToastSwal({ title: flash.messageError, icon: 'error' })
+                        return
+                    }
+
+                    showLocationsModal.value = false
+                    await fetchResources()
+
+                    // Generar QR automáticamente para todas las ubicaciones con coordenadas
+                    const updated = (resourceItems.value as any[]).find(
+                        (r: any) => r.id === locationsResource.value.id
+                    )
+                    const locationsWithCoords = (updated?.locations ?? []).filter(
+                        (l: any) => l.latitude && l.longitude
+                    )
+
+                    if (locationsWithCoords.length) {
+                        await Promise.all(
+                            locationsWithCoords.map((l: any) =>
+                                axios.post(route('amenityResource.generateQr', l.id)).catch(() => null)
+                            )
+                        )
+                        await fetchResources()
+                        // Actualizar locationsResource para que el modal refleje los QRs si se reabre
+                        const refreshed = (resourceItems.value as any[]).find(
+                            (r: any) => r.id === locationsResource.value.id
+                        )
+                        if (refreshed) locationsResource.value = refreshed
+                        customToastSwal({ title: 'Coordenadas y QR generados correctamente', icon: 'success' })
+                    } else {
+                        customToastSwal({ title: 'Coordenadas guardadas', icon: 'success' })
+                    }
+                },
+                onError: () => {
+                    customToastSwal({ title: 'Error al guardar coordenadas', icon: 'error' })
+                },
+            })
+    })
+}
+const saveResource = async () => {
+    const validation = await resourceFormRef.value?.validate()
+    if (!validation.valid) {
+        return
+    }
     customConfirmSwal({
         title: resourceForm.id 
             ? "¿Actualizar recurso?" 
@@ -786,7 +892,6 @@ const saveResource = () => {
     }).then((result) => {
 
         if (!result.isConfirmed) return
-
         resourceForm
             .transform((data) => {
                 const payload: any = { ...data }
@@ -891,7 +996,10 @@ watch([options, search], debounce(() => {
 }, 400), { deep: true });
 //const resourcesLoaded = ref(false);
 watch(() => page.props.auth.currentClub, () => {
-    fetchItems();
+    options.value.page = 1
+    resourceOptions.value.page = 1
+    fetchItems()
+    fetchResources()
 });
 watch(
     () => formSchedule.days.map(d => [d.open,d.close]),
@@ -938,11 +1046,62 @@ watch(
     },
     { immediate: true }
 )
-/*watch(() => form.reservation_type, () => {
-    if (tab.value === 'resources') {
+// mapa coordenadas
+const getMapUrl = (
+    latitude: number,
+    longitude: number
+) => {
+    return `https://www.openstreetmap.org/export/embed.html?bbox=${
+        longitude - 0.001
+    },${
+        latitude - 0.001
+    },${
+        longitude + 0.001
+    },${
+        latitude + 0.001
+    }&layer=mapnik&marker=${
+        latitude
+    },${
+        longitude
+    }`
+}
+const addLocation = () => {
+    resourceForm.locations.push({
+        latitude: null,
+        longitude: null,
+    })
+}
+const removeLocation = (index: number) => {
+    if (resourceForm.locations.length === 1) return
+    resourceForm.locations.splice(index, 1)
+}
+
+// Generador de QR para recursos
+const generateQr = async (locationId: number, listIndex?: number) => {
+    try {
+        const res = await axios.post(route('amenityResource.generateQr', locationId))
+        if (listIndex !== undefined && res.data.qr_image_path) {
+            locationsForm.locations[listIndex].qr_image_path = res.data.qr_image_path
+            locationsForm.locations[listIndex].qr_generated_at = res.data.qr_generated_at
+        }
         fetchResources()
+        customToastSwal({ title: 'QR generado correctamente', icon: 'success' })
+    } catch {
+        customToastSwal({ title: 'Error al generar el QR', icon: 'error' })
     }
-})*/
+}
+const downloadQrPdf = (locationId: number) => {
+    window.open(
+        route('amenityResource.downloadQrPdf', locationId),
+        '_blank'
+    )
+}
+const downloadQr = (locationId: number) => {
+    window.open(
+        route('amenityResource.downloadQr', locationId),
+        '_blank'
+    )
+}
 </script>
 
 <template>
@@ -1084,6 +1243,7 @@ watch(
                                 <template #item.actions="{ item }">
                                     <BaseButton v-if="can.includes('amenityResource.calendar')" text="Calendario" icon="mdi-calendar-month" action="view" @click="openCalendar(item)" />
                                     <BaseButton v-if="can.includes('amenityResource.update')" action="edit" @click="editResource(item)" />
+                                    <BaseButton v-if="can.includes('amenityResource.update')" text="Añadir coordenadas" icon="mdi-map-marker-plus" @click="openLocationsModal(item)" />
                                     <BaseButton v-if="can.includes('amenityResource.destroy')" action="delete" @click="deleteResource(item)" />
                                 </template>
                             </v-data-table-server>
@@ -1332,24 +1492,24 @@ watch(
                 </v-card>
             </v-form>
         </v-dialog>
-        <v-dialog v-model="showResourceModal" max-width="500">
-            <v-form @submit.prevent="saveResource">
-                <v-card title="Recurso">
+        <v-dialog v-model="showResourceModal" max-width="500" scrollable>
+            <v-form ref="resourceFormRef" @submit.prevent="saveResource">
+                <v-card title="Recurso" max-height="80vh">
                     <v-card-text>
                         <v-row>
                             <v-col cols="12">
-                                <v-select v-model="resourceForm.amenity_id" label="Amenidad" :item-title="'name'"
-                                    :item-value="'id'" :items="items" />
+                                <v-select v-model="resourceForm.amenity_id" label="Amenidad *" :item-title="'name'"
+                                    :item-value="'id'" :items="items" :rules="[required]" />
                             </v-col>
                             <v-col cols="12">
-                                <v-text-field v-model="resourceForm.name" label="Nombre" :required="true" :min-length="2" />
+                                <v-text-field v-model="resourceForm.name" label="Nombre *" :required="true" :min-length="2" :rules="[required]" />
                             </v-col>
                             <v-col cols="12" v-if="showSlotDuration">
-                                <FormNumber v-model="resourceForm.slot_duration_minutes" label="Espacio de reserva en minutos"
+                                <FormNumber v-model="resourceForm.slot_duration_minutes" label="Espacio de reserva en minutos *"
                                     :min="0" :rules="[required]" />
                             </v-col>
                             <v-col cols="12" v-if="showCapacity">
-                                <FormNumber v-model="resourceForm.capacity" label="Capacidad" :required="true"/>
+                                <FormNumber v-model="resourceForm.capacity" label="Capacidad *" :required="true" :rules="[required]"/>
                             </v-col>
                         </v-row>
                     </v-card-text>
@@ -1362,6 +1522,65 @@ watch(
                 </v-card>
             </v-form>
         </v-dialog>
+
+        <!-- Dialog: Coordenadas del recurso -->
+        <v-dialog v-model="showLocationsModal" max-width="560" scrollable>
+            <v-form ref="locationsFormRef" @submit.prevent="saveLocations">
+                <v-card max-height="85vh">
+                    <v-card-title class="d-flex align-center ga-2">
+                        <v-icon>mdi-map-marker</v-icon>
+                        Coordenadas · {{ locationsResource?.name }}
+                    </v-card-title>
+                    <v-card-text>
+                        <template v-for="(loc, index) in locationsForm.locations" :key="index">
+                            <v-divider v-if="index > 0" class="my-3" />
+                            <div class="text-body-2 font-weight-medium mb-2">Ubicación {{ index + 1 }}</div>
+                            <v-row>
+                                <v-col cols="5">
+                                    <v-text-field v-model="loc.latitude" label="Latitud" type="number" step="any" density="compact" />
+                                </v-col>
+                                <v-col cols="5">
+                                    <v-text-field v-model="loc.longitude" label="Longitud" type="number" step="any" density="compact" />
+                                </v-col>
+                                <v-col cols="2" class="d-flex align-center">
+                                    <v-btn icon="mdi-delete" color="error" variant="text" size="small" @click="removeCoordinate(index)" />
+                                </v-col>
+                                <v-col cols="12" v-if="loc.latitude && loc.longitude">
+                                    <iframe
+                                        width="100%"
+                                        height="200"
+                                        frameborder="0"
+                                        :src="getMapUrl(Number(loc.latitude), Number(loc.longitude))"
+                                        style="border-radius:8px;"
+                                    />
+                                </v-col>
+                                <v-col cols="12" v-if="loc.id" class="d-flex ga-2 flex-wrap">
+                                    <template v-if="loc.qr_image_path">
+                                        <BaseButton
+                                            v-if="can.includes('amenityResource.downloadQr')"
+                                            action="custom" icon="mdi-download" text="Descargar QR"
+                                            :icon-only="false"
+                                            @click="downloadQr(loc.id)"
+                                        />
+                                    </template>
+                                </v-col>
+                            </v-row>
+                        </template>
+                        <div class="mt-3">
+                            <v-btn color="primary" variant="tonal" prepend-icon="mdi-plus" size="small" @click="addCoordinate">
+                                Agregar ubicación
+                            </v-btn>
+                        </div>
+                    </v-card-text>
+                    <v-card-actions>
+                        <v-spacer />
+                        <BaseButton text="Cancelar" variant="tonal" action="cancel" :icon-only="false" @click="showLocationsModal = false" />
+                        <BaseButton text="Guardar" variant="flat" action="save" :icon-only="false" type="submit" />
+                    </v-card-actions>
+                </v-card>
+            </v-form>
+        </v-dialog>
+
         <v-dialog v-model="showCalendarModal" max-width="1200">
             <v-card class="calendar-modal">
 

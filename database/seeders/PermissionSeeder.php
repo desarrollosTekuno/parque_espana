@@ -47,7 +47,12 @@ class PermissionSeeder extends Seeder
             ['module' => 'Amenidades', 'name' => 'blockedPeriods.store', 'description' => 'Crear bloqueos', 'contexts' => ['web']],
             ['module' => 'Amenidades', 'name' => 'blockedPeriods.update', 'description' => 'Actualizar bloqueos', 'contexts' => ['web']],
             ['module' => 'Amenidades', 'name' => 'blockedPeriods.destroy', 'description' => 'Eliminar bloqueos', 'contexts' => ['web']],
-            ['module' => 'Amenidades', 'name' => 'amenitySchedule.store', 'description' => 'Crear horarios de amenidad', 'contexts' => ['web']],    
+            ['module' => 'Amenidades', 'name' => 'amenitySchedule.store', 'description' => 'Crear horarios de amenidad', 'contexts' => ['web']],
+            
+            // Generador de qr para los recursos de las amenidades
+            ['module' => 'Amenidades', 'name' => 'amenityResource.generateQr', 'description' => 'Generar código QR para recurso de amenidad', 'contexts' => ['web']],   
+            ['module' => 'Amenidades', 'name' => 'amenityResource.downloadQrPdf', 'description' => 'Descargar código QR en PDF', 'contexts' => ['web']],
+            ['module' => 'Amenidades', 'name' => 'amenityResource.downloadQr', 'description' => 'Descargar código QR para recurso de amenidad', 'contexts' => ['web']],
 
             // Reservaciones
             ['module' => 'Reservaciones', 'name' => 'reservations.index', 'description' => 'Ver reservaciones', 'contexts' => ['web']],

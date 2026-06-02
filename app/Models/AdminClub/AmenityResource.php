@@ -5,6 +5,7 @@ namespace App\Models\AdminClub;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\AdminClub\Amenity;
+use App\Models\AdminClub\Reservation;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class AmenityResource extends Model
@@ -24,7 +25,7 @@ class AmenityResource extends Model
     protected $casts = [
         'is_active' => 'boolean',
         'capacity' => 'integer',
-        'slot_duration_minutes' => 'integer'
+        'slot_duration_minutes' => 'integer',
     ];
 
     public function amenity()
@@ -41,4 +42,13 @@ class AmenityResource extends Model
     {
         return $this->hasMany(Reservation::class);
     }
+
+    public function locations()
+    {
+        return $this->hasMany(
+            AmenityResourceLocation::class,
+            'amenity_resource_id'
+        );
+    }
+
 }
