@@ -22,20 +22,12 @@ class PermissionWithContextMiddleware extends PermissionMiddleware
             abort(403);
         }
 
-        // Primero validar el permiso normal (Spatie)
-        if (!$user->can($permission)) {
-            abort(403);
-        }
+        $allPermissions = $user->getAllPermissions();
+        $allPermissions->load('contexts');
 
-        // Buscar el permiso
-        $perm = $user->getAllPermissions()->firstWhere('name', $permission);
+        $perm = $allPermissions->firstWhere('name', $permission);
 
-        if (!$perm) {
-            abort(403);
-        }
-
-        // Validar contexto
-        if (!$perm->contexts->contains('value', 'web')) {
+        if (!$perm || !$perm->contexts->contains('value', 'web')) {
             abort(403);
         }
 

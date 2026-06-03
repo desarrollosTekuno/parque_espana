@@ -65,9 +65,8 @@ class HandleInertiaRequests extends Middleware
                 'permissions' => $request->user()
                     ? $request->user()
                         ->getAllPermissions()
-                        ->filter(function ($permission) {
-                            return $permission->contexts->contains('value', 'web');
-                        })
+                        ->load('contexts')
+                        ->filter(fn($permission) => $permission->contexts->contains('value', 'web'))
                         ->pluck('name')
                         ->values()
                     : [],
