@@ -265,7 +265,6 @@ class AmenityResourceController extends Controller {
                 \BaconQrCode\Common\ErrorCorrectionLevel::H()
             );
 
-            // Incrustar logo desde la BD (spaces) si el club lo tiene configurado
             $logoContent = null;
             if ($club?->logo_path && Storage::disk('spaces')->exists($club->logo_path)) {
                 $logoContent = Storage::disk('spaces')->get($club->logo_path);
