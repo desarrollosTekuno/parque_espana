@@ -89,10 +89,11 @@ class HandleInertiaRequests extends Middleware
                 'currentClub' => session('club_id'),
 
                 'clubs' => function () use ($request) {
-                    if (!$request->user()) return [];
+                    if (!$request->user()) {
+                        return [];
+                    }
                     return $request->user()
                         ->clubs()
-                        ->select('clubs.clubs.id', 'clubs.clubs.name', 'clubs.clubs.code')
                         ->orderBy('clubs.clubs.name')
                         ->get();
                 },

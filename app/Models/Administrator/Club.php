@@ -13,15 +13,25 @@ use App\Traits\SerializesDates;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Storage;
 
 class Club extends Model {
-    use HasFactory, SoftDeletes,SerializesDates;
+    use HasFactory, SoftDeletes, SerializesDates;
 
     protected $table = 'clubs.clubs';
     protected $connection = 'pgsql';
 
     protected $guarded = ['id', 'created_at', 'updated_at'];
-    protected $dates = ['deleted_at'];
+    protected $dates   = ['deleted_at'];
+    protected $appends = ['logo_url'];
+
+    public function getLogoUrlAttribute(): ?string
+    {
+        if (!$this->logo_path) {
+            return null;
+        }
+        return Storage::disk('spaces')->url($this->logo_path);
+    }
 
     public function amenities()
     {

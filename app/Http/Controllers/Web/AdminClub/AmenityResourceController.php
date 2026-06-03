@@ -14,12 +14,11 @@ use Illuminate\Support\Facades\Validator;
 use App\Models\AdminClub\AmenityResourceLocation;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use BaconQrCode\Renderer\ImageRenderer;
 use BaconQrCode\Renderer\Image\SvgImageBackEnd;
 use BaconQrCode\Renderer\RendererStyle\RendererStyle;
 use BaconQrCode\Writer;
-use Illuminate\Support\Facades\Storage;
-use Barryvdh\DomPDF\Facade\Pdf;
 
 
 class AmenityResourceController extends Controller {
@@ -32,8 +31,6 @@ class AmenityResourceController extends Controller {
         $this->middleware('permission:amenityResource.destroy')->only('destroy');
         $this->middleware('permission:amenityResource.calendar')->only('calendar');
         $this->middleware('permission:amenityResource.generateQr')->only('generateQr');
-        $this->middleware('permission:amenityResource.downloadQr')->only('downloadQr');
-        $this->middleware('permission:amenityResource.downloadQrPdf')->only('downloadQrPdf');
     }
 
     public function index(Request $request)
@@ -211,12 +208,14 @@ class AmenityResourceController extends Controller {
                 2 => 'Cancelada',
                 3 => 'Finalizada',
                 4 => 'Inasistencia',
+                5 => 'Asistencia',
         ];
         $colorMap = [
                 1 => '#42a5f5', 
                 2 => '#ef5350', 
                 3 => '#66bb6a', 
                 4 => '#ffa726', 
+                5 => '#66bb6a',
         ];
          $blocked = BlockedPeriod::where('club_id', $club_id)->get();
         $reservationEvents = $reservations->map(function ($reservation) use ($statusMap){
@@ -245,17 +244,14 @@ class AmenityResourceController extends Controller {
         return $reservationEvents->concat($blockedEvents)->values();
     }
 
-    public function generateQr(AmenityResourceLocation $location)
+    public function generateQr(AmenityResource $amenityResource)
     {
-        DB::beginTransaction();
         try {
-            $location->load('resource.amenity.club');
+            $amenityResource->load('amenity.club');
 
-            $clubCode = $location->resource->amenity->club->code ?? 'PE1';
-            $logoFile = $clubCode === 'PE2' ? 'LogoP2.png' : 'LogoP1.png';
-            $logoPath = public_path("assets/images/{$logoFile}");
+            $club = $amenityResource->amenity->club;
 
-            $url = url("/check-in/location/{$location->id}");
+            $url = url("/check-in/resource/{$amenityResource->id}");
 
             $qrSize = 500;
             $renderer = new ImageRenderer(
@@ -269,9 +265,14 @@ class AmenityResourceController extends Controller {
                 \BaconQrCode\Common\ErrorCorrectionLevel::H()
             );
 
-            // Embed logo in center of SVG
-            if (file_exists($logoPath)) {
-                $logoData    = base64_encode(file_get_contents($logoPath));
+            // Incrustar logo desde la BD (spaces) si el club lo tiene configurado
+            $logoContent = null;
+            if ($club?->logo_path && Storage::disk('spaces')->exists($club->logo_path)) {
+                $logoContent = Storage::disk('spaces')->get($club->logo_path);
+            }
+
+            if ($logoContent) {
+                $logoData    = base64_encode($logoContent);
                 $logoDataUri = "data:image/png;base64,{$logoData}";
                 $logoSize    = (int) round($qrSize * 0.20);
                 $logoX       = (int) round(($qrSize - $logoSize) / 2);
@@ -293,72 +294,19 @@ class AmenityResourceController extends Controller {
                 $svgContent = str_replace('</svg>', $logoSvg . '</svg>', $svgContent);
             }
 
-            $path = 'amenity-qrs/location-qr-' . $location->id . '.svg';
-            Storage::disk('public')->put($path, $svgContent);
+            $filename = 'qr-' . ($club?->name ?? 'club') . '-' . $amenityResource->amenity->name . '-' . $amenityResource->name . '.svg';
+            $filename = preg_replace('/[^A-Za-z0-9\-_.]/', '-', $filename);
 
-            $location->update([
-                'qr_url'          => $url,
-                'qr_image_path'   => $path,
-                'qr_generated_at' => now(),
-                'qr_generated_by' => Auth::id(),
-            ]);
-
-            DB::commit();
-
-            return response()->json([
-                'success'         => true,
-                'message'         => 'QR generado correctamente',
-                'qr_image_path'   => $path,
-                'qr_generated_at' => $location->qr_generated_at,
-            ]);
+            return response($svgContent, 200)
+                ->header('Content-Type', 'image/svg+xml')
+                ->header('Content-Disposition', 'attachment; filename="' . $filename . '"');
 
         } catch (\Throwable $e) {
-            DB::rollBack();
             Log::error('Generate QR error', [
                 'messageError' => $e->getMessage(),
-                'location_id'  => $location->id,
+                'resource_id'  => $amenityResource->id,
             ]);
-            return response()->json([
-                'message' => 'No se pudo generar el QR',
-            ], 500);
+            abort(500, 'No se pudo generar el QR');
         }
-    }
-    
-    public function downloadQr(AmenityResourceLocation $location)
-    {
-        if (!$location->qr_image_path || !Storage::disk('public')->exists($location->qr_image_path)) {
-            return response()->json(['message' => 'El QR aún no ha sido generado'], 422);
-        }
-
-        $svgContent = Storage::disk('public')->get($location->qr_image_path);
-
-        return response($svgContent, 200)
-            ->header('Content-Type', 'image/svg+xml')
-            ->header('Content-Disposition', 'attachment; filename="qr-location-' . $location->id . '.svg"');
-    }
-
-    public function downloadQrPdf(AmenityResourceLocation $location)
-    {
-        $location->load([
-            'resource.amenity.club'
-        ]);
-        if (!$location->qr_image_path) {
-            return back()->with(
-                'messageError',
-                'Primero genera el QR'
-            );
-        }
-
-        $pdf = Pdf::loadView(
-            'pdf.amenity-resource-qr',
-            [
-                'location' => $location,
-            ]
-        );
-        return $pdf->download(
-            'qr-location-' .
-            $location->id .
-            '.pdf'
-        );
     }
 }

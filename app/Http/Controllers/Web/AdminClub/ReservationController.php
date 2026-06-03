@@ -190,7 +190,7 @@ class ReservationController extends Controller {
     }
 
     public function cancel(Reservation $reservation)
-    {dd('ENTRÉ A CANCEL');
+    {
         try {
             $context = new ReservationContext(
                 data: [],
@@ -231,6 +231,7 @@ class ReservationController extends Controller {
             2 => 'Cancelada',
             3 => 'Finalizada',
             4 => 'Inasistencia',
+            5 => 'Asistencia',
         ];
 
         $reservationEvents = $reservations->map(function ($reservation) use ($statusMap) {

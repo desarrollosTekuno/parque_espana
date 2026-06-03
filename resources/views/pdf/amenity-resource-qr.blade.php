@@ -22,16 +22,16 @@
 </head>
 <body>
 
-    <h2>{{ $location->resource->amenity->club->name }}</h2>
-    <h3>{{ $location->resource->amenity->name }}</h3>
-    <p>{{ $location->resource->name }}</p>
+    <h2>{{ $amenityResource->amenity->club->name }}</h2>
+    <h3>{{ $amenityResource->amenity->name }}</h3>
+    <p>{{ $amenityResource->name }}</p>
 
     <div class="qr">
-        {!! Storage::disk('public')->get($location->qr_image_path) !!}
+        {!! Storage::disk('public')->get($amenityResource->qr_image_path) !!}
     </div>
 
     <p>Escanea para registrar asistencia</p>
-    <small>Generado: {{ $location->qr_generated_at?->format('d/m/Y H:i') }}</small>
+    <small>Generado: {{ $amenityResource->qr_generated_at?->format('d/m/Y H:i') }}</small>
 
 </body>
 </html>

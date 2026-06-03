@@ -14,10 +14,11 @@ class ReservationStatusSeeder extends Seeder
     public function run(): void
     {
         $status = [
-            ['name' => 'ACTIVA', 'color' => 'green'],
-            ['name' => 'CANCELADA', 'color' => 'red'],
-            ['name' => 'FINALIZADA', 'color' => 'blue'],
-            ['name' => 'INASISTENCIA', 'color' => 'red']
+            ['name' => 'ACTIVA',       'color' => 'green'],
+            ['name' => 'CANCELADA',    'color' => 'red'],
+            ['name' => 'FINALIZADA',   'color' => 'blue'],
+            ['name' => 'INASISTENCIA', 'color' => 'red'],
+            ['name' => 'ASISTIDO',     'color' => 'green'],
         ];
 
         foreach ($status as $stat){
