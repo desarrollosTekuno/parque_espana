@@ -75,6 +75,14 @@ const calendarApp = createCalendar({
       onContainer: '#000'
     }
   },
+  'status-5': {
+    colorName: 'green',
+    lightColors: {
+      main: '#66bb6a',
+      container: '#e8f5e9',
+      onContainer: '#000'
+    }
+  },
   'blocked': {
     colorName: 'grey',
     lightColors: {

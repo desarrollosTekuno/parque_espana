@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AccountStatementController;
+use App\Http\Controllers\Api\V1\CheckInController;
 use App\Http\Controllers\Api\V1\FamilyMembersController;
 use App\Http\Controllers\Api\V1\AmenityController;
 use App\Http\Controllers\Api\V1\EmailTestController;
@@ -93,6 +94,11 @@ Route::prefix('v1')->name('api.')->group(function () {
     // Firebase test
     Route::post('/firebase/test', [FirebaseTestController::class, 'send']);
     Route::get('/firebase/ping', [FirebaseTestController::class, 'ping']);
+
+    // Check-in por QR
+    Route::post('/check-in/resource/{resource}', [CheckInController::class, 'store'])
+        ->middleware('auth:sanctum')
+        ->name('api.check-in.store');
 
     // Webhook de Conekta — sin auth, público para recibir eventos
     Route::post('/webhooks/conekta', [ConektaWebhookController::class, 'handle']);

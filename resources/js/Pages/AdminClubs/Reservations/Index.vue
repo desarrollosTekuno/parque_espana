@@ -97,6 +97,7 @@ const toTZ = (iso: string) =>
     .toZonedDateTimeISO('America/Mexico_City')
 
 const formatEvents = (events: any[]) => {
+    console.log('Formateando eventos:', events)
   return events.map(e => ({
     id: String(e.id),
     title: `${e.title} • ${e.status}`,

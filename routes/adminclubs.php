@@ -51,6 +51,10 @@ Route::post('/amenitySchedule', [AmenityScheduleController::class, 'store'])->na
 Route::resource('/blockedPeriods', BlockedPeriodController::class)->names('blockedPeriods');
 Route::get('/amenity-resource/{resource}/calendar', [AmenityResourceController::class, 'calendar'])->name('amenityResource.calendar');
 
+// QR de amenities (genera y descarga en una sola petición GET)
+Route::get('/amenity-resource/{amenityResource}/generate-qr', [AmenityResourceController::class, 'generateQr'])->name('amenityResource.generateQr');
+
+// reservations
 Route::resource('/reservations', ReservationController::class)->only(['index', 'update', 'store'])->names('reservations');
 Route::resource('/system-variables', SystemVariableController::class)->only(['index', 'store', 'update', 'destroy'])->names('system-variables');
 Route::get('/reservations/calendar', [ReservationController::class, 'calendar'])

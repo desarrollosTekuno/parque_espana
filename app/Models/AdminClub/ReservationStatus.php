@@ -11,10 +11,11 @@ class ReservationStatus extends Model {
 
     protected $table = 'reservations.status';
 
-    const ACTIVA = 1;
-    const CANCELADA = 2;
-    const FINALIZADA = 3;
+    const ACTIVA       = 1;
+    const CANCELADA    = 2;
+    const FINALIZADA   = 3;
     const INASISTENCIA = 4;
+    const ASISTENCIA   = 5;
 
     protected $guarded = ['id', 'created_at', 'updated_at'];
     protected $dates = ['deleted_at'];
