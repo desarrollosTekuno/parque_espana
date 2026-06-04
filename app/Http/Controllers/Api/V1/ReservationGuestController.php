@@ -55,6 +55,8 @@ class ReservationGuestController extends Controller {
                 'user_id' => $request->user()->id,
                 'title' => $validated['title'],
                 'description' => $validated['description'],
+                'date' => $validated['date'],
+                'time' => $validated['time'],
                 'total_billable_guests' => $data['total_billable_guests'],
                 'non_billable_subtotal' => $data['non_billable_subtotal'],
                 'member_id' => $member->id
@@ -88,7 +90,7 @@ class ReservationGuestController extends Controller {
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
-                'error' => 'Ocurrió un error al crear la reservación',
+                'error' => 'Ocurrió un error al crear la lista de invitados',
                 'error_details' => $e->getMessage()
             ], 500);
         }

@@ -34,6 +34,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
+use Illuminate\Support\Facades\Gate;
 
 class MemberController extends Controller
 {
@@ -139,6 +140,8 @@ class MemberController extends Controller
                             && (int) $account->account_members_count > 1,
                         'can_separate_member' => (bool) ($currentMembership?->membershipType?->allows_multiple_members)
                             && (int) $account->account_members_count > 1,
+                        'can_cancel_membership' => Gate::allows('members.cancel.create'),
+                        'can_create_membership' => Gate::allows('members.additional-membership.create'),
                         'active_memberships' => $activeMemberships->map(function (Membership $membership) {
                             return [
                                 'id' => $membership->id,
@@ -2884,11 +2887,21 @@ class MemberController extends Controller
         $address = $member?->primaryAddress;
         $employment = $member?->employmentInfo;
 
-        $lockerAssignment = LockerAssignment::with('locker')
-            ->where('member_id', $member?->id)
+        $lockerMembers = LockerAssignment::with('locker')
+            ->where('member_id', $member->id)
             ->where('year', now()->year)
+            ->where('club_id', session('club_id'))
             ->whereNull('deleted_at')
-            ->first();
+            ->get()
+            ->map(function ($assignment) {
+                return [
+                    'assignment_id' => $assignment->id,
+                    'locker_id' => $assignment->locker_id,
+                    'number' => $assignment->locker->number,
+                    'status' => $assignment->locker->status,
+                    'category' => $assignment->locker->category,
+                ];
+            });
 
         $uploadedDocs = $member?->documents ?? collect();
         $relationshipId = $accountMember->is_primary_holder ? 1 : $accountMember->relationship_id;
@@ -2930,8 +2943,35 @@ class MemberController extends Controller
                     'already_uploaded'   => $alreadyUploaded,
                     'uploaded_docs'      => $docsForType,
                 ];
-            })
-            ->values();
+            });
+
+            $lockerAssignment = LockerAssignment::where('member_id', $member->id)->latest()->first();
+
+            if ($lockerAssignment && $lockerAssignment->file_path) {
+
+                $documents->push([
+                    'document_type_id'   => 'locker_assignment',
+                    'name'               => 'Comprobante de Casillero',
+                    'allowed_extensions' => ['pdf', 'jpg', 'jpeg', 'png'],
+                    'max_file_size_kb'   => 5120,
+                    'is_required'        => false,
+                    'allow_multiple'     => false,
+                    'number_files'       => 1,
+                    'already_uploaded'   => true,
+                    'uploaded_docs'      => [
+                        [
+                            'id' => 'locker_' . $lockerAssignment->id,
+                            'uploaded_at' => $lockerAssignment->created_at?->toDateString(),
+                            'url' => Storage::disk('spaces')->temporaryUrl(
+                                $lockerAssignment->file_path,
+                                now()->addMinutes(30)
+                            ),
+                        ]
+                    ],
+                ]);
+        }
+
+        $documents = $documents->values();
 
         return [
             ...$this->buildAccountMemberPayload($accountMember),
@@ -2959,12 +2999,7 @@ class MemberController extends Controller
                 'company_address' => $employment?->company_address,
                 'company_phone' => $employment?->company_phone,
             ],
-            'locker' => $lockerAssignment ? [
-                'assignment_id' => $lockerAssignment->id,
-                'number' => $lockerAssignment->locker?->number,
-                'status' => $lockerAssignment->locker?->status,
-                'category' => $lockerAssignment->locker?->category,
-            ] : null,
+            'locker' => $lockerMembers->values(),
             'documents' => $documents,
         ];
     }

@@ -225,7 +225,7 @@ const currencyFormatter = new Intl.NumberFormat("es-MX", {
     currency: "MXN",
     maximumFractionDigits: 2,
 });
-
+console.log(props.account);
 const accountTypeLabel = computed(() =>
     props.account.account_type === "family" ? "Familiar" : "Individual",
 );
@@ -361,7 +361,7 @@ const documentFileRules = computed(() => {
 
 const viewDocument = async (docId: number) => {
     try {
-        const res = await axios.get(route("member-documents.url", docId));
+        const res = await axios.get(route("member-documents.url", docId)); 
         window.open(res.data.url, "_blank");
     } catch {
         customToastSwal({ title: "No se pudo obtener el documento.", icon: "error" });
@@ -412,7 +412,9 @@ const submitDocument = async () => {
 };
 
 // Locker actions
+// Locker actions
 const showEditLockerModal = ref(false);
+const editLockerFile =  ref<File[] | null>(null);
 const editingMember = ref(null);
 const editSelectedLocker = ref(null);
 const availableEditLockers = ref([]);
@@ -422,8 +424,11 @@ const editPerPage = ref(30);
 const editTotal = ref(0);
 const editTotalPages = ref(1);
 
-const editLocker = async (member: any) => {
-    editingMember.value = member;
+const editLocker = async (member: any, locker: any) => {
+    editingMember.value = {
+        ...member,
+        currentLocker: locker 
+    };
     editSelectedLocker.value = null;
     editCurrentPage.value = 1;
     showEditLockerModal.value = true;
@@ -437,7 +442,7 @@ const loadAvailableEditLockers = async () => {
                 params: {
                     membership_id: props.membership.id,
                     current_locker_id: editingMember.value.locker.id,
-                    category: editingMember.value.locker.category,
+                    category: editingMember.value.locker?.[0]?.category,
                     page: editCurrentPage.value,
                     lockers_per_page: editPerPage.value,
                     lockers_search: editLockerSearch.value,
@@ -460,6 +465,14 @@ const updateLocker = async () => {
         return;
     }
 
+    if (!editLockerFile.value) {
+        customToastSwal({
+            title: 'Adjunta el comprobante',
+            icon: 'warning'
+        });
+        return;
+    }
+console.log(editLockerFile.value);
     const result = await Swal.fire({
         title: '¿Cambiar casillero?',
         text: 'El integrante será asignado al nuevo casillero seleccionado.',
@@ -471,45 +484,50 @@ const updateLocker = async () => {
         allowOutsideClick: false
     });
 
-    if (!result.isConfirmed) {
-        return;
-    }
+    if (!result.isConfirmed) return;
 
-    router.post(
-        route('members.lockers.change'),
-        {
-            member_id: editingMember.value.member_id,
-            old_locker_id: editingMember.value.locker.id,
-            new_locker_id: editSelectedLocker.value,
-        },
-        {
-            preserveScroll: true,
+    const formData = new FormData();
 
-            onSuccess: () => {
-
-                showEditLockerModal.value = false;
-
-                customToastSwal({
-                    title: 'Casillero actualizado',
-                    icon: 'success'
-                });
-
-                router.reload({
-                    only: ['account']
-                });
-            },
-
-            onError: (errors) => {
-
-                console.error(errors);
-
-                customToastSwal({
-                    title: 'No se pudo actualizar el casillero',
-                    icon: 'error'
-                });
-            }
-        }
+    formData.append('member_id', editingMember.value.member_id);
+    formData.append('old_locker_id', editingMember.value.currentLocker.locker_id);
+    formData.append('new_locker_id', editSelectedLocker.value);
+    formData.append(
+        'file',
+        Array.isArray(editLockerFile.value)
+            ? editLockerFile.value[0]
+            : editLockerFile.value
     );
+console.log(editLockerFile.value);
+    router.post(route('members.lockers.change'), formData, {
+        forceFormData: true,
+        preserveScroll: true,
+
+        onSuccess: () => {
+            showEditLockerModal.value = false;
+
+            editLockerFile.value = null;
+            editSelectedLocker.value = null;
+
+            customToastSwal({
+                title: 'Casillero actualizado',
+                icon: 'success'
+            });
+
+            router.reload({ only: ['account'] });
+        },
+
+        onError: (errors) => {
+            console.error(errors);
+
+            const firstError =
+                Object.values(errors)[0];
+
+            customToastSwal({
+                title: firstError || 'No se pudo actualizar el casillero',
+                icon: 'error'
+            });
+        }
+    });
 };
 const removeLocker = async (id: number) => {
     const result = await Swal.fire({
@@ -541,6 +559,81 @@ const removeLocker = async (id: number) => {
         }
     });
 };
+
+// Historico de casilleros
+const showLockerHistoryModal = ref(false);
+const historySearch = ref('');
+const dateFrom = ref(null);
+const dateTo = ref(null);
+const lockerHistory = ref([]);
+const loadingHistory = ref(false);
+
+const options = ref({
+    page: 1,
+    itemsPerPage: 5,
+    sortBy: ['created_at'],
+    sortDesc: [true],
+});
+
+const headers = [
+    { title: 'Fecha', key: 'created_at', sortable: true },
+    { title: 'Integrante', key: 'member_name' },
+    { title: 'Cambio', key: 'change', sortable: false },
+    { title: 'Usuario', key: 'user', sortable: true },
+    { title: 'Comprobante', key: 'file', sortable: false },
+];
+watch(activeTab, async (tab) => {
+    if (tab === 'historial-casilleros') {
+        await loadLockerHistory();
+    }
+
+});
+const loadLockerHistory = async () => {
+    loadingHistory.value = true;
+    try {
+        const member = props.account.members.find(
+            m => m.is_primary_holder
+        );
+        if (!member) return;
+        const response = await axios.get(
+            route('members.lockers.history', {
+                member: member.member_id
+            })
+        );
+        lockerHistory.value = response.data.data;
+    } catch (error) {
+        console.error(error);
+    } finally {
+        loadingHistory.value = false;
+    }
+};
+
+const filteredHistory = computed(() => {
+    let data = Array.isArray(lockerHistory.value)
+        ? [...lockerHistory.value]
+        : [];
+
+    const search = historySearch.value?.toLowerCase();
+
+    if (search) {
+        data = data.filter(item =>
+            item.old_locker?.number?.toString().includes(search) ||
+            item.new_locker?.number?.toString().includes(search) ||
+            item.created_at?.toLowerCase().includes(search)
+        );
+    }
+
+    if (dateFrom.value) {
+        data = data.filter(item => item.created_at >= dateFrom.value);
+    }
+
+    if (dateTo.value) {
+        data = data.filter(item => item.created_at <= dateTo.value + 'T23:59:59');
+    }
+
+    return data;
+});
+
 watch(editCurrentPage, () => {
     if (!editingMember.value) {
         return;
@@ -559,6 +652,11 @@ watch(editLockerSearch, () => {
         loadAvailableEditLockers();
     }, 400);
 });
+const letterRules = [
+    requiredFileRule,
+    fileTypeRule(["pdf", "jpg", "jpeg", "png"]),
+    fileMaxSizeRule(2),
+];
 </script>
 
 <template>
@@ -629,6 +727,7 @@ watch(editLockerSearch, () => {
                             <v-tab value="documentos" prepend-icon="mdi-file-document-multiple">Documentos</v-tab>
                             <v-tab value="ausencias" prepend-icon="mdi-calendar-remove">Ausencias</v-tab>
                             <v-tab value="historial" prepend-icon="mdi-history">Historial</v-tab>
+                            <v-tab value="historial-casilleros" prepend-icon="mdi-locker">Historial casilleros</v-tab>
                             <v-tab
                                 v-if="props.accountTree && (props.accountTree.origin || props.accountTree.derived.length)"
                                 value="arbol"
@@ -735,7 +834,7 @@ watch(editLockerSearch, () => {
                                                     <v-chip v-if="member.is_primary_holder" color="primary" size="small" variant="flat">Titular</v-chip>
                                                 </div>
                                                 <v-row>
-                                                    <v-col cols="12" md="9">
+                                                    <v-col cols="12" md="8">
                                                         <div class="text-body-2"><strong>Edad:</strong> {{ member.age ?? "-" }}</div>
                                                         <div class="text-body-2"><strong>Nacimiento:</strong> {{ formatDate(member.birthdate) }}</div>
                                                         <div class="text-body-2"><strong>Correo:</strong> {{ member.email || "-" }}</div>
@@ -745,20 +844,59 @@ watch(editLockerSearch, () => {
                                                         <div class="text-body-2"><strong>Ocupación:</strong> {{ member.occupation || member.school_name || "-" }}</div>
                                                         <div class="text-body-2"><strong>Domicilio:</strong> {{ addressSummary(member) || "-" }}</div>
                                                     </v-col>
-                                                    <v-col cols="12" md="3" class="mt-3">
-                                                        <v-card v-if="member.locker" class="pa-2 text-center" color="primary" variant="tonal">
-                                                            <v-btn icon size="x-small" variant="text" color="primary" class="position-absolute top-0 left-0 ma-1" @click.stop="editLocker(member)">
-                                                                <v-icon size="18">mdi-pencil</v-icon>
-                                                                <v-tooltip activator="parent" location="top">Editar casillero</v-tooltip>
-                                                            </v-btn>
-                                                            <v-btn icon size="x-small" variant="text" color="error" class="position-absolute top-0 right-0 ma-1" @click.stop="removeLocker(member.locker.assignment_id)">
-                                                                <v-icon size="18">mdi-close</v-icon>
-                                                                <v-tooltip activator="parent" location="top">Dar de baja</v-tooltip>
-                                                            </v-btn>
-                                                            <v-icon size="22" class="mt-5">mdi-locker</v-icon>
-                                                            <div class="text-caption">Casillero</div>
-                                                            <div class="text-h6 font-weight-bold">{{ member.locker.number }}</div>
-                                                        </v-card>
+                                                    <v-col cols="12" md="4" class="mt-3">                                                   
+                                                        <div v-if="member.locker?.length" class="locker-grid-mini">
+                                                        <v-card
+                                                                v-for="locker in member.locker"
+                                                                :key="locker.assignment_id"
+                                                                class="locker-mini text-center"
+                                                                variant="outlined"
+                                                                color="primary"
+                                                            >
+                                                                <!-- EDIT -->
+                                                                <v-tooltip text="Editar casillero" location="top"  v-if="can.includes('members.lockers.change')">
+                                                                    <template #activator="{ props }">
+                                                                        <v-btn
+                                                                            v-bind="props"
+                                                                            icon
+                                                                            size="x-small"
+                                                                            variant="text"
+                                                                            class="btn-edit"
+                                                                            @click.stop="editLocker(member, locker)"
+                                                                        >
+                                                                            <v-icon size="16">mdi-pencil</v-icon>
+                                                                        </v-btn>
+                                                                    </template>
+                                                                </v-tooltip>
+
+                                                                <!-- DELETE -->
+                                                                <v-tooltip text="Eliminar casillero" location="top"  v-if="can.includes('members.lockers.remove')">
+                                                                    <template #activator="{ props }">
+                                                                        <v-btn
+                                                                            v-bind="props"
+                                                                            icon
+                                                                            size="x-small"
+                                                                            variant="text"
+                                                                            class="btn-delete"
+                                                                            @click.stop="removeLocker(locker.assignment_id)"
+                                                                        >
+                                                                            <v-icon size="16">mdi-close</v-icon>
+                                                                        </v-btn>
+                                                                    </template>
+                                                                </v-tooltip>
+
+                                                                <!-- CONTENIDO -->
+                                                                <div class="locker-content">
+                                                                    <v-icon size="20">mdi-locker</v-icon>
+                                                                    <div class="text-subtitle-2 font-weight-bold">
+                                                                        {{ locker.number }}
+                                                                    </div>
+                                                                </div>
+                                                            </v-card>
+                                                        </div>
+                                                        <div v-else class="text-caption text-medium-emphasis text-center">
+                                                            Sin casilleros
+                                                        </div>
                                                     </v-col>
                                                 </v-row>
                                                 <div class="d-flex justify-end mt-3">
@@ -818,7 +956,13 @@ watch(editLockerSearch, () => {
                                                                     {{ doc.allow_multiple ? `Archivo ${idx + 1}` : 'Documento' }}
                                                                     <template v-if="uploaded.uploaded_at"> · {{ uploaded.uploaded_at }}</template>
                                                                 </span>
-                                                                <v-btn size="x-small" variant="text" color="primary" prepend-icon="mdi-eye" @click="viewDocument(uploaded.id)">Ver</v-btn>
+                                                                <v-btn v-if="uploaded.url" size="x-small" variant="text" color="primary" prepend-icon="mdi-eye" :href="uploaded.url" target="_blank">
+                                                                    Ver
+                                                                </v-btn>
+
+                                                                <v-btn v-else size="x-small" variant="text" color="primary" prepend-icon="mdi-eye" @click="viewDocument(uploaded.id)">
+                                                                    Ver
+                                                                </v-btn>
                                                             </div>
                                                         </div>
                                                         <v-spacer />
@@ -830,7 +974,7 @@ watch(editLockerSearch, () => {
                                                         </v-btn>
                                                     </v-card>
                                                 </v-col>
-                                            </v-row>
+                                            </v-row>    
                                         </div>
                                     </div>
                                 </v-card>
@@ -952,6 +1096,89 @@ watch(editLockerSearch, () => {
                                 </v-card>
                             </v-window-item>
 
+                            <!-- ══ TAB: HISTORIAL CASILLEROS ══ -->
+                            <v-window-item value="historial-casilleros" v-if="can.includes('members.lockers.history')">
+                                <v-card class="pa-4">
+                                    <div class="text-subtitle-1 font-weight-bold mb-4">Historial de casilleros</div>
+                                    <v-data-table
+                                        :headers="headers"
+                                        :items="filteredHistory"
+                                        v-model:items-per-page="options.itemsPerPage"
+                                        v-model:page="options.page"
+                                        :items-per-page-options="[5, 10, 15]"
+                                        class="custom-table"
+                                    >
+
+                                        <!-- Fecha -->
+                                        <template #item.created_at="{ item }">
+                                            <div class="text-caption text-medium-emphasis">
+                                                {{ new Date(item.created_at).toLocaleString() }}
+                                            </div>
+                                        </template>
+                                        <template #item.member_name="{ item }">
+                                            <div class="font-weight-medium">
+                                                {{ item.member_name }}
+                                            </div>
+                                        </template>
+                                        <!-- Cambio -->
+                                        <template #item.change="{ item }">
+                                            <div class="d-flex align-center ga-2">
+
+                                                <v-chip size="small" color="gray" variant="tonal">
+                                                    {{ item.old_locker?.number ?? 'N/A' }}
+                                                </v-chip>
+
+                                                <v-icon size="16">mdi-arrow-right</v-icon>
+
+                                                <v-chip size="small" color="green" variant="tonal">
+                                                    {{ item.new_locker?.number ?? 'N/A' }}
+                                                </v-chip>
+
+                                            </div>
+                                        </template>
+
+                                        <!-- Usuario -->
+                                        <template #item.user="{ item }">
+                                            <v-chip size="small" variant="outlined">
+                                                {{ item.user ?? 'Sistema' }}
+                                            </v-chip>
+                                        </template>
+
+                                        <!-- Archivo -->
+                                        <template #item.file="{ item }">
+                                            <div class="d-flex ga-2">
+                                                <!-- Ver -->
+                                                <v-btn
+                                                    v-if="item.file_url"
+                                                    size="small"
+                                                    variant="tonal"
+                                                    color="primary"
+                                                    :href="item.file_url"
+                                                    target="_blank"
+                                                >
+                                                    <v-icon start size="16">mdi-eye</v-icon>
+                                                    Ver
+                                                </v-btn>
+                                                <!-- Descargar -->
+                                                <v-btn
+                                                    v-if="item.file_url"
+                                                    size="small"
+                                                    variant="outlined"
+                                                    color="primary"
+                                                    :href="item.file_url"
+                                                    download
+                                                >
+                                                    <v-icon start size="16">mdi-download</v-icon>
+                                                    Descargar
+                                                </v-btn>
+                                                <span v-if="!item.file_url" class="text-medium-emphasis">—</span>
+                                            </div>
+                                        </template>
+
+                                    </v-data-table>
+                                </v-card>
+                            </v-window-item>
+
                             <!-- ══ TAB: ÁRBOL ══ -->
                             <v-window-item value="arbol">
                                 <v-card class="pa-4">
@@ -988,6 +1215,7 @@ watch(editLockerSearch, () => {
             </v-row>
         </div>
     </AppLayout>
+
 
     <!-- ── Dialog: Permiso por ausencia ── -->
     <v-dialog v-model="showAbsencePermitDialog" max-width="520" persistent>
@@ -1143,6 +1371,7 @@ watch(editLockerSearch, () => {
         </v-card>
     </v-dialog>
 
+    <!-- Dialog: Edit locker-->
     <v-dialog
         v-model="showEditLockerModal"
         max-width="850"
@@ -1226,12 +1455,10 @@ watch(editLockerSearch, () => {
                             </div>
 
                             <div class="text-h5 font-weight-bold">
-                                {{ editingMember?.locker?.number }}
+                                {{ editingMember?.currentLocker?.number }}
                             </div>
                         </v-card>
-
                     </v-col>
-
                 </v-row>
 
                 <!-- TITLE -->
@@ -1264,6 +1491,34 @@ watch(editLockerSearch, () => {
                         >
                             {{ editTotal }} disponibles
                         </v-chip>
+                    </v-col>
+                    <!--<v-col cols="12" md="12">
+                        <v-file-input
+                            v-model="editLockerFile"
+                            label="Adjuntar comprobante"
+                            prepend-icon="mdi-paperclip"
+                            variant="outlined"
+                            density="comfortable"
+                            accept="image/*,.pdf"
+                            show-size
+                            clearable
+                        />
+                    </v-col>-->
+                    <v-col cols="12" md="12">
+                        <div class="font-weight-medium mb-1">
+                            Adjuntar comprobante de cambio de casillero
+                            <span class="text-error">*</span>
+                        </div>
+                        <CustomFileUploadField
+                            v-model="editLockerFile"
+                            label="Seleccionar comprobante"
+                            hint="PDF, JPG o PNG · máx. 2 MB"
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            :rules="letterRules"
+                        />
+                        <!--<div v-if="form.errors.cancellation_letter" class="text-error text-caption mt-1">
+                            {{ form.errors.cancellation_letter }}
+                        </div>-->
                     </v-col>
                 </v-row>
 
@@ -1350,7 +1605,6 @@ watch(editLockerSearch, () => {
                 </v-btn>
 
             </v-card-actions>
-
         </v-card>
     </v-dialog>
 </template>
@@ -1377,6 +1631,66 @@ watch(editLockerSearch, () => {
     gap: 12px;
 }
 
+.locker-grid-mini {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    justify-content: end;
+    width: fit-content;      
+    margin-left: auto;  
+    direction: rtl;
+}
+
+.locker-mini {
+    position: relative;
+    padding: 20px 25px 8px;
+    border: 1px solid rgb(var(--v-theme-primary));
+    border-radius: 10px;
+    overflow: hidden;
+    direction: ltr;
+}
+
+/* botón editar */
+.btn-edit {
+    position: absolute;
+    top: 2px;
+    left: 0px;
+    min-width: auto;
+    padding: 0px;
+}
+
+/* botón eliminar */
+.btn-delete {
+    position: absolute;
+    top: 2px;
+    right: 0px; 
+    min-width: auto;
+    padding: 0px;
+}
+
+/* contenido */
+.locker-content {
+    display: flex;
+    margin-top: 10px;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+/* TABLA HISTORIAL CASILLEROS */
+.custom-table {
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+.custom-table .v-data-table__thead {
+    background-color: #f5f7fa;
+}
+
+.custom-table .v-data-table__tr:hover {
+    background-color: rgba(0, 0, 0, 0.03);
+    transition: 0.2s;
+}
+/*Responsive adjustments for the locker grid*/
 @media (max-width: 1400px) {
 
     .edit-locker-grid {
@@ -1408,3 +1722,4 @@ watch(editLockerSearch, () => {
     z-index: 999999 !important;
 }
 </style>
+

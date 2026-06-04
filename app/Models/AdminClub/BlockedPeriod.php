@@ -17,11 +17,18 @@ class BlockedPeriod extends Model {
         'start_time',
         'end_time',
         'reason',
-        'is_active'
+        'is_active',
+        'club_id'
     ];
     protected $dates = ['deleted_at'];
 
+    protected $casts = [
+        'start_time' => 'datetime',
+        'end_time' => 'datetime',
+    ];
+
     public function resource() {
         return $this->belongsTo(AmenityResource::class, 'resource_id');     
-    }       
+    }    
+       
 }

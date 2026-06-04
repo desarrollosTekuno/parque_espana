@@ -107,6 +107,17 @@ export const fileTypeRule =
         );
     };
 
+// Valida por MIME type (file.type) en lugar de extensión
+export const fileMimeTypeRule =
+    (allowedMimes: string[] | null | undefined): ValidationRule =>
+    (v: File | File[] | null) => {
+        if (!allowedMimes?.length) return true; 
+        if (!v || (Array.isArray(v) && v.length === 0)) return true;
+        const files = Array.isArray(v) ? v : [v];
+        const invalid = files.find((file) => !allowedMimes.includes(file.type));
+        return !invalid || `Solo se permiten: ${allowedMimes.join(", ")}`;
+    };
+
 export const fileMaxSizeRule =
     (maxMB: number): ValidationRule =>
     (v: File | File[] | null) => {

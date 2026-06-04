@@ -24,7 +24,7 @@ class AccountCancellationController extends Controller
         protected MembershipChargeService $membershipChargeService,
         protected MembershipPricingService $membershipPricingService
     ) {
-        $this->middleware('permission:members.cancel');
+        $this->middleware('permission:members.cancel.create');
     }
 
     public function create(Membership $membership)
