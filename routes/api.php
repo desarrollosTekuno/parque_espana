@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\V1\ReservationController;
 use App\Http\Controllers\Api\V1\BusinessAdController;
 use App\Http\Controllers\Api\V1\ReservationGuestController;
 use App\Http\Controllers\Api\V1\SurveyController;
+use App\Http\Controllers\Api\V1\ClinicalHistoryController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -99,6 +100,12 @@ Route::prefix('v1')->name('api.')->group(function () {
     Route::post('/check-in/resource/{resource}', [CheckInController::class, 'store'])
         ->middleware('auth:sanctum')
         ->name('api.check-in.store');
+
+    // Historia clínica
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/clinical-history-list', [ClinicalHistoryController::class, 'show']);
+        Route::post('/clinical-history', [ClinicalHistoryController::class, 'upsert']);
+    });
 
     // Webhook de Conekta — sin auth, público para recibir eventos
     Route::post('/webhooks/conekta', [ConektaWebhookController::class, 'handle']);

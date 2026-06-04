@@ -560,6 +560,143 @@ const removeLocker = async (id: number) => {
     });
 };
 
+// ── Historia Clínica ──────────────────────────────────────────────────────────
+interface ClinicalHistoryData {
+    blood_type: string | null;
+    blood_rh: string | null;
+    has_diabetes: boolean;
+    diabetes_type: string | null;
+    has_heart_condition: boolean;
+    has_epilepsy: boolean;
+    has_asthma: boolean;
+    has_allergy: boolean;
+    takes_medication: boolean;
+    medication_details: string | null;
+    has_allergens: boolean;
+    allergen_details: string | null;
+    normal_blood_pressure: boolean | null;
+    has_hypertension: boolean;
+    special_conditions: string | null;
+    emergency_contact_name: string | null;
+    emergency_contact_phone: string | null;
+    emergency_contact_mobile: string | null;
+    emergency_notify_name: string | null;
+    treating_physician: string | null;
+    treating_physician_phone: string | null;
+    social_security_number: string | null;
+    medical_insurance: string | null;
+    insurance_company: string | null;
+    insurance_policy_number: string | null;
+    insurance_mobile: string | null;
+}
+
+interface ClinicalMember {
+    member_id: number;
+    member_name: string;
+    is_primary_holder: boolean;
+    history: ClinicalHistoryData | null;
+}
+
+const emptyForm = (): ClinicalHistoryData => ({
+    blood_type: null,
+    blood_rh: null,
+    has_diabetes: false,
+    diabetes_type: null,
+    has_heart_condition: false,
+    has_epilepsy: false,
+    has_asthma: false,
+    has_allergy: false,
+    takes_medication: false,
+    medication_details: null,
+    has_allergens: false,
+    allergen_details: null,
+    normal_blood_pressure: null,
+    has_hypertension: false,
+    special_conditions: null,
+    emergency_contact_name: null,
+    emergency_contact_phone: null,
+    emergency_contact_mobile: null,
+    emergency_notify_name: null,
+    treating_physician: null,
+    treating_physician_phone: null,
+    social_security_number: null,
+    medical_insurance: null,
+    insurance_company: null,
+    insurance_policy_number: null,
+    insurance_mobile: null,
+});
+
+const clinicalMembers = ref<ClinicalMember[]>([]);
+const clinicalHistoryLoading = ref(false);
+const clinicalSelectedMemberId = ref<number | null>(null);
+const clinicalSaving = ref(false);
+const clinicalFormRef = ref<{ validate(): Promise<{ valid: boolean }> } | null>(null);
+const clinicalForm = ref<ClinicalHistoryData>(emptyForm());
+
+const currentClinicalMember = computed(() =>
+    clinicalMembers.value.find(m => m.member_id === clinicalSelectedMemberId.value) ?? null,
+);
+
+watch(clinicalSelectedMemberId, (memberId) => {
+    const member = clinicalMembers.value.find(m => m.member_id === memberId);
+    clinicalForm.value = member?.history ? { ...member.history } : emptyForm();
+});
+
+watch(activeTab, async (tab) => {
+    if (tab === 'historia-clinica' && clinicalMembers.value.length === 0) {
+        await loadClinicalHistories();
+    }
+    if (tab === 'historial-casilleros') {
+        await loadLockerHistory();
+    }
+});
+
+const loadClinicalHistories = async () => {
+    clinicalHistoryLoading.value = true;
+    try {
+        const res = await axios.get(
+            route('members.clinical-history.index', props.membership.id),
+        );
+        clinicalMembers.value = res.data;
+        if (res.data.length > 0) {
+            clinicalSelectedMemberId.value = res.data[0].member_id;
+        }
+    } catch {
+        customToastSwal({ title: 'No se pudo cargar la historia clínica.', icon: 'error' });
+    } finally {
+        clinicalHistoryLoading.value = false;
+    }
+};
+
+const saveClinicalHistory = async () => {
+    if (!clinicalSelectedMemberId.value) return;
+
+    clinicalSaving.value = true;
+    try {
+        await axios.put(
+            route('members.clinical-history.upsert', {
+                membership: props.membership.id,
+                member: clinicalSelectedMemberId.value,
+            }),
+            clinicalForm.value,
+        );
+
+        const idx = clinicalMembers.value.findIndex(
+            m => m.member_id === clinicalSelectedMemberId.value,
+        );
+        if (idx !== -1) {
+            clinicalMembers.value[idx].history = { ...clinicalForm.value };
+        }
+
+        customToastSwal({ title: 'Historia clínica guardada correctamente.', icon: 'success' });
+    } catch (err: any) {
+        const msg = err?.response?.data?.message ?? 'No se pudo guardar la historia clínica.';
+        customToastSwal({ title: msg, icon: 'error' });
+    } finally {
+        clinicalSaving.value = false;
+    }
+};
+
 // Historico de casilleros
 const showLockerHistoryModal = ref(false);
 const historySearch = ref('');
@@ -582,12 +719,6 @@ const headers = [
     { title: 'Usuario', key: 'user', sortable: true },
     { title: 'Comprobante', key: 'file', sortable: false },
 ];
-watch(activeTab, async (tab) => {
-    if (tab === 'historial-casilleros') {
-        await loadLockerHistory();
-    }
-
-});
 const loadLockerHistory = async () => {
     loadingHistory.value = true;
     try {
@@ -726,6 +857,7 @@ const letterRules = [
                             <v-tab value="integrantes" prepend-icon="mdi-account-group">Integrantes</v-tab>
                             <v-tab value="documentos" prepend-icon="mdi-file-document-multiple">Documentos</v-tab>
                             <v-tab value="ausencias" prepend-icon="mdi-calendar-remove">Ausencias</v-tab>
+                            <v-tab value="historia-clinica" prepend-icon="mdi-clipboard-pulse">Historia Clínica</v-tab>
                             <v-tab value="historial" prepend-icon="mdi-history">Historial</v-tab>
                             <v-tab value="historial-casilleros" prepend-icon="mdi-locker">Historial casilleros</v-tab>
                             <v-tab
@@ -1176,6 +1308,345 @@ const letterRules = [
                                         </template>
 
                                     </v-data-table>
+                                </v-card>
+                            </v-window-item>
+
+                            <!-- ══ TAB: HISTORIA CLÍNICA ══ -->
+                            <v-window-item value="historia-clinica">
+                                <v-card class="pa-4">
+                                    <div class="d-flex align-center justify-space-between mb-4">
+                                        <div>
+                                            <div class="text-subtitle-1 font-weight-bold">Historia Clínica</div>
+                                            <div class="text-body-2 text-medium-emphasis">Datos médicos del integrante.</div>
+                                        </div>
+                                    </div>
+
+                                    <v-progress-linear v-if="clinicalHistoryLoading" indeterminate color="primary" class="mb-4" />
+
+                                    <!-- Selector de integrante (solo cuando hay más de uno) -->
+                                    <v-tabs
+                                        v-if="clinicalMembers.length > 1"
+                                        v-model="clinicalSelectedMemberId"
+                                        color="primary"
+                                        density="compact"
+                                        class="mb-4"
+                                    >
+                                        <v-tab
+                                            v-for="m in clinicalMembers"
+                                            :key="m.member_id"
+                                            :value="m.member_id"
+                                        >
+                                            {{ m.member_name }}
+                                            <v-icon v-if="m.is_primary_holder" size="14" class="ml-1">mdi-star</v-icon>
+                                        </v-tab>
+                                    </v-tabs>
+
+                                    <template v-if="currentClinicalMember">
+                                        <v-form ref="clinicalFormRef">
+                                            <!-- ── Tipo de sangre ── -->
+                                            <div class="text-caption font-weight-bold text-uppercase text-medium-emphasis mb-2 mt-2">Tipo de Sangre</div>
+                                            <v-row dense>
+                                                <v-col cols="12" sm="4">
+                                                    <v-select
+                                                        v-model="clinicalForm.blood_type"
+                                                        label="Grupo sanguíneo"
+                                                        :items="['A', 'B', 'AB', 'O']"
+                                                        density="compact"
+                                                        variant="outlined"
+                                                        clearable
+                                                    />
+                                                </v-col>
+                                                <v-col cols="12" sm="4">
+                                                    <v-select
+                                                        v-model="clinicalForm.blood_rh"
+                                                        label="Factor RH"
+                                                        :items="[{ title: 'Positivo (+)', value: 'positive' }, { title: 'Negativo (−)', value: 'negative' }]"
+                                                        density="compact"
+                                                        variant="outlined"
+                                                        clearable
+                                                    />
+                                                </v-col>
+                                            </v-row>
+
+                                            <!-- ── Padecimientos ── -->
+                                            <v-divider class="my-4" />
+                                            <div class="text-caption font-weight-bold text-uppercase text-medium-emphasis mb-3">Padecimientos</div>
+                                            <v-row dense>
+                                                <v-col cols="12" sm="6" md="4">
+                                                    <div class="d-flex align-center ga-4">
+                                                        <span class="text-body-2 flex-grow-1">Diabetes</span>
+                                                        <v-btn-toggle v-model="clinicalForm.has_diabetes" density="compact" variant="outlined" divided mandatory>
+                                                            <v-btn :value="true" size="small">Sí</v-btn>
+                                                            <v-btn :value="false" size="small">No</v-btn>
+                                                        </v-btn-toggle>
+                                                    </div>
+                                                    <v-select
+                                                        v-if="clinicalForm.has_diabetes"
+                                                        v-model="clinicalForm.diabetes_type"
+                                                        label="Tipo"
+                                                        :items="['I', 'II']"
+                                                        density="compact"
+                                                        variant="outlined"
+                                                        clearable
+                                                        class="mt-2"
+                                                    />
+                                                </v-col>
+                                                <v-col cols="12" sm="6" md="4">
+                                                    <div class="d-flex align-center ga-4">
+                                                        <span class="text-body-2 flex-grow-1">Cardiopatía</span>
+                                                        <v-btn-toggle v-model="clinicalForm.has_heart_condition" density="compact" variant="outlined" divided mandatory>
+                                                            <v-btn :value="true" size="small">Sí</v-btn>
+                                                            <v-btn :value="false" size="small">No</v-btn>
+                                                        </v-btn-toggle>
+                                                    </div>
+                                                </v-col>
+                                                <v-col cols="12" sm="6" md="4">
+                                                    <div class="d-flex align-center ga-4">
+                                                        <span class="text-body-2 flex-grow-1">Epilepsia</span>
+                                                        <v-btn-toggle v-model="clinicalForm.has_epilepsy" density="compact" variant="outlined" divided mandatory>
+                                                            <v-btn :value="true" size="small">Sí</v-btn>
+                                                            <v-btn :value="false" size="small">No</v-btn>
+                                                        </v-btn-toggle>
+                                                    </div>
+                                                </v-col>
+                                                <v-col cols="12" sm="6" md="4">
+                                                    <div class="d-flex align-center ga-4">
+                                                        <span class="text-body-2 flex-grow-1">Asma</span>
+                                                        <v-btn-toggle v-model="clinicalForm.has_asthma" density="compact" variant="outlined" divided mandatory>
+                                                            <v-btn :value="true" size="small">Sí</v-btn>
+                                                            <v-btn :value="false" size="small">No</v-btn>
+                                                        </v-btn-toggle>
+                                                    </div>
+                                                </v-col>
+                                                <v-col cols="12" sm="6" md="4">
+                                                    <div class="d-flex align-center ga-4">
+                                                        <span class="text-body-2 flex-grow-1">Alergia</span>
+                                                        <v-btn-toggle v-model="clinicalForm.has_allergy" density="compact" variant="outlined" divided mandatory>
+                                                            <v-btn :value="true" size="small">Sí</v-btn>
+                                                            <v-btn :value="false" size="small">No</v-btn>
+                                                        </v-btn-toggle>
+                                                    </div>
+                                                </v-col>
+                                            </v-row>
+
+                                            <!-- ── Medicamentos ── -->
+                                            <v-divider class="my-4" />
+                                            <div class="text-caption font-weight-bold text-uppercase text-medium-emphasis mb-3">Medicamentos</div>
+                                            <v-row dense>
+                                                <v-col cols="12" sm="6" md="4">
+                                                    <div class="d-flex align-center ga-4">
+                                                        <span class="text-body-2 flex-grow-1">¿Toma medicamentos?</span>
+                                                        <v-btn-toggle v-model="clinicalForm.takes_medication" density="compact" variant="outlined" divided mandatory>
+                                                            <v-btn :value="true" size="small">Sí</v-btn>
+                                                            <v-btn :value="false" size="small">No</v-btn>
+                                                        </v-btn-toggle>
+                                                    </div>
+                                                </v-col>
+                                                <v-col v-if="clinicalForm.takes_medication" cols="12">
+                                                    <v-textarea
+                                                        v-model="clinicalForm.medication_details"
+                                                        label="Especifique los medicamentos"
+                                                        density="compact"
+                                                        variant="outlined"
+                                                        rows="2"
+                                                        counter="1000"
+                                                    />
+                                                </v-col>
+                                            </v-row>
+
+                                            <!-- ── Alérgenos ── -->
+                                            <v-divider class="my-4" />
+                                            <div class="text-caption font-weight-bold text-uppercase text-medium-emphasis mb-3">Alérgenos</div>
+                                            <v-row dense>
+                                                <v-col cols="12" sm="6" md="5">
+                                                    <div class="d-flex align-center ga-4">
+                                                        <span class="text-body-2 flex-grow-1">Polen, polvo, caspa animal, alimentos, etc.</span>
+                                                        <v-btn-toggle v-model="clinicalForm.has_allergens" density="compact" variant="outlined" divided mandatory>
+                                                            <v-btn :value="true" size="small">Sí</v-btn>
+                                                            <v-btn :value="false" size="small">No</v-btn>
+                                                        </v-btn-toggle>
+                                                    </div>
+                                                </v-col>
+                                                <v-col v-if="clinicalForm.has_allergens" cols="12">
+                                                    <v-textarea
+                                                        v-model="clinicalForm.allergen_details"
+                                                        label="Especifique los alérgenos"
+                                                        density="compact"
+                                                        variant="outlined"
+                                                        rows="2"
+                                                        counter="1000"
+                                                    />
+                                                </v-col>
+                                            </v-row>
+
+                                            <!-- ── Presión arterial ── -->
+                                            <v-divider class="my-4" />
+                                            <div class="text-caption font-weight-bold text-uppercase text-medium-emphasis mb-3">Presión Arterial</div>
+                                            <v-row dense>
+                                                <v-col cols="12" sm="6" md="4">
+                                                    <div class="d-flex align-center ga-4">
+                                                        <span class="text-body-2 flex-grow-1">Normal</span>
+                                                        <v-btn-toggle v-model="clinicalForm.normal_blood_pressure" density="compact" variant="outlined" divided>
+                                                            <v-btn :value="true" size="small">Sí</v-btn>
+                                                            <v-btn :value="false" size="small">No</v-btn>
+                                                        </v-btn-toggle>
+                                                    </div>
+                                                </v-col>
+                                                <v-col cols="12" sm="6" md="4">
+                                                    <div class="d-flex align-center ga-4">
+                                                        <span class="text-body-2 flex-grow-1">Hipertensión</span>
+                                                        <v-btn-toggle v-model="clinicalForm.has_hypertension" density="compact" variant="outlined" divided mandatory>
+                                                            <v-btn :value="true" size="small">Sí</v-btn>
+                                                            <v-btn :value="false" size="small">No</v-btn>
+                                                        </v-btn-toggle>
+                                                    </div>
+                                                </v-col>
+                                            </v-row>
+
+                                            <!-- ── Condiciones especiales ── -->
+                                            <v-divider class="my-4" />
+                                            <div class="text-caption font-weight-bold text-uppercase text-medium-emphasis mb-3">Condiciones Especiales</div>
+                                            <v-row dense>
+                                                <v-col cols="12">
+                                                    <v-textarea
+                                                        v-model="clinicalForm.special_conditions"
+                                                        label="Describa las condiciones especiales (opcional)"
+                                                        density="compact"
+                                                        variant="outlined"
+                                                        rows="2"
+                                                        counter="2000"
+                                                    />
+                                                </v-col>
+                                            </v-row>
+
+                                            <!-- ── Contacto de emergencia ── -->
+                                            <v-divider class="my-4" />
+                                            <div class="text-caption font-weight-bold text-uppercase text-medium-emphasis mb-3">En Caso de Emergencia</div>
+                                            <v-row dense>
+                                                <v-col cols="12" sm="6">
+                                                    <v-text-field
+                                                        v-model="clinicalForm.emergency_contact_name"
+                                                        label="Nombre"
+                                                        density="compact"
+                                                        variant="outlined"
+                                                    />
+                                                </v-col>
+                                                <v-col cols="12" sm="3">
+                                                    <v-text-field
+                                                        v-model="clinicalForm.emergency_contact_phone"
+                                                        label="Teléfono"
+                                                        density="compact"
+                                                        variant="outlined"
+                                                    />
+                                                </v-col>
+                                                <v-col cols="12" sm="3">
+                                                    <v-text-field
+                                                        v-model="clinicalForm.emergency_contact_mobile"
+                                                        label="Celular"
+                                                        density="compact"
+                                                        variant="outlined"
+                                                    />
+                                                </v-col>
+                                                <v-col cols="12" sm="6">
+                                                    <v-text-field
+                                                        v-model="clinicalForm.emergency_notify_name"
+                                                        label="En caso necesario, informar a"
+                                                        density="compact"
+                                                        variant="outlined"
+                                                    />
+                                                </v-col>
+                                            </v-row>
+
+                                            <!-- ── Médico tratante ── -->
+                                            <v-divider class="my-4" />
+                                            <div class="text-caption font-weight-bold text-uppercase text-medium-emphasis mb-3">Médico Tratante</div>
+                                            <v-row dense>
+                                                <v-col cols="12" sm="6">
+                                                    <v-text-field
+                                                        v-model="clinicalForm.treating_physician"
+                                                        label="Nombre del médico"
+                                                        density="compact"
+                                                        variant="outlined"
+                                                    />
+                                                </v-col>
+                                                <v-col cols="12" sm="3">
+                                                    <v-text-field
+                                                        v-model="clinicalForm.treating_physician_phone"
+                                                        label="Teléfono"
+                                                        density="compact"
+                                                        variant="outlined"
+                                                    />
+                                                </v-col>
+                                            </v-row>
+
+                                            <!-- ── Seguridad social y seguro médico ── -->
+                                            <v-divider class="my-4" />
+                                            <div class="text-caption font-weight-bold text-uppercase text-medium-emphasis mb-3">Seguridad Social y Seguro Médico</div>
+                                            <v-row dense>
+                                                <v-col cols="12" sm="6">
+                                                    <v-text-field
+                                                        v-model="clinicalForm.social_security_number"
+                                                        label="Número de Seguridad Social (NSS)"
+                                                        density="compact"
+                                                        variant="outlined"
+                                                    />
+                                                </v-col>
+                                                <v-col cols="12" sm="6">
+                                                    <v-text-field
+                                                        v-model="clinicalForm.medical_insurance"
+                                                        label="Seguro de Gastos Médicos"
+                                                        density="compact"
+                                                        variant="outlined"
+                                                    />
+                                                </v-col>
+                                                <v-col cols="12" sm="4">
+                                                    <v-text-field
+                                                        v-model="clinicalForm.insurance_company"
+                                                        label="Compañía"
+                                                        density="compact"
+                                                        variant="outlined"
+                                                    />
+                                                </v-col>
+                                                <v-col cols="12" sm="4">
+                                                    <v-text-field
+                                                        v-model="clinicalForm.insurance_policy_number"
+                                                        label="No. de Póliza"
+                                                        density="compact"
+                                                        variant="outlined"
+                                                    />
+                                                </v-col>
+                                                <v-col cols="12" sm="4">
+                                                    <v-text-field
+                                                        v-model="clinicalForm.insurance_mobile"
+                                                        label="Celular del seguro"
+                                                        density="compact"
+                                                        variant="outlined"
+                                                    />
+                                                </v-col>
+                                            </v-row>
+
+                                            <!-- ── Guardar ── -->
+                                            <v-divider class="my-4" />
+                                            <div class="d-flex justify-end">
+                                                <v-btn
+                                                    color="primary"
+                                                    :loading="clinicalSaving"
+                                                    @click="saveClinicalHistory"
+                                                >
+                                                    Guardar historia clínica
+                                                </v-btn>
+                                            </div>
+                                        </v-form>
+                                    </template>
+
+                                    <v-alert
+                                        v-else-if="!clinicalHistoryLoading"
+                                        type="info"
+                                        variant="tonal"
+                                        density="compact"
+                                    >
+                                        No hay integrantes disponibles para mostrar.
+                                    </v-alert>
                                 </v-card>
                             </v-window-item>
 

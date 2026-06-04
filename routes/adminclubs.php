@@ -42,6 +42,7 @@ use App\Http\Controllers\Web\AdminClub\GuestListPaymentController;
 use App\Http\Controllers\Web\AdminClub\MembershipTypeController;
 use App\Http\Controllers\Web\AdminClub\PaymentMethodController;
 use App\Http\Controllers\Web\AdminClub\LockerAssignmentHistoryController;
+use App\Http\Controllers\Web\AdminClub\ClinicalHistoryController;
 use Illuminate\Support\Facades\Route;
 
 // amenities
@@ -268,6 +269,12 @@ Route::post('files/{file}/club-file', [FileController::class, 'uploadClubFile'])
 Route::delete('files/{file}/club-file', [FileController::class, 'destroyClubFile'])->name('files.club-file.destroy');
 Route::post('/files/variables', [FileController::class, 'previewVariables'])->name('files.variables');
 
+
+// Historia Clínica
+Route::get('/members/{membership}/clinical-history', [ClinicalHistoryController::class, 'index'])
+    ->name('members.clinical-history.index');
+Route::put('/members/{membership}/members/{member}/clinical-history', [ClinicalHistoryController::class, 'upsert'])
+    ->name('members.clinical-history.upsert');
 
 // Acts
 Route::prefix('acts')->group(function () {
