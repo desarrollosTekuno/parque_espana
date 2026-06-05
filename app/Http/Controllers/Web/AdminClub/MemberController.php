@@ -2698,6 +2698,7 @@ class MemberController extends Controller
         return [
             'id' => $membership->account?->id,
             'membership_number' => $membership->account?->membership_number,
+            'internal_account_number' => $membership->account?->internal_account_number,
             'account_club_name' => $accountClub?->name,
             'account_club_code' => $accountClub?->code,
             'account_type' => $membership->account?->account_type,
@@ -2817,6 +2818,44 @@ class MemberController extends Controller
                 $absencePermit->status = $newStatus;
             }
         });
+    }
+
+    public function updateInternalAccountNumber(Request $request, Membership $membership)
+    {
+        $clubId = session('club_id');
+
+        if ((int) $membership->club_id !== (int) $clubId) {
+            abort(404);
+        }
+
+        $account = $membership->account;
+
+        if (!$account) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'internal_account_number' => [
+                'nullable',
+                'string',
+                'max:100',
+                new UniqueInSchema(
+                    'memberships',
+                    'accounts',
+                    'internal_account_number',
+                    $account->id,
+                    'id'
+                ),
+            ],
+        ]);
+
+        $account->update([
+            'internal_account_number' => $validated['internal_account_number'] ?? null,
+        ]);
+
+        return redirect()
+            ->route('members.manage.show', $membership)
+            ->with('success', 'Número de cuenta interno actualizado correctamente.');
     }
 
     public function storeDocument(Request $request, Membership $membership)

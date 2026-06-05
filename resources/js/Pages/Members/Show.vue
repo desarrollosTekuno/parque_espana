@@ -108,6 +108,7 @@ interface AccountMemberItem {
 interface MembershipAccount {
     id: number;
     membership_number: string | null;
+    internal_account_number: string | null;
     account_club_name: string | null;
     account_club_code: string | null;
     account_type: string | null;
@@ -192,6 +193,31 @@ const fetchHistory = async () => {
 onMounted(fetchHistory);
 
 const activeTab = ref('cuenta');
+
+// ─── Dialog: editar número de cuenta interno ──────────────────────────────────
+const showInternalNumberDialog = ref(false);
+const internalNumberForm = useForm({
+    internal_account_number: props.account.internal_account_number ?? '',
+});
+
+const openInternalNumberDialog = () => {
+    internalNumberForm.internal_account_number = props.account.internal_account_number ?? '';
+    internalNumberForm.clearErrors();
+    showInternalNumberDialog.value = true;
+};
+
+const saveInternalNumber = () => {
+    internalNumberForm
+        .transform((data) => ({
+            internal_account_number: data.internal_account_number?.trim() || null,
+        }))
+        .patch(route('members.internal-account-number.update', props.membership.id), {
+            onSuccess: () => {
+                showInternalNumberDialog.value = false;
+                customToastSwal({ title: 'Número de cuenta interno actualizado', icon: 'success' });
+            },
+        });
+};
 
 const showAbsencePermitDialog = ref(false);
 const absencePermitFormRef = ref<{ validate(): Promise<{ valid: boolean }> } | null>(null);
@@ -832,6 +858,23 @@ const letterRules = [
                                     <div class="text-body-2 mt-2">{{ props.account.account_club_code || "-" }} · {{ props.account.account_club_name || "Sin club" }}</div>
                                     <div class="text-body-2 mt-2">Cuenta {{ accountTypeLabel }}</div>
                                     <div class="text-body-2">Estatus {{ statusLabel(props.account.status) }}</div>
+
+                                    <!-- Número interno -->
+                                    <v-divider class="my-2" />
+                                    <div class="d-flex align-center justify-space-between">
+                                        <div>
+                                            <div class="text-caption text-medium-emphasis">No. interno</div>
+                                            <div class="text-body-2 font-weight-medium">
+                                                {{ props.account.internal_account_number || "Sin asignar" }}
+                                            </div>
+                                        </div>
+                                        <v-btn
+                                            icon="mdi-pencil"
+                                            size="x-small"
+                                            variant="text"
+                                            @click="openInternalNumberDialog"
+                                        />
+                                    </div>
                                 </v-card>
                             </v-col>
                             <v-col cols="12" md="4">
@@ -1687,6 +1730,48 @@ const letterRules = [
         </div>
     </AppLayout>
 
+    <!-- ── Dialog: Número de cuenta interno ── -->
+    <v-dialog v-model="showInternalNumberDialog" max-width="420" persistent>
+        <v-card rounded="lg">
+            <v-card-title class="text-subtitle-1 font-weight-bold pa-4 pb-2">
+                <v-icon size="20" class="mr-2">mdi-identifier</v-icon>
+                Número de cuenta interno
+            </v-card-title>
+
+            <v-card-text class="pa-4 pt-2">
+                <v-text-field
+                    v-model="internalNumberForm.internal_account_number"
+                    label="No. cuenta interno"
+                    placeholder="Ej. 1234, A-001, etc."
+                    hint="Opcional. Si se captura, no puede repetirse entre cuentas."
+                    persistent-hint
+                    clearable
+                    prepend-inner-icon="mdi-pound"
+                    :error-messages="internalNumberForm.errors.internal_account_number"
+                    autofocus
+                    @keydown.enter.prevent="saveInternalNumber"
+                />
+            </v-card-text>
+
+            <v-card-actions class="pa-3 pt-0">
+                <v-spacer />
+                <v-btn
+                    variant="text"
+                    @click="showInternalNumberDialog = false"
+                >
+                    Cancelar
+                </v-btn>
+                <v-btn
+                    color="primary"
+                    variant="flat"
+                    :loading="internalNumberForm.processing"
+                    @click="saveInternalNumber"
+                >
+                    Guardar
+                </v-btn>
+            </v-card-actions>
+        </v-card>
+    </v-dialog>
 
     <!-- ── Dialog: Permiso por ausencia ── -->
     <v-dialog v-model="showAbsencePermitDialog" max-width="520" persistent>
