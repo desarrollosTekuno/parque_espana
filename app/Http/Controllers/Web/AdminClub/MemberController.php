@@ -32,6 +32,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use App\Rules\UniqueInSchema;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Gate;
@@ -1545,6 +1546,12 @@ class MemberController extends Controller
                 'has_multiple_clubs' => ['nullable', 'boolean'],
                 'source_membership_is_active' => ['nullable', 'boolean'],
                 'years_in_source_club' => ['nullable', 'integer', 'min:0', 'max:99'],
+                'internal_account_number' => [
+                    'nullable',
+                    'string',
+                    'max:100',
+                    new UniqueInSchema('memberships', 'accounts', 'internal_account_number'),
+                ],
                 'members' => ['required', 'array', 'min:1'],
                 'members.*.id' => ['nullable', new ExistsInSchema('members', 'members', 'id')],
                 'members.*.first_name' => ['required', 'string', 'max:255'],
@@ -1599,6 +1606,7 @@ class MemberController extends Controller
                 && $validated['years_in_source_club'] !== null
                 ? (int) $validated['years_in_source_club']
                 : null;
+            $internalAccountNumber = $validated['internal_account_number'] ?? null;
             $sameClubTransition = false;
 
             if (!empty($validated['source_membership_id'])) {
@@ -1813,19 +1821,21 @@ class MemberController extends Controller
             $savedMemberDocuments    = [];
             $savedMembershipAccount  = null;
 
-            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership, $sameClubTransition, $sourceAccountMembersById, $reusableSourceMemberIds, &$savedMemberDocuments, &$savedMembershipAccount) {
+            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership, $sameClubTransition, $sourceAccountMembersById, $reusableSourceMemberIds, $internalAccountNumber, &$savedMemberDocuments, &$savedMembershipAccount) {
                 $sourceAccount = $sourceMembership?->account;
 
                 $membershipAccount = $sameClubTransition
                     ? tap($sourceAccount)->update([
                         'account_type' => $membershipType->allows_multiple_members ? 'family' : 'individual',
                         'status' => 'active',
+                        'internal_account_number' => $internalAccountNumber,
                     ])
                     : $this->createMembershipAccount(
                         club: $club,
                         accountType: $membershipType->allows_multiple_members ? 'family' : 'individual',
                         status: 'active',
-                        accountGroup: $sourceAccount?->accountGroup
+                        accountGroup: $sourceAccount?->accountGroup,
+                        internalAccountNumber: $internalAccountNumber,
                     );
 
                 $savedMembershipAccount = $membershipAccount;
@@ -2080,7 +2090,7 @@ class MemberController extends Controller
             );
 
             return redirect()
-                ->back()
+                ->route('members.index')
                 ->with('success', $successMessage);
         } catch (ValidationException $e) {
             return $this->validationExceptionResponse($e);
@@ -3683,18 +3693,20 @@ class MemberController extends Controller
         string $status = 'pending',
         ?MembershipAccountGroup $accountGroup = null,
         ?int $originAccountId = null,
-        ?string $separationReason = null
+        ?string $separationReason = null,
+        ?string $internalAccountNumber = null,
     ): MembershipAccount {
         $group = $accountGroup ?? $this->createAccountGroup();
 
         return MembershipAccount::create([
-            'account_group_id'  => $group->id,
-            'club_id'           => $club->id,
-            'membership_number' => $this->generateMembershipNumber($club),
-            'account_type'      => $accountType,
-            'status'            => $status,
-            'origin_account_id' => $originAccountId,
-            'separation_reason' => $separationReason,
+            'account_group_id'        => $group->id,
+            'club_id'                 => $club->id,
+            'membership_number'       => $this->generateMembershipNumber($club),
+            'internal_account_number' => $internalAccountNumber,
+            'account_type'            => $accountType,
+            'status'                  => $status,
+            'origin_account_id'       => $originAccountId,
+            'separation_reason'       => $separationReason,
         ]);
     }
 

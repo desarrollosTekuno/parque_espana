@@ -224,6 +224,7 @@ interface MembershipsForm {
     years_in_source_club: number | null;
     source_membership_id: number | null;
     target_club_id: number | null;
+    internal_account_number: string | null;
     members: MemberForm[];
 }
 
@@ -460,6 +461,7 @@ const form = useForm<MembershipsForm>({
     years_in_source_club: null,
     source_membership_id: props.sourceMembership?.id ?? null,
     target_club_id: props.targetClub?.id ?? null,
+    internal_account_number: null,
     members: [],
 });
 
@@ -1251,6 +1253,7 @@ const submit = () => {
         has_multiple_clubs: data.has_multiple_clubs,
         source_membership_is_active: data.source_membership_is_active,
         years_in_source_club: data.years_in_source_club,
+        internal_account_number: data.internal_account_number || null,
         members: data.members.map((member) => ({
             id: member.id ?? null,
             first_name: member.first_name,
@@ -2713,6 +2716,28 @@ const memberLabel = (member: MemberForm) => {
                                 <h3 class="text-title-large mb-4">
                                     Confirmación
                                 </h3>
+
+                                <!-- Número de cuenta interno (opcional) -->
+                                <v-card class="pa-4 mb-4">
+                                    <div class="text-subtitle-2 font-weight-medium mb-3">
+                                        <v-icon size="18" class="mr-1">mdi-identifier</v-icon>
+                                        Número de cuenta interno
+                                    </div>
+                                    <v-row>
+                                        <v-col cols="12" md="6">
+                                            <v-text-field
+                                                v-model="form.internal_account_number"
+                                                label="No. cuenta interno"
+                                                placeholder="Ej. 1234, A-001, etc."
+                                                hint="Opcional. Si se captura, no puede repetirse entre cuentas."
+                                                persistent-hint
+                                                clearable
+                                                :error-messages="form.errors.internal_account_number"
+                                                prepend-inner-icon="mdi-pound"
+                                            />
+                                        </v-col>
+                                    </v-row>
+                                </v-card>
 
                                 <v-card class="pa-4 mb-4">
                                     <p v-if="props.isCrossClubRequest">
