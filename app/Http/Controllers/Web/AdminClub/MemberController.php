@@ -1554,6 +1554,14 @@ class MemberController extends Controller
                     'max:100',
                     new UniqueInSchema('memberships', 'accounts', 'internal_account_number'),
                 ],
+                'inscription_fee_override' => ['nullable', 'numeric', 'min:0'],
+                'inscription_discount_document' => [
+                    'nullable',
+                    'file',
+                    'mimes:pdf,jpg,jpeg,png',
+                    'max:5120',
+                    'required_with:inscription_fee_override',
+                ],
                 'members' => ['required', 'array', 'min:1'],
                 'members.*.id' => ['nullable', new ExistsInSchema('members', 'members', 'id')],
                 'members.*.first_name' => ['required', 'string', 'max:255'],
@@ -1609,6 +1617,10 @@ class MemberController extends Controller
                 ? (int) $validated['years_in_source_club']
                 : null;
             $internalAccountNumber = $validated['internal_account_number'] ?? null;
+            $inscriptionFeeOverride = isset($validated['inscription_fee_override'])
+                ? (float) $validated['inscription_fee_override']
+                : null;
+            $inscriptionDiscountDocument = $request->file('inscription_discount_document');
             $sameClubTransition = false;
 
             if (!empty($validated['source_membership_id'])) {
@@ -1823,7 +1835,7 @@ class MemberController extends Controller
             $savedMemberDocuments    = [];
             $savedMembershipAccount  = null;
 
-            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership, $sameClubTransition, $sourceAccountMembersById, $reusableSourceMemberIds, $internalAccountNumber, &$savedMemberDocuments, &$savedMembershipAccount) {
+            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership, $sameClubTransition, $sourceAccountMembersById, $reusableSourceMemberIds, $internalAccountNumber, $inscriptionFeeOverride, &$savedMemberDocuments, &$savedMembershipAccount) {
                 $sourceAccount = $sourceMembership?->account;
 
                 $membershipAccount = $sameClubTransition
@@ -2004,11 +2016,12 @@ class MemberController extends Controller
                     $this->membershipChargeService->createInitialCharges(
                         membership: $sourceMembership,
                         monthlyFee: (float) $pricing['monthly_fee'],
-                        inscriptionFee: (float) ($pricing['inscription_fee'] ?? 0),
+                        inscriptionFee: $inscriptionFeeOverride ?? (float) ($pricing['inscription_fee'] ?? 0),
                         metadata: [
                             'charge_origin' => 'same_account_transition',
                             'previous_membership_type_id' => $previousMembershipTypeId,
                             'new_membership_type_id' => $membershipType->id,
+                            'inscription_fee_override' => $inscriptionFeeOverride,
                         ],
                         chargeDate: now(),
                         reconcileExistingMonthlyCharge: true
@@ -2070,10 +2083,11 @@ class MemberController extends Controller
                 $this->membershipChargeService->createInitialCharges(
                     membership: $newMembership,
                     monthlyFee: (float) $pricing['monthly_fee'],
-                    inscriptionFee: (float) ($pricing['inscription_fee'] ?? 0),
+                    inscriptionFee: $inscriptionFeeOverride ?? (float) ($pricing['inscription_fee'] ?? 0),
                     metadata: [
                         'charge_origin' => $sourceMembership ? 'additional_membership' : 'membership_registration',
                         'source_membership_id' => $sourceMembership?->id,
+                        'inscription_fee_override' => $inscriptionFeeOverride,
                     ],
                     chargeDate: now(),
                     reconcileExistingMonthlyCharge: (bool) ($sourceMembership && ($pricing['source_membership_becomes_non_billable'] ?? false))
@@ -2090,6 +2104,21 @@ class MemberController extends Controller
             $this->uploadMemberDocuments(
                 memberDocuments: $savedMemberDocuments,
             );
+
+            if ($inscriptionDiscountDocument && $savedMembershipAccount) {
+                try {
+                    $ext = $inscriptionDiscountDocument->getClientOriginalExtension();
+                    $path = "accounts/{$savedMembershipAccount->id}/inscription-discount/" . \Str::uuid() . ".{$ext}";
+                    \Storage::disk('spaces')->putFileAs(
+                        dirname($path),
+                        $inscriptionDiscountDocument,
+                        basename($path),
+                        'private'
+                    );
+                } catch (\Exception $e) {
+                    \Log::warning("No se pudo guardar el documento de descuento de inscripción: {$e->getMessage()}");
+                }
+            }
 
             return redirect()
                 ->route('members.index')
