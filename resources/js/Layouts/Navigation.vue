@@ -218,7 +218,7 @@ console.log(JSON.parse(JSON.stringify(page.props.auth.clubs)))
                     @update:modelValue="changeClub"
                     :disabled="disabledSelectClub"
                     :hint="
-                        disabledSelectClub
+                        !isRail && disabledSelectClub
                             ? 'No puedes cambiar de club durante la asignación de casilleros o la gestión de miembros'
                             : ''
                     "

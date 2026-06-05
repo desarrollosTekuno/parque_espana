@@ -53,6 +53,7 @@ interface ChargeItem {
 interface BillingAccountItem {
     id: number;
     membership_number: string;
+    internal_account_number: string | null;
     holder_name: string;
     email: string | null;
     phone: string | null;
@@ -846,6 +847,12 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                                 <div class="font-weight-bold">
                                     {{ item.membership_number }}
                                 </div>
+                                <div
+                                    v-if="item.internal_account_number"
+                                    class="text-caption text-primary font-weight-medium"
+                                >
+                                    <v-icon size="10" class="mr-1">mdi-pound</v-icon>{{ item.internal_account_number }}
+                                </div>
                                 <div class="text-caption text-medium-emphasis">
                                     {{ item.pending_charges_count }} cargos
                                     pendientes
@@ -1405,6 +1412,12 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                                             {{
                                                 selectedPaymentAccount.membership_number
                                             }}
+                                        </div>
+                                        <div
+                                            v-if="selectedPaymentAccount.internal_account_number"
+                                            class="text-caption text-primary font-weight-medium mt-1"
+                                        >
+                                            <v-icon size="10" class="mr-1">mdi-pound</v-icon>{{ selectedPaymentAccount.internal_account_number }}
                                         </div>
                                         <div
                                             class="text-caption text-medium-emphasis mt-3"

@@ -66,6 +66,7 @@ class BillingController extends Controller
 
                 $accountQuery->where(function (Builder $query) use ($search, $like) {
                     $query->where('membership_number', $like, "%{$search}%")
+                        ->orWhere('internal_account_number', $like, "%{$search}%")
                         ->orWhereHas('primaryHolder.member', function (Builder $memberQuery) use ($search, $like) {
                             $memberQuery->where('first_name', $like, "%{$search}%")
                                 ->orWhere('last_name', $like, "%{$search}%")
@@ -160,6 +161,7 @@ class BillingController extends Controller
                     return [
                         'id' => $account->id,
                         'membership_number' => $account->membership_number,
+                        'internal_account_number' => $account->internal_account_number,
                         'holder_name' => $fullName,
                         'email' => $holder?->email,
                         'phone' => $holder?->phone,
@@ -438,6 +440,7 @@ class BillingController extends Controller
                     $q->where(function (Builder $inner) use ($search, $like, $concatFn) {
                         $inner->whereHas('membershipAccount', function (Builder $aq) use ($search, $like, $concatFn) {
                             $aq->where('membership_number', $like, "%{$search}%")
+                                ->orWhere('internal_account_number', $like, "%{$search}%")
                                 ->orWhereHas('primaryHolder.member', function (Builder $mq) use ($search, $like, $concatFn) {
                                     $mq->where('first_name', $like, "%{$search}%")
                                         ->orWhere('last_name', $like, "%{$search}%")
@@ -487,6 +490,7 @@ class BillingController extends Controller
                     return array_merge(
                         [
                             'membership_number' => $account?->membership_number,
+                            'internal_account_number' => $account?->internal_account_number,
                             'holder_name' => $fullName ?: '—',
                             'membership_account_id' => $account?->id,
                         ],

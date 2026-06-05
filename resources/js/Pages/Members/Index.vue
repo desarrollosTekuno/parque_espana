@@ -9,6 +9,7 @@ interface MemberItem {
     id: number;
     membership_id: number | null;
     membership_number: string;
+    internal_account_number: string | null;
     account_club_name: string | null;
     account_club_code: string | null;
     holder_name: string;
@@ -300,6 +301,12 @@ const formatDateTime = (value: string | null) => {
                         <template #item.membership_number="{ item }">
                             <div class="font-weight-medium">
                                 {{ item.membership_number }}
+                            </div>
+                            <div
+                                v-if="item.internal_account_number"
+                                class="text-caption text-primary font-weight-medium"
+                            >
+                                <v-icon size="10" class="mr-1">mdi-pound</v-icon>{{ item.internal_account_number }}
                             </div>
                             <div class="text-caption text-medium-emphasis">
                                 {{ item.account_club_code || "-" }} ·

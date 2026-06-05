@@ -74,6 +74,7 @@ class MemberController extends Controller
 
                 $query->where(function (Builder $builder) use ($search, $like) {
                     $builder->where('membership_number', $like, "%{$search}%")
+                        ->orWhere('internal_account_number', $like, "%{$search}%")
                         ->orWhereHas('primaryHolder.member', function (Builder $memberQuery) use ($search, $like) {
                             $memberQuery->where('first_name', $like, "%{$search}%")
                                 ->orWhere('last_name', $like, "%{$search}%")
@@ -128,6 +129,7 @@ class MemberController extends Controller
                         'id' => $account->id,
                         'membership_id' => $currentMembership?->id,
                         'membership_number' => $account->membership_number,
+                        'internal_account_number' => $account->internal_account_number,
                         'account_club_name' => $account->club?->name ?? $currentMembership?->club?->name,
                         'account_club_code' => $account->club?->code ?? $currentMembership?->club?->code,
                         'holder_name' => $fullName,
