@@ -11,6 +11,7 @@ use App\Models\AdminClub\BusinessAd;
 use App\Models\Billing\PaymentMethod;
 use App\Models\Members\LockerAssignment;
 use App\Models\Memberships\MembershipAccount;
+use App\Jobs\SendPushNotificationJob;
 use App\Rules\ExistsInSchema;
 use App\Services\Billing\PaymentRegistrationService;
 use Illuminate\Database\Eloquent\Builder;
@@ -22,7 +23,7 @@ use Inertia\Inertia;
 class BillingController extends Controller
 {
     public function __construct(
-        protected PaymentRegistrationService $paymentRegistrationService
+        protected PaymentRegistrationService $paymentRegistrationService,
     ) {
     }
 
@@ -261,7 +262,9 @@ class BillingController extends Controller
                 'applications.*.amount' => ['required', 'numeric', 'gt:0'],
             ]);
 
-            $account = MembershipAccount::query()->findOrFail($validated['membership_account_id']);
+            $account = MembershipAccount::query()
+                ->with('primaryHolder.member')
+                ->findOrFail($validated['membership_account_id']);
             $paymentMethod = PaymentMethod::query()
                 ->where('id', $validated['payment_method_id'])
                 ->where('is_active', true)
@@ -281,6 +284,18 @@ class BillingController extends Controller
                 sessionClubId: session('club_id')
             );
             
+            // Notificación push al titular de la cuenta (asíncrona vía queue)
+            $userId = $account->primaryHolder?->member?->user_id;
+            if ($userId) {
+                SendPushNotificationJob::dispatch(
+                    $userId,
+                    'Pago registrado',
+                    sprintf('Se registró un pago de $%s en tu cuenta.', number_format((float) $payment->amount, 2)),
+                    // ['screen' => 'AccountStatement', 'type' => 'payment_registered', 'club_id' => (string) $validated['club_id']],
+                    ['screen' => 'AccountStatement', 'type' => 'account_statement', 'club_id' => (string) $validated['club_id']],
+                );
+            }
+
             // Actualizar estatus de anuncios relacionados a los cargos aplicados
             $chargeIds = collect($validated['applications'])->pluck('charge_id');
             $charges = Charge::whereIn('id', $chargeIds)->get();
