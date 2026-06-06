@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AccountStatementController;
+use App\Http\Controllers\Api\V1\CheckInController;
 use App\Http\Controllers\Api\V1\FamilyMembersController;
 use App\Http\Controllers\Api\V1\AmenityController;
 use App\Http\Controllers\Api\V1\EmailTestController;
@@ -20,11 +21,12 @@ use App\Http\Controllers\Api\V1\ReservationController;
 use App\Http\Controllers\Api\V1\BusinessAdController;
 use App\Http\Controllers\Api\V1\ReservationGuestController;
 use App\Http\Controllers\Api\V1\SurveyController;
+use App\Http\Controllers\Api\V1\ClinicalHistoryController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 // Api V1
-Route::prefix('v1')->group(function () {
+Route::prefix('v1')->name('api.')->group(function () {
     Route::post('login', [LoginController::class, 'login']);
     Route::post('logout', [LoginController::class, 'logout'])->middleware('auth:sanctum');
 
@@ -93,6 +95,17 @@ Route::prefix('v1')->group(function () {
     // Firebase test
     Route::post('/firebase/test', [FirebaseTestController::class, 'send']);
     Route::get('/firebase/ping', [FirebaseTestController::class, 'ping']);
+
+    // Check-in por QR
+    Route::post('/check-in/resource/{resource}', [CheckInController::class, 'store'])
+        ->middleware('auth:sanctum')
+        ->name('api.check-in.store');
+
+    // Historia clínica
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/clinical-history-list', [ClinicalHistoryController::class, 'show']);
+        Route::post('/clinical-history', [ClinicalHistoryController::class, 'upsert']);
+    });
 
     // Webhook de Conekta — sin auth, público para recibir eventos
     Route::post('/webhooks/conekta', [ConektaWebhookController::class, 'handle']);

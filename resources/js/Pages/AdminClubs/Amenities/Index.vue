@@ -15,7 +15,8 @@ import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import { Form, Head, router, useForm, usePage } from "@inertiajs/vue3";
 import { debounce } from "lodash";
 import Swal from "sweetalert2";
-import { ref, watch, computed, reactive } from "vue";
+import { ref, watch, computed, reactive, onMounted  } from "vue";
+import { Temporal } from '@js-temporal/polyfill';   
 
 const page = usePage();
 const can = usePage().props.auth.permissions;
@@ -38,28 +39,81 @@ const onImageFileChange = (e: Event) => {
 const triggerIconInput = () => iconInputRef.value?.click();
 const triggerImageInput = () => imageInputRef.value?.click();
 const tab = ref('amenities')
+const props = withDefaults(defineProps<Props>(), {
+    amenities: null,
+    events: Array
+});
 
 // Modal calendario
-const showCalendarModal = ref(false);
-const calendarEvents = ref([]);
-const selectedAmenityCalendar = ref<any>(null);
+const toTZ = (iso: string) =>
+  Temporal.Instant
+    .from(iso)
+    .toZonedDateTimeISO('America/Mexico_City')
+const formatEvents = (events: any[]) => {
+  return events.map(e => ({
+    id: String(e.id),
+    title: `${e.title} • ${e.status}`,
 
-const openCalendar = async (resource:any) => {
-    selectedAmenityCalendar.value = resource
-    try {
-        const response = await axios.get(
-            route('amenityResource.calendar', resource.id)
-        )
-        calendarEvents.value = response.data
-        showCalendarModal.value = true
-    } catch (error) {
-        console.error(error)
-        customToastSwal({
-            title: 'Error al cargar reservaciones',
-            icon: 'error'
-        })
-    }
+    start: toTZ(e.start),
+    end: toTZ(e.end),
+
+    calendarId: e.calendarId 
+      ? e.calendarId 
+      : `status-${e.reservation_status_id}`,
+    status: e.status, 
+  }))
 }
+
+const calendarEvents = ref<any[]>([])
+
+const openCalendar = async (resource: any) => {
+    selectedAmenityCalendar.value = resource 
+  const { data } = await axios.get(
+    route('amenityResource.calendar', resource.id)
+  )
+  calendarEvents.value = formatEvents(data)
+  showCalendarModal.value = true
+}
+
+const showCalendarModal = ref(false)
+const selectedAmenityCalendar = ref<any>(null)
+
+// Cancelar reservación desde el modal del calendario
+const cancelReservation = (event: any) => {
+  if (event.calendarId !== 'status-1') {
+    customToastSwal({
+      title: 'Solo puedes cancelar reservaciones activas',
+      icon: 'warning'
+    })
+    return
+  }
+  customConfirmSwal({
+    title: '¿Cancelar reservación?',
+    text: event.title
+  }).then((result) => {
+    if (!result.isConfirmed) return
+    router.post(route('reservations.cancel', event.id), {}, {
+      preserveScroll: true,
+      onSuccess: (page) => {
+        const flash = page.props.flash || {}
+        if (flash.success) {
+          customToastSwal({
+            title: flash.success,
+            icon: 'success'
+          })
+        }
+        openCalendar(selectedAmenityCalendar.value)
+      },
+      onError: (errors) => {
+        customToastSwal({
+          title: errors.messageError || 'Error al cancelar',
+          icon: 'error'
+        })
+      }
+    })
+  })
+}
+
 
 //    Computeds
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -115,6 +169,7 @@ const bulkSchedule = reactive({
 
 interface Props {
     amenities?: any;
+    members?: any[];
 }
 
 interface Amenity {
@@ -130,10 +185,6 @@ interface Amenity {
     reservation_type: string;
     is_active: boolean;
 }
-
-const props = withDefaults(defineProps<Props>(), {
-    amenities: null,
-});
 
 let showModal = ref(false);
 const formSendRef = ref();
@@ -334,7 +385,7 @@ const schedule = async () => {
         return;
     }
 
-    const schedules = formSchedule.days
+    const schedules = formSchedule.days 
         .filter(day => day.active)
         .map(day => ({
             day_of_week: dayMap[day.day],
@@ -700,20 +751,22 @@ const removeIcon = () => {
 
 //    Formulario de recursos y sus funciones
 const showResourceModal = ref(false)
+const resourceFormRef = ref()
 const resourceForm = useForm({
     id: null,
     amenity_id: null,
     name: "",
     capacity: 1,
     slot_duration_minutes: null,
-    is_active: true
+    is_active: true,
+    locations: [] as any[],
 })
 const createResource = () => {
     resourceForm.reset()
     resourceForm.capacity = null
     resourceForm.slot_duration_minutes = null
+    resourceForm.locations = []
     showResourceModal.value = true
-
 }
 const editResource = (resource: any) => {
     resourceForm.id = resource.id
@@ -722,11 +775,87 @@ const editResource = (resource: any) => {
     resourceForm.capacity = resource.capacity
     resourceForm.slot_duration_minutes = resource.slot_duration_minutes
     resourceForm.is_active = resource.is_active
+    resourceForm.locations = resource.locations?.map((l: any) => ({
+        id: l.id,
+        latitude: l.latitude,
+        longitude: l.longitude,
+    })) ?? []
     showResourceModal.value = true
-
 }
-const saveResource = () => {
 
+// Modal de coordenadas
+const showLocationsModal = ref(false)
+const locationsResource = ref<any>(null)
+const locationsFormRef = ref()
+const locationsForm = useForm({
+    amenity_id: null as number | null,
+    name: '',
+    capacity: 1 as number | null,
+    slot_duration_minutes: null as number | null,
+    is_active: true,
+    locations: [] as Array<{
+        id?: number
+        latitude: number | null
+        longitude: number | null
+    }>,
+})
+
+const openLocationsModal = (resource: any) => {
+    locationsResource.value = resource
+    locationsForm.amenity_id = resource.amenity_id
+    locationsForm.name = resource.name
+    locationsForm.capacity = resource.capacity
+    locationsForm.slot_duration_minutes = resource.slot_duration_minutes
+    locationsForm.is_active = resource.is_active
+    locationsForm.locations = resource.locations?.length
+        ? resource.locations.map((l: any) => ({
+            id: l.id,
+            latitude: l.latitude,
+            longitude: l.longitude,
+        }))
+        : [{ latitude: null, longitude: null }]
+    showLocationsModal.value = true
+}
+
+const addCoordinate = () => {
+    locationsForm.locations.push({ latitude: null, longitude: null })
+}
+
+const removeCoordinate = (index: number) => {
+    locationsForm.locations.splice(index, 1)
+}
+
+const saveLocations = () => {
+    customConfirmSwal({
+        title: '¿Guardar coordenadas?',
+        text: 'Confirma para continuar',
+    }).then((result) => {
+        if (!result.isConfirmed) return
+        locationsForm
+            .transform((data) => ({ ...data, _method: 'PUT' }))
+            .post(route('amenityResource.update', locationsResource.value.id), {
+                onSuccess: async (page) => {
+                    const flash = (page.props as any).flash || {}
+                    if (flash.messageError) {
+                        customToastSwal({ title: flash.messageError, icon: 'error' })
+                        return
+                    }
+
+                    showLocationsModal.value = false
+                    await fetchResources()
+                    customToastSwal({ title: 'Coordenadas guardadas', icon: 'success' })
+                },
+                onError: () => {
+                    customToastSwal({ title: 'Error al guardar coordenadas', icon: 'error' })
+                },
+            })
+    })
+}
+const saveResource = async () => {
+    const validation = await resourceFormRef.value?.validate()
+    if (!validation.valid) {
+        return
+    }
     customConfirmSwal({
         title: resourceForm.id 
             ? "¿Actualizar recurso?" 
@@ -735,7 +864,6 @@ const saveResource = () => {
     }).then((result) => {
 
         if (!result.isConfirmed) return
-
         resourceForm
             .transform((data) => {
                 const payload: any = { ...data }
@@ -840,7 +968,10 @@ watch([options, search], debounce(() => {
 }, 400), { deep: true });
 //const resourcesLoaded = ref(false);
 watch(() => page.props.auth.currentClub, () => {
-    fetchItems();
+    options.value.page = 1
+    resourceOptions.value.page = 1
+    fetchItems()
+    fetchResources()
 });
 watch(
     () => formSchedule.days.map(d => [d.open,d.close]),
@@ -887,11 +1018,51 @@ watch(
     },
     { immediate: true }
 )
-/*watch(() => form.reservation_type, () => {
-    if (tab.value === 'resources') {
-        fetchResources()
-    }
-})*/
+// Mapa único con todos los pines via Leaflet CDN en srcdoc
+const validMapLocations = computed(() =>
+    locationsForm.locations.filter(l => l.latitude && l.longitude)
+)
+
+const mapKey = computed(() =>
+    validMapLocations.value.map(l => `${l.latitude},${l.longitude}`).join('|')
+)
+
+const getMultiPinMapHtml = () => {
+    const pins = validMapLocations.value
+    if (!pins.length) return ''
+    const coords = pins.map(l => `[${l.latitude},${l.longitude}]`).join(',')
+    return `<!DOCTYPE html>
+<html><head>
+  <meta charset="utf-8"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>html,body,#map{margin:0;padding:0;width:100%;height:100%;}</style>
+</head><body>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>
+<script>
+  var coords=[${coords}];
+  var map=L.map('map');
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(map);
+  var markers=coords.map(function(c){return L.marker(c).addTo(map);});
+  if(coords.length===1){map.setView(coords[0],18);}
+  else{map.fitBounds(L.featureGroup(markers).getBounds(),{padding:[20,20]});}
+<\/script>
+</body></html>`
+}
+const addLocation = () => {
+    resourceForm.locations.push({
+        latitude: null,
+        longitude: null,
+    })
+}
+const removeLocation = (index: number) => {
+    if (resourceForm.locations.length === 1) return
+    resourceForm.locations.splice(index, 1)
+}
+
+const downloadQr = (resourceId: number) => {
+    window.open(route('amenityResource.generateQr', resourceId), '_blank')
+}
 </script>
 
 <template>
@@ -1033,6 +1204,20 @@ watch(
                                 <template #item.actions="{ item }">
                                     <BaseButton v-if="can.includes('amenityResource.calendar')" text="Calendario" icon="mdi-calendar-month" action="view" @click="openCalendar(item)" />
                                     <BaseButton v-if="can.includes('amenityResource.update')" action="edit" @click="editResource(item)" />
+                                    <BaseButton v-if="can.includes('amenityResource.update')" text="Coordenadas" icon="mdi-map-marker-plus" @click="openLocationsModal(item)" />
+                                    <v-tooltip text="Descargar QR" location="top">
+                                        <template #activator="{ props }">
+                                            <v-btn
+                                                v-if="can.includes('amenityResource.generateQr')"
+                                                v-bind="props"
+                                                icon="mdi-qrcode-scan"
+                                                variant="text"
+                                                size="small"
+                                                color="primary"
+                                                @click="downloadQr(item.id)"
+                                            />
+                                        </template>
+                                    </v-tooltip>                                    
                                     <BaseButton v-if="can.includes('amenityResource.destroy')" action="delete" @click="deleteResource(item)" />
                                 </template>
                             </v-data-table-server>
@@ -1281,24 +1466,24 @@ watch(
                 </v-card>
             </v-form>
         </v-dialog>
-        <v-dialog v-model="showResourceModal" max-width="500">
-            <v-form @submit.prevent="saveResource">
-                <v-card title="Recurso">
+        <v-dialog v-model="showResourceModal" max-width="500" scrollable>
+            <v-form ref="resourceFormRef" @submit.prevent="saveResource">
+                <v-card title="Recurso" max-height="80vh">
                     <v-card-text>
                         <v-row>
                             <v-col cols="12">
-                                <v-select v-model="resourceForm.amenity_id" label="Amenidad" :item-title="'name'"
-                                    :item-value="'id'" :items="items" />
+                                <v-select v-model="resourceForm.amenity_id" label="Amenidad *" :item-title="'name'"
+                                    :item-value="'id'" :items="items" :rules="[required]" />
                             </v-col>
                             <v-col cols="12">
-                                <v-text-field v-model="resourceForm.name" label="Nombre" :required="true" :min-length="2" />
+                                <v-text-field v-model="resourceForm.name" label="Nombre *" :required="true" :min-length="2" :rules="[required]" />
                             </v-col>
                             <v-col cols="12" v-if="showSlotDuration">
-                                <FormNumber v-model="resourceForm.slot_duration_minutes" label="Espacio de reserva en minutos"
+                                <FormNumber v-model="resourceForm.slot_duration_minutes" label="Espacio de reserva en minutos *"
                                     :min="0" :rules="[required]" />
                             </v-col>
                             <v-col cols="12" v-if="showCapacity">
-                                <FormNumber v-model="resourceForm.capacity" label="Capacidad" :required="true"/>
+                                <FormNumber v-model="resourceForm.capacity" label="Capacidad *" :required="true" :rules="[required]"/>
                             </v-col>
                         </v-row>
                     </v-card-text>
@@ -1311,39 +1496,89 @@ watch(
                 </v-card>
             </v-form>
         </v-dialog>
-        <v-dialog
-            v-model="showCalendarModal"
-            max-width="1200"
-        >
-            <v-card>
+
+        <!-- Dialog: Coordenadas del recurso -->
+        <v-dialog v-model="showLocationsModal" max-width="560" scrollable>
+            <v-form ref="locationsFormRef" @submit.prevent="saveLocations">
+                <v-card max-height="85vh">
+                    <v-card-title class="d-flex align-center ga-2">
+                        <v-icon>mdi-map-marker</v-icon>
+                        Coordenadas · {{ locationsResource?.name }}
+                    </v-card-title>
+                    <v-card-text>
+                        <template v-for="(loc, index) in locationsForm.locations" :key="index">
+                            <v-divider v-if="index > 0" class="my-3" />
+                            <div class="text-body-2 font-weight-medium mb-2">Ubicación {{ index + 1 }}</div>
+                            <v-row>
+                                <v-col cols="5">
+                                    <v-text-field v-model="loc.latitude" label="Latitud" type="number" step="any" density="compact" />
+                                </v-col>
+                                <v-col cols="5">
+                                    <v-text-field v-model="loc.longitude" label="Longitud" type="number" step="any" density="compact" />
+                                </v-col>
+                                <v-col cols="2" class="d-flex align-center">
+                                    <v-btn icon="mdi-delete" color="error" variant="text" size="small" @click="removeCoordinate(index)" />
+                                </v-col>
+                                </v-row>
+                        </template>
+
+                        <!-- Mapa único con todos los pines -->
+                        <div v-if="validMapLocations.length > 0" class="mt-3">
+                            <iframe
+                                :key="mapKey"
+                                :srcdoc="getMultiPinMapHtml()"
+                                width="100%"
+                                height="280"
+                                frameborder="0"
+                                style="border-radius:8px; border:none;"
+                                sandbox="allow-scripts"
+                            />
+                        </div>
+
+                        <div class="mt-3 d-flex align-center justify-space-between flex-wrap ga-2">
+                            <v-btn color="primary" variant="tonal" prepend-icon="mdi-plus" size="small" @click="addCoordinate">
+                                Agregar ubicación
+                            </v-btn>
+                            <BaseButton
+                                v-if="can.includes('amenityResource.generateQr')"
+                                action="custom" icon="mdi-qrcode-scan" text="Descargar QR"
+                                :icon-only="false"
+                                @click="downloadQr(locationsResource.id)"
+                            />
+                        </div>
+                    </v-card-text>
+                    <v-card-actions>
+                        <v-spacer />
+                        <BaseButton text="Cancelar" variant="tonal" action="cancel" :icon-only="false" @click="showLocationsModal = false" />
+                        <BaseButton text="Guardar" variant="flat" action="save" :icon-only="false" type="submit" />
+                    </v-card-actions>
+                </v-card>
+            </v-form>
+        </v-dialog>
+
+        <v-dialog v-model="showCalendarModal" max-width="1200">
+            <v-card class="calendar-modal">
 
                 <v-card-title class="d-flex align-center ga-2">
-                    <v-icon>
-                        mdi-calendar
-                    </v-icon>
-
-                    Reservaciones ·
-                    {{ selectedAmenityCalendar?.name }}
+                <v-icon>mdi-calendar</v-icon>
+                Reservaciones · {{ selectedAmenityCalendar?.name }}
                 </v-card-title>
-
-                <v-card-text>
-
-                    <AmenityCalendar
-                        :events="calendarEvents"
+                <v-card-text class="calendar-content">
+                 <AmenityCalendar
+                    v-if="showCalendarModal"
+                    :events="calendarEvents"
+                    @cancel-reservation="cancelReservation"
                     />
-
                 </v-card-text>
-
-                <v-card-actions>
-                    <v-spacer />
-
-                    <BaseButton
-                        text="Cerrar"
-                        action="cancel"
-                        variant="tonal"
-                        :icon-only="false"
-                        @click="showCalendarModal = false"
-                    />
+                <v-card-actions class="calendar-footer">
+                <v-spacer />
+                <BaseButton
+                    text="Cerrar"
+                    action="cancel"
+                    variant="tonal"
+                    :icon-only="false"
+                    @click="showCalendarModal = false"
+                />
                 </v-card-actions>
 
             </v-card>
@@ -1353,5 +1588,22 @@ watch(
 <style>
 .swal2-container {
     z-index: 9999 !important;
+}
+.calendar-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto; 
+}
+.calendar-wrapper :deep(.sx__calendar) {
+  height: 100% !important;
+}
+.calendar-modal {
+  display: flex;
+  flex-direction: column;
+  height: 90vh;
+}
+.calendar-footer {
+  border-top: 1px solid #eee;
+  padding: 10px;
 }
 </style>

@@ -28,6 +28,13 @@ class AmenityController extends Controller
             $prefix = 'amenities';
             $driver = DB::getDriverName();
             $query = Amenity::with('schedules')->where('club_id', $clubId);
+            $members = DB::table('members.members')->select('id', 'first_name', 'last_name', DB::raw("CONCAT(first_name, ' ', last_name) as full_name"))->orderBy('full_name')->get();
+
+             if ($search = $request->input("{$prefix}_search")) {
+                $query->where(function ($q) use ($driver, $search) {
+                    $q->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
+                });
+            }
 
             if ($search = $request->input("{$prefix}_search")) {
                 $query->where(function ($q) use ($search, $driver) {
@@ -45,6 +52,7 @@ class AmenityController extends Controller
 
             return Inertia::render('AdminClubs/Amenities/Index', [
                 'amenities' => $amenities,
+                'members'   => $members,
             ]);
         } catch (\Exception $e) {
             report($e);
@@ -128,7 +136,7 @@ class AmenityController extends Controller
 
             return redirect()->back()->with('success', 'Amenidad eliminada correctamente');
         } catch (\Exception $e) {
-            return redirect()->back()->with('messageError', $e->getMessage());
+            return redirect()->back()->with('messageError', $e->getMessage()); 
         }
     }
 

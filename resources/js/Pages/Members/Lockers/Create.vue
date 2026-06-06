@@ -3,6 +3,8 @@ import AppLayout from "@/Layouts/AppLayout.vue";
 import BaseButton from "@/Components/BaseButton.vue";
 import { ref, onMounted, computed, watch } from "vue";
 import { router, Head, usePage } from "@inertiajs/vue3";
+import CustomFileUploadField from "@/Components/CustomFileUploadField.vue";
+import { fileExactCountRule, fileMaxSizeRule, fileTypeRule, requiredFileRule } from "@/constants/validationRules";
 import { customToastSwal } from "@/utils/swal";
 import Swal from "sweetalert2";
 import axios from "axios";
@@ -22,7 +24,7 @@ const selectedLocker = ref(null);
 const loading = ref(false);
 const cost = ref(0);
 const category = ref(null);
-const hasSearched = ref(false);
+const hasSearched = ref(false); 
 const showErrors = ref(false);
 const myLockers = ref([]);
 const search = ref('');
@@ -106,6 +108,7 @@ const resetForm = () => {
     lockers.value = [];
     hasSearched.value = false;
     showErrors.value = false;
+    lockerFile.value = null;
 };
 
 const assign = async () => {
@@ -122,7 +125,6 @@ const assign = async () => {
 
     const result = await Swal.fire({
         title: '¿Reservar casillero?',
-        text: 'El casillero quedará pendiente hasta que se realice el pago.',
         icon: 'question',
         showCancelButton: true,
         confirmButtonText: 'Sí, reservar',
@@ -138,25 +140,37 @@ const assign = async () => {
         typeof selectedMember.value === "object"
             ? selectedMember.value.value
             : selectedMember.value;
+    
+    const formData = new FormData();
+    formData.append("locker_id", selectedLocker.value);
+    formData.append("member_id", memberId);
+    formData.append("membership_id", props.membershipId);
+    formData.append("account_id", props.accountId);
+    formData.append("club_id", props.clubId);
 
-    router.post(route("members.lockers.reserve"), {
-        locker_id: selectedLocker.value,
-        member_id: memberId,
-        membership_id: props.membershipId,
-        account_id: props.accountId,
-        club_id: props.clubId,
-    }, {
+    if (lockerFile.value) {
+        formData.append(
+            "file",
+            Array.isArray(lockerFile.value)
+                ? lockerFile.value[0]
+                : lockerFile.value
+        );
+    }
+    router.post(route("members.lockers.reserve"), formData, {
+        forceFormData: true,
+
         onSuccess: () => {
             customToastSwal({
-                title: "Casillero reservado hasta que se efectue el pago",
+                title: "Casillero asignado correctamente",
                 icon: "success"
             });
             resetForm();
             loadMyLockers(); 
+            lockerFile.value = null;
         },
         onError: () => {
             customToastSwal({
-                title: "Error al reservar casillero",
+                title: errors.file || errors.message || "Error al reservar casillero",
                 icon: "error"
             });
         }
@@ -167,17 +181,17 @@ const memberOptions = computed(() =>
         title: `${m.first_name} ${m.last_name} ${m.second_last_name}`,
         value: m.id,
         props: {
-            disabled: m.locked,
+            disabled: props.clubId !== 2 && !!m.locker_assignment,
             subtitle: m.locker_assignment
-                ? 'Ya tiene casillero'
-                : m.has_pending_locker
-                ? 'Pendiente de pago'
+                ? (props.clubId === 2
+                    ? 'Puede tener más casilleros'
+                    : 'Ya tiene casillero')
                 : null
         }
     }))
 );
 const canAssign = computed(() => {
-    return selectedMember.value && selectedLocker.value && category.value;
+    return selectedMember.value && selectedLocker.value && category.value && lockerFile.value;
 });
 const toggleLocker = (id: number) => {
     selectedLocker.value = selectedLocker.value === id ? null : id;
@@ -207,7 +221,7 @@ watch(
         }
     }
 );
-const pendingLockers = computed(() => {
+/*const pendingLockers = computed(() => {
     return myLockers.value.filter(
         (x: any) => x.status === 'pago_pendiente'
     );
@@ -217,7 +231,7 @@ const activeLockers = computed(() => {
     return myLockers.value.filter(
         (x: any) => x.status !== 'pago_pendiente'
     );
-});
+});*/
 
 // Paginación y búsqueda
 watch(search, () => {
@@ -233,7 +247,7 @@ watch(perPage, () => {
     loadLockers();
 
 });
-const cancelRequest = async (id: number) => {
+/*const cancelRequest = async (id: number) => {
     const result = await Swal.fire({
         title: '¿Cancelar solicitud?',
         text: 'El casillero volverá a estar disponible.',
@@ -280,7 +294,7 @@ const removeLocker = async (id: number) => {
     if (!result.isConfirmed) {
         return;
     }
-    router.delete(route('members.lockers.remove', id), {
+    router.delete(route('members.lockers.remove', { assignment: id }), {
         onSuccess: () => {
             customToastSwal({
                 title: 'Casillero dado de baja',
@@ -297,7 +311,15 @@ const removeLocker = async (id: number) => {
             });
         }
     });
-};
+};*/
+
+//Carga de archivo 
+const lockerFile = ref<File | null>(null);
+const letterRules = [
+    requiredFileRule,
+    fileTypeRule(["pdf", "jpg", "jpeg", "png"]),
+    fileMaxSizeRule(2),
+];
 </script>
 
 <template>
@@ -325,7 +347,7 @@ const removeLocker = async (id: number) => {
         </template>
 
         <div class="p-6 bg-white rounded shadow">
-            <v-row
+            <!--<v-row
                 v-if="pendingLockers.length"
                 class="mb-6"
             >
@@ -388,77 +410,6 @@ const removeLocker = async (id: number) => {
                             class="mt-2 mb-3"
                         >
                             Pendiente
-                        </v-chip>
-                    </v-card>
-                </v-col>
-            </v-row>
-           <!-- <v-row
-                v-if="activeLockers.length"
-                class="mb-4"
-            >
-                <v-col cols="12">
-
-                    <div class="text-subtitle-1 font-weight-bold mb-3">
-                        Casilleros activos
-                    </div>
-
-                </v-col>
-
-                <v-col
-                    v-for="item in activeLockers"
-                    :key="item.id"
-                    cols="6"
-                    sm="4"
-                    md="3"
-                    lg="2"
-                >
-                    <v-card
-                        class="pa-2 text-center"
-                        color="primary"
-                        variant="tonal"
-                    >
-                        <v-btn
-                            icon
-                            size="x-small"
-                            variant="text"
-                            color="error"
-                            class="position-absolute top-0 right-0 ma-1"
-                            @click.stop="removeLocker(item.id)"
-                        >
-                            <v-icon size="18">
-                                mdi-close
-                            </v-icon>
-
-                            <v-tooltip activator="parent" location="top">
-                                Dar de baja
-                            </v-tooltip>
-                        </v-btn>
-                        <v-icon size="22">
-                            mdi-locker
-                        </v-icon>
-
-                        <div class="text-caption">
-                            Casillero
-                        </div>
-
-                        <div class="text-h6 font-weight-bold">
-                            {{ item.locker.number }}
-                        </div>
-
-                        <div class="text-caption mt-1">
-                            👤 {{ item.member.first_name }}
-                        </div>
-
-                        <div class="text-caption text-medium-emphasis">
-                            {{ item.member.last_name }}
-                        </div>
-
-                        <v-chip
-                            size="x-small"
-                            color="green"
-                            class="mt-2"
-                        >
-                            Activo
                         </v-chip>
                     </v-card>
                 </v-col>
@@ -580,7 +531,32 @@ const removeLocker = async (id: number) => {
             <v-alert type="info" class="mt-4 mb-5">
                 El casillero se entrega sin candado. Recuerda al miembro llevar el suyo.
             </v-alert>
-
+            <!--<v-file-input
+                v-model="lockerFile"
+                label="Adjuntar comprobante"
+                prepend-icon="mdi-paperclip"
+                variant="outlined"
+                density="comfortable"
+                accept="image/*,.pdf"
+                show-size
+                clearable
+                class="mt-4"
+                :error="!lockerFile && showErrors"
+                :error-messages="!lockerFile && showErrors ? 'Adjunta un comprobante' : ''"
+            />-->
+            <div class="font-weight-medium mb-1">
+                Adjuntar comprobante de asignación de casillero
+                <span class="text-error">*</span>
+            </div>
+            <CustomFileUploadField
+                v-model="lockerFile"
+                label="Seleccionar comprobante"
+                hint="PDF, JPG o PNG · máx. 2 MB"
+                accept=".pdf,.jpg,.jpeg,.png"
+                :rules="letterRules"
+                :error="!lockerFile && showErrors"
+                :error-messages="!lockerFile && showErrors ? 'Adjunta un comprobante' : ''"
+            />
             <!-- Acción -->
             <BaseButton
                 class="mt-5"

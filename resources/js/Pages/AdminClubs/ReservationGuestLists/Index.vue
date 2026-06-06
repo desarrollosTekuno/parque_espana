@@ -167,7 +167,7 @@ const headers = [
     // { title: "Fecha Reserva", key: "reservation.start_datetime" },
     { title: "Evento", key:"title"},
     { title: "Total Invitados", key: "total_guests" },
-    { title: "Subtotal", key: "billable_subtotal" },
+    { title: "Subtotal Socio", key: "billable_subtotal" },
     { title: "Descuento", key: "discount"},
     { title: "Total", key: "total"},
     { title: "Estatus", key: "status" },
@@ -256,16 +256,6 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                             />
                         </template>
 
-                        <template v-slot:item.reservation.start_datetime="{ item }">
-                            {{ formatDateTimeNoTZ(item.reservation.start_datetime)}}
-                        </template>
-
-                        <template v-slot:item.status="{ item }">
-                            <v-chip :color="item.color" dark>
-                                {{ item.status }}
-                            </v-chip>
-                        </template>
-
                         <template v-slot:item.subtotal="{ item }">
                             {{ formatCurrency(item.billable_subtotal)}}
                         </template>
@@ -276,6 +266,12 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
 
                         <template v-slot:item.total="{ item }">
                             {{ formatCurrency(item.total) }}
+                        </template>
+
+                        <template v-slot:item.status="{ item }">
+                            <v-chip :color="item.color" dark>
+                                {{ item.status }}
+                            </v-chip>
                         </template>
 
                         <template #item.actions="{ item }">

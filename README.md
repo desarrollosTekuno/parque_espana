@@ -1,119 +1,119 @@
-# 🚀 Plantilla Base — Laravel 12 + Inertia.js + Vue 3 + Vuetify 3
+# Sistema de Gestión de Membresías — Parque España
 
-Esta plantilla sirve como punto de partida para proyectos modernos utilizando **Laravel 12**, **Inertia.js**, **Vue 3** y **Vuetify 3**.  
-Incluye autenticación básica, manejo de roles y una estructura modular lista para escalar en entornos de desarrollo profesional.
-
----
-
-## 🧱 Tecnologías principales
-
-| Tecnología | Descripción |
-|-------------|--------------|
-| **Laravel 12** | Framework backend en PHP, robusto y escalable. |
-| **Inertia.js** | Conector entre Laravel y Vue sin necesidad de API REST. |
-| **Vue 3 (Composition API)** | Framework frontend progresivo y moderno. |
-| **Vuetify 3** | Librería de componentes basada en Material Design, con soporte para tema claro/oscuro. |
-| **Vite** | Empaquetador rápido y moderno para el desarrollo frontend. |
+Sistema administrativo para la gestión de cuentas de membresías, cobranza, casilleros, reservaciones y operación general de dos clubes deportivos.
 
 ---
 
-## ⚙️ Características incluidas
+## Módulos principales
 
-- 🔐 **Autenticación lista para usar** (registro, login, logout, recuperación de contraseña).  
-- 👥 **Manejo de roles y permisos** mediante políticas y middleware.  
-- 🎨 **Layout base con Vuetify** (navbar, sidebar, footer, dark/light mode).  
-- ⚡ **Integración completa con Inertia.js** (SPA sin APIs separadas).  
-- 🧩 **Arquitectura modular y extensible** para agregar nuevas secciones o módulos.  
-- 🧰 **Configuración de Vite optimizada** para Laravel 12.  
-- 🧑‍💻 **Estructura limpia y mantenible** lista para equipos y proyectos grandes.  
+| Módulo | Descripción |
+|--------|-------------|
+| **Membresías** | Alta, cambio, separación y baja de cuentas familiares e individuales. Historial de cambios y árbol de cuentas derivadas. |
+| **Cobranza** | Cargos de inscripción y mensualidades. Registro de cobros con múltiples métodos de pago por parque. Desglose de cargos pendientes. |
+| **Documentos** | Expediente digital por integrante. Documentos requeridos por tipo de membresía + documentos de sistema (comprobante de descuento de inscripción, etc.). |
+| **Casilleros** | Asignación, cambio y baja de casilleros por integrante. Historial de movimientos con comprobante. |
+| **Reservaciones** | Gestión de amenidades, horarios, bloqueos y listas de invitados. |
+| **Corte de caja** | Cortes por parque y corte global. |
+| **Anuncios y publicidad** | Gestión de anuncios internos y anuncios comerciales (business ads). |
+| **Historia clínica** | Datos médicos y contacto de emergencia por integrante. |
+| **Ausencias** | Permisos de ausencia con porcentaje de cobro configurable y documento de respaldo. |
+| **Encuestas** | Creación y seguimiento de encuestas internas. |
+| **Feedback** | Sistema de tickets internos por categoría. |
+| **Usuarios y roles** | Gestión de accesos y permisos por módulo. |
+| **Catálogos** | Tipos de membresía, conceptos de cobro, métodos de pago, reglas de precio, tipos de documento, ubicaciones. |
 
 ---
 
-## 📂 Estructura del proyecto
+## Stack tecnológico
 
-```plaintext
-├── app/
-│   ├── Http/
-│   │   ├── Controllers/
-│   │   ├── Middleware/
-│   │   └── Requests/
-│   └── Models/
-│
-├── resources/
-│   ├── js/
-│   │   ├── Components/
-│   │   ├── constants/
-│   │   ├── interfaces/
-│   │   ├── Layouts/
-│   │   ├── Pages/
-│   │   ├── utils/
-│   │   ├── Plugins/
-│   │   ├── Composables/
-│   │   └── app.js
-│   └── views/
-│
-├── routes/
-│   ├── api.php
-│   └── web.php
-│
-├── database/
-│   ├── migrations/
-│   └── seeders/
-│
-└── vite.config.js
+| Capa | Tecnología |
+|------|------------|
+| Backend | Laravel 12 (PHP ^8.2) |
+| Frontend | Vue 3 (Composition API) + Vuetify 3 |
+| Conector SPA | Inertia.js |
+| Empaquetador | Vite |
+| Base de datos | PostgreSQL (multi-esquema) |
+| Almacenamiento | DigitalOcean Spaces (S3-compatible) |
+| Notificaciones push | Firebase Cloud Messaging |
+| Pagos | Conekta |
+
+---
+
+## Esquemas de base de datos (PostgreSQL)
+
+El proyecto usa múltiples esquemas dentro de la misma base de datos:
+
+| Esquema | Contenido |
+|---------|-----------|
+| `public` | Usuarios, clubes, roles, permisos, configuración |
+| `memberships` | Cuentas, membresías, tipos, reglas de precio, historial, ausencias |
+| `members` | Integrantes, documentos, direcciones, empleo, historia clínica |
+| `billing` | Cargos, pagos, conceptos, métodos de pago, cortes de caja |
+| `catalogs` | Países, estados, ciudades, nacionalidades, estados civiles, tipos de documento, relaciones |
+| `reservations` | Reservaciones, amenidades, recursos, horarios, bloqueos |
+| `lockers` | Asignaciones, historial de movimientos |
+| `feedback` | Tickets, categorías, comentarios, adjuntos |
+
+> Cada esquema se crea con `CREATE SCHEMA IF NOT EXISTS` antes de ejecutar migraciones. En los modelos se referencia como `DB::table('schema.tabla')`.
+
+---
+
+## Requisitos
+
+```
+PHP >= 8.2
+Composer >= 2.7
+Node.js >= 20
+PostgreSQL >= 14
 ```
 
 ---
 
-## 🧩 Requerimientos
+## Instalación
 
-```text
-PHP >= 8.3  
-Composer >= 2.7  
-Node.js >= 18  
-NPM o PNPM  
-Base de datos (MySQL, PostgreSQL, SQLite, etc.)
-```
-
----
-
-## 🚀 Instalación y configuración
-
-### 1️⃣ Clonar el repositorio
+### 1. Clonar el repositorio
 
 ```bash
-git clone https://github.com/antoniotoxquisosa/laravel-project.git
-cd laravel-project
+git clone <repo-url>
+cd parque_espana
 ```
 
-### 2️⃣ Instalar dependencias de Laravel
+### 2. Instalar dependencias
 
 ```bash
 composer install
-```
-
-### 3️⃣ Instalar dependencias de Node
-
-```bash
 npm install
 ```
 
-### 4️⃣ Configurar el entorno
+### 3. Configurar el entorno
 
 ```bash
 cp .env.example .env
 php artisan key:generate
 ```
 
-> ✏️ **Nota:** Edita el archivo `.env` con tus credenciales de base de datos y configuraciones locales.
+Edita `.env` con tus credenciales (ver sección de variables de entorno).
 
-### 5️⃣ Ejecutar migraciones y seeders (opcional)
+### 4. Crear los esquemas en PostgreSQL
 
-```bash
-php artisan migrate --seed
+```sql
+CREATE SCHEMA IF NOT EXISTS memberships;
+CREATE SCHEMA IF NOT EXISTS members;
+CREATE SCHEMA IF NOT EXISTS billing;
+CREATE SCHEMA IF NOT EXISTS catalogs;
+CREATE SCHEMA IF NOT EXISTS reservations;
+CREATE SCHEMA IF NOT EXISTS lockers;
+CREATE SCHEMA IF NOT EXISTS feedback;
 ```
 
-### 6️⃣ Iniciar el servidor de desarrollo
+### 5. Ejecutar migraciones y seeders
+
+```bash
+php artisan migrate
+php artisan db:seed
+```
+
+### 6. Iniciar servidores de desarrollo
 
 ```bash
 php artisan serve
@@ -122,57 +122,123 @@ npm run dev
 
 ---
 
-## 🧠 Estructura del frontend (Vue + Vuetify)
+## Variables de entorno
 
-| Carpeta | Descripción |
-|----------|--------------|
-| `resources/js/app.js` | Punto de entrada principal (Inertia + Vuetify). |
-| `resources/js/Layouts` | Plantillas base para las páginas. |
-| `resources/js/Pages` | Páginas renderizadas por Inertia. |
-| `resources/js/Components` | Componentes reutilizables. |
-| `resources/js/Composables` | Lógica reactiva reutilizable (Composition API). |
-| `resources/js/utils` | Funciones auxiliares y helpers. |
-| `resources/js/constants` | Constantes globales o configuraciones. |
+### Base de datos
+
+```env
+DB_CONNECTION=pgsql
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_DATABASE=parque_espana
+DB_USERNAME=
+DB_PASSWORD=
+```
+
+### DigitalOcean Spaces (almacenamiento de archivos)
+
+```env
+DO_SPACES_KEY=
+DO_SPACES_SECRET=
+DO_SPACES_REGION=
+DO_SPACES_BUCKET=
+DO_SPACES_ENDPOINT=
+DO_SPACES_URL=
+```
+
+### Firebase (notificaciones push)
+
+```env
+FIREBASE_CREDENTIALS=           # Ruta al JSON de credenciales de servicio
+FIREBASE_PROJECT=
+FIREBASE_AUTH_TENANT_ID=
+FIREBASE_DATABASE_URL=
+FIREBASE_STORAGE_DEFAULT_BUCKET=
+```
+
+### Conekta (pagos)
+
+```env
+CONEKTA_SECRET_KEY=
+CONEKTA_PUBLIC_KEY=
+```
+
+### API de ubicaciones
+
+```env
+COUNTRY_STATE_CITY_API_KEY=     # https://countrystatecity.in
+```
 
 ---
 
-## 🧩 Scripts útiles
+## Comandos Artisan personalizados
 
 | Comando | Descripción |
-|----------|--------------|
-| `npm run dev` | Inicia el entorno de desarrollo con Vite. |
-| `npm run build` | Compila los assets para producción. |
-| `php artisan serve` | Inicia el servidor de Laravel. |
-| `php artisan migrate` | Ejecuta las migraciones. |
-| `php artisan db:seed` | Carga los seeders de prueba. |
+|---------|-------------|
+| `php artisan memberships:generate-monthly-charges` | Genera los cargos de mensualidad del mes en curso |
+| `php artisan memberships:process-age-transitions` | Aplica cambios automáticos de membresía por edad |
+| `php artisan memberships:process-domiciliated-payments` | Procesa pagos domiciliados pendientes |
+| `php artisan business-ads:expire` | Marca como vencidos los anuncios comerciales expirados |
+| `php artisan catalogs:import-locations` | Importa catálogo de países, estados y ciudades |
+| `php artisan payments:simulate-spei` | Simula confirmación de pago SPEI (solo desarrollo) |
+| `php artisan notifications:prune-device-tokens` | Elimina tokens de dispositivo obsoletos de Firebase |
+| `php artisan notifications:send-scheduled-emails` | Procesa la cola de correos programados |
+| `php artisan sftp:test-connection` | Verifica la conexión con el servidor SFTP |
 
 ---
 
-## 🧰 Personalización
-
-Puedes modificar el **tema global de Vuetify** en:
+## Seeders disponibles
 
 ```bash
-resources/js/Plugins/vuetify.js
-```
+php artisan db:seed                          # Carga todos los seeders
 
-Y definir tus **layouts base personalizados** en:
-
-```bash
-resources/js/Layouts/
+# Seeders individuales relevantes
+php artisan db:seed --class=ClubSeeder
+php artisan db:seed --class=RoleSeeder
+php artisan db:seed --class=PermissionSeeder
+php artisan db:seed --class=DocumentTypeSeeder
+php artisan db:seed --class=MembershipTypeSeeder
+php artisan db:seed --class=BillingConceptSeeder
+php artisan db:seed --class=PaymentMethodSeeder
+php artisan db:seed --class=LocationCatalogsSeeder
+php artisan db:seed --class=SystemVariableSeeder
 ```
 
 ---
 
-## 🧑‍💻 Autor
+## Estructura relevante del proyecto
 
-**Antonio Toxqui Sosa**  
-Desarrollador Full Stack
+```
+app/
+├── Console/Commands/          # Comandos artisan personalizados
+├── Http/Controllers/
+│   └── Web/AdminClub/         # Controladores del panel administrativo
+├── Models/                    # Modelos por módulo (Billing, Members, Memberships, etc.)
+└── Services/                  # Servicios de negocio (cargos, pagos, membresías)
+
+resources/js/
+├── Components/                # Componentes reutilizables (BaseButton, CustomFileUploadField, etc.)
+├── Layouts/                   # AppLayout, Navigation
+├── Pages/                     # Páginas Inertia por módulo
+│   ├── Members/
+│   ├── Billing/
+│   ├── Reservations/
+│   └── ...
+└── constants/                 # Reglas de validación, formatos de fecha
+
+database/
+├── migrations/                # Migraciones por esquema y fecha
+└── seeders/                   # 40+ seeders de catálogos y configuración inicial
+```
 
 ---
 
-## 📄 Licencia
+## Autor
 
-Este proyecto es **propietario** y no está autorizado para redistribución, modificación ni uso comercial sin permiso explícito de su autor.
+**Tekuno S.A. de C.V.**
 
-<!-- Fin del archivo README.md -->
+---
+
+## Licencia
+
+Proyecto **propietario**. Prohibida su redistribución, modificación o uso comercial sin autorización expresa del autor.

@@ -15,6 +15,7 @@ class PermissionLandingRouteResolver
         }
 
         $permissions = $user->getAllPermissions()
+            ->load('contexts')
             ->filter(fn ($permission) => $permission->contexts->contains('value', 'web'))
             ->pluck('name')
             ->filter()

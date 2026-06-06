@@ -34,7 +34,7 @@ class LoginController extends Controller
             ], 401);
         }
         $user = $request->user();
-        $allPermissions = $user->getAllPermissions();
+        $allPermissions = $user->getAllPermissions()->load('contexts');
 
         // Agrupar permisos por club (mobile_club_1 / mobile_club_2)
         $mobileContexts = ['mobile_club_1', 'mobile_club_2'];

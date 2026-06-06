@@ -32,8 +32,10 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use App\Rules\UniqueInSchema;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
+use Illuminate\Support\Facades\Gate;
 
 class MemberController extends Controller
 {
@@ -72,6 +74,7 @@ class MemberController extends Controller
 
                 $query->where(function (Builder $builder) use ($search, $like) {
                     $builder->where('membership_number', $like, "%{$search}%")
+                        ->orWhere('internal_account_number', $like, "%{$search}%")
                         ->orWhereHas('primaryHolder.member', function (Builder $memberQuery) use ($search, $like) {
                             $memberQuery->where('first_name', $like, "%{$search}%")
                                 ->orWhere('last_name', $like, "%{$search}%")
@@ -126,6 +129,7 @@ class MemberController extends Controller
                         'id' => $account->id,
                         'membership_id' => $currentMembership?->id,
                         'membership_number' => $account->membership_number,
+                        'internal_account_number' => $account->internal_account_number,
                         'account_club_name' => $account->club?->name ?? $currentMembership?->club?->name,
                         'account_club_code' => $account->club?->code ?? $currentMembership?->club?->code,
                         'holder_name' => $fullName,
@@ -139,6 +143,8 @@ class MemberController extends Controller
                             && (int) $account->account_members_count > 1,
                         'can_separate_member' => (bool) ($currentMembership?->membershipType?->allows_multiple_members)
                             && (int) $account->account_members_count > 1,
+                        'can_cancel_membership' => Gate::allows('members.cancel.create'),
+                        'can_create_membership' => Gate::allows('members.additional-membership.create'),
                         'active_memberships' => $activeMemberships->map(function (Membership $membership) {
                             return [
                                 'id' => $membership->id,
@@ -1542,6 +1548,20 @@ class MemberController extends Controller
                 'has_multiple_clubs' => ['nullable', 'boolean'],
                 'source_membership_is_active' => ['nullable', 'boolean'],
                 'years_in_source_club' => ['nullable', 'integer', 'min:0', 'max:99'],
+                'internal_account_number' => [
+                    'nullable',
+                    'string',
+                    'max:100',
+                    new UniqueInSchema('memberships', 'accounts', 'internal_account_number'),
+                ],
+                'inscription_fee_override' => ['nullable', 'numeric', 'min:0'],
+                'inscription_discount_document' => [
+                    'nullable',
+                    'file',
+                    'mimes:pdf,jpg,jpeg,png',
+                    'max:5120',
+                    'required_with:inscription_fee_override',
+                ],
                 'members' => ['required', 'array', 'min:1'],
                 'members.*.id' => ['nullable', new ExistsInSchema('members', 'members', 'id')],
                 'members.*.first_name' => ['required', 'string', 'max:255'],
@@ -1596,6 +1616,11 @@ class MemberController extends Controller
                 && $validated['years_in_source_club'] !== null
                 ? (int) $validated['years_in_source_club']
                 : null;
+            $internalAccountNumber = $validated['internal_account_number'] ?? null;
+            $inscriptionFeeOverride = isset($validated['inscription_fee_override'])
+                ? (float) $validated['inscription_fee_override']
+                : null;
+            $inscriptionDiscountDocument = $request->file('inscription_discount_document');
             $sameClubTransition = false;
 
             if (!empty($validated['source_membership_id'])) {
@@ -1809,20 +1834,23 @@ class MemberController extends Controller
             // Collect [member_id => documents[]] inside the transaction to upload after commit
             $savedMemberDocuments    = [];
             $savedMembershipAccount  = null;
+            $savedPrimaryMemberId    = null;
 
-            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership, $sameClubTransition, $sourceAccountMembersById, $reusableSourceMemberIds, &$savedMemberDocuments, &$savedMembershipAccount) {
+            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership, $sameClubTransition, $sourceAccountMembersById, $reusableSourceMemberIds, $internalAccountNumber, $inscriptionFeeOverride, &$savedMemberDocuments, &$savedMembershipAccount, &$savedPrimaryMemberId) {
                 $sourceAccount = $sourceMembership?->account;
 
                 $membershipAccount = $sameClubTransition
                     ? tap($sourceAccount)->update([
                         'account_type' => $membershipType->allows_multiple_members ? 'family' : 'individual',
                         'status' => 'active',
+                        'internal_account_number' => $internalAccountNumber,
                     ])
                     : $this->createMembershipAccount(
                         club: $club,
                         accountType: $membershipType->allows_multiple_members ? 'family' : 'individual',
                         status: 'active',
-                        accountGroup: $sourceAccount?->accountGroup
+                        accountGroup: $sourceAccount?->accountGroup,
+                        internalAccountNumber: $internalAccountNumber,
                     );
 
                 $savedMembershipAccount = $membershipAccount;
@@ -1883,6 +1911,10 @@ class MemberController extends Controller
                         : Member::create($memberAttributes);
 
                     $submittedMemberIds[] = $member->id;
+
+                    if (!empty($memberData['is_primary_holder'])) {
+                        $savedPrimaryMemberId = $member->id;
+                    }
 
                     // Queue documents for SFTP upload after transaction commits
                     if (!empty($memberData['documents'])) {
@@ -1989,11 +2021,12 @@ class MemberController extends Controller
                     $this->membershipChargeService->createInitialCharges(
                         membership: $sourceMembership,
                         monthlyFee: (float) $pricing['monthly_fee'],
-                        inscriptionFee: (float) ($pricing['inscription_fee'] ?? 0),
+                        inscriptionFee: $inscriptionFeeOverride ?? (float) ($pricing['inscription_fee'] ?? 0),
                         metadata: [
                             'charge_origin' => 'same_account_transition',
                             'previous_membership_type_id' => $previousMembershipTypeId,
                             'new_membership_type_id' => $membershipType->id,
+                            'inscription_fee_override' => $inscriptionFeeOverride,
                         ],
                         chargeDate: now(),
                         reconcileExistingMonthlyCharge: true
@@ -2055,10 +2088,11 @@ class MemberController extends Controller
                 $this->membershipChargeService->createInitialCharges(
                     membership: $newMembership,
                     monthlyFee: (float) $pricing['monthly_fee'],
-                    inscriptionFee: (float) ($pricing['inscription_fee'] ?? 0),
+                    inscriptionFee: $inscriptionFeeOverride ?? (float) ($pricing['inscription_fee'] ?? 0),
                     metadata: [
                         'charge_origin' => $sourceMembership ? 'additional_membership' : 'membership_registration',
                         'source_membership_id' => $sourceMembership?->id,
+                        'inscription_fee_override' => $inscriptionFeeOverride,
                     ],
                     chargeDate: now(),
                     reconcileExistingMonthlyCharge: (bool) ($sourceMembership && ($pricing['source_membership_becomes_non_billable'] ?? false))
@@ -2076,8 +2110,23 @@ class MemberController extends Controller
                 memberDocuments: $savedMemberDocuments,
             );
 
+            if ($inscriptionDiscountDocument && $savedPrimaryMemberId) {
+                $discountDocType = \App\Models\Catalogs\DocumentType::where('code', 'INSCRIPTION_DISCOUNT')->first();
+
+                if ($discountDocType) {
+                    $this->uploadMemberDocuments([
+                        $savedPrimaryMemberId => [
+                            [
+                                'document_type_id' => $discountDocType->id,
+                                'files'            => [$inscriptionDiscountDocument],
+                            ],
+                        ],
+                    ]);
+                }
+            }
+
             return redirect()
-                ->back()
+                ->route('members.index')
                 ->with('success', $successMessage);
         } catch (ValidationException $e) {
             return $this->validationExceptionResponse($e);
@@ -2685,6 +2734,7 @@ class MemberController extends Controller
         return [
             'id' => $membership->account?->id,
             'membership_number' => $membership->account?->membership_number,
+            'internal_account_number' => $membership->account?->internal_account_number,
             'account_club_name' => $accountClub?->name,
             'account_club_code' => $accountClub?->code,
             'account_type' => $membership->account?->account_type,
@@ -2806,6 +2856,44 @@ class MemberController extends Controller
         });
     }
 
+    public function updateInternalAccountNumber(Request $request, Membership $membership)
+    {
+        $clubId = session('club_id');
+
+        if ((int) $membership->club_id !== (int) $clubId) {
+            abort(404);
+        }
+
+        $account = $membership->account;
+
+        if (!$account) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'internal_account_number' => [
+                'nullable',
+                'string',
+                'max:100',
+                new UniqueInSchema(
+                    'memberships',
+                    'accounts',
+                    'internal_account_number',
+                    $account->id,
+                    'id'
+                ),
+            ],
+        ]);
+
+        $account->update([
+            'internal_account_number' => $validated['internal_account_number'] ?? null,
+        ]);
+
+        return redirect()
+            ->route('members.manage.show', $membership)
+            ->with('success', 'Número de cuenta interno actualizado correctamente.');
+    }
+
     public function storeDocument(Request $request, Membership $membership)
     {
         try {
@@ -2884,11 +2972,21 @@ class MemberController extends Controller
         $address = $member?->primaryAddress;
         $employment = $member?->employmentInfo;
 
-        $lockerAssignment = LockerAssignment::with('locker')
-            ->where('member_id', $member?->id)
+        $lockerMembers = LockerAssignment::with('locker')
+            ->where('member_id', $member->id)
             ->where('year', now()->year)
+            ->where('club_id', session('club_id'))
             ->whereNull('deleted_at')
-            ->first();
+            ->get()
+            ->map(function ($assignment) {
+                return [
+                    'assignment_id' => $assignment->id,
+                    'locker_id' => $assignment->locker_id,
+                    'number' => $assignment->locker->number,
+                    'status' => $assignment->locker->status,
+                    'category' => $assignment->locker->category,
+                ];
+            });
 
         $uploadedDocs = $member?->documents ?? collect();
         $relationshipId = $accountMember->is_primary_holder ? 1 : $accountMember->relationship_id;
@@ -2930,8 +3028,77 @@ class MemberController extends Controller
                     'already_uploaded'   => $alreadyUploaded,
                     'uploaded_docs'      => $docsForType,
                 ];
-            })
-            ->values();
+            });
+
+            $lockerAssignment = LockerAssignment::where('member_id', $member->id)->latest()->first();
+
+            if ($lockerAssignment && $lockerAssignment->file_path) {
+
+                $documents->push([
+                    'document_type_id'   => 'locker_assignment',
+                    'name'               => 'Comprobante de Casillero',
+                    'allowed_extensions' => ['pdf', 'jpg', 'jpeg', 'png'],
+                    'max_file_size_kb'   => 5120,
+                    'is_required'        => false,
+                    'allow_multiple'     => false,
+                    'number_files'       => 1,
+                    'already_uploaded'   => true,
+                    'uploaded_docs'      => [
+                        [
+                            'id' => 'locker_' . $lockerAssignment->id,
+                            'uploaded_at' => $lockerAssignment->created_at?->toDateString(),
+                            'url' => Storage::disk('spaces')->temporaryUrl(
+                                $lockerAssignment->file_path,
+                                now()->addMinutes(30)
+                            ),
+                        ]
+                    ],
+                ]);
+        }
+
+        // ── Documentos extra: están en members.documents pero no son requeridos
+        //    por el tipo de membresía (ej. comprobante de descuento de inscripción).
+        $coveredDocTypeIds = $documents
+            ->pluck('document_type_id')
+            ->filter(fn ($id) => is_int($id))
+            ->all();
+
+        $uploadedDocs
+            ->whereNotIn('document_type_id', $coveredDocTypeIds)
+            ->groupBy('document_type_id')
+            ->each(function ($docs) use (&$documents) {
+                $docType = $docs->first()->documentType;
+                if (!$docType) {
+                    return;
+                }
+
+                $documents->push([
+                    'document_type_id'   => $docType->id,
+                    'name'               => $docType->name,
+                    'allowed_extensions' => $docType->allowed_extensions
+                        ? collect(explode(',', $docType->allowed_extensions))
+                            ->map(fn ($e) => trim(strtolower($e)))
+                            ->values()
+                            ->all()
+                        : [],
+                    'max_file_size_kb'   => $docType->max_file_size_kb !== null
+                        ? (int) $docType->max_file_size_kb
+                        : null,
+                    'is_required'        => false,
+                    'allow_multiple'     => true,
+                    'number_files'       => $docs->count(),
+                    'already_uploaded'   => true,
+                    'uploaded_docs'      => $docs
+                        ->map(fn ($d) => [
+                            'id'          => $d->id,
+                            'uploaded_at' => $d->created_at?->toDateString(),
+                        ])
+                        ->values()
+                        ->all(),
+                ]);
+            });
+
+        $documents = $documents->values();
 
         return [
             ...$this->buildAccountMemberPayload($accountMember),
@@ -2959,12 +3126,7 @@ class MemberController extends Controller
                 'company_address' => $employment?->company_address,
                 'company_phone' => $employment?->company_phone,
             ],
-            'locker' => $lockerAssignment ? [
-                'assignment_id' => $lockerAssignment->id,
-                'number' => $lockerAssignment->locker?->number,
-                'status' => $lockerAssignment->locker?->status,
-                'category' => $lockerAssignment->locker?->category,
-            ] : null,
+            'locker' => $lockerMembers->values(),
             'documents' => $documents,
         ];
     }
@@ -3648,18 +3810,20 @@ class MemberController extends Controller
         string $status = 'pending',
         ?MembershipAccountGroup $accountGroup = null,
         ?int $originAccountId = null,
-        ?string $separationReason = null
+        ?string $separationReason = null,
+        ?string $internalAccountNumber = null,
     ): MembershipAccount {
         $group = $accountGroup ?? $this->createAccountGroup();
 
         return MembershipAccount::create([
-            'account_group_id'  => $group->id,
-            'club_id'           => $club->id,
-            'membership_number' => $this->generateMembershipNumber($club),
-            'account_type'      => $accountType,
-            'status'            => $status,
-            'origin_account_id' => $originAccountId,
-            'separation_reason' => $separationReason,
+            'account_group_id'        => $group->id,
+            'club_id'                 => $club->id,
+            'membership_number'       => $this->generateMembershipNumber($club),
+            'internal_account_number' => $internalAccountNumber,
+            'account_type'            => $accountType,
+            'status'                  => $status,
+            'origin_account_id'       => $originAccountId,
+            'separation_reason'       => $separationReason,
         ]);
     }
 

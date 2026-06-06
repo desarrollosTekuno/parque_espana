@@ -285,11 +285,17 @@ const routes: Routing[] = [
                 value: "listas-invitados",
             },
             {
-                name: "system-variables.index",
+                name: "guest-list-variables.index",
                 title: "Configuración",
                 icon: "mdi-cog",
-                value: "variables-sistema",
+                value: "configuracion",
             },
+            {
+                name: "guest-list-payments.index",
+                title: "Pagos",
+                icon: "mdi-cash",
+                value: "pagos",
+            }
         ],
     },
     // Anuncios
@@ -382,6 +388,23 @@ const routes: Routing[] = [
                 icon: "mdi-briefcase-edit-outline",
                 value: "feedback-management",
             },
+        ],
+    },
+    // Documentos
+    {
+        name: ["files.index"],
+        title: "Formatos",
+        icon: "mdi-file-outline",
+        value: "archivos",
+        group: "Archivos",
+        showBadge: true,
+        groupItems: [
+            {
+                name: "files.index",
+                title: "Formatos",
+                icon: "mdi-file-outline",
+                value: "archivos",
+            }
         ],
     },
     /*

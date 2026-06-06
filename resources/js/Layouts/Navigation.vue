@@ -34,6 +34,10 @@ const changeClub = () => {
         },
     );
 };
+// Devuelve el club actualmente seleccionado (o null si no hay)
+const currentClub = computed(() => {
+    return clubs.find((club: any) => club.id === selectedClub.value);
+});
 
 const drawer = defineModel("drawer");
 const props = defineProps<{ rail: boolean }>();
@@ -148,6 +152,7 @@ const getGroupItemBadgeCount = (groupItem: any): number => {
 const disabledSelectClub = computed(() => {
     return route().current("members.lockers.create") || route().current("members.manage.show");
 });
+console.log(JSON.parse(JSON.stringify(page.props.auth.clubs)))
 </script>
 
 <template>
@@ -178,7 +183,7 @@ const disabledSelectClub = computed(() => {
                             :width="50"
                             aspect-ratio="16/9"
                             cover
-                            :src="`/assets/images/Logo${selectedClub == 1 ? 'P1' : 'P2'}.png`"
+                            :src="currentClub.logo_url"
                             class="mr-2"
                         ></v-img>
                         <v-avatar
@@ -213,7 +218,7 @@ const disabledSelectClub = computed(() => {
                     @update:modelValue="changeClub"
                     :disabled="disabledSelectClub"
                     :hint="
-                        disabledSelectClub
+                        !isRail && disabledSelectClub
                             ? 'No puedes cambiar de club durante la asignación de casilleros o la gestión de miembros'
                             : ''
                     "

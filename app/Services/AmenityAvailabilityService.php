@@ -8,13 +8,17 @@ use App\Models\AdminClub\BlockedPeriod;
 use App\Models\AdminClub\Reservation;
 use App\Models\AdminClub\ReservationStatus;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class AmenityAvailabilityService
 {
     public function getSlots(AmenityResource $amenityResource, string $date)
     {
-        $date = Carbon::parse($date);
+        $tz = 'America/Mexico_City';    
+        $date = Carbon::parse($date, $tz);
         $dayOfWeek = $date->dayOfWeek;
+        $now = Carbon::now($tz);
+        $isToday = $date->isSameDay($now);
 
         // Si amenidad está inactiva
         if (!$amenityResource->is_active) {
@@ -35,8 +39,8 @@ class AmenityAvailabilityService
 
         foreach ($schedules as $range) {
 
-            $start = Carbon::parse($date->format('Y-m-d') . ' ' . $range->open_time);
-            $end   = Carbon::parse($date->format('Y-m-d') . ' ' . $range->close_time);
+            $start = Carbon::parse($date->format('Y-m-d') . ' ' . $range->open_time, $tz);
+            $end   = Carbon::parse($date->format('Y-m-d') . ' ' . $range->close_time, $tz);
 
             if ($amenity->reservation_type === 'daily')
             {
@@ -96,6 +100,23 @@ class AmenityAvailabilityService
                 $slotStart = $start->copy();
                 $slotEnd = $start->copy()->addMinutes($amenityResource->slot_duration_minutes);
 
+                Log::info([
+                    'SLOT_START' => $slotStart->toDateTimeString(),
+                    'SLOT_TZ' => $slotStart->timezoneName,
+                    'NOW' => $now->toDateTimeString(),
+                    'NOW_TZ' => $now->timezoneName,
+                ]);
+
+                // 🚫 NO mostrar horarios pasados SOLO si es hoy
+                /*if ($isToday && $slotStart->copy()->addMinutes($amenityResource->slot_duration_minutes)->lte($now)) {
+                    $start->addMinutes($amenityResource->slot_duration_minutes);
+                    continue;
+                }*/
+                if ($isToday && $slotStart->lt($now)) {
+                    $start->addMinutes($amenityResource->slot_duration_minutes);
+                    continue;
+                }
+
                 // 🔴 Verificar bloqueos
                 $isBlocked = BlockedPeriod::where('resource_id', $amenityResource->id)
                     ->where(function ($q) use ($slotStart, $slotEnd) {
@@ -143,13 +164,17 @@ class AmenityAvailabilityService
                 } else {
                     $status = 'available';
                 }
-
+Log::info([
+    'ADDING_SLOT' => true,
+    'SLOT_START' => $slotStart->toDateTimeString(),
+    'SLOT_END' => $slotEnd->toDateTimeString(),
+]);
                 $slots[] = [
                     'start' => $slotStart->toDateTimeString(),
                     'end' => $slotEnd->toDateTimeString(),
                     'capacity' => $amenityResource->capacity,
                     'reserved' => $reservationsCount,
-                    'available_spots' => max(0, $availableSpots),
+                    'available_spots' => max(0, $availableSpots), 
                     'status' => $status
                 ];
 

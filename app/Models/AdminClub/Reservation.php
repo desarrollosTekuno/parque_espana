@@ -4,6 +4,7 @@ namespace App\Models\AdminClub;
 
 use App\Models\User;
 use App\Traits\SerializesDates;
+use App\Models\Members\Member;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -20,7 +21,7 @@ class Reservation extends Model {
         'cancelled_at',
         'club_id',
         'amenity_id',
-        'user_id',
+        'member_id',
         'amenity_resource_id',
         'reservation_status_id',
         ];
@@ -45,5 +46,8 @@ class Reservation extends Model {
         return $this->belongsTo(ReservationStatus::class, 'reservation_status_id');
     }
 
-    // Accesor para la fecha
+    public function member()
+    {
+        return $this->belongsTo(Member::class);
+    }
 }

@@ -157,9 +157,10 @@ class BlockedPeriodController extends Controller
                 $request->start_time,
                 $request->end_time
             );
-
+    //dd(session('club_id'));
             BlockedPeriod::create([
                 'resource_id' => $request->resource_id,
+                'club_id' => session('club_id'),
                 'reason' => $request->reason,
                 'start_time' => $request->start_time
                     ? Carbon::parse($request->start_time) : null,

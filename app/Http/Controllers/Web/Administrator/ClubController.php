@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Administrator\Club;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class ClubController extends Controller
@@ -49,30 +51,59 @@ class ClubController extends Controller
 
     public function store(Request $request)
     {
+        $request->validate([
+            'name'    => 'required|string|max:20',
+            'address' => 'required|string',
+            'logo'    => 'nullable|file|mimes:jpg,jpeg,png,webp|max:2048',
+        ]);
 
         try {
-            $club = Club::create($request->all());
+            $data = $request->except('logo');
+
+            if ($request->hasFile('logo')) {
+                $data['logo_path'] = $this->uploadLogo(
+                    $request->file('logo'),
+                    $request->input('code') ?? 'club'
+                );
+            }
+
+            Club::create($data);
+
             return redirect()->back()->with('success', 'Club creado con éxito!');
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([
                 'messageError' => 'Ocurrió un error al crear el club',
-                'exception' => $e->getMessage(),
+                'exception'    => $e->getMessage(),
             ]);
         }
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, Club $club)
     {
+        $request->validate([
+            'name'    => 'required|string|max:20',
+            'address' => 'required|string',
+            'logo'    => 'nullable|file|mimes:jpg,jpeg,png,webp|max:2048',
+        ]);
+
         try {
-            $club->update($request->all());
+            $data = $request->except('logo');
+
+            if ($request->hasFile('logo')) {
+                $this->deleteLogo($club->logo_path);
+                $data['logo_path'] = $this->uploadLogo(
+                    $request->file('logo'),
+                    $club->code ?? "club-{$club->id}"
+                );
+            }
+
+            $club->update($data);
+
             return redirect()->back()->with('success', 'Club actualizado con éxito!');
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([
                 'messageError' => 'Ocurrió un error al actualizar el club',
-                'exception' => $e->getMessage(),
+                'exception'    => $e->getMessage(),
             ]);
         }
     }
@@ -111,6 +142,28 @@ class ClubController extends Controller
     {
         session(['club_id' => $request->club_id]);
 
-        return redirect()->back();
+        $referer  = $request->headers->get('referer', '/');
+        $cleanUrl = strtok($referer, '?');
+
+        return redirect($cleanUrl);
+    }
+
+    // ─── Helpers de logo ───────────────────────────────────────────────────────
+
+    private function uploadLogo(\Illuminate\Http\UploadedFile $file, string $clubCode): string
+    {
+        $directory = "clubs/{$clubCode}/logo";
+        $filename  = Str::uuid() . '.' . $file->getClientOriginalExtension();
+
+        Storage::disk('spaces')->putFileAs($directory, $file, $filename, 'public');
+
+        return "{$directory}/{$filename}";
+    }
+
+    private function deleteLogo(?string $path): void
+    {
+        if ($path && Storage::disk('spaces')->exists($path)) {
+            Storage::disk('spaces')->delete($path);
+        }
     }
 }

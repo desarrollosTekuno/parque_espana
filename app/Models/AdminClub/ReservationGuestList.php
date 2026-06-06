@@ -2,6 +2,7 @@
 
 namespace App\Models\AdminClub;
 
+use App\Models\Members\Member;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -26,6 +27,10 @@ class ReservationGuestList extends Model {
 
     public function guestListItems() {
         return $this->hasMany(ReservationGuestListItem::class, 'guest_list_id');
+    }
+
+    public function member(){
+        return $this->belongsTo(Member::class);
     }
 
     // Accessor para color basado en el estado

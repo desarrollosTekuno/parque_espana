@@ -9,6 +9,7 @@ use App\Models\Catalogs\MaritalStatus;
 use App\Models\Catalogs\State;
 use App\Models\Memberships\MembershipAccount;
 use App\Models\Memberships\MembershipAccountMember;
+use App\Models\Members\ClinicalHistory;
 use App\Models\User;
 use App\Traits\SerializesDates;
 use Carbon\Carbon;
@@ -23,6 +24,14 @@ class Member extends Model
     protected $table = 'members.members';
     protected $connection = 'pgsql';
     protected $appends = ['full_name', 'age'];
+
+    public function scopeByClub($query, $clubId)
+    {
+        return $query->whereHas('accounts', function ($q) use ($clubId) {
+            $q->where('club_id', $clubId)
+            ->where('status', 'active');
+        });
+    }
 
     public function user()
     {
@@ -109,6 +118,11 @@ class Member extends Model
     public function documents()
     {
         return $this->hasMany(MemberDocument::class, 'member_id');
+    }
+
+    public function clinicalHistory()
+    {
+        return $this->hasOne(ClinicalHistory::class, 'member_id');
     }
 
     public function paymentSources()
