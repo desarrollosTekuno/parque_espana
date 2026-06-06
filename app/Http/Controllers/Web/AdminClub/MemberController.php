@@ -1834,8 +1834,9 @@ class MemberController extends Controller
             // Collect [member_id => documents[]] inside the transaction to upload after commit
             $savedMemberDocuments    = [];
             $savedMembershipAccount  = null;
+            $savedPrimaryMemberId    = null;
 
-            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership, $sameClubTransition, $sourceAccountMembersById, $reusableSourceMemberIds, $internalAccountNumber, $inscriptionFeeOverride, &$savedMemberDocuments, &$savedMembershipAccount) {
+            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership, $sameClubTransition, $sourceAccountMembersById, $reusableSourceMemberIds, $internalAccountNumber, $inscriptionFeeOverride, &$savedMemberDocuments, &$savedMembershipAccount, &$savedPrimaryMemberId) {
                 $sourceAccount = $sourceMembership?->account;
 
                 $membershipAccount = $sameClubTransition
@@ -1910,6 +1911,10 @@ class MemberController extends Controller
                         : Member::create($memberAttributes);
 
                     $submittedMemberIds[] = $member->id;
+
+                    if (!empty($memberData['is_primary_holder'])) {
+                        $savedPrimaryMemberId = $member->id;
+                    }
 
                     // Queue documents for SFTP upload after transaction commits
                     if (!empty($memberData['documents'])) {
@@ -2105,18 +2110,18 @@ class MemberController extends Controller
                 memberDocuments: $savedMemberDocuments,
             );
 
-            if ($inscriptionDiscountDocument && $savedMembershipAccount) {
-                try {
-                    $ext = $inscriptionDiscountDocument->getClientOriginalExtension();
-                    $path = "accounts/{$savedMembershipAccount->id}/inscription-discount/" . \Str::uuid() . ".{$ext}";
-                    \Storage::disk('spaces')->putFileAs(
-                        dirname($path),
-                        $inscriptionDiscountDocument,
-                        basename($path),
-                        'private'
-                    );
-                } catch (\Exception $e) {
-                    \Log::warning("No se pudo guardar el documento de descuento de inscripción: {$e->getMessage()}");
+            if ($inscriptionDiscountDocument && $savedPrimaryMemberId) {
+                $discountDocType = \App\Models\Catalogs\DocumentType::where('code', 'INSCRIPTION_DISCOUNT')->first();
+
+                if ($discountDocType) {
+                    $this->uploadMemberDocuments([
+                        $savedPrimaryMemberId => [
+                            [
+                                'document_type_id' => $discountDocType->id,
+                                'files'            => [$inscriptionDiscountDocument],
+                            ],
+                        ],
+                    ]);
                 }
             }
 
@@ -3050,6 +3055,48 @@ class MemberController extends Controller
                     ],
                 ]);
         }
+
+        // ── Documentos extra: están en members.documents pero no son requeridos
+        //    por el tipo de membresía (ej. comprobante de descuento de inscripción).
+        $coveredDocTypeIds = $documents
+            ->pluck('document_type_id')
+            ->filter(fn ($id) => is_int($id))
+            ->all();
+
+        $uploadedDocs
+            ->whereNotIn('document_type_id', $coveredDocTypeIds)
+            ->groupBy('document_type_id')
+            ->each(function ($docs) use (&$documents) {
+                $docType = $docs->first()->documentType;
+                if (!$docType) {
+                    return;
+                }
+
+                $documents->push([
+                    'document_type_id'   => $docType->id,
+                    'name'               => $docType->name,
+                    'allowed_extensions' => $docType->allowed_extensions
+                        ? collect(explode(',', $docType->allowed_extensions))
+                            ->map(fn ($e) => trim(strtolower($e)))
+                            ->values()
+                            ->all()
+                        : [],
+                    'max_file_size_kb'   => $docType->max_file_size_kb !== null
+                        ? (int) $docType->max_file_size_kb
+                        : null,
+                    'is_required'        => false,
+                    'allow_multiple'     => true,
+                    'number_files'       => $docs->count(),
+                    'already_uploaded'   => true,
+                    'uploaded_docs'      => $docs
+                        ->map(fn ($d) => [
+                            'id'          => $d->id,
+                            'uploaded_at' => $d->created_at?->toDateString(),
+                        ])
+                        ->values()
+                        ->all(),
+                ]);
+            });
 
         $documents = $documents->values();
 
