@@ -847,6 +847,7 @@ const letterRules = [
     fileTypeRule(["pdf", "jpg", "jpeg", "png"]),
     fileMaxSizeRule(2),
 ];
+console.log(can)
 </script>
 
 <template>
@@ -929,13 +930,13 @@ const letterRules = [
 
                         <!-- Tabs -->
                         <v-tabs v-model="activeTab" class="mt-6" color="primary">
-                            <v-tab value="cuenta" prepend-icon="mdi-card-account-details">Cuenta</v-tab>
-                            <v-tab value="integrantes" prepend-icon="mdi-account-group">Integrantes</v-tab>
-                            <v-tab value="documentos" prepend-icon="mdi-file-document-multiple">Documentos</v-tab>
-                            <v-tab value="ausencias" prepend-icon="mdi-calendar-remove">Ausencias</v-tab>
-                            <v-tab value="historia-clinica" prepend-icon="mdi-clipboard-pulse">Historia Clínica</v-tab>
-                            <v-tab value="historial" prepend-icon="mdi-history">Historial</v-tab>
-                            <v-tab value="historial-casilleros" prepend-icon="mdi-locker">Historial casilleros</v-tab>
+                            <v-tab v-if="can.includes('accounts.view')" value="cuenta" prepend-icon="mdi-card-account-details">Cuenta</v-tab>
+                            <v-tab v-if="can.includes('members.view')" value="integrantes" prepend-icon="mdi-account-group">Integrantes</v-tab>
+                            <v-tab v-if="can.includes('documents.view')" value="documentos" prepend-icon="mdi-file-document-multiple">Documentos</v-tab>
+                            <v-tab v-if="can.includes('absences.view')" value="ausencias" prepend-icon="mdi-calendar-remove">Ausencias</v-tab>
+                            <v-tab v-if="can.includes('clinical-history.view')" value="historia-clinica" prepend-icon="mdi-clipboard-pulse">Historia Clínica</v-tab>
+                            <v-tab v-if="can.includes('history.view')" value="historial" prepend-icon="mdi-history">Historial</v-tab>
+                            <v-tab v-if="can.includes('lockers-history.view')" value="historial-casilleros" prepend-icon="mdi-locker">Historial casilleros</v-tab>
                             <v-tab
                                 v-if="props.accountTree && (props.accountTree.origin || props.accountTree.derived.length)"
                                 value="arbol"
