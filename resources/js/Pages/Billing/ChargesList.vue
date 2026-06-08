@@ -31,6 +31,7 @@ interface PaymentMethodItem {
     requires_bank_name: boolean;
     requires_check_number: boolean;
     affects_cash_cut: boolean;
+    show_in_billing: boolean;
 }
 
 interface ClubPaymentMethodItem {

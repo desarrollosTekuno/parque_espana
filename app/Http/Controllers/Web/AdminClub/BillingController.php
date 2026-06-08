@@ -575,10 +575,13 @@ class BillingController extends Controller
                                 'requires_bank_name' => (bool) $clubPaymentMethod->paymentMethod?->requires_bank_name,
                                 'requires_check_number' => (bool) $clubPaymentMethod->paymentMethod?->requires_check_number,
                                 'affects_cash_cut' => (bool) $clubPaymentMethod->paymentMethod?->affects_cash_cut,
+                                'show_in_billing' => (bool) $clubPaymentMethod->paymentMethod?->show_in_billing,
+                                'internal_key' => $clubPaymentMethod->internal_key,
                             ];
                         })
                         ->filter(function (array $method) use ($canUseNonCashCut) {
                             if (empty($method['id'])) return false;
+                            if (!$method['show_in_billing']) return false;
                             if (!$method['affects_cash_cut'] && !$canUseNonCashCut) return false;
                             return true;
                         })

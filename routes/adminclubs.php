@@ -94,6 +94,8 @@ Route::resource('/payment-methods', PaymentMethodController::class)
     ->names('payment-methods');
 Route::post('/payment-methods/{paymentMethod}/toggle-club', [PaymentMethodController::class, 'toggleClub'])
     ->name('payment-methods.toggle-club');
+Route::put('/payment-methods/{paymentMethod}/club-config', [PaymentMethodController::class, 'updateClubConfig'])
+    ->name('payment-methods.update-club-config');
 Route::resource('/pricing-rules', PricingRuleController::class)
     ->only(['index', 'store', 'update', 'destroy'])
     ->names('pricing-rules');
