@@ -61,9 +61,9 @@ const routes: Routing[] = [
             },
             {
                 name: "interclub-package-rules.index",
-                title: "Paquetes interclub",
+                title: "Paquetes intermedios",
                 icon: "mdi-swap-horizontal",
-                value: "paquetes-interclub",
+                value: "paquetes-intermedios",
             },
         ],
     },

@@ -150,7 +150,7 @@ const getGroupItemBadgeCount = (groupItem: any): number => {
 //     return route().current("members.manage.show");
 // });
 const disabledSelectClub = computed(() => {
-    return route().current("members.lockers.create") || route().current("members.manage.show");
+    return route().current("members.lockers.create") || route().current("members.manage.show") || route().current("members.additional-membership.create");
 });
 console.log(JSON.parse(JSON.stringify(page.props.auth.clubs)))
 </script>
@@ -219,7 +219,7 @@ console.log(JSON.parse(JSON.stringify(page.props.auth.clubs)))
                     :disabled="disabledSelectClub"
                     :hint="
                         !isRail && disabledSelectClub
-                            ? 'No puedes cambiar de club durante la asignación de casilleros o la gestión de miembros'
+                            ? 'No puedes cambiar de club desde esta sección'
                             : ''
                     "
                     persistent-hint
