@@ -177,6 +177,33 @@ const destroy = (item:any) => {
         }
     });
 };
+// ── Validaciones de fechas ────────────────────────────────────────────────────
+const nowDatetime = computed(() => {
+    const now = new Date()
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`
+})
+
+const startTimeRules = computed(() => [
+    (v: string | null) => !!v || 'La fecha de inicio es requerida',
+    (v: string | null) => {
+        if (!v || form.id) return true
+        return v >= nowDatetime.value || 'No se pueden bloquear fechas pasadas'
+    },
+])
+
+const endTimeRules = computed(() => [
+    (v: string | null) => !!v || 'La fecha de fin es requerida',
+    (v: string | null) => {
+        if (!v) return true
+        if (form.start_time && v <= form.start_time)
+            return 'La fecha de fin debe ser posterior a la de inicio'
+        if (!form.id && v < nowDatetime.value)
+            return 'No se pueden bloquear fechas pasadas'
+        return true
+    },
+])
+
 const formatDateForInput = (val:string|null)=>{
     if(!val) return null;
     return val.replace(" ","T").slice(0,16);
@@ -306,12 +333,22 @@ console.log('BlockedPeriods:', props.blockedPeriods)
                                 <FormDescripcion v-model="form.reason" label="Motivo" :rules="[required]" />
                             </v-col>
                             <v-col cols="6">
-                                <v-text-field v-model="form.start_time" type="datetime-local" label="Inicio"
-                                    :rules="[required]" />
+                                <v-text-field
+                                    v-model="form.start_time"
+                                    type="datetime-local"
+                                    label="Inicio"
+                                    :min="!form.id ? nowDatetime : undefined"
+                                    :rules="startTimeRules"
+                                />
                             </v-col>
                             <v-col cols="6">
-                                <v-text-field v-model="form.end_time" type="datetime-local" label="Fin"
-                                    :rules="[required]" />
+                                <v-text-field
+                                    v-model="form.end_time"
+                                    type="datetime-local"
+                                    label="Fin"
+                                    :min="form.start_time ?? nowDatetime"
+                                    :rules="endTimeRules"
+                                />
                             </v-col>
                         </v-row>
                     </v-card-text>

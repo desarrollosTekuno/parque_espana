@@ -34,6 +34,20 @@ class ClinicalHistoryRequest extends FormRequest
         ]);
     }
 
+    public function messages(): array
+    {
+        return [
+            'emergency_contact_name.regex'   => 'El nombre solo puede contener letras y espacios.',
+            'emergency_notify_name.regex'    => 'El nombre solo puede contener letras y espacios.',
+            'treating_physician.regex'       => 'El nombre del médico solo puede contener letras y espacios.',
+            'emergency_contact_phone.digits' => 'El teléfono debe tener exactamente 10 dígitos.',
+            'emergency_contact_mobile.digits'=> 'El celular debe tener exactamente 10 dígitos.',
+            'treating_physician_phone.digits'=> 'El teléfono debe tener exactamente 10 dígitos.',
+            'social_security_number.digits'  => 'El NSS debe tener exactamente 11 dígitos.',
+            'insurance_mobile.digits'        => 'El celular debe tener exactamente 10 dígitos.',
+        ];
+    }
+
     public function rules(): array
     {
         return [
@@ -52,17 +66,17 @@ class ClinicalHistoryRequest extends FormRequest
                 'normal_blood_pressure'    => ['nullable', 'boolean'],
                 'has_hypertension'         => ['boolean'],
                 'special_conditions'       => ['nullable', 'string', 'max:2000'],
-                'emergency_contact_name'   => ['nullable', 'string', 'max:255'],
-                'emergency_contact_phone'  => ['nullable', 'string', 'max:50'],
-                'emergency_contact_mobile' => ['nullable', 'string', 'max:50'],
-                'emergency_notify_name'    => ['nullable', 'string', 'max:255'],
-                'treating_physician'       => ['nullable', 'string', 'max:255'],
-                'treating_physician_phone' => ['nullable', 'string', 'max:50'],
-                'social_security_number'   => ['nullable', 'string', 'max:100'],
+                'emergency_contact_name'   => ['nullable', 'string', 'max:255', 'regex:/^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s.\'\-`]+$/u'],
+                'emergency_contact_phone'  => ['nullable', 'digits:10'],
+                'emergency_contact_mobile' => ['nullable', 'digits:10'],
+                'emergency_notify_name'    => ['nullable', 'string', 'max:255', 'regex:/^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s.\'\-`]+$/u'],
+                'treating_physician'       => ['nullable', 'string', 'max:255', 'regex:/^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s.\'\-`]+$/u'],
+                'treating_physician_phone' => ['nullable', 'digits:10'],
+                'social_security_number'   => ['nullable', 'digits:11'],
                 'medical_insurance'        => ['nullable', 'string', 'max:255'],
                 'insurance_company'        => ['nullable', 'string', 'max:255'],
                 'insurance_policy_number'  => ['nullable', 'string', 'max:100'],
-                'insurance_mobile'         => ['nullable', 'string', 'max:50'],
+                'insurance_mobile'         => ['nullable', 'digits:10'],
         ];
     }
 }

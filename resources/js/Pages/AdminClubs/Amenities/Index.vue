@@ -817,6 +817,24 @@ const openLocationsModal = (resource: any) => {
     showLocationsModal.value = true
 }
 
+// Solo permite dígitos, punto decimal, signo negativo y teclas de control
+const COORD_CONTROL_KEYS = [
+    'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight',
+    'Tab', 'Enter', 'Home', 'End', 'Control', 'Meta', 'Shift', '.', '-',
+]
+const blockNonCoord = (e: KeyboardEvent) => {
+    if (e.ctrlKey || e.metaKey) return
+    if (!COORD_CONTROL_KEYS.includes(e.key) && !/^\d$/.test(e.key)) {
+        e.preventDefault()
+    }
+}
+const handleCoordPaste = (e: ClipboardEvent, field: 'latitude' | 'longitude', index: number) => {
+    e.preventDefault()
+    const raw = e.clipboardData?.getData('text/plain') ?? ''
+    const clean = raw.replace(/[^\d.\-]/g, '')
+    locationsForm.locations[index][field] = clean === '' ? null : (Number(clean) as any)
+}
+
 const addCoordinate = () => {
     locationsForm.locations.push({ latitude: null, longitude: null })
 }
@@ -1208,7 +1226,7 @@ const downloadQr = (resourceId: number) => {
                                     <v-tooltip text="Descargar QR" location="top">
                                         <template #activator="{ props }">
                                             <v-btn
-                                                v-if="can.includes('amenityResource.generateQr')"
+                                                v-if="can.includes('amenityResource.generateQr') && item.locations?.length > 0"
                                                 v-bind="props"
                                                 icon="mdi-qrcode-scan"
                                                 variant="text"
@@ -1511,10 +1529,26 @@ const downloadQr = (resourceId: number) => {
                             <div class="text-body-2 font-weight-medium mb-2">Ubicación {{ index + 1 }}</div>
                             <v-row>
                                 <v-col cols="5">
-                                    <v-text-field v-model="loc.latitude" label="Latitud" type="number" step="any" density="compact" />
+                                    <v-text-field
+                                        v-model="loc.latitude"
+                                        label="Latitud"
+                                        type="number"
+                                        step="any"
+                                        density="compact"
+                                        @keydown="blockNonCoord"
+                                        @paste="e => handleCoordPaste(e, 'latitude', index)"
+                                    />
                                 </v-col>
                                 <v-col cols="5">
-                                    <v-text-field v-model="loc.longitude" label="Longitud" type="number" step="any" density="compact" />
+                                    <v-text-field
+                                        v-model="loc.longitude"
+                                        label="Longitud"
+                                        type="number"
+                                        step="any"
+                                        density="compact"
+                                        @keydown="blockNonCoord"
+                                        @paste="e => handleCoordPaste(e, 'longitude', index)"
+                                    />
                                 </v-col>
                                 <v-col cols="2" class="d-flex align-center">
                                     <v-btn icon="mdi-delete" color="error" variant="text" size="small" @click="removeCoordinate(index)" />
@@ -1540,7 +1574,7 @@ const downloadQr = (resourceId: number) => {
                                 Agregar ubicación
                             </v-btn>
                             <BaseButton
-                                v-if="can.includes('amenityResource.generateQr')"
+                                v-if="can.includes('amenityResource.generateQr') && locationsResource?.locations?.length > 0"
                                 action="custom" icon="mdi-qrcode-scan" text="Descargar QR"
                                 :icon-only="false"
                                 @click="downloadQr(locationsResource.id)"

@@ -281,9 +281,9 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                             <div v-if="currentLogoUrl && !form.logo" class="mb-3 d-flex align-center ga-3">
                                 <v-img
                                     :src="currentLogoUrl"
-                                    width="72"
-                                    height="72"
-                                    cover
+                                    height="150"
+                                    width="250"
+                                    countain
                                     rounded="lg"
                                     class="border"
                                 />

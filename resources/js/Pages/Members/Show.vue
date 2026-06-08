@@ -694,8 +694,41 @@ const loadClinicalHistories = async () => {
     }
 };
 
+// ── Reglas de validación clínica ─────────────────────────────────────────────
+const clinicalNameRule = (v: string | null) =>
+    !v || /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s.'`\-]+$/.test(v) || 'Solo se permiten letras y espacios';
+
+const clinicalPhoneRule = (v: string | null) =>
+    !v || /^\d{10}$/.test(v) || 'Debe tener exactamente 10 dígitos';
+
+const clinicalNssRule = (v: string | null) =>
+    !v || /^\d{11}$/.test(v) || 'El NSS debe tener exactamente 11 dígitos';
+
+// Bloquea cualquier tecla que no sea dígito (permite teclas de control)
+const ALLOWED_CONTROL_KEYS = [
+    'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight',
+    'Tab', 'Enter', 'Home', 'End', 'Control', 'Meta', 'Shift',
+];
+const blockNonDigit = (e: KeyboardEvent) => {
+    if (e.ctrlKey || e.metaKey) return; // permitir Ctrl+C, Ctrl+V, Ctrl+A
+    if (!ALLOWED_CONTROL_KEYS.includes(e.key) && !/^\d$/.test(e.key)) {
+        e.preventDefault();
+    }
+};
+
+// Limpia pegado: solo extrae dígitos hasta el máximo permitido
+const handleDigitPaste = (e: ClipboardEvent, field: keyof ClinicalHistoryData, maxLen: number) => {
+    e.preventDefault();
+    const raw = e.clipboardData?.getData('text/plain') ?? '';
+    const clean = raw.replace(/\D/g, '').slice(0, maxLen);
+    clinicalForm.value[field] = clean as any;
+};
+
 const saveClinicalHistory = async () => {
     if (!clinicalSelectedMemberId.value) return;
+
+    const result = await clinicalFormRef.value?.validate();
+    if (!result?.valid) return;
 
     clinicalSaving.value = true;
     try {
@@ -1418,7 +1451,7 @@ const letterRules = [
                                                 <v-col cols="12" sm="6" md="4">
                                                     <div class="d-flex align-center ga-4">
                                                         <span class="text-body-2 flex-grow-1">Diabetes</span>
-                                                        <v-btn-toggle v-model="clinicalForm.has_diabetes" density="compact" variant="outlined" divided mandatory>
+                                                        <v-btn-toggle v-model="clinicalForm.has_diabetes" density="compact" variant="outlined" divided mandatory color="#0a2540" selected-class="clinical-btn-active">
                                                             <v-btn :value="true" size="small">Sí</v-btn>
                                                             <v-btn :value="false" size="small">No</v-btn>
                                                         </v-btn-toggle>
@@ -1437,7 +1470,7 @@ const letterRules = [
                                                 <v-col cols="12" sm="6" md="4">
                                                     <div class="d-flex align-center ga-4">
                                                         <span class="text-body-2 flex-grow-1">Cardiopatía</span>
-                                                        <v-btn-toggle v-model="clinicalForm.has_heart_condition" density="compact" variant="outlined" divided mandatory>
+                                                        <v-btn-toggle v-model="clinicalForm.has_heart_condition" density="compact" variant="outlined" divided mandatory color="#0a2540" selected-class="clinical-btn-active">
                                                             <v-btn :value="true" size="small">Sí</v-btn>
                                                             <v-btn :value="false" size="small">No</v-btn>
                                                         </v-btn-toggle>
@@ -1446,7 +1479,7 @@ const letterRules = [
                                                 <v-col cols="12" sm="6" md="4">
                                                     <div class="d-flex align-center ga-4">
                                                         <span class="text-body-2 flex-grow-1">Epilepsia</span>
-                                                        <v-btn-toggle v-model="clinicalForm.has_epilepsy" density="compact" variant="outlined" divided mandatory>
+                                                        <v-btn-toggle v-model="clinicalForm.has_epilepsy" density="compact" variant="outlined" divided mandatory color="#0a2540" selected-class="clinical-btn-active">
                                                             <v-btn :value="true" size="small">Sí</v-btn>
                                                             <v-btn :value="false" size="small">No</v-btn>
                                                         </v-btn-toggle>
@@ -1455,7 +1488,7 @@ const letterRules = [
                                                 <v-col cols="12" sm="6" md="4">
                                                     <div class="d-flex align-center ga-4">
                                                         <span class="text-body-2 flex-grow-1">Asma</span>
-                                                        <v-btn-toggle v-model="clinicalForm.has_asthma" density="compact" variant="outlined" divided mandatory>
+                                                        <v-btn-toggle v-model="clinicalForm.has_asthma" density="compact" variant="outlined" divided mandatory color="#0a2540" selected-class="clinical-btn-active">
                                                             <v-btn :value="true" size="small">Sí</v-btn>
                                                             <v-btn :value="false" size="small">No</v-btn>
                                                         </v-btn-toggle>
@@ -1464,7 +1497,7 @@ const letterRules = [
                                                 <v-col cols="12" sm="6" md="4">
                                                     <div class="d-flex align-center ga-4">
                                                         <span class="text-body-2 flex-grow-1">Alergia</span>
-                                                        <v-btn-toggle v-model="clinicalForm.has_allergy" density="compact" variant="outlined" divided mandatory>
+                                                        <v-btn-toggle v-model="clinicalForm.has_allergy" density="compact" variant="outlined" divided mandatory color="#0a2540" selected-class="clinical-btn-active">
                                                             <v-btn :value="true" size="small">Sí</v-btn>
                                                             <v-btn :value="false" size="small">No</v-btn>
                                                         </v-btn-toggle>
@@ -1479,7 +1512,7 @@ const letterRules = [
                                                 <v-col cols="12" sm="6" md="4">
                                                     <div class="d-flex align-center ga-4">
                                                         <span class="text-body-2 flex-grow-1">¿Toma medicamentos?</span>
-                                                        <v-btn-toggle v-model="clinicalForm.takes_medication" density="compact" variant="outlined" divided mandatory>
+                                                        <v-btn-toggle v-model="clinicalForm.takes_medication" density="compact" variant="outlined" divided mandatory color="#0a2540" selected-class="clinical-btn-active">
                                                             <v-btn :value="true" size="small">Sí</v-btn>
                                                             <v-btn :value="false" size="small">No</v-btn>
                                                         </v-btn-toggle>
@@ -1504,7 +1537,7 @@ const letterRules = [
                                                 <v-col cols="12" sm="6" md="5">
                                                     <div class="d-flex align-center ga-4">
                                                         <span class="text-body-2 flex-grow-1">Polen, polvo, caspa animal, alimentos, etc.</span>
-                                                        <v-btn-toggle v-model="clinicalForm.has_allergens" density="compact" variant="outlined" divided mandatory>
+                                                        <v-btn-toggle v-model="clinicalForm.has_allergens" density="compact" variant="outlined" divided mandatory color="#0a2540" selected-class="clinical-btn-active">
                                                             <v-btn :value="true" size="small">Sí</v-btn>
                                                             <v-btn :value="false" size="small">No</v-btn>
                                                         </v-btn-toggle>
@@ -1529,7 +1562,7 @@ const letterRules = [
                                                 <v-col cols="12" sm="6" md="4">
                                                     <div class="d-flex align-center ga-4">
                                                         <span class="text-body-2 flex-grow-1">Normal</span>
-                                                        <v-btn-toggle v-model="clinicalForm.normal_blood_pressure" density="compact" variant="outlined" divided>
+                                                        <v-btn-toggle v-model="clinicalForm.normal_blood_pressure" density="compact" variant="outlined" divided color="#0a2540" selected-class="clinical-btn-active">
                                                             <v-btn :value="true" size="small">Sí</v-btn>
                                                             <v-btn :value="false" size="small">No</v-btn>
                                                         </v-btn-toggle>
@@ -1538,7 +1571,7 @@ const letterRules = [
                                                 <v-col cols="12" sm="6" md="4">
                                                     <div class="d-flex align-center ga-4">
                                                         <span class="text-body-2 flex-grow-1">Hipertensión</span>
-                                                        <v-btn-toggle v-model="clinicalForm.has_hypertension" density="compact" variant="outlined" divided mandatory>
+                                                        <v-btn-toggle v-model="clinicalForm.has_hypertension" density="compact" variant="outlined" divided mandatory color="#0a2540" selected-class="clinical-btn-active">
                                                             <v-btn :value="true" size="small">Sí</v-btn>
                                                             <v-btn :value="false" size="small">No</v-btn>
                                                         </v-btn-toggle>
@@ -1572,6 +1605,7 @@ const letterRules = [
                                                         label="Nombre"
                                                         density="compact"
                                                         variant="outlined"
+                                                        :rules="[clinicalNameRule]"
                                                     />
                                                 </v-col>
                                                 <v-col cols="12" sm="3">
@@ -1580,6 +1614,10 @@ const letterRules = [
                                                         label="Teléfono"
                                                         density="compact"
                                                         variant="outlined"
+                                                        maxlength="10"
+                                                        :rules="[clinicalPhoneRule]"
+                                                        @keydown="blockNonDigit"
+                                                        @paste="e => handleDigitPaste(e, 'emergency_contact_phone', 10)"
                                                     />
                                                 </v-col>
                                                 <v-col cols="12" sm="3">
@@ -1588,6 +1626,10 @@ const letterRules = [
                                                         label="Celular"
                                                         density="compact"
                                                         variant="outlined"
+                                                        maxlength="10"
+                                                        :rules="[clinicalPhoneRule]"
+                                                        @keydown="blockNonDigit"
+                                                        @paste="e => handleDigitPaste(e, 'emergency_contact_mobile', 10)"
                                                     />
                                                 </v-col>
                                                 <v-col cols="12" sm="6">
@@ -1596,6 +1638,7 @@ const letterRules = [
                                                         label="En caso necesario, informar a"
                                                         density="compact"
                                                         variant="outlined"
+                                                        :rules="[clinicalNameRule]"
                                                     />
                                                 </v-col>
                                             </v-row>
@@ -1610,6 +1653,7 @@ const letterRules = [
                                                         label="Nombre del médico"
                                                         density="compact"
                                                         variant="outlined"
+                                                        :rules="[clinicalNameRule]"
                                                     />
                                                 </v-col>
                                                 <v-col cols="12" sm="3">
@@ -1618,6 +1662,10 @@ const letterRules = [
                                                         label="Teléfono"
                                                         density="compact"
                                                         variant="outlined"
+                                                        maxlength="10"
+                                                        :rules="[clinicalPhoneRule]"
+                                                        @keydown="blockNonDigit"
+                                                        @paste="e => handleDigitPaste(e, 'treating_physician_phone', 10)"
                                                     />
                                                 </v-col>
                                             </v-row>
@@ -1632,6 +1680,10 @@ const letterRules = [
                                                         label="Número de Seguridad Social (NSS)"
                                                         density="compact"
                                                         variant="outlined"
+                                                        maxlength="11"
+                                                        :rules="[clinicalNssRule]"
+                                                        @keydown="blockNonDigit"
+                                                        @paste="e => handleDigitPaste(e, 'social_security_number', 11)"
                                                     />
                                                 </v-col>
                                                 <v-col cols="12" sm="6">
@@ -1664,6 +1716,10 @@ const letterRules = [
                                                         label="Celular del seguro"
                                                         density="compact"
                                                         variant="outlined"
+                                                        maxlength="10"
+                                                        :rules="[clinicalPhoneRule]"
+                                                        @keydown="blockNonDigit"
+                                                        @paste="e => handleDigitPaste(e, 'insurance_mobile', 10)"
                                                     />
                                                 </v-col>
                                             </v-row>
@@ -2276,6 +2332,20 @@ const letterRules = [
 }
 .swal2-container {
     z-index: 999999 !important;
+}
+.v-btn-group--density-compact.v-btn-group {
+  height: 36px;
+  border: #0a2540;
+}
+
+/* ── Historia Clínica: toggle activo sólido ── */
+.clinical-btn-active {
+    background-color: #0a2540 !important;
+    color: #ffffff !important;
+    opacity: 1 !important;
+}
+.clinical-btn-active .v-btn__content {
+    color: #ffffff !important;
 }
 </style>
 
