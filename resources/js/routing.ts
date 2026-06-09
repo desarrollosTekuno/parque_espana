@@ -30,6 +30,13 @@ const routes: Routing[] = [
         group: null,
     },
     {
+        name: ["club-settings.edit"],
+        title: "Mi Club",
+        icon: "mdi-office-building-cog",
+        value: "mi-club",
+        group: null,
+    },
+    {
         name: [
             "membership-types.index",
             "document-types.index",

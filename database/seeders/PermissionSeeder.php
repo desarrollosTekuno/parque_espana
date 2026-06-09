@@ -32,6 +32,8 @@ class PermissionSeeder extends Seeder
             ['module' => 'Clubes', 'name' => 'clubs.store', 'description' => 'Crear clubes', 'contexts' => ['web']],
             ['module' => 'Clubes', 'name' => 'clubs.update', 'description' => 'Actualizar clubes', 'contexts' => ['web']],
             ['module' => 'Clubes', 'name' => 'clubs.destroy', 'description' => 'Eliminar clubes', 'contexts' => ['web']],
+            ['module' => 'Clubes', 'name' => 'club-settings.edit', 'description' => 'Editar configuración del club', 'contexts' => ['web']],
+            ['module' => 'Clubes', 'name' => 'club-settings.update', 'description' => 'Actualizar configuración del club', 'contexts' => ['web']],
 
             // Amenidades
             ['module' => 'Amenidades', 'name' => 'amenities.index', 'description' => 'Ver amenidades', 'contexts' => ['web']],

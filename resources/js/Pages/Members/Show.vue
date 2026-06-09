@@ -190,10 +190,22 @@ const fetchHistory = async () => {
     }
 };
 
-onMounted(fetchHistory);
+onMounted(() => {
+    fetchHistory();
+    if (membersWithDocs.value.length > 0) {
+        docsSelectedMemberId.value = membersWithDocs.value[0].member_id;
+    }
+});
 
 const activeTab = ref('cuenta');
 
+const docsSelectedMemberId = ref<number | null>(null);
+const membersWithDocs = computed(() =>
+    props.account.members.filter(m => m.documents?.length)
+);
+const currentDocsMember = computed(() =>
+    membersWithDocs.value.find(m => m.member_id === docsSelectedMemberId.value) ?? null
+);
 // ─── Dialog: editar número de cuenta interno ──────────────────────────────────
 const showInternalNumberDialog = ref(false);
 const internalNumberForm = useForm({
@@ -1125,67 +1137,73 @@ console.log(can)
                                 <v-card class="pa-4">
                                     <div class="text-subtitle-1 font-weight-bold mb-4">Documentación</div>
 
-                                    <div v-if="!props.account.members.some(m => m.documents?.length)" class="text-body-2 text-medium-emphasis">
+                                    <div v-if="!membersWithDocs.length" class="text-body-2 text-medium-emphasis">
                                         No hay documentos requeridos configurados para este tipo de membresía.
                                     </div>
 
-                                    <div v-else>
-                                        <div
-                                            v-for="member in props.account.members.filter(m => m.documents?.length)"
-                                            :key="`docs-${member.member_id}`"
-                                            class="mb-6"
+                                    <template v-else>
+                                        <!-- Tabs de integrantes (solo cuando hay más de uno) -->
+                                        <v-tabs
+                                            v-if="membersWithDocs.length > 1"
+                                            v-model="docsSelectedMemberId"
+                                            color="primary"
+                                            density="compact"
+                                            class="mb-4"
                                         >
-                                            <div class="d-flex align-center ga-2 mb-3">
-                                                <v-icon size="small" color="primary">mdi-account</v-icon>
-                                                <span class="font-weight-medium">{{ member.full_name }}</span>
-                                                <v-chip size="x-small" variant="tonal" color="primary" v-if="member.is_primary_holder">Titular</v-chip>
-                                                <v-chip size="x-small" variant="tonal" v-else>{{ member.relationship_name }}</v-chip>
-                                            </div>
-                                            <v-row dense>
-                                                <v-col v-for="doc in member.documents" :key="doc.document_type_id" cols="12" sm="6" md="4">
-                                                    <v-card variant="outlined" class="pa-3 h-100 d-flex flex-column"
-                                                        :color="!doc.already_uploaded && doc.is_required ? 'error' : undefined">
-                                                        <div class="d-flex align-center justify-space-between mb-2 flex-wrap ga-1">
-                                                            <span class="text-body-2 font-weight-medium">
-                                                                {{ doc.name }}<span v-if="doc.is_required" class="text-error">*</span>
-                                                            </span>
-                                                            <v-chip size="x-small" :color="doc.already_uploaded ? 'success' : 'warning'"
-                                                                :prepend-icon="doc.already_uploaded ? 'mdi-check-circle' : 'mdi-alert-circle'" variant="tonal">
-                                                                {{ doc.already_uploaded ? 'Completo' : 'Pendiente' }}
-                                                            </v-chip>
-                                                        </div>
-                                                        <div class="text-caption text-medium-emphasis mb-2">
-                                                            {{ doc.allowed_extensions.join(', ').toUpperCase() }}
-                                                            <template v-if="doc.allow_multiple"> · {{ doc.uploaded_docs.length }}/{{ doc.number_files }} archivo(s)</template>
-                                                        </div>
-                                                        <div v-if="doc.uploaded_docs.length" class="mb-3">
-                                                            <div v-for="(uploaded, idx) in doc.uploaded_docs" :key="uploaded.id"
-                                                                class="d-flex align-center justify-space-between py-1">
-                                                                <span class="text-caption text-medium-emphasis">
-                                                                    {{ doc.allow_multiple ? `Archivo ${idx + 1}` : 'Documento' }}
-                                                                    <template v-if="uploaded.uploaded_at"> · {{ uploaded.uploaded_at }}</template>
-                                                                </span>
-                                                                <v-btn v-if="uploaded.url" size="x-small" variant="text" color="primary" prepend-icon="mdi-eye" :href="uploaded.url" target="_blank">
-                                                                    Ver
-                                                                </v-btn>
+                                            <v-tab
+                                                v-for="m in membersWithDocs"
+                                                :key="m.member_id"
+                                                :value="m.member_id"
+                                            >
+                                                {{ m.full_name }}
+                                                <v-icon v-if="m.is_primary_holder" size="14" class="ml-1">mdi-star</v-icon>
+                                            </v-tab>
+                                        </v-tabs>
 
-                                                                <v-btn v-else size="x-small" variant="text" color="primary" prepend-icon="mdi-eye" @click="viewDocument(uploaded.id)">
-                                                                    Ver
-                                                                </v-btn>
-                                                            </div>
+                                        <v-row dense v-if="currentDocsMember">
+                                            <v-col v-for="doc in currentDocsMember.documents" :key="doc.document_type_id" cols="12" sm="6" md="4">
+                                                <v-card variant="outlined" class="pa-3 h-100 d-flex flex-column"
+                                                    :color="!doc.already_uploaded && doc.is_required ? 'error' : undefined">
+                                                    <div class="d-flex align-center justify-space-between mb-2 flex-wrap ga-1">
+                                                        <span class="text-body-2 font-weight-medium">
+                                                            {{ doc.name }}<span v-if="doc.is_required" class="text-error">*</span>
+                                                        </span>
+                                                        <v-chip size="x-small" :color="doc.already_uploaded ? 'success' : 'warning'"
+                                                            :prepend-icon="doc.already_uploaded ? 'mdi-check-circle' : 'mdi-alert-circle'" variant="tonal">
+                                                            {{ doc.already_uploaded ? 'Completo' : 'Pendiente' }}
+                                                        </v-chip>
+                                                    </div>
+                                                    <div class="text-caption text-medium-emphasis mb-2">
+                                                        {{ doc.allowed_extensions.join(', ').toUpperCase() }}
+                                                        <template v-if="doc.allow_multiple"> · {{ doc.uploaded_docs.length }}/{{ doc.number_files }} archivo(s)</template>
+                                                    </div>
+                                                    <div v-if="doc.uploaded_docs.length" class="mb-3">
+                                                        <div v-for="(uploaded, idx) in doc.uploaded_docs" :key="uploaded.id"
+                                                            class="d-flex align-center justify-space-between py-1">
+                                                            <span class="text-caption text-medium-emphasis">
+                                                                {{ doc.allow_multiple ? `Archivo ${idx + 1}` : 'Documento' }}
+                                                                <template v-if="uploaded.uploaded_at"> · {{ uploaded.uploaded_at }}</template>
+                                                            </span>
+                                                            <v-btn v-if="uploaded.url" size="x-small" variant="text" color="primary" prepend-icon="mdi-eye" :href="uploaded.url" target="_blank">
+                                                                Ver
+                                                            </v-btn>
+
+                                                            <v-btn v-else size="x-small" variant="text" color="primary" prepend-icon="mdi-eye" @click="viewDocument(uploaded.id)">
+                                                                Ver
+                                                            </v-btn>
                                                         </div>
-                                                        <v-spacer />
-                                                        <v-btn v-if="can.includes('members.documents.store')" size="small"
-                                                            :color="doc.already_uploaded ? 'default' : 'primary'" variant="tonal"
-                                                            :prepend-icon="doc.already_uploaded ? 'mdi-refresh' : 'mdi-upload'"
-                                                            @click="openDocumentModal(member, doc)">
-                                                            {{ doc.already_uploaded ? 'Reemplazar' : 'Subir' }}
-                                                        </v-btn>
-                                                    </v-card>
-                                                </v-col>
-                                            </v-row>    
-                                        </div>
-                                    </div>
+                                                    </div>
+                                                    <v-spacer />
+                                                    <v-btn v-if="can.includes('members.documents.store')" size="small"
+                                                        :color="doc.already_uploaded ? 'default' : 'primary'" variant="tonal"
+                                                        :prepend-icon="doc.already_uploaded ? 'mdi-refresh' : 'mdi-upload'"
+                                                        @click="openDocumentModal(currentDocsMember, doc)">
+                                                        {{ doc.already_uploaded ? 'Reemplazar' : 'Subir' }}
+                                                    </v-btn>
+                                                </v-card>
+                                            </v-col>
+                                        </v-row>
+                                    </template>
                                 </v-card>
                             </v-window-item>
 
