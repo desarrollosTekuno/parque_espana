@@ -48,6 +48,11 @@ class PermissionSeeder extends Seeder
             ['module' => 'Amenidades', 'name' => 'blockedPeriods.update', 'description' => 'Actualizar bloqueos', 'contexts' => ['web']],
             ['module' => 'Amenidades', 'name' => 'blockedPeriods.destroy', 'description' => 'Eliminar bloqueos', 'contexts' => ['web']],
             ['module' => 'Amenidades', 'name' => 'amenitySchedule.store', 'description' => 'Crear horarios de amenidad', 'contexts' => ['web']],
+            
+            // Generador de qr para los recursos de las amenidades
+            ['module' => 'Amenidades', 'name' => 'amenityResource.generateQr', 'description' => 'Generar código QR para recurso de amenidad', 'contexts' => ['web']],   
+            ['module' => 'Amenidades', 'name' => 'amenityResource.downloadQrPdf', 'description' => 'Descargar código QR en PDF', 'contexts' => ['web']],
+            ['module' => 'Amenidades', 'name' => 'amenityResource.downloadQr', 'description' => 'Descargar código QR para recurso de amenidad', 'contexts' => ['web']],
 
             // Reservaciones
             ['module' => 'Reservaciones', 'name' => 'reservations.index', 'description' => 'Ver reservaciones', 'contexts' => ['web']],
@@ -104,6 +109,15 @@ class PermissionSeeder extends Seeder
             ['module' => 'Membresías', 'name' => 'membership-types.update', 'description' => 'Actualizar tipos de membresía', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'membership-types.destroy', 'description' => 'Eliminar tipos de membresía', 'contexts' => ['web']],
 
+            //Pestañas de gestión
+            ['module' => 'Gestión de membresías', 'name' => 'accounts.view', 'description' => 'Consultar información general de la cuenta.', 'contexts' => ['web']],
+            ['module' => 'Gestión de membresías', 'name' => 'members.view', 'description' => 'Visualizar y gestionar la información de los integrantes asociados a la cuenta.', 'contexts' => ['web']],
+            ['module' => 'Gestión de membresías', 'name' => 'documents.view', 'description' => 'Acceder a los documentos relacionados con la cuenta y sus integrantes.', 'contexts' => ['web']],
+            ['module' => 'Gestión de membresías', 'name' => 'absences.view', 'description' => 'Visualizar y gestionar las ausencias de los integrantes asociados a la cuenta.', 'contexts' => ['web']],
+            ['module' => 'Gestión de membresías', 'name' => 'clinical-history.view', 'description' => 'Visualizar y gestionar la historia clínica de los integrantes asociados a la cuenta.', 'contexts' => ['web']],
+            ['module' => 'Gestión de membresías', 'name' => 'history.view', 'description' => 'Visualizar y gestionar el historial de la cuenta.', 'contexts' => ['web']],
+            ['module' => 'Gestión de membresías', 'name' => 'lockers-history.view', 'description' => 'Visualizar y gestionar el historial de casilleros de la cuenta.', 'contexts' => ['web']],
+
             // Membresías
             ['module' => 'Membresías', 'name' => 'members.index', 'description' => 'Ver usuarios del club', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.create', 'description' => 'Crear usuarios del club', 'contexts' => ['web']],
@@ -123,16 +137,21 @@ class PermissionSeeder extends Seeder
             ['module' => 'Membresías', 'name' => 'members.lockers.change', 'description' => 'Cambiar casillero', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.lockers.remove', 'description' => 'Cancelar asignación de casillero', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.lockers.reserve', 'description' => 'Reservar casillero', 'contexts' => ['web']],
-            ['module' => 'Membresías', 'name' => 'members.lockers.cancel', 'description' => 'Cancelar reservación de casillero', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'lockers.available', 'description' => 'Ver casilleros disponibles', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'lockers.assigned.by.account', 'description' => 'Ver casilleros asignados a una cuenta', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'lockers.available.for.change', 'description' => 'Ver casilleros disponibles para cambio', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'members.lockers.history', 'description' => 'Ver historial de cambios de casillero', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'members.lockers.change', 'description' => 'Cambiar casillero', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'members.lockers.remove', 'description' => 'Remover casillero a usuario', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'acts.index', 'description' => 'Ver multas y/o actas', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'acts.store', 'description' => 'Guardar multas y/o actas', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'acts.update', 'description' => 'Actualizar multas y/o actas', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'member-access.index', 'description' => 'Ver acceso de miembros', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'member-access.store', 'description' => 'Asignar acceso a miembros', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'member-access.destroy', 'description' => 'Revocar acceso a miembros', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'members.cancel.create', 'description' => 'Dar de baja membresía', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'members.additional-membership.create', 'description' => 'Agregar nueva membresía', 'contexts' => ['web']],
+
             // Cobranza
             ['module' => 'Cobranza', 'name' => 'billing.index', 'description' => 'Ver módulo de cobranza', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'billing.charges.index', 'description' => 'Ver desglose de cargos pendientes', 'contexts' => ['web']],
@@ -191,6 +210,7 @@ class PermissionSeeder extends Seeder
             ['module' => 'App Móvil', 'name' => 'mobile.billing.show', 'description' => 'Ver estado de cuenta', 'contexts' => ['mobile_club_1', 'mobile_club_2']],
             ['module' => 'App Móvil', 'name' => 'mobile.announcements.index', 'description' => 'Ver anuncios del club', 'contexts' => ['mobile_club_1', 'mobile_club_2']],
             ['module' => 'App Móvil', 'name' => 'mobile.rules.index', 'description' => 'Ver reglamento del club', 'contexts' => ['mobile_club_1', 'mobile_club_2']],
+
             // Feedback movil
             ['module' => 'App Móvil', 'name' => 'mobile.feedback.index', 'description' => 'Ver mis tickets de quejas y sugerencias', 'contexts' => ['mobile_club_1', 'mobile_club_2']],
             ['module' => 'App Móvil', 'name' => 'mobile.feedback.store', 'description' => 'Crear ticket de quejas y sugerencias', 'contexts' => ['mobile_club_1', 'mobile_club_2']],
@@ -242,8 +262,9 @@ class PermissionSeeder extends Seeder
             ['module' => 'Archivos', 'name' => 'files.update', 'description' => 'Editar formato de archivo', 'contexts' => ['Web']],
             ['module' => 'Archivos', 'name' => 'files.destroy', 'description' => 'Eliminar formato de archivo', 'contexts' => ['Web']],
             ['module' => 'Archivos', 'name' => 'files.club-file.upload', 'description' => 'Subir archivo del club', 'contexts' => ['Web']],
-            ['module' => 'Archivos', 'name' => 'files.club-file.destroy', 'description' => 'Eliminar archivo del club', 'contexts' => ['Web']]
-        ];
+            ['module' => 'Archivos', 'name' => 'files.club-file.destroy', 'description' => 'Eliminar archivo del club', 'contexts' => ['Web']],
+            ['module' => 'Archivos', 'name' => 'files.variables', 'description' => 'Extracción de variables en Formato', 'contexts' => ['Web']]
+            ];
 
         foreach ($permissions as $permission) {
             $record = Permission::updateOrCreate(

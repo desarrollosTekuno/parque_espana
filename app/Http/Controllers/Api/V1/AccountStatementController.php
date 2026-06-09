@@ -45,6 +45,7 @@ class AccountStatementController extends Controller
             'month'    => ['required_if:period,month', 'nullable', 'integer', 'min:1', 'max:12'],
             'quarter'  => ['required_if:period,quarter', 'nullable', 'integer', 'min:1', 'max:4'],
             'per_page' => ['sometimes', 'integer', 'min:1', 'max:50'],
+            'filter'   => ['sometimes', 'nullable', 'in:pending,paid'],
         ]);
 
         // ── 1. Socio ──────────────────────────────────────────────────────
@@ -85,19 +86,23 @@ class AccountStatementController extends Controller
         $account = $accountMember->membershipAccount;
         $params  = $this->resolvePeriodParams($request);
         $perPage = (int) $request->input('per_page', 15);
+        $filter  = $request->input('filter');          // null | 'pending' | 'paid'
 
-        // ── Query 1: resumen agregado por tipo de cargo (GROUP BY) ────────
+        // ── Query 1: resumen agregado (siempre sin filtro de status) ──────
+        // El semáforo y el resumen reflejan el periodo completo
+        // independientemente del filtro activo en la lista.
         $summary   = $this->fetchSummary($account->id, $params);
         $semaforo  = $this->calculateSemaforo($summary);
         $totalOwed = round((float) $summary->sum('total_pending'), 2);
 
-        // ── Query 2: cargos paginados con JOIN al concepto ────────────────
-        $paginator = $this->fetchCharges($account->id, $params, $perPage);
+        // ── Query 2: cargos paginados (con filtro opcional de status) ─────
+        $paginator = $this->fetchCharges($account->id, $params, $perPage, $filter);
 
         return response()->json([
             'success' => true,
             'data'    => [
                 'period'     => $this->buildPeriodMeta($params),
+                'filter'     => $filter,               // null = todos
                 'semaforo'   => $semaforo,
                 'total_owed' => $totalOwed,
                 'summary'    => $this->formatSummary($summary),
@@ -144,10 +149,12 @@ class AccountStatementController extends Controller
     /**
      * Cargos paginados con JOIN directo al concepto (sin query extra de relación).
      * simplePaginate: no ejecuta COUNT(*).
+     *
+     * @param string|null $filter  null = todos | 'pending' = pendientes+vencidos | 'paid' = pagados
      */
-    private function fetchCharges(int $accountId, array $params, int $perPage): \Illuminate\Pagination\Paginator
+    private function fetchCharges(int $accountId, array $params, int $perPage, ?string $filter): \Illuminate\Pagination\Paginator
     {
-        return Charge::query()
+        $query = Charge::query()
             ->select(
                 'billing.charges.*',
                 'con.code as concept_code',
@@ -156,9 +163,23 @@ class AccountStatementController extends Controller
             ->join('billing.concepts as con', 'con.id', '=', 'billing.charges.concept_id')
             ->where('billing.charges.membership_account_id', $accountId)
             ->whereNotIn('billing.charges.status', ['cancelled'])
-            ->where(fn($q) => $this->applyPeriodFilter($q, $params, 'billing.charges'))
-            ->orderBy('billing.charges.issue_date', 'desc')
-            ->orderBy('billing.charges.id', 'desc')
+            ->where(fn($q) => $this->applyPeriodFilter($q, $params, 'billing.charges'));
+
+        // ── Filtro de status ──────────────────────────────────────────────
+        match ($filter) {
+            'pending' => $query->whereIn('billing.charges.status', ['pending', 'partial']),
+            'paid'    => $query->where('billing.charges.status', 'paid'),
+            default   => null,   // sin filtro adicional
+        };
+
+        // Los pagados se ordenan por due_date desc (más reciente primero).
+        // Los pendientes/todos se ordenan por due_date asc (los que vencen
+        // antes aparecen primero, más útil para el socio).
+        $order = $filter === 'paid' ? 'desc' : 'asc';
+
+        return $query
+            ->orderBy('billing.charges.due_date', $order)
+            ->orderBy('billing.charges.id', $order)
             ->simplePaginate($perPage);
     }
 

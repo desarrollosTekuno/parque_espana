@@ -21,6 +21,7 @@ public function __construct()
     public function index(Member $member) 
     {
         $history = LockerAssignmentHistory::with([
+                'member:id,first_name,last_name',
                 'oldLocker:id,number',
                 'newLocker:id,number',
             ])
@@ -29,14 +30,22 @@ public function __construct()
             ->paginate(10);
 
         $history->getCollection()->transform(function ($item) {
+            //dd(Storage::disk('spaces')->url($item->file_path));
             return [
                 'id' => $item->id,
                 'created_at' => $item->created_at->toISOString(), 
                 'old_locker' => $item->oldLocker,
                 'new_locker' => $item->newLocker,
+                'member_name' => trim(
+                                ($item->member->first_name ?? '') . ' ' .
+                                ($item->member->last_name ?? '')
+                            ),
                 'file_url' => $item->file_path
-                    ? Storage::url($item->file_path)
-                    : null,
+                            ? Storage::disk('spaces')->temporaryUrl(
+                                $item->file_path,
+                                now()->addMinutes(30)
+                            )
+                            : null,
             ];
         });
 

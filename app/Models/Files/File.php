@@ -21,6 +21,25 @@ class File extends Model
         'is_active'          => 'boolean',
     ];
 
+    // Listado de módulos
+    public static function getModules(){
+        return [
+            "Administración", "Clubes", "Amenidades", "Reservaciones",
+            "Comunicación", "Sistema", "Membresías", "Cobranza",
+            "Encuestas", "Publicidad", "App Móvil",
+            "Listas de Invitados", "Archivos"
+        ];
+    }
+
+    public static function getCommonMimeTypes(){
+        return [
+            [ "title" => "Word (.docx)", "value" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ],
+            [ "title" => "Word (.doc)", "value" => "application/msword" ],
+            [ "title" => "Excel (.xls)", "value" =>  "application/vnd.ms-excel" ],
+            [ "title" => "Excel (.xlsx)", "value" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ]
+        ];
+    }
+
     public function clubFiles()
     {
         return $this->hasMany(ClubFile::class, 'file_id');

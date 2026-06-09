@@ -14,9 +14,6 @@ class PricingRuleSeeder extends Seeder
         DB::transaction(function () {
             $types = MembershipType::all()->keyBy('code');
 
-            // Keep the pricing matrix fully synchronized with the business rules.
-            PricingRule::query()->delete();
-
             foreach ($this->pricingMatrix() as $item) {
                 $membership = $types[$item['membership_code']] ?? null;
 
@@ -31,17 +28,21 @@ class PricingRuleSeeder extends Seeder
                         $fromMembershipId = $types[$rule['from_membership_code']]->id ?? null;
                     }
 
-                    PricingRule::create([
-                        'membership_type_id' => $membership->id,
-                        'from_membership_type_id' => $fromMembershipId,
-                        'min_age' => $rule['min_age'],
-                        'max_age' => $rule['max_age'],
-                        'requires_origin_family' => $rule['requires_origin_family'],
-                        'requires_multiple_clubs' => $rule['requires_multiple_clubs'],
-                        'monthly_fee' => $rule['monthly_fee'],
-                        'inscription_fee' => $rule['inscription_fee'],
-                        'priority' => $rule['priority'],
-                    ]);
+                    PricingRule::updateOrCreate(
+                        [
+                            'membership_type_id'      => $membership->id,
+                            'from_membership_type_id' => $fromMembershipId,
+                            'min_age'                 => $rule['min_age'],
+                            'max_age'                 => $rule['max_age'],
+                            'requires_origin_family'  => $rule['requires_origin_family'],
+                            'requires_multiple_clubs' => $rule['requires_multiple_clubs'],
+                        ],
+                        [
+                            'monthly_fee'     => $rule['monthly_fee'],
+                            'inscription_fee' => $rule['inscription_fee'],
+                            'priority'        => $rule['priority'],
+                        ]
+                    );
                 }
             }
         });
@@ -51,6 +52,7 @@ class PricingRuleSeeder extends Seeder
     {
         return array_merge(
             $this->pe1Rules(),
+            $this->pe1BenRules(),
             $this->pe2CategoryRules(),
             $this->pe2MonthlyPassRules(),
             $this->pe2PackageRules()
@@ -85,6 +87,39 @@ class PricingRuleSeeder extends Seeder
                 'rules' => [
                     $this->rule('PE1_FAM', 750, 0, 2, 24, 26, true),
                     $this->rule('PE1_FAM', 925, 0, 1, 24, 26, true, true),
+                ],
+            ],
+        ];
+    }
+
+    protected function pe1BenRules(): array
+    {
+        return [
+            [
+                'membership_code' => 'PE1_IND_BEN',
+                'rules' => [
+                    $this->rule(null, 1500, 21250, 6),
+                    $this->rule(null, 1850, 21250, 5, null, null, false, true),
+                    $this->rule('PE1_SOL_BEN', 1500, 0, 4),
+                    $this->rule('PE1_SOL_BEN', 1850, 0, 3, null, null, false, true),
+                    $this->rule('PE1_FAM_BEN', 1500, 0, 2),
+                    $this->rule('PE1_FAM_BEN', 1850, 0, 1, null, null, false, true),
+                ],
+            ],
+            [
+                'membership_code' => 'PE1_FAM_BEN',
+                'rules' => [
+                    $this->rule(null, 3000, 42500, 4),
+                    $this->rule('PE1_IND_BEN', 3000, 4800, 3),
+                    $this->rule(null, 3700, 42500, 2, null, null, false, true),
+                    $this->rule('PE1_IND_BEN', 3700, 4800, 1, null, null, false, true),
+                ],
+            ],
+            [
+                'membership_code' => 'PE1_SOL_BEN',
+                'rules' => [
+                    $this->rule('PE1_FAM_BEN', 750, 0, 2, 24, 26, true),
+                    $this->rule('PE1_FAM_BEN', 925, 0, 1, 24, 26, true, true),
                 ],
             ],
         ];

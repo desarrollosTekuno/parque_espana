@@ -40,7 +40,7 @@ return new class extends Migration
     public function down(): void
     {
         DB::statement("
-            DROP INDEX IF EXISTS club_files_unique_active
+            DROP INDEX IF EXISTS files.club_files_unique_active
         ");
         Schema::dropIfExists('files.club_files');
     }

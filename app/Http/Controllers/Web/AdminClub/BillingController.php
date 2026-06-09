@@ -11,6 +11,7 @@ use App\Models\AdminClub\BusinessAd;
 use App\Models\Billing\PaymentMethod;
 use App\Models\Members\LockerAssignment;
 use App\Models\Memberships\MembershipAccount;
+use App\Jobs\SendPushNotificationJob;
 use App\Rules\ExistsInSchema;
 use App\Services\Billing\PaymentRegistrationService;
 use Illuminate\Database\Eloquent\Builder;
@@ -22,7 +23,7 @@ use Inertia\Inertia;
 class BillingController extends Controller
 {
     public function __construct(
-        protected PaymentRegistrationService $paymentRegistrationService
+        protected PaymentRegistrationService $paymentRegistrationService,
     ) {
     }
 
@@ -65,6 +66,7 @@ class BillingController extends Controller
 
                 $accountQuery->where(function (Builder $query) use ($search, $like) {
                     $query->where('membership_number', $like, "%{$search}%")
+                        ->orWhere('internal_account_number', $like, "%{$search}%")
                         ->orWhereHas('primaryHolder.member', function (Builder $memberQuery) use ($search, $like) {
                             $memberQuery->where('first_name', $like, "%{$search}%")
                                 ->orWhere('last_name', $like, "%{$search}%")
@@ -159,6 +161,7 @@ class BillingController extends Controller
                     return [
                         'id' => $account->id,
                         'membership_number' => $account->membership_number,
+                        'internal_account_number' => $account->internal_account_number,
                         'holder_name' => $fullName,
                         'email' => $holder?->email,
                         'phone' => $holder?->phone,
@@ -261,7 +264,9 @@ class BillingController extends Controller
                 'applications.*.amount' => ['required', 'numeric', 'gt:0'],
             ]);
 
-            $account = MembershipAccount::query()->findOrFail($validated['membership_account_id']);
+            $account = MembershipAccount::query()
+                ->with('primaryHolder.member')
+                ->findOrFail($validated['membership_account_id']);
             $paymentMethod = PaymentMethod::query()
                 ->where('id', $validated['payment_method_id'])
                 ->where('is_active', true)
@@ -281,6 +286,18 @@ class BillingController extends Controller
                 sessionClubId: session('club_id')
             );
             
+            // Notificación push al titular de la cuenta (asíncrona vía queue)
+            $userId = $account->primaryHolder?->member?->user_id;
+            if ($userId) {
+                SendPushNotificationJob::dispatch(
+                    $userId,
+                    'Pago registrado',
+                    sprintf('Se registró un pago de $%s en tu cuenta.', number_format((float) $payment->amount, 2)),
+                    // ['screen' => 'AccountStatement', 'type' => 'payment_registered', 'club_id' => (string) $validated['club_id']],
+                    ['screen' => 'AccountStatement', 'type' => 'account_statement', 'club_id' => (string) $validated['club_id']],
+                );
+            }
+
             // Actualizar estatus de anuncios relacionados a los cargos aplicados
             $chargeIds = collect($validated['applications'])->pluck('charge_id');
             $charges = Charge::whereIn('id', $chargeIds)->get();
@@ -423,6 +440,7 @@ class BillingController extends Controller
                     $q->where(function (Builder $inner) use ($search, $like, $concatFn) {
                         $inner->whereHas('membershipAccount', function (Builder $aq) use ($search, $like, $concatFn) {
                             $aq->where('membership_number', $like, "%{$search}%")
+                                ->orWhere('internal_account_number', $like, "%{$search}%")
                                 ->orWhereHas('primaryHolder.member', function (Builder $mq) use ($search, $like, $concatFn) {
                                     $mq->where('first_name', $like, "%{$search}%")
                                         ->orWhere('last_name', $like, "%{$search}%")
@@ -472,6 +490,7 @@ class BillingController extends Controller
                     return array_merge(
                         [
                             'membership_number' => $account?->membership_number,
+                            'internal_account_number' => $account?->internal_account_number,
                             'holder_name' => $fullName ?: '—',
                             'membership_account_id' => $account?->id,
                         ],
@@ -556,10 +575,13 @@ class BillingController extends Controller
                                 'requires_bank_name' => (bool) $clubPaymentMethod->paymentMethod?->requires_bank_name,
                                 'requires_check_number' => (bool) $clubPaymentMethod->paymentMethod?->requires_check_number,
                                 'affects_cash_cut' => (bool) $clubPaymentMethod->paymentMethod?->affects_cash_cut,
+                                'show_in_billing' => (bool) $clubPaymentMethod->paymentMethod?->show_in_billing,
+                                'internal_key' => $clubPaymentMethod->internal_key,
                             ];
                         })
                         ->filter(function (array $method) use ($canUseNonCashCut) {
                             if (empty($method['id'])) return false;
+                            if (!$method['show_in_billing']) return false;
                             if (!$method['affects_cash_cut'] && !$canUseNonCashCut) return false;
                             return true;
                         })

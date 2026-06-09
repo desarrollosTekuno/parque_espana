@@ -29,7 +29,7 @@ class AdminClubSeeder extends Seeder
             'amenityResource.update',
             'amenityResource.destroy',
             'reservations.index',
-            'reservations.update',
+            // 'reservations.update',
             'system-variables.index',
             'system-variables.store',
             'system-variables.update',

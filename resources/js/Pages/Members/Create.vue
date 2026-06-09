@@ -224,6 +224,9 @@ interface MembershipsForm {
     years_in_source_club: number | null;
     source_membership_id: number | null;
     target_club_id: number | null;
+    internal_account_number: string | null;
+    inscription_fee_override: number | null;
+    inscription_discount_document: File | null;
     members: MemberForm[];
 }
 
@@ -460,8 +463,14 @@ const form = useForm<MembershipsForm>({
     years_in_source_club: null,
     source_membership_id: props.sourceMembership?.id ?? null,
     target_club_id: props.targetClub?.id ?? null,
+    internal_account_number: null,
+    inscription_fee_override: null,
+    inscription_discount_document: null,
     members: [],
 });
+
+const applyInscriptionDiscount = ref(false);
+const discountDocFiles = ref<File[] | null>(null);
 
 const createEmptyAddress = (
     defaultCountryId: number | null = null,
@@ -1242,6 +1251,8 @@ const handlePrev = (prev: () => void) => {
 };
 
 const submit = () => {
+    form.inscription_discount_document = discountDocFiles.value?.[0] ?? null;
+
     form.transform((data) => ({
         source_membership_id: data.source_membership_id,
         target_club_id: data.target_club_id,
@@ -1251,6 +1262,9 @@ const submit = () => {
         has_multiple_clubs: data.has_multiple_clubs,
         source_membership_is_active: data.source_membership_is_active,
         years_in_source_club: data.years_in_source_club,
+        internal_account_number: data.internal_account_number || null,
+        inscription_fee_override: applyInscriptionDiscount.value ? data.inscription_fee_override : null,
+        inscription_discount_document: applyInscriptionDiscount.value ? data.inscription_discount_document : null,
         members: data.members.map((member) => ({
             id: member.id ?? null,
             first_name: member.first_name,
@@ -1313,6 +1327,16 @@ const memberLabel = (member: MemberForm) => {
     if (member.relationship_name) return member.relationship_name;
     return "Familiar";
 };
+
+watch(applyInscriptionDiscount, (val) => {
+    if (!val) {
+        form.inscription_fee_override = null;
+        discountDocFiles.value = null;
+        form.inscription_discount_document = null;
+    } else if (pricingPreview.value) {
+        form.inscription_fee_override = pricingPreview.value.inscription_fee;
+    }
+});
 </script>
 
 <template>
@@ -2713,6 +2737,100 @@ const memberLabel = (member: MemberForm) => {
                                 <h3 class="text-title-large mb-4">
                                     Confirmación
                                 </h3>
+
+                                <!-- Número de cuenta interno (opcional) -->
+                                <v-card class="pa-4 mb-4">
+                                    <div class="text-subtitle-2 font-weight-medium mb-3">
+                                        <v-icon size="18" class="mr-1">mdi-identifier</v-icon>
+                                        Número de cuenta interno
+                                    </div>
+                                    <v-row>
+                                        <v-col cols="12" md="6">
+                                            <v-text-field
+                                                v-model="form.internal_account_number"
+                                                label="No. cuenta interno"
+                                                placeholder="Ej. 1234, A-001, etc."
+                                                hint="Opcional. Si se captura, no puede repetirse entre cuentas."
+                                                persistent-hint
+                                                clearable
+                                                :error-messages="form.errors.internal_account_number"
+                                                prepend-inner-icon="mdi-pound"
+                                            />
+                                        </v-col>
+                                    </v-row>
+                                </v-card>
+
+                                <!-- Descuento en inscripción -->
+                                <v-card
+                                    v-if="pricingPreview && pricingPreview.inscription_fee > 0"
+                                    class="pa-4 mb-4"
+                                >
+                                    <div class="d-flex align-center justify-space-between mb-1">
+                                        <div class="text-subtitle-2 font-weight-medium">
+                                            <v-icon size="18" class="mr-1">mdi-tag-minus</v-icon>
+                                            Descuento en inscripción
+                                        </div>
+                                        <v-switch
+                                            v-model="applyInscriptionDiscount"
+                                            color="primary"
+                                            hide-details
+                                            density="compact"
+                                            label="Aplicar descuento"
+                                        />
+                                    </div>
+
+                                    <div class="text-caption text-medium-emphasis mb-3">
+                                        Inscripción original:
+                                        <strong>{{ currencyFormatter.format(pricingPreview.inscription_fee) }}</strong>
+                                    </div>
+
+                                    <template v-if="applyInscriptionDiscount">
+                                        <v-row>
+                                            <v-col cols="12" md="5">
+                                                <v-text-field
+                                                    v-model.number="form.inscription_fee_override"
+                                                    label="Monto a cobrar de inscripción"
+                                                    type="number"
+                                                    min="0"
+                                                    :max="pricingPreview.inscription_fee"
+                                                    step="0.01"
+                                                    prefix="$"
+                                                    :hint="`Máximo: ${currencyFormatter.format(pricingPreview.inscription_fee)}`"
+                                                    persistent-hint
+                                                    :error-messages="form.errors.inscription_fee_override"
+                                                    :rules="[
+                                                        (v) => v !== null && v !== '' || 'Captura el monto',
+                                                        (v) => Number(v) >= 0 || 'El monto no puede ser negativo',
+                                                        (v) => Number(v) <= pricingPreview!.inscription_fee || `No puede exceder ${currencyFormatter.format(pricingPreview!.inscription_fee)}`,
+                                                    ]"
+                                                />
+                                            </v-col>
+                                            <v-col cols="12" md="7">
+                                                <div class="font-weight-medium text-body-2 mb-1">
+                                                    Documento de respaldo
+                                                    <span class="text-error">*</span>
+                                                </div>
+                                                <CustomFileUploadField
+                                                    v-model="discountDocFiles"
+                                                    label="Seleccionar documento"
+                                                    hint="PDF, JPG o PNG · máx. 5 MB"
+                                                    accept=".pdf,.jpg,.jpeg,.png"
+                                                    :rules="[
+                                                        requiredFileRule,
+                                                        fileTypeRule(['pdf','jpg','jpeg','png']),
+                                                        fileMaxSizeRule(5),
+                                                    ]"
+                                                />
+                                                <div
+                                                    v-if="form.errors.inscription_discount_document"
+                                                    class="text-error text-caption mt-1"
+                                                >
+                                                    {{ form.errors.inscription_discount_document }}
+                                                </div>
+                                            </v-col>
+                                        </v-row>
+                                    </template>
+                                </v-card>
 
                                 <v-card class="pa-4 mb-4">
                                     <p v-if="props.isCrossClubRequest">

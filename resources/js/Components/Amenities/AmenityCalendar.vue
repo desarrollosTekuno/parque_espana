@@ -8,7 +8,7 @@ import {
 } from '@schedule-x/calendar'
 import { translations } from '@schedule-x/translations'
 import '@schedule-x/theme-default/dist/index.css'
-import { watch, nextTick, onMounted } from 'vue'
+import { watch, nextTick, onMounted, onBeforeUnmount  } from 'vue'
 
 const emit = defineEmits(['create-reservation', 'cancel-reservation'])
 interface CalendarEvent {
@@ -75,6 +75,14 @@ const calendarApp = createCalendar({
       onContainer: '#000'
     }
   },
+  'status-5': {
+    colorName: 'green',
+    lightColors: {
+      main: '#66bb6a',
+      container: '#e8f5e9',
+      onContainer: '#000'
+    }
+  },
   'blocked': {
     colorName: 'grey',
     lightColors: {
@@ -95,7 +103,23 @@ const calendarApp = createCalendar({
 const handleEventClick = (event: any) => {
   emit('cancel-reservation', event)
 }
-watch(
+const applyTooltips = async () => {
+  await nextTick()
+  const elements = document.querySelectorAll(
+    '.sx__event, .sx__month-grid-event'
+  )
+  elements.forEach((el: any) => {
+    const eventId = el.getAttribute('data-event-id')
+    const event = props.events.find(
+      e => String(e.id) === String(eventId)
+    )
+    if (event?._tooltip) {
+      el.setAttribute('title', event._tooltip)
+    }
+  })
+}
+let observer: MutationObserver | null = null
+/*watch(
   () => props.events,
   async (events) => {
     if (!events?.length) return
@@ -115,7 +139,36 @@ watch(
     }, 50)
   },
   { immediate: true, deep: true }
+)*/
+
+watch(
+  () => props.events,
+  async (events) => {
+    if (!events?.length) return
+
+    calendarApp.events.set(events)
+
+    setTimeout(async () => {
+      await applyTooltips()
+    }, 50)
+  },
+  { immediate: true, deep: true }
 )
+onMounted(async () => {
+  await applyTooltips()
+  const calendarEl = document.querySelector('.sx__calendar')
+  if (!calendarEl) return
+  observer = new MutationObserver(async () => {
+    await applyTooltips()
+  })
+  observer.observe(calendarEl, {
+    childList: true,
+    subtree: true
+  })
+})
+onBeforeUnmount(() => {
+  observer?.disconnect()
+})
 </script>
 
 <template>

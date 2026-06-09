@@ -78,7 +78,7 @@ class PasswordResetController extends Controller
         $request->validate([
             'email'    => ['required', 'email'],
             'otp'      => ['required', 'string', 'size:6'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'password' => ['required', 'string', 'min:8'],
         ]);
 
         $record = PasswordResetOtp::find($request->email);

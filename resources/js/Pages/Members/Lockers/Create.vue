@@ -3,6 +3,8 @@ import AppLayout from "@/Layouts/AppLayout.vue";
 import BaseButton from "@/Components/BaseButton.vue";
 import { ref, onMounted, computed, watch } from "vue";
 import { router, Head, usePage } from "@inertiajs/vue3";
+import CustomFileUploadField from "@/Components/CustomFileUploadField.vue";
+import { fileExactCountRule, fileMaxSizeRule, fileTypeRule, requiredFileRule } from "@/constants/validationRules";
 import { customToastSwal } from "@/utils/swal";
 import Swal from "sweetalert2";
 import axios from "axios";
@@ -147,7 +149,12 @@ const assign = async () => {
     formData.append("club_id", props.clubId);
 
     if (lockerFile.value) {
-        formData.append("file", lockerFile.value);
+        formData.append(
+            "file",
+            Array.isArray(lockerFile.value)
+                ? lockerFile.value[0]
+                : lockerFile.value
+        );
     }
     router.post(route("members.lockers.reserve"), formData, {
         forceFormData: true,
@@ -163,7 +170,7 @@ const assign = async () => {
         },
         onError: () => {
             customToastSwal({
-                title: "Error al reservar casillero",
+                title: errors.file || errors.message || "Error al reservar casillero",
                 icon: "error"
             });
         }
@@ -308,6 +315,11 @@ const removeLocker = async (id: number) => {
 
 //Carga de archivo 
 const lockerFile = ref<File | null>(null);
+const letterRules = [
+    requiredFileRule,
+    fileTypeRule(["pdf", "jpg", "jpeg", "png"]),
+    fileMaxSizeRule(2),
+];
 </script>
 
 <template>
@@ -519,7 +531,7 @@ const lockerFile = ref<File | null>(null);
             <v-alert type="info" class="mt-4 mb-5">
                 El casillero se entrega sin candado. Recuerda al miembro llevar el suyo.
             </v-alert>
-            <v-file-input
+            <!--<v-file-input
                 v-model="lockerFile"
                 label="Adjuntar comprobante"
                 prepend-icon="mdi-paperclip"
@@ -529,6 +541,19 @@ const lockerFile = ref<File | null>(null);
                 show-size
                 clearable
                 class="mt-4"
+                :error="!lockerFile && showErrors"
+                :error-messages="!lockerFile && showErrors ? 'Adjunta un comprobante' : ''"
+            />-->
+            <div class="font-weight-medium mb-1">
+                Adjuntar comprobante de asignación de casillero
+                <span class="text-error">*</span>
+            </div>
+            <CustomFileUploadField
+                v-model="lockerFile"
+                label="Seleccionar comprobante"
+                hint="PDF, JPG o PNG · máx. 2 MB"
+                accept=".pdf,.jpg,.jpeg,.png"
+                :rules="letterRules"
                 :error="!lockerFile && showErrors"
                 :error-messages="!lockerFile && showErrors ? 'Adjunta un comprobante' : ''"
             />

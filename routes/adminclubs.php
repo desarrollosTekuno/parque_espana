@@ -43,6 +43,7 @@ use App\Http\Controllers\Web\AdminClub\GuestListPaymentController;
 use App\Http\Controllers\Web\AdminClub\MembershipTypeController;
 use App\Http\Controllers\Web\AdminClub\PaymentMethodController;
 use App\Http\Controllers\Web\AdminClub\LockerAssignmentHistoryController;
+use App\Http\Controllers\Web\AdminClub\ClinicalHistoryController;
 use Illuminate\Support\Facades\Route;
 
 // amenities
@@ -52,6 +53,10 @@ Route::post('/amenitySchedule', [AmenityScheduleController::class, 'store'])->na
 Route::resource('/blockedPeriods', BlockedPeriodController::class)->names('blockedPeriods');
 Route::get('/amenity-resource/{resource}/calendar', [AmenityResourceController::class, 'calendar'])->name('amenityResource.calendar');
 
+// QR de amenities (genera y descarga en una sola petición GET)
+Route::get('/amenity-resource/{amenityResource}/generate-qr', [AmenityResourceController::class, 'generateQr'])->name('amenityResource.generateQr');
+
+// reservations
 Route::resource('/reservations', ReservationController::class)->only(['index', 'update', 'store'])->names('reservations');
 Route::resource('/system-variables', SystemVariableController::class)->only(['index', 'store', 'update', 'destroy'])->names('system-variables');
 Route::get('/reservations/calendar', [ReservationController::class, 'calendar'])
@@ -90,6 +95,8 @@ Route::resource('/payment-methods', PaymentMethodController::class)
     ->names('payment-methods');
 Route::post('/payment-methods/{paymentMethod}/toggle-club', [PaymentMethodController::class, 'toggleClub'])
     ->name('payment-methods.toggle-club');
+Route::put('/payment-methods/{paymentMethod}/club-config', [PaymentMethodController::class, 'updateClubConfig'])
+    ->name('payment-methods.update-club-config');
 Route::resource('/pricing-rules', PricingRuleController::class)
     ->only(['index', 'store', 'update', 'destroy'])
     ->names('pricing-rules');
@@ -167,6 +174,8 @@ Route::get('/members/location-catalogs/cities', [MemberController::class, 'locat
     ->name('members.location-catalogs.cities');
 Route::get('/members/{membership}/manage', [MemberController::class, 'show'])
     ->name('members.manage.show');
+Route::patch('/members/{membership}/internal-account-number', [MemberController::class, 'updateInternalAccountNumber'])
+    ->name('members.internal-account-number.update');
 Route::get('/members/{membership}/history', [MemberController::class, 'membershipHistory'])
     ->name('members.manage.history');
 Route::post('/members/{membership}/documents', [MemberController::class, 'storeDocument'])
@@ -265,7 +274,14 @@ Route::get('/members/{member}/locker-history', [LockerAssignmentHistoryControlle
 Route::resource('/files', FileController::class)->only(['index', 'store', 'update', 'destroy'])->names('files');
 Route::post('files/{file}/club-file', [FileController::class, 'uploadClubFile'])->name('files.club-file.upload');
 Route::delete('files/{file}/club-file', [FileController::class, 'destroyClubFile'])->name('files.club-file.destroy');
+Route::post('/files/variables', [FileController::class, 'previewVariables'])->name('files.variables');
 
+
+// Historia Clínica
+Route::get('/members/{membership}/clinical-history', [ClinicalHistoryController::class, 'index'])
+    ->name('members.clinical-history.index');
+Route::put('/members/{membership}/members/{member}/clinical-history', [ClinicalHistoryController::class, 'upsert'])
+    ->name('members.clinical-history.upsert');
 
 // Acts
 Route::prefix('acts')->group(function () {

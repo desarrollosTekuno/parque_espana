@@ -8,6 +8,7 @@ import BaseButton from "@/Components/BaseButton.vue";
 import { required, maxLength, selectRequired, fileMaxSizeRule, requiredFileRule, fileMimeTypeRule } from "@/constants/validationRules";
 import CustomFileUploadField from "@/Components/CustomFileUploadField.vue";
 import { formatBytes, getFileMeta } from "@/utils/fileUtils";
+import axios from "axios"; 
 
 declare function route(name: string, params?: any): string;
 const showFormatModal = ref(false);
@@ -34,6 +35,7 @@ interface FileFormatItem {
     allowed_mime_types: string[];
     max_size_bytes: number;
     club_file: ClubFileItem | null;
+    module: string;
 }
 
 interface CurrentClub {
@@ -46,30 +48,26 @@ interface Props {
     files?: any;
     currentClub?: CurrentClub | null;
     filters?: Record<string, string | number | null>;
+    modules?: string[];
+    commonMimeTypes?: { title: string; value: string }[];
 }
 
 const props = withDefaults(defineProps<Props>(), {
     files: null,
     currentClub: null,
     filters: () => ({}),
+    modules: () => [],
+    commonMimeTypes: () => [],
 });
 
 const page = usePage<any>();
 const can = (page.props as any).auth?.permissions as string[] ?? [];
 
-// MIME types comunes para el selector
-const commonMimeTypes = [
-    { title: "Word (.doc)", value: "application/msword" },
-    { title: "Word (.docx)", value: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
-    { title: "Excel (.xls)", value: "application/vnd.ms-excel" },
-    { title: "Excel (.xlsx)", value: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }
-];
-
 // Genera el texto de ayuda del campo de carga a partir de los MIME types permitidos del formato.
 const uploadHint = computed(() => {
     const mimes = uploadTargetFormat.value?.allowed_mime_types;
     if (!mimes?.length) return undefined;
-    return mimes.map(mime => commonMimeTypes.find(m => m.value === mime)?.title ?? mime).join(", ");
+    return mimes.map(mime => props.commonMimeTypes.find(m => m.value === mime)?.title ?? mime).join(", ");
 });
 
 interface FormatForm {
@@ -81,6 +79,7 @@ interface FormatForm {
     is_active: boolean;
     allowed_mime_types: string[];
     max_size_mb: number | null;
+    module: string;
 }
 
 const formatForm = useForm<FormatForm>({
@@ -92,6 +91,7 @@ const formatForm = useForm<FormatForm>({
     is_active: true,
     allowed_mime_types: [],
     max_size_mb: null,
+    module: "",
 });
 
 const resetFormatForm = () => {
@@ -105,6 +105,7 @@ const resetFormatForm = () => {
     formatForm.is_active = true;
     formatForm.allowed_mime_types = [];
     formatForm.max_size_mb = null;
+    formatForm.module = "";
 };
 
 const openCreateFormat = () => {
@@ -122,6 +123,7 @@ const openEditFormat = (item: FileFormatItem) => {
     formatForm.is_active = item.is_active;
     formatForm.allowed_mime_types = item.allowed_mime_types ?? [];
     formatForm.max_size_mb = item.max_size_bytes ? +(item.max_size_bytes / 1_048_576).toFixed(1) : null;
+    formatForm.module = item.module;
     showFormatModal.value = true;
 };
 
@@ -208,10 +210,13 @@ const destroyFormat = (item: FileFormatItem) => {
 const showUploadModal = ref(false);
 const uploadTargetFormat = ref<FileFormatItem | null>(null);
 const selectedFiles = ref<File[]>([]);
+const detectedVariables = ref<string[]>([]);
+const loadingVariables = ref(false);
 
 const openUploadModal = (item: FileFormatItem) => {
     uploadTargetFormat.value = item;
     selectedFiles.value = [];
+    detectedVariables.value = [];
     showUploadModal.value = true;
 };
 
@@ -219,7 +224,28 @@ const closeUploadModal = () => {
     showUploadModal.value = false;
     uploadTargetFormat.value = null;
     selectedFiles.value = [];
+    detectedVariables.value = [];
 };
+
+watch(selectedFiles, async (files) => {
+    detectedVariables.value = [];
+    if (!files?.length) return;
+
+    const file = files[0];
+
+    const formData = new FormData();
+    formData.append('documento', file);
+
+    try {
+        loadingVariables.value = true;
+        const response = await axios.post(route('files.variables'), formData);
+        detectedVariables.value = response.data.variables ?? [];
+    } catch {
+        detectedVariables.value = [];
+    } finally {
+        loadingVariables.value = false;
+    }
+});
 
 const uploadClubFile = async () => {
     const { valid } = await fileRef.value?.validate();
@@ -232,9 +258,9 @@ const uploadClubFile = async () => {
     router.post(route("files.club-file.upload", uploadTargetFormat.value!.id), data, {
         forceFormData: true,
         onSuccess: () => {
-            customToastSwal({ 
-                title: (page.props as any).flash?.success || "Archivo cargado correctamente", 
-                icon: "success" 
+            customToastSwal({
+                title: (page.props as any).flash?.success || "Archivo cargado correctamente",
+                icon: "success"
             });
             closeUploadModal();
             fetchItems();
@@ -519,6 +545,17 @@ watch(() => (page.props as any).auth.currentClub, fetchItems);
                             </v-col>
 
                             <v-col cols="12" md="12">
+                                <v-select
+                                    v-model="formatForm.module"
+                                    :items="modules"
+                                    label="Módulo"
+                                    clearable
+                                    :error-messages="formatForm.errors.module"
+                                    :rules="[selectRequired]"
+                                />
+                            </v-col>
+
+                            <v-col cols="12" md="12">
                                 <v-text-field
                                     v-model="formatForm.name"
                                     label="Nombre"
@@ -566,6 +603,7 @@ watch(() => (page.props as any).auth.currentClub, fetchItems);
                                     chips
                                     closable-chips
                                     clearable
+                                    :error-messages="formatForm.errors.allowed_mime_types"
                                     :rules="[selectRequired]"
                                 />
                             </v-col>
@@ -639,6 +677,34 @@ watch(() => (page.props as any).auth.currentClub, fetchItems);
                                 fileMimeTypeRule(uploadTargetFormat?.allowed_mime_types),
                                 fileMaxSizeRule(uploadTargetFormat?.max_size_bytes / 1_048_576)
                             ]"
+                        />
+
+                        <div v-if="loadingVariables" class="d-flex align-center gap-2 mt-3">
+                            <v-progress-circular indeterminate size="18" width="2" color="primary" />
+                            <span class="text-caption text-medium-emphasis">Leyendo variables del documento...</span>
+                        </div>
+
+                        <div v-else-if="detectedVariables.length" class="mt-3">
+                            <div class="text-caption text-medium-emphasis mb-1">Variables detectadas en el documento:</div>
+                            <div class="d-flex flex-wrap gap-1">
+                                <v-chip
+                                    v-for="variable in detectedVariables"
+                                    :key="variable"
+                                    size="small"
+                                    color="primary"
+                                    variant="tonal"
+                                    :text="variable"
+                                />
+                            </div>
+                        </div>
+
+                        <v-alert
+                            v-else-if="selectedFiles.length && !loadingVariables"
+                            type="warning"
+                            variant="tonal"
+                            density="compact"
+                            class="mt-3"
+                            text="No se encontraron variables en el documento."
                         />
                     </v-card-text>
 

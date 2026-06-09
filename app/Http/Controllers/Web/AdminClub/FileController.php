@@ -15,6 +15,8 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
+use ZipArchive;
+use PhpOffice\PhpSpreadsheet\IOFactory as SpreadsheetIOFactory;
 
 class FileController extends Controller
 {
@@ -26,6 +28,7 @@ class FileController extends Controller
         $this->middleware('permission:files.destroy')->only('destroy');
         $this->middleware('permission:files.club-file.upload')->only('uploadClubFile');
         $this->middleware('permission:files.club-file.destroy')->only('destroyClubFile');
+        $this->middleware('permission:files.variables')->only('previewVariables');
     }
 
     public function index(Request $request)
@@ -74,6 +77,7 @@ class FileController extends Controller
                         'is_active'          => $file->is_active,
                         'allowed_mime_types' => $file->allowed_mime_types,
                         'max_size_bytes'     => $file->max_size_bytes,
+                        'module'             => $file->module,
                         'club_file'          => $clubFile ? [
                             'id'                  => $clubFile->id,
                             'file_original_name'  => $clubFile->file_original_name,
@@ -102,12 +106,16 @@ class FileController extends Controller
                     'search'    => $request->input("{$prefix}_search"),
                     'is_active' => $request->input("{$prefix}_is_active"),
                 ],
+                'modules' => File::getModules(),
+                'commonMimeTypes' => File::getCommonMimeTypes()
             ]);
         } catch (\Exception $e) {
             return Inertia::render('AdminClubs/Files/Index', [
                 'files'        => ['data' => [], 'total' => 0],
                 'currentClub'  => null,
                 'filters'      => ['search' => null, 'is_active' => null],
+                'modules'      => File::getModules(),
+                'commonMimeTypes' => File::getCommonMimeTypes(),
                 'messageError' => $e->getMessage(),
             ]);
         }
@@ -118,7 +126,7 @@ class FileController extends Controller
         try {
 
             $validated = $request->validate([
-                'code'                 => ['required', 'string', 'max:50', Rule::unique(File::class, 'code')],
+                'code'                 => ['required', 'string', 'max:50', Rule::unique(File::class, 'code')->whereNull('deleted_at')],
                 'name'                 => 'required|string|max:255',
                 'description'          => 'nullable|string|max:500',
                 'is_required'          => 'required|boolean',
@@ -126,6 +134,7 @@ class FileController extends Controller
                 'allowed_mime_types'   => 'nullable|array',
                 'allowed_mime_types.*' => 'string',
                 'max_size_mb'          => 'nullable|numeric|min:0.1|max:100',
+                'module'               => 'required|string|max:100'
             ], [
                 'code.required' => 'Debes ingresar un código.',
                 'code.string' => 'El código debe ser una cadena de texto.',
@@ -151,6 +160,10 @@ class FileController extends Controller
                 'max_size_mb.numeric' => 'El tamaño máximo debe ser un número.',
                 'max_size_mb.min' => 'El tamaño minimo debe ser mayor a 0.1.',
                 'max_size_mb.max' => 'El tamaño maximo debe ser menor a 100.',
+
+                'module.required' => 'Debes ingresar un módulo.',
+                'module.string' => 'El módulo debe ser una cadena de texto.',
+                'module.max' => 'El módulo debe tener menos de 100 caracteres.'
             ]);
 
             File::create([
@@ -161,6 +174,7 @@ class FileController extends Controller
                 'is_active'          => $validated['is_active'],
                 'allowed_mime_types' => $validated['allowed_mime_types'],
                 'max_size_bytes'     => $validated['max_size_mb'] ? (int) ($request->max_size_mb * 1024 * 1024) : (2 * 1024 * 1024), // Default 2 MB
+                'module'             => $validated['module']
             ]);
 
             return redirect()->back()->with('success', 'Formato de archivo creado correctamente.');
@@ -177,7 +191,7 @@ class FileController extends Controller
         try {
 
             $validated = $request->validate([
-                'code'                 => ['required', 'string', 'max:50', Rule::unique(File::class, 'code')->ignore($file->id)],
+                'code'                 => ['required', 'string', 'max:50', Rule::unique(File::class, 'code')->ignore($file->id)->whereNull('deleted_at')],
                 'name'                 => 'required|string|max:255',
                 'description'          => 'nullable|string|max:500',
                 'is_required'          => 'required|boolean',
@@ -185,6 +199,7 @@ class FileController extends Controller
                 'allowed_mime_types'   => 'nullable|array',
                 'allowed_mime_types.*' => 'string',
                 'max_size_mb'          => 'nullable|numeric|min:0.1|max:100',
+                'module'               => 'required|string|max:100'
             ], [
                 'code.required' => 'Debes ingresar un código.',
                 'code.string' => 'El código debe ser una cadena de texto.',
@@ -210,6 +225,10 @@ class FileController extends Controller
                 'max_size_mb.numeric' => 'El tamaño máximo debe ser un número.',
                 'max_size_mb.min' => 'El tamaño minimo debe ser mayor a 0.1.',
                 'max_size_mb.max' => 'El tamaño maximo debe ser menor a 100.',
+
+                'module.required' => 'Debes ingresar un módulo.',
+                'module.string' => 'El módulo debe ser una cadena de texto.',
+                'module.max' => 'El módulo debe tener menos de 100 caracteres.'
             ]);
 
 
@@ -221,6 +240,7 @@ class FileController extends Controller
                 'is_active'          => $validated['is_active'],
                 'allowed_mime_types' => $validated['allowed_mime_types'],
                 'max_size_bytes'     => $validated['max_size_mb'] ? (int) ($validated['max_size_mb'] * 1024 * 1024) : (2 * 1024 * 1024), // Default 2 MB
+                'module'             => $validated['module']
             ]);
 
             return redirect()->back()->with('success', 'Formato de archivo actualizado correctamente.');
@@ -235,6 +255,13 @@ class FileController extends Controller
     public function destroy(File $file)
     {
         try {
+
+            $file->clubFiles()->update([
+                'deleted_by' => auth()->id()
+            ]);
+            $file->clubFiles()->delete();
+
+            $file->update(['deleted_by' => auth()->id()]);
             $file->delete();
 
             return redirect()->back()->with('success', 'Formato de archivo eliminado correctamente.');
@@ -313,6 +340,7 @@ class FileController extends Controller
                 ->where('file_id', $file->id)
                 ->firstOrFail();
 
+            $clubFile->update(['deleted_by' => auth()->id()]);
             $clubFile->delete();
 
             return redirect()->back()->with('success', 'Archivo eliminado correctamente.');
@@ -344,5 +372,85 @@ class FileController extends Controller
         if ($path && Storage::disk('spaces')->exists($path)) {
             Storage::disk('spaces')->delete($path);
         }
+    }
+
+    public function previewVariables(Request $request)
+    {
+        $request->validate(['documento' => 'required|file']);
+        
+        $variables = $this->extractVariables($request->file('documento'));
+
+        return response()->json(['variables' => $variables]);
+    }
+
+    private function extractVariables($file)
+    {
+        $path = is_string($file) ? $file : $file->getRealPath();
+
+        $extension = strtolower(is_string($file) ? pathinfo($file, PATHINFO_EXTENSION) : $file->getClientOriginalExtension());
+
+        return match ($extension) {
+            'docx', 'doc' => $this->extractFromDocx($path),
+            'xlsx', 'xls' => $this->extractFromXlsx($path),
+            default => [],
+        };
+    }
+
+    private function extractFromDocx($path): array
+    {
+        $zip = new ZipArchive();
+
+        if ($zip->open($path) !== true) {
+            throw new \RuntimeException("No se pudo abrir el archivo Word: {$path}");
+        }
+
+        $variables = [];
+
+        // Archivos XML donde Word guarda el contenido
+        $xmlFiles = [
+            'word/document.xml',   // Cuerpo principal
+            'word/header1.xml',    // Encabezado
+            'word/footer1.xml',    // Pie de página
+            'word/header2.xml',
+            'word/footer2.xml',
+        ];
+
+        foreach ($xmlFiles as $xmlFile) {
+            $content = $zip->getFromName($xmlFile);
+            if ($content === false) {
+                continue;
+            }
+
+            // Eliminar tags XML para obtener solo el texto plano
+            $text = strip_tags($content);
+
+            // Buscar variables {{ nombre }} o {{nombre}}
+            preg_match_all('/\{\{\s*(\w+)\s*\}\}/', $text, $matches);
+            $variables = array_merge($variables, $matches[1]);
+        }
+
+        $zip->close();
+
+        return array_values(array_unique($variables));
+    }
+
+    private function extractFromXlsx($path): array
+    {
+        $spreadsheet = SpreadsheetIOFactory::load($path);
+        $variables   = [];
+
+        foreach ($spreadsheet->getAllSheets() as $sheet) {
+            foreach ($sheet->getRowIterator() as $row) {
+                foreach ($row->getCellIterator() as $cell) {
+                    $value = (string) $cell->getValue();
+                    if (str_contains($value, '{{')) {
+                        preg_match_all('/\{\{\s*(\w+)\s*\}\}/', $value, $matches);
+                        $variables = array_merge($variables, $matches[1]);
+                    }
+                }
+            }
+        }
+
+        return array_values(array_unique($variables));
     }
 }

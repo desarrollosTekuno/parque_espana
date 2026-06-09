@@ -33,6 +33,19 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'formato_datos_clinicos', 'required' => true, 'multiple' => false, 'files' => 1],
                     ]
                 ],
+                // =========================
+                // PE1 - SOLIDARIA
+                // =========================
+                [
+                    'membership_code' => 'PE1_SOL',
+                    'documents' => [
+                        ['code' => 'acta_nacimiento', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'ine', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'comprobante_domicilio', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'formato_datos_clinicos', 'required' => true, 'multiple' => false, 'files' => 1],
+                    ]
+                ],
 
                 // =========================
                 // PE1 - FAMILIAR
@@ -51,6 +64,44 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                 ],
 
                 // =========================
+                // PE1 - FAM BEN
+                // =========================
+                [
+                    'membership_code' => 'PE1_FAM_BEN',
+                    'documents' => [
+                        ['code' => 'acta_nacimiento', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'acta_matrimonio', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'ine', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'comprobante_domicilio', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'carta_recomendacion', 'required' => true, 'multiple' => true, 'files' => 2],
+                        ['code' => 'carta_no_adeudo', 'required' => true, 'multiple' => false, 'files' => 1],
+                    ]
+                ],
+                // PE1 - IND BEN
+                [
+                    'membership_code' => 'PE1_IND_BEN',
+                    'documents' => [
+                        ['code' => 'acta_nacimiento', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'ine', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'comprobante_domicilio', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'carta_recomendacion', 'required' => true, 'multiple' => true, 'files' => 2],
+                        ['code' => 'carta_no_adeudo', 'required' => true, 'multiple' => false, 'files' => 1],
+                    ]
+                ],
+                // PE1 - SOL BEN
+                [
+                    'membership_code' => 'PE1_SOL_BEN',
+                    'documents' => [
+                        ['code' => 'acta_nacimiento', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'ine', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'comprobante_domicilio', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
+                    ]
+                ],
+
+                // =========================
                 // PE2 - IND ASC
                 // =========================
                 [
@@ -60,9 +111,21 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'acta_nacimiento', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'ine', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'comprobante_domicilio', 'required' => true, 'multiple' => false, 'files' => 1],
-                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => true, 'files' => 2],
+                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'carta_recomendacion', 'required' => true, 'multiple' => true, 'files' => 2],
                         ['code' => 'constancia_trabajo', 'required' => true, 'multiple' => false, 'files' => 1],
+                    ]
+                ],
+                // =========================
+                // PE2 - SOL ASC
+                // =========================
+                [
+                    'membership_code' => 'PE2_SOL_ASC',
+                    'documents' => [
+                        ['code' => 'acta_nacimiento', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'ine', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'comprobante_domicilio', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
                     ]
                 ],
 
@@ -77,7 +140,7 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'acta_nacimiento', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'ine', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'comprobante_domicilio', 'required' => true, 'multiple' => false, 'files' => 1],
-                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => true, 'files' => 2],
+                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'carta_recomendacion', 'required' => true, 'multiple' => true, 'files' => 2],
                         ['code' => 'constancia_estudios', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'constancia_trabajo', 'required' => true, 'multiple' => false, 'files' => 1],
@@ -93,9 +156,21 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'acta_nacimiento', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'ine', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'comprobante_domicilio', 'required' => true, 'multiple' => false, 'files' => 1],
-                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => true, 'files' => 2],
+                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'carta_recomendacion', 'required' => true, 'multiple' => true, 'files' => 2],
                         ['code' => 'constancia_trabajo', 'required' => true, 'multiple' => false, 'files' => 1],
+                    ]
+                ],
+                // =========================
+                // PE2 - IND EXT
+                // =========================
+                [
+                    'membership_code' => 'PE2_SOL_EXT',
+                    'documents' => [
+                        ['code' => 'acta_nacimiento', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'ine', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'comprobante_domicilio', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
                     ]
                 ],
 
@@ -109,7 +184,7 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'acta_matrimonio', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'ine', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'comprobante_domicilio', 'required' => true, 'multiple' => false, 'files' => 1],
-                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => true, 'files' => 2],
+                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'carta_recomendacion', 'required' => true, 'multiple' => true, 'files' => 2],
                         ['code' => 'constancia_estudios', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'constancia_trabajo', 'required' => true, 'multiple' => false, 'files' => 1],
@@ -126,7 +201,7 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'acta_matrimonio', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'ine', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'comprobante_domicilio', 'required' => true, 'multiple' => false, 'files' => 1],
-                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => true, 'files' => 2],
+                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'carta_recomendacion', 'required' => true, 'multiple' => true, 'files' => 2],
                         ['code' => 'carta_no_adeudo', 'required' => true, 'multiple' => false, 'files' => 1],
                     ]
@@ -138,9 +213,19 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'acta_nacimiento', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'ine', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'comprobante_domicilio', 'required' => true, 'multiple' => false, 'files' => 1],
-                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => true, 'files' => 2],
+                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'carta_recomendacion', 'required' => true, 'multiple' => true, 'files' => 2],
                         ['code' => 'carta_no_adeudo', 'required' => true, 'multiple' => false, 'files' => 1],
+                    ]
+                ],
+                // PE2 - IND BEN
+                [
+                    'membership_code' => 'PE2_SOL_BEN',
+                    'documents' => [
+                        ['code' => 'acta_nacimiento', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'ine', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'comprobante_domicilio', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
                     ]
                 ],
 
@@ -154,7 +239,7 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'acta_matrimonio', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'ine', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'comprobante_domicilio', 'required' => true, 'multiple' => false, 'files' => 1],
-                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => true, 'files' => 2],
+                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'carta_recomendacion', 'required' => true, 'multiple' => true, 'files' => 2],
                         ['code' => 'carta_doctor_activo', 'required' => true, 'multiple' => false, 'files' => 1],
                     ]
@@ -166,16 +251,26 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'acta_nacimiento', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'ine', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'comprobante_domicilio', 'required' => true, 'multiple' => false, 'files' => 1],
-                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => true, 'files' => 2],
+                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'carta_recomendacion', 'required' => true, 'multiple' => true, 'files' => 2],
                         ['code' => 'carta_doctor_activo', 'required' => true, 'multiple' => false, 'files' => 1],
+                    ]
+                ],
+                // PE2 - SOL DOC
+                [
+                    'membership_code' => 'PE2_SOL_DOC',
+                    'documents' => [
+                        ['code' => 'acta_nacimiento', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'ine', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'comprobante_domicilio', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
                     ]
                 ],
                 [
                     'membership_code' => 'PE2_PM_IND',
                     'documents' => [
                         ['code' => 'acta_nacimiento', 'required' => true, 'multiple' => false, 'files' => 1],
-                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => true, 'files' => 2],
+                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'constancia_trabajo', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'carta_recomendacion', 'required' => true, 'multiple' => true, 'files' => 2],
                         ['code' => 'ine', 'required' => true, 'multiple' => true, 'files' => 1],
@@ -187,7 +282,7 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                     'documents' => [
                         ['code' => 'acta_nacimiento', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'acta_matrimonio', 'required' => true, 'multiple' => false, 'files' => 1],
-                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => true, 'files' => 2],
+                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'constancia_trabajo', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'constancia_estudios', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'carta_recomendacion', 'required' => true, 'multiple' => true, 'files' => 2],
@@ -199,8 +294,17 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                     'membership_code' => 'PE2_IND_PE1',
                     'documents' => [
                         ['code' => 'acta_nacimiento', 'required' => true, 'multiple' => false, 'files' => 1],
-                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => true, 'files' => 2],
+                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'recibo_pe1_sin_adeudo', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'ine', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'comprobante_domicilio', 'required' => true, 'multiple' => false, 'files' => 1],
+                    ],
+                ],
+                [
+                    'membership_code' => 'PE2_SOL_PE1',
+                    'documents' => [
+                        ['code' => 'acta_nacimiento', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'ine', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'comprobante_domicilio', 'required' => true, 'multiple' => false, 'files' => 1],
                     ],
@@ -210,7 +314,7 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                     'documents' => [
                         ['code' => 'acta_matrimonio', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'acta_nacimiento', 'required' => true, 'multiple' => false, 'files' => 1],
-                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => true, 'files' => 2],
+                        ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'recibo_pe1_sin_adeudo', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'ine', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'comprobante_domicilio', 'required' => true, 'multiple' => false, 'files' => 1],

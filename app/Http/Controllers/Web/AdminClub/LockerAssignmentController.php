@@ -15,6 +15,8 @@ use App\Models\Members\LockerAssignment;
 use App\Models\Members\LockerAssignmentHistory;
 use App\Models\Memberships\Membership;
 use App\Models\Memberships\MembershipAccount;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class LockerAssignmentController extends Controller
 {
@@ -66,6 +68,7 @@ class LockerAssignmentController extends Controller
         $request->validate([
             'locker_id' => 'required|integer',
             'member_id' => 'required|integer',
+            'file' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120',
         ]);
 
         return DB::transaction(function () use ($request) {
@@ -74,19 +77,35 @@ class LockerAssignmentController extends Controller
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            if ($locker->status !== 'disponible' /*&& !($locker->status === 'pago_pendiente')*/) {
+            if ($locker->status !== 'disponible') {
                 return back()->withErrors([
                     'locker' => 'El casillero ya no está disponible'
                 ]);
             }
 
-            // reservar
             $locker->update([
                 'status' => 'ocupado',
             ]);
 
-            
-            $path = $request->file('file')->store('locker_assignments', 'public');
+            // SUBIDA ARCHIVO
+            $file = $request->file('file');
+
+            $directory = "locker_assignments/{$request->member_id}";
+            $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
+
+            $uploaded = Storage::disk('spaces')->putFileAs(
+                $directory,
+                $file,
+                $filename
+            );
+
+            if ($uploaded === false) {
+                throw new \RuntimeException(
+                    'No se pudo subir el comprobante del casillero.'
+                );
+            }
+
+            $path = "{$directory}/{$filename}";
 
             LockerAssignment::create([
                 'locker_id' => $locker->id,
@@ -103,15 +122,19 @@ class LockerAssignmentController extends Controller
                 ->with('clubAmounts')
                 ->where('code', 'LOCKERS')
                 ->firstOrFail();
-            
-            // cálculo proporcional
+
             $annualCost = $concept->clubAmounts
                 ->where('club_id', session('club_id'))
                 ->first()
                 ?->amount ?? $concept->default_amount;
+
             $month = now()->month;
             $monthsRemaining = 12 - $month + 1;
-            $amount = round(($annualCost / 12) * $monthsRemaining, 2);
+
+            $amount = round(
+                ($annualCost / 12) * $monthsRemaining,
+                2
+            );
 
             Charge::create([
                 'membership_account_id' => $request->account_id,
@@ -136,12 +159,22 @@ class LockerAssignmentController extends Controller
 
             return redirect()
                 ->route('members.lockers.create', $request->account_id)
-                ->with('success', 'Casillero asignado correctamente');
+                ->with(
+                    'success',
+                    'Casillero asignado correctamente'
+                );
         });
     }
 
     public function change(Request $request)
     {
+        $request->validate([
+            'member_id' => 'required|integer',
+            'old_locker_id' => 'required|integer',
+            'new_locker_id' => 'required|integer',
+            'file' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+        ]);
+
         DB::transaction(function () use ($request) {
 
             $assignment = LockerAssignment::where('member_id', $request->member_id)
@@ -167,10 +200,33 @@ class LockerAssignmentController extends Controller
                     'status' => 'ocupado'
                 ]);
 
-            // guardar historial
+            $path = null;
+
+            // SUBIR ARCHIVO
             if ($request->hasFile('file')) {
-                $path = $request->file('file')->store('locker_assignments', 'public');
+
+                $file = $request->file('file');
+
+                $directory = "locker_assignments/{$request->member_id}";
+                $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
+
+                $uploaded = Storage::disk('spaces')->putFileAs(
+                    $directory,
+                    $file,
+                    $filename
+                );
+    
+                if ($uploaded === false) {
+                    throw new \RuntimeException(
+                        'No se pudo subir el comprobante del cambio de casillero.'
+                    );
+                }
+                $path = "{$directory}/{$filename}";
+                //Storage::disk('spaces')->setVisibility($path, 'public');
+                
             }
+
+            // guardar historial
             LockerAssignmentHistory::create([
                 'locker_assignment_id' => $assignment->id,
                 'member_id' => $request->member_id,
@@ -187,7 +243,10 @@ class LockerAssignmentController extends Controller
             ]);
         });
 
-        return back();
+        return back()->with(
+            'success',
+            'Casillero cambiado correctamente.'
+        );
     }
     public function remove(LockerAssignment $assignment)
     {

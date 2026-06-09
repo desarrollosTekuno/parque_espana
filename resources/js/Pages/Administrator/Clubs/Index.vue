@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import BaseButton from "@/Components/BaseButton.vue";
+import CustomFileUploadField from "@/Components/CustomFileUploadField.vue";
 import { required, maxLength } from "@/constants/validationRules";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
@@ -18,16 +19,17 @@ interface Club {
     name: string;
     address: string;
     is_active: boolean;
+    logo: File | null;
 }
 
-// const props = defineProps<Props>();
 const props = withDefaults(defineProps<Props>(), {
     clubs: null,
 });
 
 /* refs */
 let showModal = ref(false);
-const formSendRef = ref();
+const formSendRef  = ref();
+const currentLogoUrl = ref<string | null>(null);
 
 /* forms */
 const form = useForm<Club>({
@@ -35,6 +37,7 @@ const form = useForm<Club>({
     name: "",
     address: "",
     is_active: true,
+    logo: null,
 });
 
 const create = () => {
@@ -42,66 +45,46 @@ const create = () => {
 };
 const save = () => {
     formSendRef.value?.validate().then(({ valid: isValid }) => {
-        console.log(isValid);
-        if (!isValid) {
-            return;
+        if (!isValid) return;
+
+        const onSuccess = () => {
+            customToastSwal({ title: page.props.flash.success || "", icon: "success" });
+            showModal.value = false;
+            currentLogoUrl.value = null;
+            form.reset();
+            fetchItems();
+        };
+        const onError = () => {
+            customToastSwal({
+                title: `Error: ${form.errors.messageError}`,
+                text: `${form.errors.exception}`,
+                icon: "error",
+            });
+        };
+
+        // CustomFileUploadField emite File[] — extraemos el File individual antes de enviar
+        const normalizeFile = (data: any) => ({
+            ...data,
+            logo: Array.isArray(data.logo) ? (data.logo[0] ?? null) : data.logo,
+        });
+
+        if (form.id) {
+            form.transform((data) => ({ ...normalizeFile(data), _method: "PUT" }))
+                .post(route("clubs.update", form.id), { onSuccess, onError });
         } else {
-            if (form.id) {
-                form.put(route("clubs.update", form.id), {
-                    onSuccess: () => {
-                        customToastSwal({
-                            title: page.props.flash.success || "",
-                            icon: "success",
-                        });
-                        showModal.value = false;
-                        form.reset();
-                        fetchItems();
-                    },
-                    onError: () => {
-                        customToastSwal({
-                            title: `Error: ${form.errors.messageError}`,
-                            text: `${form.errors.exception}`,
-                            icon: "error",
-                        });
-                        // console.log(form.errors);
-                    },
-                });
-            } else {
-                form.post(route("clubs.store"), {
-                    onSuccess: () => {
-                        customToastSwal({
-                            title: page.props.flash.success || "",
-                            icon: "success",
-                        });
-                        showModal.value = false;
-                        form.reset();
-                        fetchItems();
-                    },
-                    onError: () => {
-                        customToastSwal({
-                            title: `Error: ${form.errors.messageError}`,
-                            text: `${form.errors.exception}`,
-                            icon: "error",
-                        });
-                        // console.log(form.errors);
-                    },
-                });
-            }
+            form.transform((data) => normalizeFile(data))
+                .post(route("clubs.store"), { onSuccess, onError });
         }
     });
 };
 const edit = (data: any) => {
-    console.log(data);
-    form.name = data.name;
-    form.address = data.address;
-    form.is_active = data.is_active;
-    form.id = data.id;
-
-    // headQuarterForm.id = data.id;
-    // headQuarterForm.name = data.name;
-    // headQuarterForm.latitude = data.latitude;
-    // headQuarterForm.longitude = data.longitude;
-    showModal.value = true;
+    form.name        = data.name;
+    form.address     = data.address;
+    form.is_active   = data.is_active;
+    form.id          = data.id;
+    form.logo        = null;
+    currentLogoUrl.value = data.logo_url ?? null;
+    showModal.value  = true;
 };
 
 const destroy = (data: any) => {
@@ -134,16 +117,18 @@ const destroy = (data: any) => {
 };
 const close = () => {
     form.reset();
+    currentLogoUrl.value = null;
     showModal.value = false;
 };
 //* INICIO DATATABLE SERVER SIDE */
 // Aquí se definen los encabezados de la tabla, donde key es el nombre de la columna en la base de datos
 const headers = [
-    { title: "ID", key: "id" },
-    { title: "Nombre", key: "name" },
+    { title: "ID",        key: "id" },
+    { title: "Logo",      key: "logo_url",  sortable: false },
+    { title: "Nombre",    key: "name" },
     { title: "Dirección", key: "address" },
-    { title: "Activo", key: "is_active" },
-    { title: "Acciones", key: "actions", sortable: false },
+    { title: "Activo",    key: "is_active" },
+    { title: "Acciones",  key: "actions",  sortable: false },
 ];
 
 // variables reactivas
@@ -228,6 +213,13 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                             />
                         </template>
 
+                        <template #item.logo_url="{ item }">
+                            <v-avatar v-if="item.logo_url" size="36" rounded="sm">
+                                <v-img :src="item.logo_url" :alt="item.name" cover />
+                            </v-avatar>
+                            <v-icon v-else color="grey-lighten-1">mdi-image-off-outline</v-icon>
+                        </template>
+
                         <template #item.actions="{ item }">
                             <BaseButton
                                 action="edit"
@@ -260,7 +252,6 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 :rules="[required, maxLength(20)]"
                             />
                         </v-col>
-                        <!-- Dirección -->
                         <v-col cols="12">
                             <v-textarea
                                 v-model="form.address"
@@ -281,7 +272,35 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 :label="form.is_active ? 'Activo' : 'Inactivo'"
                                 hide-details
                                 inset
-                            ></v-switch>
+                            />
+                        </v-col>
+
+                        <!-- Logo -->
+                        <v-col cols="12">
+                            <!-- Preview del logo actual al editar -->
+                            <div v-if="currentLogoUrl && !form.logo" class="mb-3 d-flex align-center ga-3">
+                                <v-img
+                                    :src="currentLogoUrl"
+                                    height="150"
+                                    width="250"
+                                    countain
+                                    rounded="lg"
+                                    class="border"
+                                />
+                                <div class="text-body-2 text-medium-emphasis">
+                                    Logo actual. Sube uno nuevo para reemplazarlo.
+                                </div>
+                            </div>
+
+                            <CustomFileUploadField
+                                v-model="form.logo as any"
+                                label="Logo del club"
+                                hint="JPG, PNG o WEBP · máx. 2 MB"
+                                accept="image/jpeg,image/png,image/webp"
+                            />
+                            <div v-if="form.errors.logo" class="text-error text-caption mt-1">
+                                {{ form.errors.logo }}
+                            </div>
                         </v-col>
                     </v-card-text>
                     <v-card-actions>

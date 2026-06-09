@@ -136,7 +136,7 @@ class AmenityController extends Controller
 
             return redirect()->back()->with('success', 'Amenidad eliminada correctamente');
         } catch (\Exception $e) {
-            return redirect()->back()->with('messageError', $e->getMessage());
+            return redirect()->back()->with('messageError', $e->getMessage()); 
         }
     }
 
