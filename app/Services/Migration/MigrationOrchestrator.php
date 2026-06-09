@@ -9,6 +9,7 @@ use App\Models\Members\Member;
 use App\Models\Memberships\MembershipAccount;
 use App\Models\Memberships\MembershipAccountMember;
 use App\Models\Memberships\MembershipType;
+use App\Services\Billing\MembershipPricingService;
 use App\Services\Migration\Importers\CasilleroImporter;
 use App\Services\Migration\Importers\DomicilioImporter;
 use App\Services\Migration\Importers\EmpleoImporter;
@@ -21,12 +22,16 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class MigrationOrchestrator
 {
+    public function __construct(
+        protected MembershipPricingService $pricingService
+    ) {}
+
     /** Todos los importadores en el orden en que deben ejecutarse. */
     private function importers(): array
     {
         return [
             new UserImporter(),
-            new MembershipImporter(),
+            new MembershipImporter($this->pricingService),
             new IntegranteImporter(),
             new DomicilioImporter(),
             new EmpleoImporter(),

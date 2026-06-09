@@ -6,12 +6,17 @@ use App\Models\Memberships\Membership;
 use App\Models\Memberships\MembershipAccount;
 use App\Models\Memberships\MembershipAccountGroup;
 use App\Models\Memberships\PricingRule;
+use App\Services\Billing\MembershipPricingService;
 use App\Services\Migration\MigrationContext;
 use App\Services\Migration\MigrationReport;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class MembershipImporter extends BaseImporter
 {
+    public function __construct(
+        protected MembershipPricingService $pricingService
+    ) {}
+
     public function name(): string
     {
         return 'Membresias';
@@ -84,7 +89,7 @@ class MembershipImporter extends BaseImporter
                         $membershipTypeId, $monthlyFee, $fechaInicio,
                         $grupoFamiliar, $cuentaOrigen, $context, &$deferred
                     ) {
-                        $account = MembershipAccount::updateOrCreate(
+                        $account = MembershipAccount::firstOrCreate(
                             ['membership_number' => $noCuenta],
                             [
                                 'account_type' => $accountType,
@@ -93,17 +98,21 @@ class MembershipImporter extends BaseImporter
                             ]
                         );
 
-                        $membership = Membership::updateOrCreate(
+                        $membership = Membership::firstOrCreate(
                             [
                                 'membership_account_id' => $account->id,
                                 'club_id'               => $clubId,
                             ],
                             [
-                                'membership_type_id' => $membershipTypeId,
-                                'is_primary'         => true,
-                                'monthly_fee'        => $monthlyFee,
-                                'start_date'         => $fechaInicio ?? now()->toDateString(),
-                                'status'             => $accountStatus,
+                                'membership_type_id'  => $membershipTypeId,
+                                'is_primary'          => true,
+                                'is_billable'         => true,
+                                'monthly_fee'         => $monthlyFee,
+                                'monthly_fee_total'   => $monthlyFee,
+                                'monthly_fee_share'   => $monthlyFee,
+                                'billing_split_mode'  => 'single',
+                                'start_date'          => $fechaInicio ?? now()->toDateString(),
+                                'status'              => $accountStatus,
                             ]
                         );
 
@@ -168,17 +177,92 @@ class MembershipImporter extends BaseImporter
             }
         }
 
+        // Tercera pasada: ajustar cuotas para grupos interclub (equal_split).
+        // En la primera pasada se guardó la tarifa standalone (hasMultipleClubs=false).
+        // Ahora que los account_group_id ya están asignados, detectamos grupos que
+        // abarcan más de un club y recalculamos con la tarifa interclub.
+        if (!$dryRun && !empty($context->groupsByCode)) {
+            foreach (array_unique(array_values($context->groupsByCode)) as $groupId) {
+                try {
+                    $groupMemberships = Membership::query()
+                        ->where('is_primary', true)
+                        ->whereHas('account', fn ($q) => $q->where('account_group_id', $groupId))
+                        ->orderBy('club_id')
+                        ->orderBy('id')
+                        ->get();
+
+                    $uniqueClubs = $groupMemberships->pluck('club_id')->filter()->unique()->count();
+
+                    if ($uniqueClubs <= 1 || $groupMemberships->count() < 2) {
+                        continue;
+                    }
+
+                    // Resolver tarifa interclub para el tipo de membresía del primer registro
+                    $representative = $groupMemberships->first();
+                    $interclubRule = $this->pricingService->resolvePricingRule(
+                        membershipTypeId: $representative->membership_type_id,
+                        fromMembershipTypeId: null,
+                        age: null,
+                        hasMultipleClubs: true
+                    );
+
+                    if (!$interclubRule) {
+                        continue;
+                    }
+
+                    $groupTotal   = round((float) $interclubRule->monthly_fee, 2);
+                    $count        = $groupMemberships->count();
+                    $splitAmount  = round($groupTotal / $count, 2);
+                    $allocated    = 0.0;
+                    $last         = $groupMemberships->last();
+
+                    foreach ($groupMemberships as $membership) {
+                        $share = $membership->is($last)
+                            ? round($groupTotal - $allocated, 2)
+                            : $splitAmount;
+
+                        $allocated = round($allocated + $share, 2);
+
+                        $membership->update([
+                            'monthly_fee'        => $groupTotal,
+                            'monthly_fee_total'  => $groupTotal,
+                            'monthly_fee_share'  => $share,
+                            'billing_split_mode' => 'equal_split',
+                            'is_billable'        => $share > 0,
+                        ]);
+                    }
+                } catch (\Throwable) {
+                    // No bloquear si falla el ajuste de un grupo
+                }
+            }
+        }
+
         $report->record($this->name(), $ok, $errors);
     }
 
     private function resolveMonthlyFee(int $membershipTypeId): float
     {
-        $rule = PricingRule::where('membership_type_id', $membershipTypeId)
-            ->whereNull('from_membership_type_id')
-            ->whereNull('min_age')
-            ->where('requires_multiple_clubs', false)
-            ->orderByDesc('priority')
-            ->first();
+        $rule = $this->pricingService->resolvePricingRule(
+            membershipTypeId: $membershipTypeId,
+            fromMembershipTypeId: null,
+            age: null,
+            hasMultipleClubs: false
+        );
+
+        if (!$rule) {
+            // Tipos con reglas solo por rango de edad (ej. solidaria) no tienen una
+            // regla con min_age/max_age NULL, así que el intento anterior no encuentra nada.
+            // Tomamos la primera regla activa ignorando el rango de edad.
+            $today = now()->toDateString();
+            $rule = PricingRule::where('membership_type_id', $membershipTypeId)
+                ->where('is_active', true)
+                ->whereNull('from_membership_type_id')
+                ->where('requires_multiple_clubs', false)
+                ->where(fn ($q) => $q->whereNull('valid_from')->orWhere('valid_from', '<=', $today))
+                ->where(fn ($q) => $q->whereNull('valid_until')->orWhere('valid_until', '>=', $today))
+                ->orderBy('priority')
+                ->first();
+        }
 
         return $rule ? (float) $rule->monthly_fee : 0.00;
     }
