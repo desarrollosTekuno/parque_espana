@@ -43,6 +43,7 @@ use App\Http\Controllers\Web\AdminClub\MembershipTypeController;
 use App\Http\Controllers\Web\AdminClub\PaymentMethodController;
 use App\Http\Controllers\Web\AdminClub\LockerAssignmentHistoryController;
 use App\Http\Controllers\Web\AdminClub\ClinicalHistoryController;
+use App\Http\Controllers\Web\AdminClub\ClubSettingsController;
 use Illuminate\Support\Facades\Route;
 
 // amenities
@@ -277,6 +278,10 @@ Route::get('/members/{membership}/clinical-history', [ClinicalHistoryController:
     ->name('members.clinical-history.index');
 Route::put('/members/{membership}/members/{member}/clinical-history', [ClinicalHistoryController::class, 'upsert'])
     ->name('members.clinical-history.upsert');
+
+// Club Settings
+Route::get('/club-settings', [ClubSettingsController::class, 'edit'])->name('club-settings.edit');
+Route::post('/club-settings', [ClubSettingsController::class, 'update'])->name('club-settings.update');
 
 // Acts
 Route::prefix('acts')->group(function () {
