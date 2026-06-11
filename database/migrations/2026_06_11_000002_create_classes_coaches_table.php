@@ -17,10 +17,13 @@ return new class extends Migration {
                 ->on('clubs.clubs')
                 ->cascadeOnDelete();
 
-            $table->string('name');
+            $table->string('first_name');
+            $table->string('last_name');
+            $table->string('second_last_name')->nullable();
+            $table->string('phone')->nullable();
+            $table->string('email')->nullable();
             $table->string('photo')->nullable();
             $table->json('specialties')->default('[]');
-            $table->boolean('is_active')->default(true);
 
             $table->timestamps();
             $table->softDeletes();

@@ -45,6 +45,8 @@ use App\Http\Controllers\Web\AdminClub\PaymentMethodController;
 use App\Http\Controllers\Web\AdminClub\LockerAssignmentHistoryController;
 use App\Http\Controllers\Web\AdminClub\ClinicalHistoryController;
 use App\Http\Controllers\Web\AdminClub\ClubSettingsController;
+use App\Http\Controllers\Web\AdminClub\CoachController;
+use App\Http\Controllers\Web\AdminClub\ClassScheduleController;
 use Illuminate\Support\Facades\Route;
 
 // amenities
@@ -287,6 +289,10 @@ Route::put('/members/{membership}/members/{member}/clinical-history', [ClinicalH
 // Club Settings
 Route::get('/club-settings', [ClubSettingsController::class, 'edit'])->name('club-settings.edit');
 Route::post('/club-settings', [ClubSettingsController::class, 'update'])->name('club-settings.update');
+
+// Clases
+Route::resource('/coaches', CoachController::class)->only(['index', 'store', 'update', 'destroy'])->names('coaches');
+Route::resource('/class-schedules', ClassScheduleController::class)->only(['index', 'store', 'update', 'destroy'])->names('classSchedules');
 
 // Acts
 Route::prefix('acts')->group(function () {

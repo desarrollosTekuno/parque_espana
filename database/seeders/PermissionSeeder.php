@@ -56,6 +56,16 @@ class PermissionSeeder extends Seeder
             ['module' => 'Amenidades', 'name' => 'amenityResource.downloadQrPdf', 'description' => 'Descargar código QR en PDF', 'contexts' => ['web']],
             ['module' => 'Amenidades', 'name' => 'amenityResource.downloadQr', 'description' => 'Descargar código QR para recurso de amenidad', 'contexts' => ['web']],
 
+            // Clases
+            ['module' => 'Clases', 'name' => 'coaches.index',          'description' => 'Ver entrenadores',         'contexts' => ['web']],
+            ['module' => 'Clases', 'name' => 'coaches.store',          'description' => 'Crear entrenadores',        'contexts' => ['web']],
+            ['module' => 'Clases', 'name' => 'coaches.update',         'description' => 'Actualizar entrenadores',   'contexts' => ['web']],
+            ['module' => 'Clases', 'name' => 'coaches.destroy',        'description' => 'Eliminar entrenadores',     'contexts' => ['web']],
+            ['module' => 'Clases', 'name' => 'classSchedules.index',   'description' => 'Ver clases',                'contexts' => ['web']],
+            ['module' => 'Clases', 'name' => 'classSchedules.store',   'description' => 'Crear clases',              'contexts' => ['web']],
+            ['module' => 'Clases', 'name' => 'classSchedules.update',  'description' => 'Actualizar clases',         'contexts' => ['web']],
+            ['module' => 'Clases', 'name' => 'classSchedules.destroy', 'description' => 'Eliminar clases',           'contexts' => ['web']],
+
             // Reservaciones
             ['module' => 'Reservaciones', 'name' => 'reservations.index', 'description' => 'Ver reservaciones', 'contexts' => ['web']],
             ['module' => 'Reservaciones', 'name' => 'reservations.store', 'description' => 'Crear reservaciones', 'contexts' => ['web']],

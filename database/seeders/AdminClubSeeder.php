@@ -125,6 +125,16 @@ class AdminClubSeeder extends Seeder
             'notifications.update',
             'notifications.destroy',
 
+            // clases
+            'coaches.index',
+            'coaches.store',
+            'coaches.update',
+            'coaches.destroy',
+            'classSchedules.index',
+            'classSchedules.store',
+            'classSchedules.update',
+            'classSchedules.destroy',
+
         );
         $adminClubRole = Role::updateOrCreate([
             'name' => 'admin_club',

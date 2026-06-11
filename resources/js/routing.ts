@@ -233,6 +233,28 @@ const routes: Routing[] = [
             },
         ],
     },
+    // Clases
+    {
+        name: ["coaches.index", "classSchedules.index"],
+        title: "Clases",
+        icon: "mdi-whistle-outline",
+        value: "clasesMenu",
+        group: "Clases",
+        groupItems: [
+            {
+                name: "coaches.index",
+                title: "Entrenadores",
+                icon: "mdi-account-star-outline",
+                value: "entrenadores",
+            },
+            {
+                name: "classSchedules.index",
+                title: "Horarios de clases",
+                icon: "mdi-calendar-clock-outline",
+                value: "horarios-clases",
+            },
+        ],
+    },
     // Amenidades
     {
         name: ["amenities.index", "blockedPeriods.index"],

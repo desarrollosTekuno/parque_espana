@@ -15,24 +15,26 @@ class Coach extends Model
 
     protected $fillable = [
         'club_id',
-        'name',
+        'first_name',
+        'last_name',
+        'second_last_name',
+        'phone',
+        'email',
         'photo',
         'specialties',
-        'is_active',
     ];
 
+    public function getFullNameAttribute(): string
+    {
+        return trim("{$this->first_name} {$this->last_name} {$this->second_last_name}");
+    }
+
     protected $casts = [
-        'is_active'   => 'boolean',
         'specialties' => 'array',
     ];
 
     public function classSchedules()
     {
         return $this->hasMany(ClassSchedule::class);
-    }
-
-    public function scopeActive($query)
-    {
-        return $query->where('is_active', true);
     }
 }
