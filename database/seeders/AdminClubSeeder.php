@@ -126,6 +126,10 @@ class AdminClubSeeder extends Seeder
             'notifications.destroy',
 
             // clases
+            'specialties.index',
+            'specialties.store',
+            'specialties.update',
+            'specialties.destroy',
             'coaches.index',
             'coaches.store',
             'coaches.update',

@@ -46,6 +46,7 @@ use App\Http\Controllers\Web\AdminClub\LockerAssignmentHistoryController;
 use App\Http\Controllers\Web\AdminClub\ClinicalHistoryController;
 use App\Http\Controllers\Web\AdminClub\ClubSettingsController;
 use App\Http\Controllers\Web\AdminClub\CoachController;
+use App\Http\Controllers\Web\AdminClub\SpecialtyController;
 use App\Http\Controllers\Web\AdminClub\ClassScheduleController;
 use Illuminate\Support\Facades\Route;
 
@@ -291,6 +292,7 @@ Route::get('/club-settings', [ClubSettingsController::class, 'edit'])->name('clu
 Route::post('/club-settings', [ClubSettingsController::class, 'update'])->name('club-settings.update');
 
 // Clases
+Route::resource('/specialties', SpecialtyController::class)->only(['index', 'store', 'update', 'destroy'])->names('specialties');
 Route::resource('/coaches', CoachController::class)->only(['index', 'store', 'update', 'destroy'])->names('coaches');
 Route::resource('/class-schedules', ClassScheduleController::class)->only(['index', 'store', 'update', 'destroy'])->names('classSchedules');
 

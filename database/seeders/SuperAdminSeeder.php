@@ -46,6 +46,10 @@ class SuperAdminSeeder extends Seeder
             'clubs.store',
             'clubs.update',
             'clubs.destroy',
+            'specialties.index',
+            'specialties.store',
+            'specialties.update',
+            'specialties.destroy',
         );
         $superadmin->syncPermissions($superadminPermissions);
     }

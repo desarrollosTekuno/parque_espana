@@ -57,6 +57,10 @@ class PermissionSeeder extends Seeder
             ['module' => 'Amenidades', 'name' => 'amenityResource.downloadQr', 'description' => 'Descargar código QR para recurso de amenidad', 'contexts' => ['web']],
 
             // Clases
+            ['module' => 'Clases', 'name' => 'specialties.index',      'description' => 'Ver especialidades',     'contexts' => ['web']],
+            ['module' => 'Clases', 'name' => 'specialties.store',      'description' => 'Crear especialidades',   'contexts' => ['web']],
+            ['module' => 'Clases', 'name' => 'specialties.update',     'description' => 'Actualizar especialidades', 'contexts' => ['web']],
+            ['module' => 'Clases', 'name' => 'specialties.destroy',    'description' => 'Eliminar especialidades', 'contexts' => ['web']],
             ['module' => 'Clases', 'name' => 'coaches.index',          'description' => 'Ver entrenadores',         'contexts' => ['web']],
             ['module' => 'Clases', 'name' => 'coaches.store',          'description' => 'Crear entrenadores',        'contexts' => ['web']],
             ['module' => 'Clases', 'name' => 'coaches.update',         'description' => 'Actualizar entrenadores',   'contexts' => ['web']],

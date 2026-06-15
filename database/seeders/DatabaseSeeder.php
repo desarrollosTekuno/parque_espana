@@ -53,6 +53,7 @@ class DatabaseSeeder extends Seeder
 
             GuestListVariableSeeder::class,
 
+            SpecialtySeeder::class,
             CoachSeeder::class,
             ClassScheduleSeeder::class,
         ]);

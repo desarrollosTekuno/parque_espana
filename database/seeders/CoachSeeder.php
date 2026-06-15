@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Administrator\Club;
 use App\Models\Classes\Coach;
+use App\Models\Classes\Specialty;
 use Illuminate\Database\Seeder;
 
 class CoachSeeder extends Seeder
@@ -16,6 +17,10 @@ class CoachSeeder extends Seeder
             return;
         }
 
+        $specialtyCodes = Specialty::where('club_id', $club->id)
+            ->pluck('code')
+            ->all();
+
         $coaches = [
             [
                 'first_name'       => 'Carlos',
@@ -23,7 +28,7 @@ class CoachSeeder extends Seeder
                 'second_last_name' => 'Ríos',
                 'phone'            => '2221000001',
                 'email'            => 'carlos.mendoza@parqueespana.mx',
-                'specialties'      => ['tennis', 'padel'],
+                'specialties'      => $specialtyCodes,
             ],
             [
                 'first_name'       => 'Ana',
