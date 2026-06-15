@@ -17,10 +17,6 @@ class CoachSeeder extends Seeder
             return;
         }
 
-        $specialtyCodes = Specialty::where('club_id', $club->id)
-            ->pluck('code')
-            ->all();
-
         $coaches = [
             [
                 'first_name'       => 'Carlos',
@@ -28,7 +24,7 @@ class CoachSeeder extends Seeder
                 'second_last_name' => 'Ríos',
                 'phone'            => '2221000001',
                 'email'            => 'carlos.mendoza@parqueespana.mx',
-                'specialties'      => $specialtyCodes,
+                'specialties'      => ['tennis', 'padel'],
             ],
             [
                 'first_name'       => 'Ana',
@@ -57,7 +53,7 @@ class CoachSeeder extends Seeder
         ];
 
         foreach ($coaches as $coachData) {
-            Coach::updateOrCreate(
+            $coach = Coach::updateOrCreate(
                 [
                     'club_id'   => $club->id,
                     'last_name' => $coachData['last_name'],
@@ -67,9 +63,14 @@ class CoachSeeder extends Seeder
                     'first_name'       => $coachData['first_name'],
                     'second_last_name' => $coachData['second_last_name'],
                     'phone'            => $coachData['phone'],
-                    'specialties'      => $coachData['specialties'],
                 ]
             );
+
+            $specialtyIds = Specialty::where('club_id', $club->id)
+                ->whereIn('code', $coachData['specialties'])
+                ->pluck('id');
+
+            $coach->specialties()->sync($specialtyIds);
         }
     }
 }

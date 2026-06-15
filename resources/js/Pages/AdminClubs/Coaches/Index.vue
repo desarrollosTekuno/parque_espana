@@ -8,21 +8,17 @@ import { debounce } from "lodash";
 import { ref, watch } from "vue";
 
 const page = usePage();
-const can = page.props.auth.permissions;
+const can  = page.props.auth.permissions;
 
 interface Props {
-    coaches?: any;
+    coaches?:     any;
+    specialties?: any[];
 }
 
 const props = defineProps<Props>();
-const showModal = ref(false);
+const showModal   = ref(false);
 const formSendRef = ref();
-const saving = ref(false);
-
-const specialtyOptions = [
-    { label: "Tenis",  value: "tennis" },
-    { label: "Pádel",  value: "padel"  },
-];
+const saving      = ref(false);
 
 const form = useForm({
     id:               null as number | null,
@@ -31,7 +27,7 @@ const form = useForm({
     second_last_name: "",
     phone:            "",
     email:            "",
-    specialties:      [] as string[],
+    specialties:      [] as number[],
 });
 
 const create = () => {
@@ -47,8 +43,8 @@ const edit = (item: any) => {
     form.second_last_name = item.second_last_name ?? "";
     form.phone            = item.phone ?? "";
     form.email            = item.email ?? "";
-    form.specialties = item.specialties ?? [];
-    showModal.value  = true;
+    form.specialties      = item.specialties?.map((s: any) => s.id) ?? [];
+    showModal.value       = true;
 };
 
 const save = async () => {
@@ -92,16 +88,12 @@ const destroy = (item: any) => {
     });
 };
 
-const specialtyLabel = (specialties: string[]) =>
-    specialties
-        ?.map((s) => specialtyOptions.find((o) => o.value === s)?.label ?? s)
-        .join(", ") || "—";
-
-// ── Tabla ────────────────────────────────────────────────────────────────────
+// ── Tabla ─────────────────────────────────────────────────────────────────────
 const headers = [
-    { title: "Nombre",        key: "full_name" },
+    { title: "Nombre",         key: "full_name" },
     { title: "Especialidades", key: "specialties" },
-    { title: "Acciones",      key: "actions", sortable: false },
+    { title: "Teléfono",       key: "phone" },
+    { title: "Acciones",       key: "actions", sortable: false },
 ];
 
 const items   = ref<any[]>([]);
@@ -109,9 +101,9 @@ const total   = ref(0);
 const loading = ref(false);
 const search  = ref("");
 const options = ref({
-    page: 1,
+    page:         1,
     itemsPerPage: 10,
-    sortBy: [{ key: "name", order: "asc" }],
+    sortBy:       [{ key: "first_name", order: "asc" }],
 });
 
 const fetchItems = () => {
@@ -126,8 +118,8 @@ const fetchItems = () => {
 watch(
     () => props.coaches,
     (val) => {
-        items.value  = val?.data  ?? [];
-        total.value  = val?.total ?? 0;
+        items.value   = val?.data  ?? [];
+        total.value   = val?.total ?? 0;
         loading.value = false;
     },
     { immediate: true }
@@ -179,13 +171,13 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
             <template #item.specialties="{ item }">
                 <v-chip
                     v-for="s in item.specialties"
-                    :key="s"
+                    :key="s.id"
                     size="small"
                     class="mr-1"
                     color="primary"
                     variant="tonal"
                 >
-                    {{ specialtyOptions.find((o) => o.value === s)?.label ?? s }}
+                    {{ s.name }}
                 </v-chip>
                 <span v-if="!item.specialties?.length">—</span>
             </template>
@@ -256,11 +248,11 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                             <v-col cols="12">
                                 <div class="text-subtitle-2 mb-2">Especialidades</div>
                                 <v-checkbox
-                                    v-for="opt in specialtyOptions"
-                                    :key="opt.value"
+                                    v-for="s in (specialties ?? [])"
+                                    :key="s.id"
                                     v-model="form.specialties"
-                                    :label="opt.label"
-                                    :value="opt.value"
+                                    :label="s.name"
+                                    :value="s.id"
                                     density="compact"
                                     hide-details
                                 />
@@ -271,7 +263,6 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                     Selecciona al menos una especialidad
                                 </div>
                             </v-col>
-
                         </v-row>
                     </v-card-text>
 

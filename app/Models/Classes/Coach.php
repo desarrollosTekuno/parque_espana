@@ -21,7 +21,6 @@ class Coach extends Model
         'phone',
         'email',
         'photo',
-        'specialties',
     ];
 
     public function getFullNameAttribute(): string
@@ -29,12 +28,13 @@ class Coach extends Model
         return trim("{$this->first_name} {$this->last_name} {$this->second_last_name}");
     }
 
-    protected $casts = [
-        'specialties' => 'array',
-    ];
-
     public function classSchedules()
     {
         return $this->hasMany(ClassSchedule::class);
+    }
+
+    public function specialties()
+    {
+        return $this->belongsToMany(Specialty::class, 'classes.coach_specialties', 'coach_id', 'specialty_id');
     }
 }

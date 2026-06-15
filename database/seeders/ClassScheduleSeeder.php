@@ -20,18 +20,18 @@ class ClassScheduleSeeder extends Seeder
         }
 
         $tenisPadel = Coach::where('club_id', $club->id)
-            ->whereJsonContains('specialties', 'tennis')
-            ->whereJsonContains('specialties', 'padel')
+            ->whereHas('specialties', fn($q) => $q->where('code', 'tennis'))
+            ->whereHas('specialties', fn($q) => $q->where('code', 'padel'))
             ->first();
 
         $tenis = Coach::where('club_id', $club->id)
-            ->whereJsonContains('specialties', 'tennis')
-            ->whereJsonDoesntContain('specialties', 'padel')
+            ->whereHas('specialties', fn($q) => $q->where('code', 'tennis'))
+            ->whereDoesntHave('specialties', fn($q) => $q->where('code', 'padel'))
             ->first();
 
         $padel = Coach::where('club_id', $club->id)
-            ->whereJsonContains('specialties', 'padel')
-            ->whereJsonDoesntContain('specialties', 'tennis')
+            ->whereHas('specialties', fn($q) => $q->where('code', 'padel'))
+            ->whereDoesntHave('specialties', fn($q) => $q->where('code', 'tennis'))
             ->first();
 
         $amenityTenis = Amenity::where('club_id', $club->id)

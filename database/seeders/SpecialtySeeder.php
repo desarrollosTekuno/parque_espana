@@ -35,7 +35,6 @@ class SpecialtySeeder extends Seeder
                 ],
                 [
                     'name' => $specialtyData['name'],
-                    'is_active' => true,
                 ]
             );
         }

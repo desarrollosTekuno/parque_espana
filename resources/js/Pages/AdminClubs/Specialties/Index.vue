@@ -19,7 +19,6 @@ interface SpecialtyForm {
     id: number | null;
     name: string;
     code: string;
-    is_active: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -43,14 +42,12 @@ const form = useForm<SpecialtyForm>({
     id: null,
     name: "",
     code: "",
-    is_active: true,
 });
 
 const headers = [
     { title: "ID", key: "id" },
     { title: "Nombre", key: "name" },
     { title: "Codigo", key: "code" },
-    { title: "Activo", key: "is_active" },
     { title: "Acciones", key: "actions", sortable: false },
 ];
 
@@ -85,7 +82,6 @@ const fetchItems = () => {
 const create = () => {
     form.reset();
     form.clearErrors();
-    form.is_active = true;
     showModal.value = true;
 };
 
@@ -94,7 +90,6 @@ const edit = (item: any) => {
     form.id = item.id;
     form.name = item.name;
     form.code = item.code;
-    form.is_active = Boolean(item.is_active);
     showModal.value = true;
 };
 
@@ -225,16 +220,6 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                 />
             </template>
 
-            <template #item.is_active="{ item }">
-                <v-chip
-                    :color="item.is_active ? 'success' : 'error'"
-                    size="small"
-                    variant="tonal"
-                >
-                    {{ item.is_active ? "Activo" : "Inactivo" }}
-                </v-chip>
-            </template>
-
             <template #item.actions="{ item }">
                 <BaseButton
                     v-if="can.includes('specialties.update')"
@@ -272,14 +257,6 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 />
                             </v-col>
 
-                            <v-col cols="12">
-                                <v-switch
-                                    v-model="form.is_active"
-                                    label="Activo"
-                                    color="success"
-                                    :error-messages="form.errors.is_active"
-                                />
-                            </v-col>
                         </v-row>
                     </v-card-text>
 

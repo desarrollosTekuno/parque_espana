@@ -59,13 +59,7 @@ class SpecialtyController extends Controller {
 
         $request->validate([
             'name' => 'required|string|max:120',
-            'code' => [
-                'required',
-                'string',
-                'max:60',
-                Rule::unique('classes.specialties', 'code')->where(fn ($query) => $query->where('club_id', $clubId)),
-            ],
-            'is_active' => 'boolean',
+            'code' => ['required','string','max:60',],
         ]);
 
         try {
@@ -73,7 +67,6 @@ class SpecialtyController extends Controller {
                 'club_id' => $clubId,
                 'name' => $request->name,
                 'code' => $request->code,
-                'is_active' => $request->boolean('is_active', true),
             ]);
 
             return back()->with('success', 'Especialidad creada correctamente');
@@ -92,15 +85,7 @@ class SpecialtyController extends Controller {
 
         $request->validate([
             'name' => 'required|string|max:120',
-            'code' => [
-                'required',
-                'string',
-                'max:60',
-                Rule::unique('classes.specialties', 'code')
-                    ->where(fn ($query) => $query->where('club_id', $clubId))
-                    ->ignore($id),
-            ],
-            'is_active' => 'required|boolean',
+            'code' => [ 'required', 'string', 'max:60'],
         ]);
 
         try {
@@ -109,7 +94,6 @@ class SpecialtyController extends Controller {
             $specialty->update([
                 'name' => $request->name,
                 'code' => $request->code,
-                'is_active' => $request->is_active,
             ]);
 
             return back()->with('success', 'Especialidad actualizada correctamente');

@@ -17,10 +17,10 @@ class Specialty extends Model
         'club_id',
         'name',
         'code',
-        'is_active',
     ];
 
-    protected $casts = [
-        'is_active' => 'boolean',
-    ];
+    public function coaches()
+    {
+        return $this->belongsToMany(Coach::class, 'classes.coach_specialties', 'specialty_id', 'coach_id');
+    }
 }
