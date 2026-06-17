@@ -9,6 +9,7 @@ use App\Models\Billing\ChargeConcept;
 use App\Models\Members\Locker;
 use App\Models\AdminClub\BusinessAd;
 use App\Models\Billing\PaymentMethod;
+use App\Models\Memberships\Membership;
 use App\Models\Members\LockerAssignment;
 use App\Models\Memberships\MembershipAccount;
 use App\Jobs\SendPushNotificationJob;
@@ -545,6 +546,26 @@ class BillingController extends Controller
                 'messageError' => $e->getMessage(),
             ]);
         }
+    }
+
+    public function accountCharges(Membership $membership)
+    {
+        $account = $membership->account()->with([
+            'charges' => fn ($q) => $q
+                ->with(['concept', 'membership.club'])
+                ->whereIn('status', ['pending', 'partial'])
+                ->orderByRaw('CASE WHEN due_date IS NULL THEN 1 ELSE 0 END')
+                ->orderBy('due_date')
+                ->orderBy('id'),
+        ])->firstOrFail();
+
+        $charges = $account->charges->map(fn (Charge $charge) => $this->buildChargePayload($charge))->values();
+
+        return response()->json([
+            'charges' => $charges,
+            'outstanding_balance' => (float) $account->charges->sum('balance'),
+            'club_payment_methods' => $this->resolveClubPaymentMethods(),
+        ]);
     }
 
     protected function resolveClubPaymentMethods(): \Illuminate\Support\Collection

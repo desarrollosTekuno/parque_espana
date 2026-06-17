@@ -29,6 +29,7 @@ class ClubSettingsController extends Controller
                 'address'          => $club->address,
                 'is_active'        => (bool) $club->is_active,
                 'logo_url'         => $club->logo_url,
+                'mapa_url'         => $club->mapa_url,
                 'social_whatsapp'  => $club->social_whatsapp,
                 'social_instagram' => $club->social_instagram,
                 'social_facebook'  => $club->social_facebook,
@@ -48,6 +49,7 @@ class ClubSettingsController extends Controller
                 'address'          => ['nullable', 'string', 'max:500'],
                 'is_active'        => ['required'],
                 'logo'             => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+                'mapa'             => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
                 'social_whatsapp'  => ['nullable', 'string', 'max:200'],
                 'social_instagram' => ['nullable', 'url', 'max:500'],
                 'social_facebook'  => ['nullable', 'url', 'max:500'],
@@ -79,15 +81,15 @@ class ClubSettingsController extends Controller
                 'social_instagram' => $validated['social_instagram'] ?? null,
                 'social_facebook'  => $validated['social_facebook'] ?? null,
                 'social_youtube'   => $validated['social_youtube'] ?? null,
+                'mapa_path'        => $validated['mapa_path'] ?? null,
+                'logo_path'        => $validated['logo_path'] ?? null,
             ];
 
             if ($request->hasFile('logo')) {
-                // Eliminar logo anterior si existe
                 if ($club->logo_path) {
                     Storage::disk('spaces')->delete($club->logo_path);
                 }
 
-                // Subir nuevo logo con visibilidad pública
                 $file     = $request->file('logo');
                 $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
 
@@ -96,8 +98,17 @@ class ClubSettingsController extends Controller
                 $data['logo_path'] = "club-logos/{$filename}";
             }
 
-            $club->update($data);
+            if ($request->hasFile('mapa')) {
+                if ($club->mapa_path) {
+                    Storage::disk('spaces')->delete($club->mapa_path);
+                }
+                $file     = $request->file('mapa');
+                $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
+                Storage::disk('spaces')->putFileAs('club-mapas', $file, $filename, 'public');
+                $data['mapa_path'] = "club-mapas/{$filename}";
+            }
 
+            $club->update($data);
             return redirect()->back()->with('success', 'Información del club actualizada correctamente.');
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([

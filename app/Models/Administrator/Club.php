@@ -23,7 +23,7 @@ class Club extends Model {
 
     protected $guarded = ['id', 'created_at', 'updated_at'];
     protected $dates   = ['deleted_at'];
-    protected $appends = ['logo_url'];
+    protected $appends = ['logo_url', 'mapa_url'];
 
     public function getLogoUrlAttribute(): ?string
     {
@@ -31,6 +31,14 @@ class Club extends Model {
             return null;
         }
         return Storage::disk('spaces')->url($this->logo_path);
+    }
+
+    public function getMapaUrlAttribute(): ?string
+    {
+        if (!$this->mapa_path) {
+            return null;
+        }
+        return Storage::disk('spaces')->url($this->mapa_path);
     }
 
     public function amenities()

@@ -174,6 +174,8 @@ Route::patch('/members/{membership}/internal-account-number', [MemberController:
     ->name('members.internal-account-number.update');
 Route::get('/members/{membership}/history', [MemberController::class, 'membershipHistory'])
     ->name('members.manage.history');
+Route::get('/members/{membership}/billing/charges', [BillingController::class, 'accountCharges'])
+    ->name('members.billing.charges');
 Route::post('/members/{membership}/documents', [MemberController::class, 'storeDocument'])
     ->name('members.documents.store');
 Route::post('/members/{membership}/absence-permits', [MemberController::class, 'storeAbsencePermit'])
@@ -271,7 +273,6 @@ Route::resource('/files', FileController::class)->only(['index', 'store', 'updat
 Route::post('files/{file}/club-file', [FileController::class, 'uploadClubFile'])->name('files.club-file.upload');
 Route::delete('files/{file}/club-file', [FileController::class, 'destroyClubFile'])->name('files.club-file.destroy');
 Route::post('/files/variables', [FileController::class, 'previewVariables'])->name('files.variables');
-
 
 // Historia Clínica
 Route::get('/members/{membership}/clinical-history', [ClinicalHistoryController::class, 'index'])

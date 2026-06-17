@@ -11,7 +11,17 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Status extends Model {
     use HasFactory, SerializesDates, SoftDeletes;
 
-    protected $guarded = ['id', 'created_at', 'updated_at'];
+    protected $fillable = [
+        'name',
+        'code',
+        'color',
+        'status',
+        'sort_order',
+        'is_active',
+        'deleted_at',
+        'created_at',
+        'updated_at',
+    ];
 
     protected $table = 'feedback.statuses';
 

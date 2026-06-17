@@ -43,7 +43,6 @@ const headers = [
     { title: "ID", key: "id" },
     { title: "Nombre", key: "name" },
     { title: "Codigo", key: "code" },
-    { title: "Descripcion", key: "description" },
     { title: "Activo", key: "is_active" },
     { title: "Acciones", key: "actions", sortable: false },
 ];
@@ -272,7 +271,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 <v-text-field
                                     v-model="form.name"
                                     label="Nombre"
-                                    :rules="[required, alphaNumeric, maxLength(65)]"
+                                    :rules="[required, alphaNumeric, maxLength(30)]"
                                     :error-messages="form.errors.name"
                                 />
                             </v-col>
@@ -281,7 +280,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 <v-text-field
                                     v-model="form.code"
                                     label="Codigo"
-                                    :rules="[required, alphaNumeric, maxLength(30)]"
+                                    :rules="[required, alphaNumeric, maxLength(10)]"
                                     :error-messages="form.errors.code"
                                 />
                             </v-col>
@@ -291,7 +290,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                     v-model="form.description"
                                     label="Descripcion"
                                     rows="3"
-                                    :rules="[maxLength(500)]"
+                                    :rules="[maxLength(300)]"
                                     :error-messages="form.errors.description"
                                 />
                             </v-col>

@@ -280,7 +280,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 <v-text-field
                                     v-model="form.name"
                                     label="Nombre"
-                                    :rules="[required, alphaNumeric, maxLength(35)]"
+                                    :rules="[required, alphaNumeric, maxLength(30)]"
                                     :error-messages="form.errors.name"
                                 />
                             </v-col>
@@ -289,18 +289,8 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 <v-text-field
                                     v-model="form.code"
                                     label="Codigo"
-                                    :rules="[required, codeRule, maxLength(30)]"
+                                    :rules="[required, codeRule, maxLength(10)]"
                                     :error-messages="form.errors.code"
-                                />
-                            </v-col>
-
-                            <v-col cols="12" md="6">
-                                <v-text-field
-                                    v-model="form.color"
-                                    label="Color (hex)"
-                                    placeholder="#6B7280"
-                                    :rules="[hexColorRule, maxLength(20)]"
-                                    :error-messages="form.errors.color"
                                 />
                             </v-col>
 
@@ -312,6 +302,16 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                     min="0"
                                     :rules="[required, integerRule]"
                                     :error-messages="form.errors.sort_order"
+                                />
+                            </v-col>
+                            
+                            <v-col cols="12" md="6">
+                                <v-color-picker
+                                    v-model="form.color"
+                                    label="Color (hex)"
+                                    placeholder="#6B7280"
+                                    :rules="[hexColorRule, maxLength(20)]"
+                                    :error-messages="form.errors.color"
                                 />
                             </v-col>
 
