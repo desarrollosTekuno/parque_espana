@@ -6,6 +6,7 @@ use App\Http\Controllers\Web\AdminClub\MemberController;
 use App\Http\Controllers\Web\AdminClub\BillingController;
 use App\Http\Controllers\Web\AdminClub\AmenityController;
 use App\Http\Controllers\Web\AdminClub\BusinessAdController;
+use App\Http\Controllers\Web\AdminClub\PhysicalAdController;
 use App\Http\Controllers\Web\AdminClub\ReservationController;
 use App\Http\Controllers\Web\AdminClub\AnnouncementController;
 use App\Http\Controllers\Web\AdminClub\BlockedPeriodController;
@@ -131,6 +132,10 @@ Route::post('/business-ads/{id}/reject', [BusinessAdController::class, 'reject']
 Route::post('/business-ads/{id}/confirm-payment', [BusinessAdController::class, 'confirmPayment'])->name('business-ads.confirm-payment');
 Route::post('/business-ads/{id}/publish', [BusinessAdController::class, 'publish'])->name('business-ads.publish');
 Route::delete('/business-ads/{id}', [BusinessAdController::class, 'destroy'])->name('business-ads.destroy');
+
+// physical_ads
+Route::get('/physical-ads/members-search', [PhysicalAdController::class, 'searchMembers'])->name('physical-ads.members-search');
+Route::post('/physical-ads', [PhysicalAdController::class, 'store'])->name('physical-ads.store');
 
 // business_ads categories
 Route::prefix('business-categories')->name('business-categories.')->group(function () {
