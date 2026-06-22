@@ -4,8 +4,9 @@ import BaseButton from "@/Components/BaseButton.vue";
 import CustomFileUploadField from "@/Components/CustomFileUploadField.vue";
 import MonthPicker from "@/Components/MonthPicker.vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
-import { fileExactCountRule, fileMaxSizeRule, fileTypeRule, requiredFileRule } from "@/constants/validationRules";
+import { fileExactCountRule, fileMaxSizeRule, fileTypeRule, requiredFileRule, required, selectRequired, optionalLength } from "@/constants/validationRules";
 import { Head, router, useForm, usePage  } from "@inertiajs/vue3";
+import { nowAsLocalInput } from "@/constants/formatDates";
 import Swal from "sweetalert2";
 import { customToastSwal } from "@/utils/swal";
 import { computed, onMounted, ref, watch } from "vue";
@@ -687,6 +688,9 @@ watch(activeTab, async (tab) => {
     if (tab === 'historial-casilleros') {
         await loadLockerHistory();
     }
+    if (tab === 'cargos-pendientes' && accountCharges.value.length === 0) {
+        await loadAccountCharges();
+    }
 });
 
 const loadClinicalHistories = async () => {
@@ -859,6 +863,221 @@ const letterRules = [
     fileTypeRule(["pdf", "jpg", "jpeg", "png"]),
     fileMaxSizeRule(2),
 ];
+
+interface ChargeItem {
+    id: number;
+    concept_name: string | null;
+    concept_code: string | null;
+    description: string | null;
+    amount: number;
+    balance: number;
+    due_date: string | null;
+    status: string;
+    allows_partial_payments: boolean;
+    club_id: number | null;
+    club_code: string | null;
+    club_name: string | null;
+    membership_type_name: string | null;
+    origin_code: string;
+    origin_label: string;
+    badges: Array<{ label: string; color: string }>;
+    target_monthly_fee: number | null;
+    monthly_fee_total: number | null;
+    monthly_fee_share: number | null;
+    effective_monthly_fee: number | null;
+}
+
+interface PaymentMethodItem {
+    id: number;
+    code: string;
+    name: string;
+    requires_reference: boolean;
+    requires_bank_name: boolean;
+    requires_check_number: boolean;
+    affects_cash_cut: boolean;
+}
+
+interface ClubPaymentMethodItem {
+    id: number;
+    code: string;
+    name: string;
+    payment_methods: PaymentMethodItem[];
+}
+
+interface MemberPaymentFormData {
+    membership_account_id: number | null;
+    club_id: number | null;
+    payment_method_id: number | null;
+    paid_at: string;
+    reference: string;
+    bank_name: string;
+    check_number: string;
+    notes: string;
+    applications: Array<{ charge_id: number; amount: number }>;
+}
+
+const chargesLoading = ref(false);
+const accountCharges = ref<ChargeItem[]>([]);
+const billingClubPaymentMethods = ref<ClubPaymentMethodItem[]>([]);
+const showMemberPaymentModal = ref(false);
+const selectedMemberCharge = ref<ChargeItem | null>(null);
+const memberPaymentAmount = ref('0.00');
+const memberPaymentFormRef = ref();
+const chargesTableOptions = ref({ page: 1, itemsPerPage: 10 });
+
+const chargesHeaders = [
+    { title: 'Parque',       key: 'club_name',     sortable: false },
+    { title: 'Concepto',     key: 'concept_name',  sortable: false },
+    { title: 'Descripción',  key: 'description',   sortable: false },
+    { title: 'Vencimiento',  key: 'due_date',       sortable: false },
+    { title: 'Estado',       key: 'status',         sortable: false },
+    { title: 'Saldo',        key: 'balance',        sortable: false, align: 'end' as const },
+    { title: 'Acciones',     key: 'actions',        sortable: false, align: 'center' as const },
+];
+
+const memberPaymentForm = useForm<MemberPaymentFormData>({
+    membership_account_id: null,
+    club_id: null,
+    payment_method_id: null,
+    paid_at: nowAsLocalInput(),
+    reference: '',
+    bank_name: '',
+    check_number: '',
+    notes: '',
+    applications: [],
+});
+
+// Summary computeds
+const chargesTotal = computed(() => accountCharges.value.reduce((s, c) => s + c.balance, 0));
+const chargesOverdue = computed(() => {
+    const today = new Date();
+    const norm = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    return accountCharges.value.filter(c => c.due_date && new Date(`${c.due_date}T00:00:00`) < norm).reduce((s, c) => s + c.balance, 0);
+});
+const chargesMonthly = computed(() => accountCharges.value.filter(c => c.concept_code === 'MONTHLY_FEE').reduce((s, c) => s + c.balance, 0));
+const chargesInscription = computed(() => accountCharges.value.filter(c => c.concept_code === 'INSCRIPTION').reduce((s, c) => s + c.balance, 0));
+
+// Payment modal computeds
+const memberPaymentMethods = computed(() => {
+    if (selectedMemberCharge.value?.club_id == null) return [];
+    return billingClubPaymentMethods.value.find(c => c.id === selectedMemberCharge.value!.club_id)?.payment_methods ?? [];
+});
+
+const memberSelectedPaymentMethod = computed(() =>
+    memberPaymentMethods.value.find(m => m.id === memberPaymentForm.payment_method_id) ?? null,
+);
+
+const memberPaymentAmountRules = computed(() => [
+    (v: string | number) => Number(v || 0) > 0 || 'Captura un importe mayor a cero',
+    (v: string | number) => Number(v || 0) <= (selectedMemberCharge.value?.balance ?? 0) || 'El importe no puede exceder el saldo pendiente',
+    (v: string | number) => {
+        if (selectedMemberCharge.value?.allows_partial_payments) return true;
+        return Number(Number(v || 0).toFixed(2)) === Number((selectedMemberCharge.value?.balance ?? 0).toFixed(2)) || 'Este cargo debe liquidarse completo';
+    },
+]);
+
+const memberPaymentMethodRules = [selectRequired];
+const memberPaidAtRules = [required];
+const memberNotesRules = [optionalLength(0, 1000)];
+const memberReferenceRules = [(v: string) => (!memberSelectedPaymentMethod.value?.requires_reference ? true : required(v)), optionalLength(0, 255)];
+const memberBankNameRules = [(v: string) => (!memberSelectedPaymentMethod.value?.requires_bank_name ? true : required(v)), optionalLength(0, 255)];
+const memberCheckNumberRules = [(v: string) => (!memberSelectedPaymentMethod.value?.requires_check_number ? true : required(v)), optionalLength(0, 255)];
+
+// Helpers
+const chargeStatusLabel = (status: string) =>
+    ({ pending: 'Pendiente', partial: 'Parcial', paid: 'Pagado', cancelled: 'Cancelado' }[status] ?? status);
+
+const chargeStatusColor = (status: string) =>
+    ({ pending: 'warning', partial: 'info', paid: 'success', cancelled: 'default' }[status] ?? 'default');
+
+const chargeConceptColor = (code: string | null) =>
+    ({ MONTHLY_FEE: 'primary', INSCRIPTION: 'secondary', BUSINESS_AD: 'orange' }[code ?? ''] ?? 'default');
+
+const resolveDueState = (value: string | null) => {
+    if (!value) return { label: 'Sin fecha', color: 'default' };
+    const dueDate = new Date(`${value}T00:00:00`);
+    const today = new Date();
+    const norm = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    if (dueDate < norm) return { label: 'Vencido', color: 'error' };
+    if (dueDate.getTime() === norm.getTime()) return { label: 'Vence hoy', color: 'warning' };
+    return { label: 'Por vencer', color: 'info' };
+};
+
+const formatCurrency = (value: number | null | undefined) =>
+    currencyFormatter.format(Number(value ?? 0));
+
+// Functions
+const loadAccountCharges = async () => {
+    chargesLoading.value = true;
+    try {
+        const res = await axios.get(route('members.billing.charges', props.membership.id));
+        accountCharges.value = res.data.charges ?? [];
+        billingClubPaymentMethods.value = res.data.club_payment_methods ?? [];
+    } catch {
+        customToastSwal({ title: 'No se pudieron cargar los cargos pendientes.', icon: 'error' });
+    } finally {
+        chargesLoading.value = false;
+    }
+};
+
+const openMemberPaymentModal = (charge: ChargeItem) => {
+    selectedMemberCharge.value = charge;
+    memberPaymentAmount.value = charge.balance.toFixed(2);
+    memberPaymentForm.reset();
+    memberPaymentForm.clearErrors();
+    memberPaymentFormRef.value?.resetValidation?.();
+    memberPaymentForm.membership_account_id = props.account.id;
+    memberPaymentForm.club_id = charge.club_id;
+    memberPaymentForm.paid_at = nowAsLocalInput();
+    showMemberPaymentModal.value = true;
+};
+
+const closeMemberPaymentModal = () => {
+    showMemberPaymentModal.value = false;
+    selectedMemberCharge.value = null;
+    memberPaymentForm.reset();
+    memberPaymentForm.clearErrors();
+    memberPaymentFormRef.value?.resetValidation?.();
+};
+
+const submitMemberPayment = async () => {
+    if (!selectedMemberCharge.value) return;
+
+    const validationResult = await memberPaymentFormRef.value?.validate();
+    if (validationResult && !validationResult.valid) {
+        customToastSwal({ title: 'Revisa los campos marcados antes de guardar el cobro.', icon: 'warning' });
+        return;
+    }
+
+    const amount = Number(Number(memberPaymentAmount.value).toFixed(2));
+    if (amount <= 0) {
+        customToastSwal({ title: 'Captura un importe mayor a cero.', icon: 'warning' });
+        return;
+    }
+
+    memberPaymentForm.applications = [{ charge_id: selectedMemberCharge.value.id, amount }];
+
+    memberPaymentForm.post(route('billing.payments.store'), {
+        preserveScroll: true,
+        onSuccess: (pageResponse) => {
+            customToastSwal({
+                title: (pageResponse.props as any).flash?.success || 'Cobro registrado correctamente.',
+                icon: 'success',
+            });
+            closeMemberPaymentModal();
+            accountCharges.value = [];
+            loadAccountCharges();
+        },
+        onError: () => {
+            customToastSwal({
+                title: `Error: ${memberPaymentForm.errors.messageError || 'No se pudo registrar el cobro.'}`,
+                text: `${memberPaymentForm.errors.exception || ''}`,
+                icon: 'error',
+            });
+        },
+    });
+};
+
 console.log(can)
 </script>
 
@@ -943,6 +1162,7 @@ console.log(can)
                         <!-- Tabs -->
                         <v-tabs v-model="activeTab" class="mt-6" color="primary">
                             <v-tab v-if="can.includes('accounts.view')" value="cuenta" prepend-icon="mdi-card-account-details">Cuenta</v-tab>
+                            <v-tab v-if="can.includes('billing.view')" value="cargos-pendientes" prepend-icon="mdi-cash-multiple">Cargos pendientes</v-tab>
                             <v-tab v-if="can.includes('members.view')" value="integrantes" prepend-icon="mdi-account-group">Integrantes</v-tab>
                             <v-tab v-if="can.includes('documents.view')" value="documentos" prepend-icon="mdi-file-document-multiple">Documentos</v-tab>
                             <v-tab v-if="can.includes('absences.view')" value="ausencias" prepend-icon="mdi-calendar-remove">Ausencias</v-tab>
@@ -963,7 +1183,7 @@ console.log(can)
                         <v-window v-model="activeTab" class="mt-4">
 
                             <!-- ══ TAB: CUENTA ══ -->
-                            <v-window-item value="cuenta">
+                            <v-window-item value="cuenta" v-if="can.includes('accounts.view')">
                                 <!-- Acciones -->
                                 <v-card class="pa-4 mb-4">
                                     <div class="d-flex flex-wrap align-center justify-space-between ga-2 mb-2">
@@ -1035,7 +1255,7 @@ console.log(can)
                             </v-window-item>
 
                             <!-- ══ TAB: INTEGRANTES ══ -->
-                            <v-window-item value="integrantes">
+                            <v-window-item value="integrantes" v-if="can.includes('members.view')">
                                 <v-card class="pa-4">
                                     <div class="d-flex flex-wrap align-center justify-space-between ga-2 mb-4">
                                         <div>
@@ -1133,7 +1353,7 @@ console.log(can)
                             </v-window-item>
 
                             <!-- ══ TAB: DOCUMENTOS ══ -->
-                            <v-window-item value="documentos">
+                            <v-window-item value="documentos" v-if="can.includes('documents.view')">
                                 <v-card class="pa-4">
                                     <div class="text-subtitle-1 font-weight-bold mb-4">Documentación</div>
 
@@ -1208,7 +1428,7 @@ console.log(can)
                             </v-window-item>
 
                             <!-- ══ TAB: AUSENCIAS ══ -->
-                            <v-window-item value="ausencias">
+                            <v-window-item value="ausencias" v-if="can.includes('absences.view')">
                                 <v-card class="pa-4">
                                     <div class="d-flex flex-wrap align-center justify-space-between ga-2 mb-4">
                                         <div>
@@ -1280,7 +1500,7 @@ console.log(can)
                             </v-window-item>
 
                             <!-- ══ TAB: HISTORIAL ══ -->
-                            <v-window-item value="historial">
+                            <v-window-item value="historial" v-if="can.includes('history.view')">
                                 <v-card class="pa-4">
                                     <div class="text-subtitle-1 font-weight-bold mb-4">Historial de membresía</div>
                                     <v-data-table-server
@@ -1324,7 +1544,7 @@ console.log(can)
                             </v-window-item>
 
                             <!-- ══ TAB: HISTORIAL CASILLEROS ══ -->
-                            <v-window-item value="historial-casilleros" v-if="can.includes('members.lockers.history')">
+                            <v-window-item value="historial-casilleros" v-if="can.includes('lockers-history.view')">
                                 <v-card class="pa-4">
                                     <div class="text-subtitle-1 font-weight-bold mb-4">Historial de casilleros</div>
                                     <v-data-table
@@ -1407,7 +1627,7 @@ console.log(can)
                             </v-window-item>
 
                             <!-- ══ TAB: HISTORIA CLÍNICA ══ -->
-                            <v-window-item value="historia-clinica">
+                            <v-window-item value="historia-clinica" v-if="can.includes('clinical-history.view')">
                                 <v-card class="pa-4">
                                     <div class="d-flex align-center justify-space-between mb-4">
                                         <div>
@@ -1768,6 +1988,152 @@ console.log(can)
                                 </v-card>
                             </v-window-item>
 
+                            <!-- ══ TAB: CARGOS PENDIENTES ══ -->
+                            <v-window-item value="cargos-pendientes" v-if="can.includes('billing.view')">
+                                <div class="d-flex flex-column ga-4">
+
+                                    <!-- Encabezado -->
+                                    <div class="d-flex align-center justify-space-between flex-wrap ga-2">
+                                        <div>
+                                            <div class="text-subtitle-1 font-weight-bold">Cargos pendientes</div>
+                                            <div class="text-body-2 text-medium-emphasis">Saldo pendiente y cobros asociados a esta cuenta.</div>
+                                        </div>
+                                        <v-btn variant="tonal" color="primary" prepend-icon="mdi-refresh" :loading="chargesLoading" @click="accountCharges = []; loadAccountCharges()">
+                                            Actualizar
+                                        </v-btn>
+                                    </div>
+
+                                    <v-progress-linear v-if="chargesLoading" indeterminate color="primary" />
+
+                                    <!-- Tarjetas resumen -->
+                                    <v-row dense>
+                                        <v-col cols="12" sm="6" md="3">
+                                            <v-card rounded="lg" border elevation="0">
+                                                <v-card-text class="pa-4">
+                                                    <div class="text-caption text-medium-emphasis mb-1">Total pendiente</div>
+                                                    <div class="text-h6 font-weight-bold">{{ formatCurrency(chargesTotal) }}</div>
+                                                </v-card-text>
+                                            </v-card>
+                                        </v-col>
+                                        <v-col cols="12" sm="6" md="3">
+                                            <v-card rounded="lg" border elevation="0" color="error" variant="tonal">
+                                                <v-card-text class="pa-4">
+                                                    <div class="text-caption text-medium-emphasis mb-1">Vencido</div>
+                                                    <div class="text-h6 font-weight-bold">{{ formatCurrency(chargesOverdue) }}</div>
+                                                </v-card-text>
+                                            </v-card>
+                                        </v-col>
+                                        <v-col cols="12" sm="6" md="3">
+                                            <v-card rounded="lg" border elevation="0" color="primary" variant="tonal">
+                                                <v-card-text class="pa-4">
+                                                    <div class="text-caption text-medium-emphasis mb-1">Mensualidades</div>
+                                                    <div class="text-h6 font-weight-bold">{{ formatCurrency(chargesMonthly) }}</div>
+                                                </v-card-text>
+                                            </v-card>
+                                        </v-col>
+                                        <v-col cols="12" sm="6" md="3">
+                                            <v-card rounded="lg" border elevation="0" color="secondary" variant="tonal">
+                                                <v-card-text class="pa-4">
+                                                    <div class="text-caption text-medium-emphasis mb-1">Inscripciones</div>
+                                                    <div class="text-h6 font-weight-bold">{{ formatCurrency(chargesInscription) }}</div>
+                                                </v-card-text>
+                                            </v-card>
+                                        </v-col>
+                                    </v-row>
+
+                                    <!-- Tabla de cargos -->
+                                    <v-card rounded="lg" border elevation="0">
+                                        <v-data-table
+                                            :headers="chargesHeaders"
+                                            :items="accountCharges"
+                                            :loading="chargesLoading"
+                                            v-model:page="chargesTableOptions.page"
+                                            v-model:items-per-page="chargesTableOptions.itemsPerPage"
+                                            :items-per-page-options="[10, 25, 50]"
+                                            no-data-text="Esta cuenta no tiene cargos pendientes."
+                                            density="comfortable"
+                                        >
+                                            <!-- Parque -->
+                                            <template #item.club_name="{ item }">
+                                                <v-chip v-if="item.club_code" size="small" variant="tonal" color="primary">
+                                                    {{ item.club_code }}
+                                                </v-chip>
+                                                <span v-else class="text-medium-emphasis">—</span>
+                                            </template>
+
+                                            <!-- Concepto -->
+                                            <template #item.concept_name="{ item }">
+                                                <div class="d-flex flex-column gap-1 py-1">
+                                                    <v-chip size="small" :color="chargeConceptColor(item.concept_code)" variant="tonal">
+                                                        {{ item.concept_name ?? '—' }}
+                                                    </v-chip>
+                                                    <div class="d-flex ga-1 flex-wrap">
+                                                        <v-chip v-for="badge in item.badges" :key="badge.label" size="x-small" :color="badge.color" variant="tonal">
+                                                            {{ badge.label }}
+                                                        </v-chip>
+                                                    </div>
+                                                </div>
+                                            </template>
+
+                                            <!-- Descripción -->
+                                            <template #item.description="{ item }">
+                                                <div class="text-body-2 text-truncate" style="max-width: 200px;">
+                                                    {{ item.description ?? item.origin_label }}
+                                                </div>
+                                                <div v-if="item.concept_code === 'MONTHLY_FEE' && item.monthly_fee_total" class="text-caption text-medium-emphasis">
+                                                    Total: {{ formatCurrency(item.monthly_fee_total) }}
+                                                    <template v-if="item.monthly_fee_share"> · Parte: {{ formatCurrency(item.monthly_fee_share) }}</template>
+                                                </div>
+                                            </template>
+
+                                            <!-- Vencimiento -->
+                                            <template #item.due_date="{ item }">
+                                                <div class="d-flex flex-column gap-1 py-1">
+                                                    <span class="text-body-2">{{ formatDate(item.due_date) }}</span>
+                                                    <v-chip size="x-small" :color="resolveDueState(item.due_date).color" variant="tonal">
+                                                        {{ resolveDueState(item.due_date).label }}
+                                                    </v-chip>
+                                                </div>
+                                            </template>
+
+                                            <!-- Estado -->
+                                            <template #item.status="{ item }">
+                                                <v-chip size="small" :color="chargeStatusColor(item.status)" variant="tonal">
+                                                    {{ chargeStatusLabel(item.status) }}
+                                                </v-chip>
+                                            </template>
+
+                                            <!-- Saldo -->
+                                            <template #item.balance="{ item }">
+                                                <div class="text-body-2 font-weight-medium text-end">{{ formatCurrency(item.balance) }}</div>
+                                                <div v-if="item.balance < item.amount" class="text-caption text-medium-emphasis text-end">
+                                                    de {{ formatCurrency(item.amount) }}
+                                                </div>
+                                                <div class="d-flex justify-end mt-1">
+                                                    <v-chip size="x-small" :color="item.allows_partial_payments ? 'info' : 'default'" variant="tonal">
+                                                        {{ item.allows_partial_payments ? 'Parcial' : 'Pago total' }}
+                                                    </v-chip>
+                                                </div>
+                                            </template>
+
+                                            <!-- Acciones -->
+                                            <template #item.actions="{ item }">
+                                                <v-btn
+                                                    v-if="can.includes('billing.store')"
+                                                    size="small"
+                                                    color="primary"
+                                                    variant="tonal"
+                                                    prepend-icon="mdi-cash-plus"
+                                                    @click="openMemberPaymentModal(item)"
+                                                >
+                                                    Cobrar
+                                                </v-btn>
+                                            </template>
+                                        </v-data-table>
+                                    </v-card>
+                                </div>
+                            </v-window-item>
+
                             <!-- ══ TAB: ÁRBOL ══ -->
                             <v-window-item value="arbol">
                                 <v-card class="pa-4">
@@ -1997,6 +2363,170 @@ console.log(can)
                     @click="submitDocument"
                 >
                     Guardar
+                </v-btn>
+            </v-card-actions>
+        </v-card>
+    </v-dialog>
+
+    <!-- ── Dialog: Registrar cobro ── -->
+    <v-dialog v-model="showMemberPaymentModal" max-width="560" persistent>
+        <v-card rounded="lg">
+            <v-card-title class="d-flex align-center justify-space-between pa-4 pb-2">
+                <span class="text-h6 font-weight-bold">Registrar cobro</span>
+                <v-btn icon="mdi-close" variant="text" density="compact" @click="closeMemberPaymentModal" />
+            </v-card-title>
+
+            <v-divider />
+
+            <v-card-text class="pa-4">
+                <!-- Detalle del cargo seleccionado -->
+                <v-sheet v-if="selectedMemberCharge" rounded="lg" color="surface-variant" class="pa-3 mb-4">
+                    <div class="d-flex justify-space-between align-start mb-1">
+                        <div>
+                            <div class="text-body-2 font-weight-medium">{{ props.account.primary_holder?.full_name }}</div>
+                            <div class="text-caption">{{ props.account.membership_number }}</div>
+                            <div v-if="props.account.internal_account_number" class="text-caption text-primary font-weight-medium">
+                                <v-icon size="10" class="mr-1">mdi-pound</v-icon>{{ props.account.internal_account_number }}
+                            </div>
+                        </div>
+                        <v-chip size="small" :color="chargeConceptColor(selectedMemberCharge.concept_code)" variant="tonal">
+                            {{ selectedMemberCharge.concept_name }}
+                        </v-chip>
+                    </div>
+                    <div v-if="selectedMemberCharge.description" class="text-caption">{{ selectedMemberCharge.description }}</div>
+                    <div class="d-flex justify-space-between align-center mt-2">
+                        <div class="text-caption">
+                            Vencimiento:
+                            <v-chip size="x-small" :color="resolveDueState(selectedMemberCharge.due_date).color" variant="tonal" class="ml-1">
+                                {{ formatDate(selectedMemberCharge.due_date) }}
+                            </v-chip>
+                        </div>
+                        <div class="text-body-2 font-weight-bold">
+                            Saldo: {{ formatCurrency(selectedMemberCharge.balance) }}
+                        </div>
+                    </div>
+                </v-sheet>
+
+                <!-- Formulario -->
+                <v-form ref="memberPaymentFormRef">
+                    <v-row dense>
+                        <!-- Importe -->
+                        <v-col cols="12">
+                            <v-text-field
+                                v-model="memberPaymentAmount"
+                                label="Importe a cobrar"
+                                type="number"
+                                density="compact"
+                                variant="outlined"
+                                prefix="$"
+                                :rules="memberPaymentAmountRules"
+                                :readonly="!selectedMemberCharge?.allows_partial_payments"
+                                :hint="selectedMemberCharge?.allows_partial_payments ? 'Puedes capturar un importe parcial' : 'Este concepto debe liquidarse por el monto completo'"
+                                persistent-hint
+                            />
+                        </v-col>
+
+                        <!-- Método de pago -->
+                        <v-col cols="12">
+                            <v-select
+                                v-model="memberPaymentForm.payment_method_id"
+                                :items="memberPaymentMethods.map(m => ({ title: m.name, value: m.id }))"
+                                label="Método de pago"
+                                density="compact"
+                                variant="outlined"
+                                :rules="memberPaymentMethodRules"
+                                :error-messages="memberPaymentForm.errors.payment_method_id"
+                            />
+                            <v-alert
+                                v-if="memberSelectedPaymentMethod && !memberSelectedPaymentMethod.affects_cash_cut"
+                                type="info"
+                                variant="tonal"
+                                density="compact"
+                                class="mt-2"
+                                icon="mdi-cash-register"
+                            >
+                                Este método de pago <strong>no impacta</strong> en el corte de caja.
+                            </v-alert>
+                        </v-col>
+
+                        <!-- Fecha -->
+                        <v-col cols="12">
+                            <v-text-field
+                                v-model="memberPaymentForm.paid_at"
+                                label="Fecha de pago"
+                                type="datetime-local"
+                                density="compact"
+                                variant="outlined"
+                                :rules="memberPaidAtRules"
+                                :error-messages="memberPaymentForm.errors.paid_at"
+                            />
+                        </v-col>
+
+                        <!-- Referencia (solo si el método lo requiere) -->
+                        <v-col v-if="memberSelectedPaymentMethod?.requires_reference" cols="12">
+                            <v-text-field
+                                v-model="memberPaymentForm.reference"
+                                label="Referencia"
+                                density="compact"
+                                variant="outlined"
+                                :rules="memberReferenceRules"
+                                :error-messages="memberPaymentForm.errors.reference"
+                            />
+                        </v-col>
+
+                        <!-- Banco (solo si el método lo requiere) -->
+                        <v-col v-if="memberSelectedPaymentMethod?.requires_bank_name" cols="12">
+                            <v-text-field
+                                v-model="memberPaymentForm.bank_name"
+                                label="Banco"
+                                density="compact"
+                                variant="outlined"
+                                :rules="memberBankNameRules"
+                                :error-messages="memberPaymentForm.errors.bank_name"
+                            />
+                        </v-col>
+
+                        <!-- No. cheque (solo si el método lo requiere) -->
+                        <v-col v-if="memberSelectedPaymentMethod?.requires_check_number" cols="12">
+                            <v-text-field
+                                v-model="memberPaymentForm.check_number"
+                                label="No. de cheque"
+                                density="compact"
+                                variant="outlined"
+                                :rules="memberCheckNumberRules"
+                                :error-messages="memberPaymentForm.errors.check_number"
+                            />
+                        </v-col>
+
+                        <!-- Notas -->
+                        <v-col cols="12">
+                            <v-textarea
+                                v-model="memberPaymentForm.notes"
+                                label="Notas (opcional)"
+                                density="compact"
+                                variant="outlined"
+                                rows="2"
+                                :rules="memberNotesRules"
+                                :error-messages="memberPaymentForm.errors.notes"
+                            />
+                        </v-col>
+                    </v-row>
+                </v-form>
+            </v-card-text>
+
+            <v-divider />
+
+            <v-card-actions class="pa-4 gap-2">
+                <v-spacer />
+                <v-btn variant="text" @click="closeMemberPaymentModal">Cancelar</v-btn>
+                <v-btn
+                    color="primary"
+                    variant="flat"
+                    :loading="memberPaymentForm.processing"
+                    prepend-icon="mdi-check"
+                    @click="submitMemberPayment"
+                >
+                    Registrar cobro
                 </v-btn>
             </v-card-actions>
         </v-card>

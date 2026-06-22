@@ -9,9 +9,11 @@ use App\Models\Billing\ChargeConcept;
 use App\Models\Members\Locker;
 use App\Models\AdminClub\BusinessAd;
 use App\Models\Billing\PaymentMethod;
+use App\Models\Memberships\Membership;
 use App\Models\Members\LockerAssignment;
 use App\Models\Memberships\MembershipAccount;
 use App\Jobs\SendPushNotificationJob;
+use App\Models\AdminClub\PhysicalAd;
 use App\Rules\ExistsInSchema;
 use App\Services\Billing\PaymentRegistrationService;
 use Illuminate\Database\Eloquent\Builder;
@@ -384,6 +386,25 @@ class BillingController extends Controller
                 });
             }
 
+            // Anuncios físicos pagados
+            $physicalAdCharges = $charges->filter(function ($charge) {
+                return isset($charge->metadata['physical_ad_id']);
+            });
+            foreach ($physicalAdCharges as $charge) {
+                $physicalAdId = $charge->metadata['physical_ad_id'];
+
+                DB::transaction(function () use ($physicalAdId) {
+                    $ad = PhysicalAd::lockForUpdate()->find($physicalAdId);
+                    if (!$ad || $ad->status_id !== 'paid') {
+                        return;
+                    }
+
+                    $ad->update([
+                        'status' => 'active',
+                    ]);
+                });
+            }
+
             return redirect()->back()->with('success', sprintf(
                 'Cobro registrado correctamente por $%s.',
                 number_format((float) $payment->amount, 2)
@@ -545,6 +566,26 @@ class BillingController extends Controller
                 'messageError' => $e->getMessage(),
             ]);
         }
+    }
+
+    public function accountCharges(Membership $membership)
+    {
+        $account = $membership->account()->with([
+            'charges' => fn ($q) => $q
+                ->with(['concept', 'membership.club'])
+                ->whereIn('status', ['pending', 'partial'])
+                ->orderByRaw('CASE WHEN due_date IS NULL THEN 1 ELSE 0 END')
+                ->orderBy('due_date')
+                ->orderBy('id'),
+        ])->firstOrFail();
+
+        $charges = $account->charges->map(fn (Charge $charge) => $this->buildChargePayload($charge))->values();
+
+        return response()->json([
+            'charges' => $charges,
+            'outstanding_balance' => (float) $account->charges->sum('balance'),
+            'club_payment_methods' => $this->resolveClubPaymentMethods(),
+        ]);
     }
 
     protected function resolveClubPaymentMethods(): \Illuminate\Support\Collection

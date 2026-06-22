@@ -6,6 +6,7 @@ use App\Http\Controllers\Web\AdminClub\MemberController;
 use App\Http\Controllers\Web\AdminClub\BillingController;
 use App\Http\Controllers\Web\AdminClub\AmenityController;
 use App\Http\Controllers\Web\AdminClub\BusinessAdController;
+use App\Http\Controllers\Web\AdminClub\PhysicalAdController;
 use App\Http\Controllers\Web\AdminClub\ReservationController;
 use App\Http\Controllers\Web\AdminClub\AnnouncementController;
 use App\Http\Controllers\Web\AdminClub\BlockedPeriodController;
@@ -134,6 +135,10 @@ Route::post('/business-ads/{id}/confirm-payment', [BusinessAdController::class, 
 Route::post('/business-ads/{id}/publish', [BusinessAdController::class, 'publish'])->name('business-ads.publish');
 Route::delete('/business-ads/{id}', [BusinessAdController::class, 'destroy'])->name('business-ads.destroy');
 
+// physical_ads
+Route::get('/physical-ads/members-search', [PhysicalAdController::class, 'searchMembers'])->name('physical-ads.members-search');
+Route::post('/physical-ads', [PhysicalAdController::class, 'store'])->name('physical-ads.store');
+
 // business_ads categories
 Route::prefix('business-categories')->name('business-categories.')->group(function () {
     Route::get('/', [BusinessCategoryController::class, 'index'])->name('index');
@@ -176,6 +181,8 @@ Route::patch('/members/{membership}/internal-account-number', [MemberController:
     ->name('members.internal-account-number.update');
 Route::get('/members/{membership}/history', [MemberController::class, 'membershipHistory'])
     ->name('members.manage.history');
+Route::get('/members/{membership}/billing/charges', [BillingController::class, 'accountCharges'])
+    ->name('members.billing.charges');
 Route::post('/members/{membership}/documents', [MemberController::class, 'storeDocument'])
     ->name('members.documents.store');
 Route::post('/members/{membership}/absence-permits', [MemberController::class, 'storeAbsencePermit'])
@@ -273,7 +280,6 @@ Route::resource('/files', FileController::class)->only(['index', 'store', 'updat
 Route::post('files/{file}/club-file', [FileController::class, 'uploadClubFile'])->name('files.club-file.upload');
 Route::delete('files/{file}/club-file', [FileController::class, 'destroyClubFile'])->name('files.club-file.destroy');
 Route::post('/files/variables', [FileController::class, 'previewVariables'])->name('files.variables');
-
 
 // Historia Clínica
 Route::get('/members/{membership}/clinical-history', [ClinicalHistoryController::class, 'index'])

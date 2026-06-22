@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AppLayout from "@/Layouts/AppLayout.vue";
 import BaseButton from "@/Components/BaseButton.vue";
+import { required, maxLength } from "@/constants/validationRules";
 import { customToastSwal } from "@/utils/swal";
 import { Head, router, usePage } from "@inertiajs/vue3";
 import { debounce } from "lodash";
@@ -61,6 +62,9 @@ const targetStatusCode = ref<"IN_PROGRESS" | "RESOLVED" | null>(null);
 const transitionComment = ref("");
 const transitionResolutionNotes = ref("");
 const sendingStatus = ref(false);
+const commentFormRef = ref();
+const statusFormRef = ref();
+const rejectFormRef = ref();
 
 const statusChipColor = (status: any): string => {
     if (status?.color) return status.color;
@@ -172,101 +176,110 @@ const closeStatusDialog = () => {
     showStatusDialog.value = false;
     targetStatusCode.value = null;
     transitionComment.value = "";
+    statusFormRef.value?.resetValidation();
 };
 
 const updateStatus = () => {
     if (!selectedTicket.value || !targetStatusCode.value) return;
 
-    const statusId = getStatusIdByCode(targetStatusCode.value);
-    if (!statusId) return;
+    statusFormRef.value?.validate().then(({ valid }: any) => {
+        if (!valid) return;
 
-    sendingStatus.value = true;
+        const statusId = getStatusIdByCode(targetStatusCode.value!);
+        if (!statusId) return;
 
-    router.patch(
-        route("feedback-management.update", selectedTicket.value.id),
-        {
-            action: "change_status",
-            status_id: statusId,
-            comment: transitionComment.value.trim() || null,
-            resolution_notes: targetStatusCode.value === "RESOLVED" ? (transitionResolutionNotes.value.trim() || null) : null,
-        },
-        {
-            preserveScroll: true,
-            preserveState: true,
-            onSuccess: (payload) => {
-                const updatedItems = payload.props.tickets?.data ?? [];
-                items.value = updatedItems;
-                total.value = payload.props.tickets?.total ?? total.value;
+        sendingStatus.value = true;
 
-                const refreshed = updatedItems.find((ticket: any) => ticket.id === selectedTicket.value?.id);
-                if (refreshed) {
-                    selectedTicket.value = refreshed;
-                    transitionResolutionNotes.value = refreshed.resolution_notes ?? "";
-                }
-
-                closeStatusDialog();
-                customToastSwal({
-                    title: page.props.flash.success || "Estatus actualizado correctamente.",
-                    icon: "success",
-                });
-                sendingStatus.value = false;
+        router.patch(
+            route("feedback-management.update", selectedTicket.value.id),
+            {
+                action: "change_status",
+                status_id: statusId,
+                comment: transitionComment.value.trim() || null,
+                resolution_notes: targetStatusCode.value === "RESOLVED" ? (transitionResolutionNotes.value.trim() || null) : null,
             },
-            onError: () => {
-                customToastSwal({
-                    title: `Error: ${page.props.errors?.messageError ?? "No se pudo actualizar el estatus."}`,
-                    text: `${page.props.errors?.exception ?? ""}`,
-                    icon: "error",
-                });
-                sendingStatus.value = false;
+            {
+                preserveScroll: true,
+                preserveState: true,
+                onSuccess: (payload) => {
+                    const updatedItems = payload.props.tickets?.data ?? [];
+                    items.value = updatedItems;
+                    total.value = payload.props.tickets?.total ?? total.value;
+
+                    const refreshed = updatedItems.find((ticket: any) => ticket.id === selectedTicket.value?.id);
+                    if (refreshed) {
+                        selectedTicket.value = refreshed;
+                        transitionResolutionNotes.value = refreshed.resolution_notes ?? "";
+                    }
+
+                    closeStatusDialog();
+                    customToastSwal({
+                        title: page.props.flash.success || "Estatus actualizado correctamente.",
+                        icon: "success",
+                    });
+                    sendingStatus.value = false;
+                },
+                onError: () => {
+                    customToastSwal({
+                        title: `Error: ${page.props.errors?.messageError ?? "No se pudo actualizar el estatus."}`,
+                        text: `${page.props.errors?.exception ?? ""}`,
+                        icon: "error",
+                    });
+                    sendingStatus.value = false;
+                },
             },
-        },
-    );
+        );
+    });
 };
 
 const storeComment = () => {
     if (!selectedTicket.value) return;
-    if (!commentText.value.trim()) return;
 
-    sendingComment.value = true;
+    commentFormRef.value?.validate().then(({ valid }: any) => {
+        if (!valid) return;
 
-    router.patch(
-        route("feedback-management.update", selectedTicket.value.id),
-        {
-            action: "comment",
-            comment: commentText.value.trim(),
-            is_internal: commentIsInternal.value,
-        },
-        {
-            preserveScroll: true,
-            preserveState: true,
-            onSuccess: (payload) => {
-                const updatedItems = payload.props.tickets?.data ?? [];
-                items.value = updatedItems;
-                total.value = payload.props.tickets?.total ?? total.value;
+        sendingComment.value = true;
 
-                const refreshed = updatedItems.find((ticket: any) => ticket.id === selectedTicket.value?.id);
-                if (refreshed) {
-                    selectedTicket.value = refreshed;
-                }
-
-                commentText.value = "";
-                commentIsInternal.value = false;
-                customToastSwal({
-                    title: page.props.flash.success || "Comentario agregado correctamente.",
-                    icon: "success",
-                });
-                sendingComment.value = false;
+        router.patch(
+            route("feedback-management.update", selectedTicket.value.id),
+            {
+                action: "comment",
+                comment: commentText.value.trim(),
+                is_internal: commentIsInternal.value,
             },
-            onError: () => {
-                customToastSwal({
-                    title: `Error: ${page.props.errors?.messageError ?? "No se pudo guardar el comentario."}`,
-                    text: `${page.props.errors?.exception ?? ""}`,
-                    icon: "error",
-                });
-                sendingComment.value = false;
+            {
+                preserveScroll: true,
+                preserveState: true,
+                onSuccess: (payload) => {
+                    const updatedItems = payload.props.tickets?.data ?? [];
+                    items.value = updatedItems;
+                    total.value = payload.props.tickets?.total ?? total.value;
+
+                    const refreshed = updatedItems.find((ticket: any) => ticket.id === selectedTicket.value?.id);
+                    if (refreshed) {
+                        selectedTicket.value = refreshed;
+                    }
+
+                    commentText.value = "";
+                    commentIsInternal.value = false;
+                    commentFormRef.value?.resetValidation();
+                    customToastSwal({
+                        title: page.props.flash.success || "Comentario agregado correctamente.",
+                        icon: "success",
+                    });
+                    sendingComment.value = false;
+                },
+                onError: () => {
+                    customToastSwal({
+                        title: `Error: ${page.props.errors?.messageError ?? "No se pudo guardar el comentario."}`,
+                        text: `${page.props.errors?.exception ?? ""}`,
+                        icon: "error",
+                    });
+                    sendingComment.value = false;
+                },
             },
-        },
-    );
+        );
+    });
 };
 
 const openRejectDialog = () => {
@@ -277,38 +290,42 @@ const openRejectDialog = () => {
 const closeRejectDialog = () => {
     showRejectDialog.value = false;
     rejectReason.value = "";
+    rejectFormRef.value?.resetValidation();
 };
 
 const rejectTicket = () => {
     if (!selectedTicket.value) return;
-    if (!rejectReason.value.trim()) return;
 
-    router.patch(
-        route("feedback-management.update", selectedTicket.value.id),
-        {
-            action: "reject",
-            rejection_reason: rejectReason.value.trim(),
-        },
-        {
-            preserveScroll: true,
-            onSuccess: () => {
-                closeRejectDialog();
-                closeDetail();
-                fetchItems();
-                customToastSwal({
-                    title: page.props.flash.success || "Ticket rechazado correctamente.",
-                    icon: "success",
-                });
+    rejectFormRef.value?.validate().then(({ valid }: any) => {
+        if (!valid) return;
+
+        router.patch(
+            route("feedback-management.update", selectedTicket.value.id),
+            {
+                action: "reject",
+                rejection_reason: rejectReason.value.trim(),
             },
-            onError: () => {
-                customToastSwal({
-                    title: `Error: ${page.props.errors?.messageError ?? "No se pudo rechazar el ticket."}`,
-                    text: `${page.props.errors?.exception ?? ""}`,
-                    icon: "error",
-                });
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    closeRejectDialog();
+                    closeDetail();
+                    fetchItems();
+                    customToastSwal({
+                        title: page.props.flash.success || "Ticket rechazado correctamente.",
+                        icon: "success",
+                    });
+                },
+                onError: () => {
+                    customToastSwal({
+                        title: `Error: ${page.props.errors?.messageError ?? "No se pudo rechazar el ticket."}`,
+                        text: `${page.props.errors?.exception ?? ""}`,
+                        icon: "error",
+                    });
+                },
             },
-        },
-    );
+        );
+    });
 };
 
 
@@ -674,54 +691,57 @@ watch([options, search, statusFilter, priorityFilter], debounce(fetchItems, 400)
                                 <div class="pa-5">
                                     <v-card rounded="xl" elevation="0" class="mb-5 border bg-grey-lighten-5">
                                         <v-card-text>
-                                            <div class="mb-3 d-flex align-center justify-space-between">
-                                                <div>
-                                                    <div class="text-subtitle-2 font-weight-bold">
-                                                        Agregar seguimiento
+                                            <v-form ref="commentFormRef">
+                                                <div class="mb-3 d-flex align-center justify-space-between">
+                                                    <div>
+                                                        <div class="text-subtitle-2 font-weight-bold">
+                                                            Agregar seguimiento
+                                                        </div>
+                                                        <div class="text-caption text-grey-darken-1">
+                                                            Responde al usuario o agrega una nota interna
+                                                        </div>
                                                     </div>
-                                                    <div class="text-caption text-grey-darken-1">
-                                                        Responde al usuario o agrega una nota interna
-                                                    </div>
+
+                                                    <v-chip
+                                                        size="small"
+                                                        :color="commentIsInternal ? 'warning' : 'primary'"
+                                                        variant="tonal"
+                                                    >
+                                                        {{ commentIsInternal ? 'Interno' : 'Visible para usuario' }}
+                                                    </v-chip>
                                                 </div>
 
-                                                <v-chip
-                                                    size="small"
-                                                    :color="commentIsInternal ? 'warning' : 'primary'"
-                                                    variant="tonal"
-                                                >
-                                                    {{ commentIsInternal ? 'Interno' : 'Visible para usuario' }}
-                                                </v-chip>
-                                            </div>
-
-                                            <v-textarea
-                                                v-model="commentText"
-                                                label="Comentario"
-                                                rows="3"
-                                                auto-grow
-                                                clearable
-                                                variant="outlined"
-                                                density="comfortable"
-                                            />
-
-                                            <div class="mt-2 d-flex align-center justify-space-between ga-3">
-                                                <v-switch
-                                                    v-model="commentIsInternal"
-                                                    color="warning"
-                                                    hide-details
-                                                    inset
-                                                    label="Comentario interno"
+                                                <v-textarea
+                                                    v-model="commentText"
+                                                    label="Comentario"
+                                                    rows="3"
+                                                    auto-grow
+                                                    clearable
+                                                    variant="outlined"
+                                                    density="comfortable"
+                                                    :rules="[required, maxLength(1000)]"
                                                 />
 
-                                                <BaseButton
-                                                    text="Enviar comentario"
-                                                    action="save"
-                                                    :icon-only="false"
-                                                    variant="flat"
-                                                    :disabled="!commentText.trim() || sendingComment"
-                                                    :loading="sendingComment"
-                                                    @click="storeComment"
-                                                />
-                                            </div>
+                                                <div class="mt-2 d-flex align-center justify-space-between ga-3">
+                                                    <v-switch
+                                                        v-model="commentIsInternal"
+                                                        color="warning"
+                                                        hide-details
+                                                        inset
+                                                        label="Comentario interno"
+                                                    />
+
+                                                    <BaseButton
+                                                        text="Enviar comentario"
+                                                        action="save"
+                                                        :icon-only="false"
+                                                        variant="flat"
+                                                        :disabled="sendingComment"
+                                                        :loading="sendingComment"
+                                                        @click="storeComment"
+                                                    />
+                                                </div>
+                                            </v-form>
                                         </v-card-text>
                                     </v-card>
 
@@ -827,82 +847,86 @@ watch([options, search, statusFilter, priorityFilter], debounce(fetchItems, 400)
         </v-dialog>
 
         <v-dialog v-model="showStatusDialog" max-width="640" persistent>
-            <v-card rounded="xl">
-                <v-card-title class="text-h6 font-weight-bold">
-                    {{ targetStatusCode === 'IN_PROGRESS' ? 'Pasar ticket a proceso' : 'Marcar ticket como solucionado' }}
-                </v-card-title>
-                <v-divider />
-                <v-card-text>
-                    <v-textarea
-                        v-if="targetStatusCode === 'IN_PROGRESS'"
-                        v-model="transitionComment"
-                        label="Comentario de seguimiento"
-                        rows="3"
-                        auto-grow
-                    />
+            <v-form ref="statusFormRef">
+                <v-card rounded="xl">
+                    <v-card-title class="text-h6 font-weight-bold">
+                        {{ targetStatusCode === 'IN_PROGRESS' ? 'Pasar ticket a proceso' : 'Marcar ticket como solucionado' }}
+                    </v-card-title>
+                    <v-divider />
+                    <v-card-text>
+                        <v-textarea
+                            v-if="targetStatusCode === 'IN_PROGRESS'"
+                            v-model="transitionComment"
+                            label="Comentario de seguimiento (opcional)"
+                            rows="3"
+                            auto-grow
+                            :rules="[maxLength(500)]"
+                        />
 
-                    <v-textarea
-                        v-if="targetStatusCode === 'RESOLVED'"
-                        v-model="transitionResolutionNotes"
-                        label="Notas de resolución"
-                        rows="3"
-                        auto-grow
-                        class="mt-3"
-                    />
-                </v-card-text>
-                <v-card-actions class="justify-end px-4 pb-4 d-flex ga-2">
-                    <BaseButton
-                        action="cancel"
-                        :icon-only="false"
-                        variant="text"
-                        @click="closeStatusDialog"
-                    />
-                    <BaseButton
-                        text="Confirmar"
-                        action="save"
-                        :icon-only="false"
-                        variant="flat"
-                        :loading="sendingStatus"
-                        @click="updateStatus"
-                    />
-                </v-card-actions>
-            </v-card>
+                        <v-textarea
+                            v-if="targetStatusCode === 'RESOLVED'"
+                            v-model="transitionResolutionNotes"
+                            label="Notas de resolución (opcional)"
+                            rows="3"
+                            auto-grow
+                            class="mt-3"
+                            :rules="[maxLength(1000)]"
+                        />
+                    </v-card-text>
+                    <v-card-actions class="justify-end px-4 pb-4 d-flex ga-2">
+                        <BaseButton
+                            action="cancel"
+                            :icon-only="false"
+                            variant="text"
+                            @click="closeStatusDialog"
+                        />
+                        <BaseButton
+                            text="Confirmar"
+                            action="save"
+                            :icon-only="false"
+                            variant="flat"
+                            :loading="sendingStatus"
+                            @click="updateStatus"
+                        />
+                    </v-card-actions>
+                </v-card>
+            </v-form>
         </v-dialog>
 
         <v-dialog v-model="showRejectDialog" max-width="640" persistent>
-            <v-card rounded="xl">
-                <v-card-title class="text-h6 font-weight-bold">Rechazar ticket</v-card-title>
-                <v-divider />
-                <v-card-text>
-                    <p class="mb-3 text-body-2 text-grey-darken-1">
-                        Indica el motivo del rechazo. Este texto quedará en el historial del ticket.
-                    </p>
-                    <v-textarea
-                        v-model="rejectReason"
-                        label="Motivo de rechazo"
-                        rows="4"
-                        auto-grow
-                        :rules="[(v: string) => !!v?.trim() || 'El motivo es obligatorio']"
-                    />
-
-                </v-card-text>
-                <v-card-actions class="justify-end px-4 pb-4 d-flex ga-2">
-                    <BaseButton
-                        action="cancel"
-                        :icon-only="false"
-                        variant="text"
-                        @click="closeRejectDialog"
-                    />
-                    <BaseButton
-                        text="Confirmar rechazo"
-                        action="delete"
-                        :icon-only="false"
-                        variant="flat"
-                        :disabled="!rejectReason.trim()"
-                        @click="rejectTicket"
-                    />
-                </v-card-actions>
-            </v-card>
+            <v-form ref="rejectFormRef">
+                <v-card rounded="xl">
+                    <v-card-title class="text-h6 font-weight-bold">Rechazar ticket</v-card-title>
+                    <v-divider />
+                    <v-card-text>
+                        <p class="mb-3 text-body-2 text-grey-darken-1">
+                            Indica el motivo del rechazo. Este texto quedará en el historial del ticket.
+                        </p>
+                        <v-textarea
+                            v-model="rejectReason"
+                            label="Motivo de rechazo"
+                            rows="4"
+                            auto-grow
+                            :rules="[required, maxLength(500)]"
+                        />
+                    </v-card-text>
+                    <v-card-actions class="justify-end px-4 pb-4 d-flex ga-2">
+                        <BaseButton
+                            action="cancel"
+                            :icon-only="false"
+                            variant="text"
+                            @click="closeRejectDialog"
+                        />
+                        <BaseButton
+                            text="Confirmar rechazo"
+                            action="delete"
+                            :icon-only="false"
+                            variant="flat"
+                            @click="rejectTicket"
+                        />
+                    </v-card-actions>
+                </v-card>
+            </v-form>
         </v-dialog>
     </AppLayout>
 </template>

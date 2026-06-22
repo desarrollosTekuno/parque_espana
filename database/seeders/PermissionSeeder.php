@@ -108,12 +108,14 @@ class PermissionSeeder extends Seeder
 
             //Pestañas de gestión
             ['module' => 'Gestión de membresías', 'name' => 'accounts.view', 'description' => 'Consultar información general de la cuenta.', 'contexts' => ['web']],
-            ['module' => 'Gestión de membresías', 'name' => 'members.view', 'description' => 'Visualizar y gestionar la información de los integrantes asociados a la cuenta.', 'contexts' => ['web']],
+            ['module' => 'Gestión de membresías', 'name' => 'members.view', 'description' => 'Gestionar la información de los integrantes asociados a la cuenta.', 'contexts' => ['web']],
             ['module' => 'Gestión de membresías', 'name' => 'documents.view', 'description' => 'Acceder a los documentos relacionados con la cuenta y sus integrantes.', 'contexts' => ['web']],
-            ['module' => 'Gestión de membresías', 'name' => 'absences.view', 'description' => 'Visualizar y gestionar las ausencias de los integrantes asociados a la cuenta.', 'contexts' => ['web']],
-            ['module' => 'Gestión de membresías', 'name' => 'clinical-history.view', 'description' => 'Visualizar y gestionar la historia clínica de los integrantes asociados a la cuenta.', 'contexts' => ['web']],
-            ['module' => 'Gestión de membresías', 'name' => 'history.view', 'description' => 'Visualizar y gestionar el historial de la cuenta.', 'contexts' => ['web']],
-            ['module' => 'Gestión de membresías', 'name' => 'lockers-history.view', 'description' => 'Visualizar y gestionar el historial de casilleros de la cuenta.', 'contexts' => ['web']],
+            ['module' => 'Gestión de membresías', 'name' => 'absences.view', 'description' => 'Gestionar las ausencias de los integrantes asociados a la cuenta.', 'contexts' => ['web']],
+            ['module' => 'Gestión de membresías', 'name' => 'clinical-history.view', 'description' => 'Gestionar la historia clínica de los integrantes asociados a la cuenta.', 'contexts' => ['web']],
+            ['module' => 'Gestión de membresías', 'name' => 'history.view', 'description' => 'Gestionar el historial de la cuenta.', 'contexts' => ['web']],
+            ['module' => 'Gestión de membresías', 'name' => 'lockers-history.view', 'description' => 'Gestionar el historial de casilleros de la cuenta.', 'contexts' => ['web']],
+            ['module' => 'Gestión de membresías', 'name' => 'billing.view', 'description' => 'Gestionar cargos de facturación de la cuenta.', 'contexts' => ['web']],
+            ['module' => 'Gestión de membresías', 'name' => 'billing.update', 'description' => 'Gestionar el árbol de cuentas.', 'contexts' => ['web']],
 
             // Membresías
             ['module' => 'Membresías', 'name' => 'members.index', 'description' => 'Ver usuarios del club', 'contexts' => ['web']],
@@ -191,10 +193,14 @@ class PermissionSeeder extends Seeder
             ['module' => 'Publicidad', 'name' => 'business-ads.index', 'description' => 'Ver publicidad de negocios', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-ads.approve', 'description' => 'Aprobar publicidad de negocios', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-ads.reject', 'description' => 'Rechazar publicidad de negocios', 'contexts' => ['web']],
+            ['module' => 'Publicidad', 'name' => 'physical-ads.index', 'description' => 'Ver anuncios físicos', 'contexts' => ['web']],
+            ['module' => 'Publicidad', 'name' => 'physical-ads.store', 'description' => 'Crear anuncio físico', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-categories.index', 'description' => 'Ver categorías de negocios', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-categories.store', 'description' => 'Crear categorías de negocios', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-categories.update', 'description' => 'Actualizar categorías de negocios', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-categories.destroy', 'description' => 'Eliminar categorías de negocios', 'contexts' => ['web']],
+            ['module' => 'Publicidad', 'name' => 'physical-ads.store', 'description' => 'Crear publicidad de negocios física', 'contexts' => ['web']],
+            ['module' => 'Publicidad', 'name' => 'physical-ads.index', 'description' => 'Visualizar publicidad de negocios física', 'contexts' => ['web']],
 
             // App Móvil
             ['module' => 'App Móvil', 'name' => 'mobile.reservations.index', 'description' => 'Ver mis reservaciones', 'contexts' => ['mobile_club_1', 'mobile_club_2']],
