@@ -152,7 +152,8 @@ class MigrationOrchestrator
 
         // Conceptos de cobro
         ChargeConcept::all()->each(function ($concept) use ($context) {
-            $context->conceptsByCode[strtoupper($concept->code)] = $concept->id;
+            $context->conceptsByCode[strtoupper($concept->code)]    = $concept->id;
+            $context->conceptAllowsPartial[$concept->id]            = (bool) $concept->allows_partial_payments;
         });
 
         // Métodos de pago

@@ -55,6 +55,7 @@ class UserImporter extends BaseImporter
                                 'marital_status'      => $row['ESTADO_CIVIL'] ?? null,
                                 'occupation'          => $row['OCUPACION'] ?? null,
                                 'user_id'             => null,
+                                'gender'              => $row['GENERO'] ?? null,
                             ]
                         );
                         $context->membersByOriginId[$originId] = $member->id;

@@ -35,10 +35,11 @@ class CasilleroImporter extends BaseImporter
                 $noCuenta        = trim($row['NO_CUENTA'] ?? '');
                 $parqueCode      = strtoupper(trim($row['PARQUE'] ?? ''));
                 $numeroCasillero = trim($row['NUMERO_CASILLERO'] ?? '');
+                $categoria       = strtolower(trim($row['CATEGORIA'] ?? ''));
                 $año             = $this->parseInt($row['AÑO'] ?? null);
 
-                if (empty($noCuenta) || empty($parqueCode) || empty($numeroCasillero) || !$año) {
-                    $errors[] = ['row' => $rowNum, 'message' => 'NO_CUENTA, PARQUE, NUMERO_CASILLERO o AÑO vacíos.'];
+                if (empty($noCuenta) || empty($parqueCode) || empty($numeroCasillero) || empty($categoria) || !$año) {
+                    $errors[] = ['row' => $rowNum, 'message' => 'NO_CUENTA, PARQUE, NUMERO_CASILLERO, CATEGORIA o AÑO vacíos.'];
                     continue;
                 }
 
@@ -48,11 +49,20 @@ class CasilleroImporter extends BaseImporter
                     continue;
                 }
 
-                // Obtener member_id del titular de la cuenta
-                $memberId = $context->primaryHolderByAccount[$noCuenta] ?? null;
-                if (!$memberId) {
-                    $errors[] = ['row' => $rowNum, 'message' => "No se encontró titular para la cuenta '{$noCuenta}'."];
-                    continue;
+                // Obtener member_id: integrante específico o titular de la cuenta
+                $originId = trim($row['ID_ORIGEN'] ?? '');
+                if (!empty($originId)) {
+                    $memberId = $context->memberId($originId);
+                    if (!$memberId) {
+                        $errors[] = ['row' => $rowNum, 'message' => "Integrante '{$originId}' no encontrado."];
+                        continue;
+                    }
+                } else {
+                    $memberId = $context->primaryHolderByAccount[$noCuenta] ?? null;
+                    if (!$memberId) {
+                        $errors[] = ['row' => $rowNum, 'message' => "No se encontró titular para la cuenta '{$noCuenta}'."];
+                        continue;
+                    }
                 }
 
                 $startDate = $this->parseDate($row['FECHA_INICIO'] ?? null);
@@ -68,10 +78,10 @@ class CasilleroImporter extends BaseImporter
                 };
 
                 if (!$dryRun) {
-                    // Buscar o crear el locker por número y club
+                    // Buscar o crear el locker por club + número + categoría
                     $locker = Locker::firstOrCreate(
-                        ['club_id' => $clubId, 'number' => $numeroCasillero],
-                        ['status' => $lockerStatus, 'category' => 'general']
+                        ['club_id' => $clubId, 'number' => $numeroCasillero, 'category' => $categoria],
+                        ['status' => $lockerStatus]
                     );
 
                     // Si el registro es el más reciente (vigente), actualizar status del locker

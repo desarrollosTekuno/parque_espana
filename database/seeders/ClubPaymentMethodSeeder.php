@@ -20,13 +20,18 @@ class ClubPaymentMethodSeeder extends Seeder
         foreach ($clubs as $club) {
             $allowedMethodCodes = [
                 'CASH',
-                'BANK_TRANSFER',
+                'BANK_TRANSFER_PE1',
                 'APP_PAYMENT',
-                'SERVICES',
+                'BANK_TRANSFER_PE2',
+                'CHECK_PE1',
+                'CREDIT_CARD_PE1',
+                'DEBIT_CARD_PE1',
             ];
 
             if ($club->code === 'PE2') {
-                $allowedMethodCodes[] = 'CHECK';
+                $allowedMethodCodes[] = 'CHECK_PE2';
+                $allowedMethodCodes[] = 'CREDIT_CARD_PE2';
+                $allowedMethodCodes[] = 'DEBIT_CARD_PE2';
             }
 
             foreach ($allowedMethodCodes as $index => $code) {

@@ -32,6 +32,11 @@ class HistorialImporter extends BaseImporter
         $errors  = [];
         $columns = $this->buildColumnMap($sheet);
 
+        // Método de pago por defecto para filas sin METODO_PAGO o con código desconocido.
+        $fallbackPaymentMethodId = !empty($context->paymentMethodsByCode)
+            ? array_values($context->paymentMethodsByCode)[0]
+            : null;
+
         // ── Paso 1: leer todas las filas y crear los cargos ───────────────────
         $chargesByRow   = []; // rowNum → charge_id
         $pendingPayments = []; // PAGO_REF → [ ['charge_id', 'amount', 'payment_data'] ]
@@ -94,22 +99,24 @@ class HistorialImporter extends BaseImporter
                 // member_id del titular para el cargo
                 $memberId = $context->primaryHolderByAccount[$noCuenta] ?? null;
 
+                $allowsPartial = $context->conceptAllowsPartial[$conceptId] ?? false;
+
                 if (!$dryRun) {
                     $charge = Charge::create([
-                        'membership_account_id'  => $accountId,
-                        'membership_id'          => $membershipId,
-                        'member_id'              => $memberId,
-                        'concept_id'             => $conceptId,
-                        'description'            => $descripcion,
-                        'amount'                 => $montoCargo,
-                        'balance'                => $balance,
-                        'issue_date'             => $issueDate,
-                        'due_date'               => $dueDate,
-                        'period_year'            => $periodYear,
-                        'period_month'           => $periodMonth,
-                        'allows_partial_payments' => true,
-                        'status'                 => $chargeStatus,
-                        'metadata'               => ['imported' => true, 'notes' => $notas],
+                        'membership_account_id'   => $accountId,
+                        'membership_id'           => $membershipId,
+                        'member_id'               => $memberId,
+                        'concept_id'              => $conceptId,
+                        'description'             => $descripcion,
+                        'amount'                  => $montoCargo,
+                        'balance'                 => $balance,
+                        'issue_date'              => $issueDate,
+                        'due_date'                => $dueDate,
+                        'period_year'             => $periodYear,
+                        'period_month'            => $periodMonth,
+                        'allows_partial_payments' => $allowsPartial,
+                        'status'                  => $chargeStatus,
+                        'metadata'                => ['imported' => true, 'notes' => $notas],
                     ]);
 
                     $chargesByRow[$rowNum] = $charge->id;
@@ -117,12 +124,25 @@ class HistorialImporter extends BaseImporter
                     $chargesByRow[$rowNum] = 0;
                 }
 
-                // Si hay pago, agrupar o registrar directo
+                // Si hay pago, agrupar o registrar directo.
+                // Si el concepto no admite parcialidades, el pago cubre el cargo completo.
                 if ($montoPagado !== null && $montoPagado > 0) {
+                    $resolvedPaymentMethodId = $context->paymentMethodId($row['METODO_PAGO'] ?? '')
+                        ?? $fallbackPaymentMethodId;
+
+                    if (!$resolvedPaymentMethodId) {
+                        $errors[] = ['row' => $rowNum, 'message' => 'No hay métodos de pago en catálogo para registrar el pago.'];
+                        $ok++;
+                        continue;
+                    }
+
+                    // Sin parcialidades: el pago siempre es por el monto total del cargo
+                    $effectivePaidAmount = !$allowsPartial ? $montoCargo : $montoPagado;
+
                     $paymentData = [
                         'membership_account_id' => $accountId,
                         'club_id'               => $clubId,
-                        'payment_method_id'     => $context->paymentMethodId($row['METODO_PAGO'] ?? ''),
+                        'payment_method_id'     => $resolvedPaymentMethodId,
                         'paid_at'               => $this->parseDate($row['FECHA_PAGO'] ?? null) ?? now()->toDateString(),
                         'reference'             => $row['REFERENCIA'] ?? null,
                         'bank_name'             => $row['BANCO'] ?? null,
@@ -131,20 +151,20 @@ class HistorialImporter extends BaseImporter
                         'metadata'              => ['imported' => true],
                     ];
 
-                    if (!empty($pagoRef)) {
-                        // Agrupar en mismo pago
+                    if (!empty($pagoRef) && $allowsPartial) {
+                        // Solo agrupar pagos si el concepto admite parcialidades
                         $pendingPayments[$pagoRef][] = [
                             'row_num'      => $rowNum,
                             'charge_id'    => $chargesByRow[$rowNum],
-                            'amount'       => $montoPagado,
+                            'amount'       => $effectivePaidAmount,
                             'payment_data' => $paymentData,
                         ];
                     } else {
-                        // Pago 1 a 1: crear inmediatamente
+                        // Pago 1 a 1: un único pago por cargo
                         if (!$dryRun) {
                             $this->createPaymentWithApplication(
                                 $paymentData,
-                                $montoPagado,
+                                $effectivePaidAmount,
                                 $chargesByRow[$rowNum]
                             );
                         }

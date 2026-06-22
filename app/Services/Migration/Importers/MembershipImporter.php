@@ -74,9 +74,9 @@ class MembershipImporter extends BaseImporter
 
                 // Mapear estatus
                 $accountStatus = match ($estatus) {
-                    'activa', 'active'     => 'active',
-                    'suspendida'           => 'suspended',
-                    'cancelada'            => 'cancelled',
+                    'activo', 'active'     => 'active',
+                    'suspendido', 'suspended' => 'suspended',
+                    'cancelado', 'inactivo' => 'cancelled',
                     default                => 'active',
                 };
 

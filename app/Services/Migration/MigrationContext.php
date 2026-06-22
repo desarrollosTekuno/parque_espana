@@ -26,6 +26,9 @@ class MigrationContext
     /** ChargeConcept code → concept.id  (pre-cargado) */
     public array $conceptsByCode = [];
 
+    /** ChargeConcept id → allows_partial_payments (pre-cargado) */
+    public array $conceptAllowsPartial = [];
+
     /** PaymentMethod code → payment_method.id  (pre-cargado) */
     public array $paymentMethodsByCode = [];
 
