@@ -5,13 +5,15 @@ namespace App\Http\Controllers\Web\AdminClub;
 use App\Models\AdminClub\PhysicalAd;
 use App\Models\Billing\Charge;
 use App\Models\Billing\ChargeConcept;
+use App\Models\Billing\Payment;
+use App\Models\Billing\PaymentApplication;
+use App\Models\Billing\PaymentMethod;
 use App\Models\Members\Member;
 use Carbon\Carbon;
-use Illuminate\Validation\Rule;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
-use Inertia\Inertia;
+use Illuminate\Validation\Rule;
 
 class PhysicalAdController extends Controller
 {
@@ -27,8 +29,7 @@ class PhysicalAdController extends Controller
         $driver = DB::getDriverName();
         $like   = $driver === 'pgsql' ? 'ilike' : 'like';
 
-        $query = PhysicalAd::with('member')
-            ->where('club_id', $clubId);
+        $query = PhysicalAd::with('member')->where('club_id', $clubId);
 
         if ($search = $request->input('search')) {
             $query->whereHas('member', function ($q) use ($search, $like) {
@@ -41,14 +42,11 @@ class PhysicalAdController extends Controller
             ->paginate($request->input('per_page', 10))
             ->withQueryString();
 
-        return Inertia::render('AdminClubs/BusinessAds/Index', [
+        return \Inertia\Inertia::render('AdminClubs/BusinessAds/Index', [
             'physicalAds' => $ads,
         ]);
     }
 
-    /**
-     * Búsqueda de socios para el autocomplete del modal.
-     */
     public function searchMembers(Request $request)
     {
         $clubId = $request->club_id ?? session('club_id');
@@ -76,36 +74,28 @@ class PhysicalAdController extends Controller
         return response()->json($members);
     }
 
-    /**
-     * Crea el anuncio físico y el cargo correspondiente.
-     */
     public function store(Request $request)
     {
+        $clubId = (int) session('club_id');
+
         $request->validate([
-            'member_id' => [
-                'required',
-                'integer',
-                Rule::exists((new Member)->getConnectionName().'.'.(new Member)->getTable(), 'id'),
-            ],
-            'size' => ['required', 'in:carta,oficio,doble_carta,doble_oficio'],
-            'quantity' => ['required', 'integer', 'min:1', 'max:99'],
-            'notes' => ['nullable', 'string', 'max:500'],
+            'member_id'     => ['required', 'integer',
+                Rule::exists((new Member)->getConnectionName().'.'.(new Member)->getTable(), 'id')],
+            'size'          => ['required', Rule::in(array_keys(PhysicalAd::SIZES))],
+            'quantity'      => ['required', 'integer', 'min:1', 'max:99'],
+            'signed_format' => ['required', 'boolean'],
+            'notes'         => ['nullable', 'string', 'max:500'],
         ]);
 
         try {
             DB::beginTransaction();
 
-            $clubId    = session('club_id');
-            $sizes     = PhysicalAd::SIZES;
-            $unitPrice = $sizes[$request->size]['price'];
-            $total     = $unitPrice * $request->quantity;
+            $unitPrice  = PhysicalAd::SIZES[$request->size]['price'];
+            $total      = $unitPrice * $request->quantity;
 
-        
-            $today    = Carbon::today();
-            $startsAt = $today;
+            $startsAt = Carbon::today();
             $endsAt = $startsAt->copy()->addMonthNoOverflow();
 
-            // Cuenta del socio
             $member = Member::with('accountMemberships.membershipAccount.memberships')
                 ->findOrFail($request->member_id);
 
@@ -116,7 +106,7 @@ class PhysicalAdController extends Controller
 
             $membership = $accountMembership->membershipAccount->memberships->first();
 
-            // Registro del anuncio físico
+            // 1. Anuncio físico
             $physicalAd = PhysicalAd::create([
                 'club_id'               => $clubId,
                 'member_id'             => $member->id,
@@ -126,28 +116,29 @@ class PhysicalAdController extends Controller
                 'amount'                => $total,
                 'starts_at'             => $startsAt,
                 'ends_at'               => $endsAt,
-                'status'                => 'pending_payment',
+                'status'                => 'active',
+                'signed_format'         => $request->signed_format,
                 'notes'                 => $request->notes,
             ]);
 
-            // Concepto de cobro
+            // 2. Cargo — directamente pagado (balance 0)
             $concept = ChargeConcept::where('code', 'PHYSICAL_AD')->firstOrFail();
 
-            Charge::create([
-                'membership_account_id' => $accountMembership->membership_account_id,
-                'membership_id'         => $membership?->id,
-                'member_id'             => $member->id,
-                'concept_id'            => $concept->id,
-                'description'           => $this->buildDescription($request->size, $request->quantity),
-                'amount'                => $total,
-                'balance'               => $total,
-                'issue_date'            => now(),
-                'due_date'              => now(),
-                'period_year'           => $startsAt->year,
-                'period_month'          => $startsAt->month,
+            $charge = Charge::create([
+                'membership_account_id'   => $accountMembership->membership_account_id,
+                'membership_id'           => $membership?->id,
+                'member_id'               => $member->id,
+                'concept_id'              => $concept->id,
+                'description'             => $this->buildDescription($request->size, $request->quantity),
+                'amount'                  => $total,
+                'balance'                 => 0,
+                'issue_date'              => now(),
+                'due_date'                => now(),
+                'period_year'             => $startsAt->year,
+                'period_month'            => $startsAt->month,
                 'allows_partial_payments' => false,
-                'status'                => 'pending',
-                'metadata'              => [
+                'status'                  => 'paid',
+                'metadata'                => [
                     'physical_ad_id' => $physicalAd->id,
                     'club_id'        => $clubId,
                     'size'           => $request->size,
@@ -156,9 +147,35 @@ class PhysicalAdController extends Controller
                 ],
             ]);
 
+            // 3. Pago en efectivo
+            $cashMethod = PaymentMethod::where('code', 'CASH')->where('is_active', true)->firstOrFail();
+
+            $payment = Payment::create([
+                'membership_account_id' => $accountMembership->membership_account_id,
+                'club_id'               => $clubId,
+                'payment_method_id'     => $cashMethod->id,
+                'amount'                => $total,
+                'paid_at'               => now(),
+                'received_by'           => $request->user()?->id,
+                'status'                => 'registered',
+                'metadata'              => [
+                    'physical_ad_id'     => $physicalAd->id,
+                    'session_club_id'    => $clubId,
+                    'settlement_channel' => 'cashier',
+                    'affects_cash_cut'   => true,
+                ],
+            ]);
+
+            // 4. Aplicación del pago al cargo
+            PaymentApplication::create([
+                'payment_id'     => $payment->id,
+                'charge_id'      => $charge->id,
+                'applied_amount' => $total,
+            ]);
+
             DB::commit();
 
-            return back()->with('success', 'Anuncio físico registrado correctamente. El socio deberá presentarse a firmar el formato.');
+            return back()->with('success', 'Anuncio físico registrado correctamente.');
         } catch (\Exception $e) {
             DB::rollBack();
             report($e);

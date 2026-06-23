@@ -73,8 +73,8 @@ class BusinessAdController extends Controller {
         } catch (\Exception $e) {
             report($e);
             return Inertia::render('AdminClubs/BusinessAds/Index', [
-                'ads'         => ['data' => [], 'total' => 0],
-                'physicalAds' => ['data' => [], 'total' => 0],
+                'ads'                => ['data' => [], 'total' => 0],
+                'physicalAds'        => ['data' => [], 'total' => 0],
                 'messageError' => $e->getMessage()
             ]);
         }

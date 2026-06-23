@@ -13,7 +13,6 @@ use App\Models\Memberships\Membership;
 use App\Models\Members\LockerAssignment;
 use App\Models\Memberships\MembershipAccount;
 use App\Jobs\SendPushNotificationJob;
-use App\Models\AdminClub\PhysicalAd;
 use App\Rules\ExistsInSchema;
 use App\Services\Billing\PaymentRegistrationService;
 use Illuminate\Database\Eloquent\Builder;
@@ -383,25 +382,6 @@ class BillingController extends Controller
                     $locker->update([
                         'status' => 'ocupado',
                     ]);*/
-                });
-            }
-
-            // Anuncios físicos pagados
-            $physicalAdCharges = $charges->filter(function ($charge) {
-                return isset($charge->metadata['physical_ad_id']);
-            });
-            foreach ($physicalAdCharges as $charge) {
-                $physicalAdId = $charge->metadata['physical_ad_id'];
-
-                DB::transaction(function () use ($physicalAdId) {
-                    $ad = PhysicalAd::lockForUpdate()->find($physicalAdId);
-                    if (!$ad || $ad->status_id !== 'paid') {
-                        return;
-                    }
-
-                    $ad->update([
-                        'status' => 'active',
-                    ]);
                 });
             }
 
