@@ -70,7 +70,7 @@ const options = ref({
 });
 
 const headers = [
-    { title: "No. Socio", key: "membership_number", sortable: true },
+    { title: "No. Usuario", key: "membership_number", sortable: true },
     { title: "Titular", key: "holder_name", sortable: false },
     { title: "Tipo de membresía", key: "membership_type_name", sortable: false },
     { title: "Tipo de baja", key: "cancellation_type", sortable: false },
@@ -226,7 +226,7 @@ function clearFilters() {
                         <v-col cols="12" md="4">
                             <v-text-field
                                 v-model="search"
-                                label="Buscar (No. socio, nombre, correo)"
+                                label="Buscar (No. usuario, nombre, correo)"
                                 prepend-inner-icon="mdi-magnify"
                                 variant="outlined"
                                 density="compact"
@@ -307,7 +307,7 @@ function clearFilters() {
                     no-data-text="No se encontraron registros de bajas."
                     loading-text="Cargando..."
                 >
-                    <!-- No. Socio -->
+                    <!-- No. Usuario -->
                     <template #item.membership_number="{ item }">
                         <span class="font-weight-medium">
                             {{ item.membership_number ?? "-" }}

@@ -258,6 +258,15 @@ class PermissionSeeder extends Seeder
             ['module' => 'Listas de Invitados', 'name' => 'guest-list-variables.update', 'description' => 'Actualizar variables de listas de invitados', 'contexts' => ['web']],
             ['module' => 'Listas de Invitados', 'name' => 'guest-list-variables.destroy', 'description' => 'Eliminar variables de listas de invitados', 'contexts' => ['web']],
             ['module' => 'Listas de Invitados', 'name' => 'guest-list-payments.index', 'description' => 'Ver pagos de listas de invitados', 'contexts' => ['web']],
+            ['module' => 'Listas de Invitados', 'name' => 'guest-list-payments.store', 'description' => 'Crear pagos de lista de invitados', 'contexts' => ['web']],
+            ['module' => 'Listas de Invitados', 'name' => 'guest-list-payments.update', 'description' => 'Actualizar pagos de lista de invitados', 'contexts' => ['web']],
+            ['module' => 'Listas de Invitados', 'name' => 'guest-list-payments.destroy', 'description' => 'Eliminar pagos de lista de invitados', 'contexts' => ['web']],
+
+            // Pases por Día
+            ['module' => 'Pases por Día', 'name' => 'day-passes.index', 'description' => 'Ver pases por día', 'contexts' => ['web']],
+            ['module' => 'Pases por Día', 'name' => 'day-passes.store', 'description' => 'Registrar pase por día', 'contexts' => ['web']],
+            ['module' => 'Pases por Día', 'name' => 'day-passes.incidents.index', 'description' => 'Ver incidentes de visitantes', 'contexts' => ['web']],
+            ['module' => 'Pases por Día', 'name' => 'day-passes.incidents.store', 'description' => 'Registrar incidente a visitante', 'contexts' => ['web']],
 
             // Files
             ['module' => 'Archivos', 'name' => 'files.index', 'description' => 'Ver archivos', 'contexts' => ['Web']],

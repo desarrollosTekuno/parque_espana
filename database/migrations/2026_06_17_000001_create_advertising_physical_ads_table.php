@@ -18,7 +18,7 @@ return new class extends Migration {
             $table->date('starts_at');
             $table->date('ends_at');
             $table->boolean('signed_format')->default(false);
-            $table->enum('status', ['pending_payment', 'active', 'expired', 'cancelled'])->default('pending_payment');
+            $table->enum('status', ['active', 'expired', 'cancelled'])->default('active');
             $table->text('notes')->nullable();
             $table->timestamps();
             $table->softDeletes();

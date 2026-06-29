@@ -7,6 +7,10 @@ use Illuminate\Console\Command;
 
 class ImportMigrationData extends Command
 {
+    /* 
+    Ejemplo de uso:
+    php artisan migrate:data "C:\Users\Usuario\Downloads\Plantilla_Migracion_Datos_Actualizada.xlsx" --only=usuarios,membresias,integrantes,domicilios,empleo,"historial por periodo",casilleros --dry-run
+    */
     protected $signature = 'migrate:data
         {file : Ruta al archivo .xlsx de migración}
         {--dry-run : Simula la importación sin guardar nada en base de datos}
@@ -17,8 +21,8 @@ class ImportMigrationData extends Command
     public function handle(MigrationOrchestrator $orchestrator): int
     {
         $filePath = $this->argument('file');
-        $dryRun   = $this->option('dry-run');
-        $only     = $this->option('only')
+        $dryRun = $this->option('dry-run');
+        $only = $this->option('only')
             ? array_map('trim', explode(',', $this->option('only')))
             : [];
 
@@ -72,7 +76,7 @@ class ImportMigrationData extends Command
         $this->info('');
 
         foreach ($report->toArray() as $importerName => $result) {
-            $icon   = empty($result['errors']) ? '✅' : '⚠ ';
+            $icon = empty($result['errors']) ? '✅' : '⚠ ';
             $status = sprintf('%-30s  %d importados  |  %d errores', $importerName, $result['ok'], count($result['errors']));
             $this->line("  {$icon}  {$status}");
 
