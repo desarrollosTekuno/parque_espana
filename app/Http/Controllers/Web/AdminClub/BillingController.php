@@ -14,9 +14,16 @@ use App\Models\Members\LockerAssignment;
 use App\Models\Memberships\MembershipAccount;
 use App\Jobs\SendPushNotificationJob;
 use App\Models\AdminClub\PhysicalAd;
+use App\Models\Billing\AnnualDiscountRule;
+use App\Models\Billing\ClubPaymentMethod;
+use App\Models\Billing\Payment;
 use App\Rules\ExistsInSchema;
+use App\Services\Billing\AnnualPaymentService;
+use App\Services\Billing\MembershipChargeService;
 use App\Services\Billing\PaymentRegistrationService;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -564,6 +571,229 @@ class BillingController extends Controller
                     'concept_code' => $request->input('charges_concept_code'),
                 ],
                 'messageError' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public function annualPaymentPreview(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'membership_account_id' => ['required', 'integer'],
+            'club_id'               => ['required', 'integer'],
+            'year'                  => ['required', 'integer', 'min:2020', 'max:2035'],
+            'paid_at'               => ['required', 'date'],
+        ]);
+
+        $account = MembershipAccount::findOrFail($validated['membership_account_id']);
+        $year    = (int) $validated['year'];
+        $clubId  = (int) $validated['club_id'];
+
+        // Membresía activa del socio en ese parque
+        $membership = Membership::where('membership_account_id', $account->id)
+            ->where('club_id', $clubId)
+            ->where('is_primary', true)
+            ->whereIn('status', ['active', 'suspended'])
+            ->first();
+
+        if (!$membership) {
+            return response()->json([
+                'charges_count'   => 0,
+                'months_covered'  => [],
+                'total_balance'   => 0,
+                'discount_rule'   => null,
+                'discount_amount' => 0,
+                'payment_amount'  => 0,
+                'error'           => 'No se encontró una membresía activa para ese parque.',
+            ]);
+        }
+
+        // Cuota mensual de la membresía (independiente de qué cargos ya existan)
+        $monthlyFee = round((float) ($membership->monthly_fee_share ?? $membership->monthly_fee ?? 0), 2);
+
+        // Cargos ya existentes para el año, para saber cuáles meses ya tienen cargo
+        $existingCharges = Charge::query()
+            ->where('membership_account_id', $account->id)
+            ->where('period_year', $year)
+            ->whereNotIn('status', ['cancelled'])
+            ->whereHas('concept', fn ($q) => $q->where('code', 'MONTHLY_FEE'))
+            ->whereHas('membership', fn ($q) => $q->where('club_id', $clubId))
+            ->get()
+            ->keyBy('period_month');
+
+        // 12 meses: usa el balance del cargo existente si ya existe, o la cuota mensual si falta
+        $totalBalance = 0.0;
+        $monthsCovered = [];
+        for ($m = 1; $m <= 12; $m++) {
+            $monthsCovered[] = $m;
+            $existing = $existingCharges->get($m);
+            $totalBalance += $existing ? (float) $existing->balance : $monthlyFee;
+        }
+        $totalBalance = round($totalBalance, 2);
+
+        $paymentMonth   = Carbon::parse($validated['paid_at'])->month;
+        $rule           = AnnualDiscountRule::findApplicable($year, $paymentMonth);
+        $discountAmount = $rule ? round($monthlyFee * (float) $rule->discount_months, 2) : 0.0;
+        $paymentAmount  = round($totalBalance - $discountAmount, 2);
+
+        return response()->json([
+            'charges_count'   => 12,
+            'months_covered'  => $monthsCovered,
+            'total_balance'   => $totalBalance,
+            'monthly_fee'     => $monthlyFee,
+            'discount_rule'   => $rule ? [
+                'pay_by_month'    => $rule->pay_by_month,
+                'discount_months' => $rule->discount_months,
+                'free_month'      => $rule->free_month,
+            ] : null,
+            'discount_amount' => $discountAmount,
+            'payment_amount'  => $paymentAmount,
+        ]);
+    }
+
+    public function storeAnnualPayment(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'membership_account_id' => ['required', new ExistsInSchema('memberships', 'accounts', 'id')],
+                'club_id'               => ['required', new ExistsInSchema('clubs', 'clubs', 'id')],
+                'year'                  => ['required', 'integer', 'min:2020', 'max:2035'],
+                'payment_method_id'     => ['required', new ExistsInSchema('billing', 'payment_methods', 'id')],
+                'paid_at'               => ['required', 'date'],
+                'reference'             => ['nullable', 'string', 'max:255'],
+                'bank_name'             => ['nullable', 'string', 'max:255'],
+                'check_number'          => ['nullable', 'string', 'max:255'],
+                'notes'                 => ['nullable', 'string', 'max:1000'],
+            ]);
+
+            $account       = MembershipAccount::with('primaryHolder.member')->findOrFail($validated['membership_account_id']);
+            $paymentMethod = PaymentMethod::where('id', $validated['payment_method_id'])->where('is_active', true)->firstOrFail();
+            $year          = (int) $validated['year'];
+            $clubId        = (int) $validated['club_id'];
+
+            $allowed = ClubPaymentMethod::where('club_id', $clubId)
+                ->where('payment_method_id', $paymentMethod->id)
+                ->where('is_active', true)
+                ->exists();
+
+            if (!$allowed) {
+                throw ValidationException::withMessages([
+                    'payment_method_id' => 'El método de pago seleccionado no está habilitado para ese parque.',
+                ]);
+            }
+
+            // Membresía activa del socio en ese parque
+            $membership = Membership::where('membership_account_id', $account->id)
+                ->where('club_id', $clubId)
+                ->where('is_primary', true)
+                ->whereIn('status', ['active', 'suspended'])
+                ->with(['membershipType', 'account.primaryHolder.member'])
+                ->first();
+
+            if (!$membership) {
+                throw ValidationException::withMessages([
+                    'club_id' => 'No se encontró una membresía activa para ese parque.',
+                ]);
+            }
+
+            // Generar los cargos mensuales faltantes para todos los meses del año
+            $chargeService = app(MembershipChargeService::class);
+            for ($month = 1; $month <= 12; $month++) {
+                $periodDate = Carbon::create($year, $month, 1);
+                $chargeService->createRecurringMonthlyCharge($membership, $periodDate, [
+                    'charge_origin' => 'annual_payment',
+                ]);
+            }
+
+            // Ahora sí cargar todos los cargos pendientes del año
+            $charges = Charge::query()
+                ->where('membership_account_id', $account->id)
+                ->where('period_year', $year)
+                ->whereIn('status', ['pending', 'partial'])
+                ->whereHas('concept', fn ($q) => $q->where('code', 'MONTHLY_FEE'))
+                ->whereHas('membership', fn ($q) => $q->where('club_id', $clubId))
+                ->orderBy('period_month')
+                ->lockForUpdate()
+                ->get();
+
+            if ($charges->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'year' => "No se encontraron cargos de mensualidad para {$year} en ese parque.",
+                ]);
+            }
+
+            $monthlyFee     = round((float) ($membership->monthly_fee_share ?? $membership->monthly_fee ?? 0), 2);
+            $paymentMonth   = Carbon::parse($validated['paid_at'])->month;
+            $rule           = AnnualDiscountRule::findApplicable($year, $paymentMonth);
+            $discountAmount = $rule ? round($monthlyFee * (float) $rule->discount_months, 2) : 0.0;
+            $paymentAmount  = round((float) $charges->sum('balance') - $discountAmount, 2);
+
+            if ($paymentAmount <= 0) {
+                throw ValidationException::withMessages([
+                    'year' => 'El monto calculado es cero. Verifica que los cargos existan.',
+                ]);
+            }
+
+            $payment = DB::transaction(function () use (
+                $account, $validated, $paymentMethod, $paymentAmount,
+                $year, $clubId, $rule, $discountAmount, $request
+            ) {
+                $payment = Payment::create([
+                    'membership_account_id' => $account->id,
+                    'club_id'               => $clubId,
+                    'payment_method_id'     => $paymentMethod->id,
+                    'amount'                => $paymentAmount,
+                    'paid_at'               => $validated['paid_at'],
+                    'reference'             => $validated['reference'] ?? null,
+                    'bank_name'             => $validated['bank_name'] ?? null,
+                    'check_number'          => $validated['check_number'] ?? null,
+                    'notes'                 => $validated['notes'] ?? null,
+                    'received_by'           => $request->user()?->id,
+                    'status'                => 'registered',
+                    'metadata'              => [
+                        'payment_type'       => 'annual',
+                        'year'               => $year,
+                        'session_club_id'    => session('club_id'),
+                        'discount_rule_id'   => $rule?->id,
+                        'discount_months'    => $rule?->discount_months,
+                        'discount_amount'    => $discountAmount,
+                        'affects_cash_cut'   => (bool) $paymentMethod->affects_cash_cut,
+                        'settlement_channel' => $paymentMethod->affects_cash_cut ? 'cashier' : 'services',
+                    ],
+                ]);
+
+                app(AnnualPaymentService::class)->processAnnualPayment($account, $year, $payment, $clubId);
+
+                return $payment;
+            });
+
+            $userId = $account->primaryHolder?->member?->user_id;
+            if ($userId) {
+                SendPushNotificationJob::dispatch(
+                    $userId,
+                    'Pago de anualidad registrado',
+                    sprintf('Se registró tu pago de anualidad %s por $%s.', $year, number_format($paymentAmount, 2)),
+                    ['screen' => 'AccountStatement', 'type' => 'account_statement', 'club_id' => (string) $clubId],
+                );
+            }
+
+            return redirect()->back()->with('success', sprintf(
+                'Pago de anualidad %s registrado correctamente por $%s.',
+                $year,
+                number_format($paymentAmount, 2)
+            ));
+        } catch (ValidationException $e) {
+            $errors = $e->errors();
+
+            return redirect()->back()->withErrors(array_merge($errors, [
+                'annual_messageError' => collect($errors)->flatten()->first() ?? 'Error de validación.',
+                'annual_exception'    => '',
+            ]));
+        } catch (\Exception $e) {
+            report($e);
+
+            return redirect()->back()->withErrors([
+                'annual_messageError' => 'Ocurrió un error al registrar el pago de anualidad.',
+                'annual_exception'    => $e->getMessage(),
             ]);
         }
     }

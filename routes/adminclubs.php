@@ -74,6 +74,8 @@ Route::resource('/guest-list-payments', GuestListPaymentController::class)->only
 Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
 Route::get('/billing/charges', [BillingController::class, 'chargesList'])->name('billing.charges.index');
 Route::post('/billing/payments', [BillingController::class, 'storePayment'])->name('billing.payments.store');
+Route::get('/billing/annual-payment/preview', [BillingController::class, 'annualPaymentPreview'])->name('billing.annual-payment.preview');
+Route::post('/billing/annual-payment', [BillingController::class, 'storeAnnualPayment'])->name('billing.annual-payment.store');
 
 // cash cuts
 Route::get('/cash-cuts', [CashCutController::class, 'index'])->name('cash-cuts.index');
