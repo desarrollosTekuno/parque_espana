@@ -24,11 +24,9 @@ class ClassSchedule extends Model
         'start_time',
         'end_time',
         'capacity',
-        'is_active',
     ];
 
     protected $casts = [
-        'is_active'   => 'boolean',
         'capacity'    => 'integer',
         'day_of_week' => 'integer',
     ];
@@ -53,8 +51,4 @@ class ClassSchedule extends Model
         return $this->hasMany(ClassEnrollment::class)->whereNull('cancelled_at');
     }
 
-    public function scopeActive($query)
-    {
-        return $query->where('is_active', true);
-    }
 }

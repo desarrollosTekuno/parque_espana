@@ -21,7 +21,7 @@ class ClassScheduleController extends Controller {
     public function index(Request $request) {
         $clubId = $request->club_id ?? session('club_id');
 
-        $classSchedules = ClassSchedule::with(['coach', 'amenityResource'])
+        $classSchedules = ClassSchedule::with(['coach', 'amenityResource.amenity'])
             ->where('club_id', $clubId)
             ->when($request->search, fn($q, $s) =>
                 $q->where('name', 'ILIKE', "%{$s}%")
@@ -50,11 +50,7 @@ class ClassScheduleController extends Controller {
     }
 
     public function store(Request $request) {
-        ClassSchedule::create(array_merge(
-            $request->all(),
-            ['club_id' => session('club_id')]
-        ));
-
+        return $request;
         return redirect()->back()->with('success', 'Clase creada correctamente');
     }
 

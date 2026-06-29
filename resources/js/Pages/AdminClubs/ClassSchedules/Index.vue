@@ -5,73 +5,159 @@ import AppLayout from "@/Layouts/AppLayout.vue";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import { Head, router, useForm, usePage } from "@inertiajs/vue3";
 import { debounce } from "lodash";
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 
 const page = usePage();
-const can  = page.props.auth.permissions;
+const can = page.props.auth.permissions;
 
 interface Props {
     classSchedules?: any;
-    coaches?:         any[];
+    coaches?: any[];
     amenityResources?: any[];
 }
 
 const props = defineProps<Props>();
-const showModal   = ref(false);
+
+/* ====================== Variables ====================== */
+const showModal = ref(false);
+const showPreviewModal = ref(false);
 const formSendRef = ref();
-const saving      = ref(false);
+const saving = ref(false);
 
 const DAYS = [
-    { label: "Lunes",     value: 1 },
-    { label: "Martes",    value: 2 },
-    { label: "Miércoles", value: 3 },
-    { label: "Jueves",    value: 4 },
-    { label: "Viernes",   value: 5 },
-    { label: "Sábado",    value: 6 },
-    { label: "Domingo",   value: 0 },
+    { label: "Lun", fullLabel: "Lunes", value: 1 },
+    { label: "Mar", fullLabel: "Martes", value: 2 },
+    { label: "Mie", fullLabel: "Miercoles", value: 3 },
+    { label: "Jue", fullLabel: "Jueves", value: 4 },
+    { label: "Vie", fullLabel: "Viernes", value: 5 },
+    { label: "Sab", fullLabel: "Sabado", value: 6 },
+    { label: "Dom", fullLabel: "Domingo", value: 0 },
 ];
 
 const TYPES = [
-    { label: "Adultos", value: "adults" },
-    { label: "Niños",   value: "kids" },
+    { label: "Adultos", value: "adults", color: "primary", icon: "mdi-account-group-outline" },
+    { label: "Ninos", value: "kids", color: "orange", icon: "mdi-human-child" },
 ];
 
-const form = useForm({
-    id:                  null as number | null,
-    name:                "",
-    type:                "adults" as string,
-    coach_id:            null as number | null,
-    amenity_resource_id: null as number | null,
-    day_of_week:         null as number | null,
-    start_time:          "",
-    end_time:            "",
-    capacity:            1,
-    is_active:           true,
+const headers = [
+    { title: "Clase", key: "name" },
+    { title: "Tipo", key: "type" },
+    { title: "Entrenador", key: "coach", sortable: false },
+    { title: "Cancha", key: "amenity_resource", sortable: false },
+    { title: "Dia", key: "day_of_week" },
+    { title: "Horario", key: "schedule", sortable: false },
+    { title: "Cupo", key: "capacity" },
+    { title: "Acciones", key: "actions", sortable: false },
+];
+
+const batchPreview = ref<any[]>([]);
+
+const items = ref<any[]>([]);
+const total = ref(0);
+const loading = ref(false);
+const search = ref("");
+const options = ref({
+    page: 1,
+    itemsPerPage: 10,
+    sortBy: [] as any[],
 });
 
+/* ====================== useForm ====================== */
+const form = useForm({
+    id: null as number | null,
+    name: "",
+    type: "adults" as string,
+    coach_id: null as number | null,
+    amenity_resource_id: null as number | null,
+    day_of_week: null as number | null,
+    start_time: "",
+    end_time: "",
+    capacity: 1,
+});
+
+/* ====================== Computed ====================== */
+const canAddSchedule = computed(() =>
+    form.day_of_week !== null && form.start_time !== "" && form.end_time !== "",
+);
+
+const selectedCoach = computed(() =>
+    props.coaches?.find((coach: any) => coach.id === form.coach_id),
+);
+
+const selectedResource = computed(() =>
+    props.amenityResources?.find((resource: any) => resource.id === form.amenity_resource_id),
+);
+
+const filteredAmenityResources = computed(() =>
+    (props.amenityResources ?? []).filter((resource: any) =>
+        resource.amenity?.name?.toLowerCase().includes("cancha"),
+    ),
+);
+
+const previewSchedules = computed(() => {
+    if (batchPreview.value.length > 0) {
+        return batchPreview.value;
+    }
+
+    if (!canAddSchedule.value) {
+        return [];
+    }
+
+    return [
+        {
+            day: form.day_of_week,
+            start: form.start_time,
+            end: form.end_time,
+            capacity: form.capacity,
+        },
+    ];
+});
+
+/* ====================== Funciones ====================== */
 const create = () => {
     form.reset();
+    form.type = "adults";
+    form.capacity = 1;
+    batchPreview.value = [];
     showModal.value = true;
 };
 
 const edit = (item: any) => {
     form.reset();
-    form.id                  = item.id;
-    form.name                = item.name;
-    form.type                = item.type;
-    form.coach_id            = item.coach_id;
+    form.id = item.id;
+    form.name = item.name;
+    form.type = item.type;
+    form.coach_id = item.coach_id;
     form.amenity_resource_id = item.amenity_resource_id;
-    form.day_of_week         = item.day_of_week;
-    form.start_time          = item.start_time?.substring(0, 5) ?? "";
-    form.end_time            = item.end_time?.substring(0, 5)   ?? "";
-    form.capacity            = item.capacity;
-    form.is_active           = item.is_active;
-    showModal.value          = true;
+    form.day_of_week = item.day_of_week;
+    form.start_time = item.start_time?.substring(0, 5) ?? "";
+    form.end_time = item.end_time?.substring(0, 5) ?? "";
+    form.capacity = item.capacity;
+    batchPreview.value = [
+        {
+            day: item.day_of_week,
+            start: item.start_time?.substring(0, 5) ?? "",
+            end: item.end_time?.substring(0, 5) ?? "",
+            capacity: item.capacity,
+        },
+    ];
+    showModal.value = true;
 };
 
 const save = async () => {
     const { valid } = await formSendRef.value?.validate();
     if (!valid) return;
+
+    if (previewSchedules.value.length === 0) {
+        customToastSwal({ title: "Agrega al menos un horario", icon: "warning" });
+        return;
+    }
+
+    showPreviewModal.value = true;
+};
+
+const confirmSave = () => {
+    showPreviewModal.value = false;
 
     if (saving.value) return;
     saving.value = true;
@@ -80,6 +166,7 @@ const save = async () => {
         onSuccess: () => {
             customToastSwal({ title: page.props.flash.success, icon: "success" });
             showModal.value = false;
+            batchPreview.value = [];
             fetchItems();
             saving.value = false;
         },
@@ -99,7 +186,7 @@ const save = async () => {
 };
 
 const destroy = (item: any) => {
-    customConfirmSwal({ title: "¿Eliminar horario?" }).then((r) => {
+    customConfirmSwal({ title: "Eliminar horario?" }).then((r) => {
         if (!r.isConfirmed) return;
         router.delete(route("classSchedules.destroy", item.id), {
             onSuccess: () => {
@@ -110,53 +197,54 @@ const destroy = (item: any) => {
     });
 };
 
-const dayLabel  = (d: number)  => DAYS.find((x) => x.value === d)?.label  ?? "—";
-const typeLabel = (t: string)  => TYPES.find((x) => x.value === t)?.label ?? t;
+const dayLabel = (d: number) => DAYS.find((x) => x.value === d)?.fullLabel ?? "-";
+const typeLabel = (t: string) => TYPES.find((x) => x.value === t)?.label ?? t;
 const coachName = (coach: any) =>
     coach
         ? `${coach.first_name} ${coach.last_name} ${coach.second_last_name ?? ""}`.trim()
-        : "—";
+        : "-";
+const resourceName = (resource: any) =>
+    resource
+        ? `${resource.name} - ${resource.amenity?.name ?? ""}`.trim().toUpperCase()
+        : "-";
 
-// ── Tabla ─────────────────────────────────────────────────────────────────────
-const headers = [
-    { title: "Clase",      key: "name" },
-    { title: "Tipo",       key: "type" },
-    { title: "Entrenador", key: "coach",            sortable: false },
-    { title: "Cancha",     key: "amenity_resource",  sortable: false },
-    { title: "Día",        key: "day_of_week" },
-    { title: "Horario",    key: "schedule",          sortable: false },
-    { title: "Cupo",       key: "capacity" },
-    { title: "Estado",     key: "is_active" },
-    { title: "Acciones",   key: "actions",           sortable: false },
-];
+const setDay = (day: number) => {
+    form.day_of_week = day;
+};
 
-const items   = ref<any[]>([]);
-const total   = ref(0);
-const loading = ref(false);
-const search  = ref("");
-const options = ref({
-    page:         1,
-    itemsPerPage: 10,
-    sortBy:       [] as any[],
-});
+const addPreviewRow = () => {
+    if (!canAddSchedule.value) return;
+
+    batchPreview.value.push({
+        day: form.day_of_week ?? 1,
+        start: form.start_time || "08:00",
+        end: form.end_time || "09:00",
+        capacity: Number(form.capacity || 1),
+    });
+};
+
+const removePreviewRow = (index: number) => {
+    batchPreview.value.splice(index, 1);
+};
 
 const fetchItems = () => {
     loading.value = true;
     router.get(
         route("classSchedules.index"),
         { page: options.value.page, per_page: options.value.itemsPerPage, search: search.value },
-        { preserveState: true, replace: true, only: ["classSchedules"] }
+        { preserveState: true, replace: true, only: ["classSchedules"] },
     );
 };
 
+/* ====================== Watchers ====================== */
 watch(
     () => props.classSchedules,
     (val) => {
-        items.value   = val?.data  ?? [];
-        total.value   = val?.total ?? 0;
+        items.value = val?.data ?? [];
+        total.value = val?.total ?? 0;
         loading.value = false;
     },
-    { immediate: true }
+    { immediate: true },
 );
 
 watch([options, search], debounce(fetchItems, 400), { deep: true });
@@ -168,14 +256,14 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
         <template #options>
             <BaseButton
                 v-if="can.includes('classSchedules.store')"
-                text="Nuevo horario"
+                text="Nueva clase"
                 action="add"
                 :icon-only="false"
                 variant="elevated"
                 @click="create"
             />
         </template>
-        <template #header>Horarios de clases</template>
+        <template #header>Registro de clases</template>
 
         <v-data-table-server
             :headers="headers"
@@ -190,7 +278,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
             <template #top>
                 <v-text-field
                     v-model="search"
-                    label="Buscar clase"
+                    label="Buscar por clase"
                     prepend-inner-icon="mdi-magnify"
                     clearable
                     hide-details
@@ -213,7 +301,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
             </template>
 
             <template #item.amenity_resource="{ item }">
-                {{ item.amenity_resource?.name ?? "—" }}
+                {{ resourceName(item.amenity_resource) }}
             </template>
 
             <template #item.day_of_week="{ item }">
@@ -221,17 +309,8 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
             </template>
 
             <template #item.schedule="{ item }">
-                {{ item.start_time?.substring(0, 5) }} – {{ item.end_time?.substring(0, 5) }}
-            </template>
-
-            <template #item.is_active="{ item }">
-                <v-chip
-                    :color="item.is_active ? 'success' : 'error'"
-                    variant="tonal"
-                    size="small"
-                >
-                    {{ item.is_active ? "Activa" : "Inactiva" }}
-                </v-chip>
+                <strong>{{ item.start_time?.substring(0, 5) }}</strong>
+                <span class="text-slate-500"> a {{ item.end_time?.substring(0, 5) }}</span>
             </template>
 
             <template #item.actions="{ item }">
@@ -248,113 +327,191 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
             </template>
         </v-data-table-server>
 
-        <!-- Modal crear / editar -->
-        <v-dialog v-model="showModal" max-width="600">
+        <v-dialog v-model="showModal" max-width="800">
             <v-form ref="formSendRef" @submit.prevent="save">
-                <v-card :title="form.id ? 'Editar horario' : 'Nuevo horario'">
+                <v-card rounded="lg">
+                    <div class="flex flex-col gap-4 px-6 pt-5 pb-3 border-b border-gray-200 md:flex-row md:items-center md:justify-between">
+                        <div>
+                            <p class="mb-1 text-xs font-bold uppercase text-slate-500">
+                                Planificador
+                            </p>
+                            <h2 class="m-0 text-xl font-bold text-slate-900">
+                                {{ form.id ? "Editar clase" : "Nueva clase" }}
+                            </h2>
+                        </div>
+                    </div>
+
                     <v-card-text>
-                        <v-row>
-                            <v-col cols="12">
-                                <v-text-field
-                                    v-model="form.name"
-                                    label="Nombre de la clase"
-                                    prepend-inner-icon="mdi-whistle-outline"
-                                    :rules="[required]"
-                                    clearable
-                                />
-                            </v-col>
+                        <div class="grid gap-4">
+                            <div>
+                                <div class="p-4 mb-4 border border-gray-200 rounded-lg">
+                                    <span class="block mb-3 font-bold text-slate-900">Clase</span>
+                                    <v-row>
+                                        <v-col cols="12" md="7">
+                                            <v-text-field
+                                                v-model="form.name"
+                                                label="Nombre de la clase"
+                                                prepend-inner-icon="mdi-whistle-outline"
+                                                :rules="[required]"
+                                                clearable
+                                            />
+                                        </v-col>
+                                        <v-col cols="12" md="5">
+                                            <v-select
+                                                v-model="form.type"
+                                                :items="TYPES"
+                                                item-title="label"
+                                                item-value="value"
+                                                label="Tipo"
+                                                prepend-inner-icon="mdi-account-group-outline"
+                                                :rules="[required]"
+                                            />
+                                        </v-col>
+                                    </v-row>
+                                </div>
 
-                            <v-col cols="6">
-                                <v-select
-                                    v-model="form.type"
-                                    :items="TYPES"
-                                    item-title="label"
-                                    item-value="value"
-                                    label="Tipo"
-                                    prepend-inner-icon="mdi-account-group-outline"
-                                    :rules="[required]"
-                                />
-                            </v-col>
+                                <div class="p-4 mb-4 border border-gray-200 rounded-lg">
+                                    <span class="block mb-3 font-bold text-slate-900">
+                                        Responsables y espacio
+                                    </span>
+                                    <v-row>
+                                        <v-col cols="12" md="6">
+                                            <v-autocomplete
+                                                v-model="form.coach_id"
+                                                :items="props.coaches ?? []"
+                                                :item-title="(c: any) => `${c.first_name} ${c.last_name} ${c.second_last_name ?? ''}`.trim()"
+                                                item-value="id"
+                                                label="Entrenador"
+                                                prepend-inner-icon="mdi-account-star-outline"
+                                                :rules="[required]"
+                                                clearable
+                                            />
+                                        </v-col>
+                                        <v-col cols="12" md="6">
+                                            <v-autocomplete
+                                                v-model="form.amenity_resource_id"
+                                                :items="filteredAmenityResources"
+                                                :item-title="resourceName"
+                                                item-value="id"
+                                                label="Cancha / recurso"
+                                                prepend-inner-icon="mdi-tennis-ball"
+                                                :rules="[required]"
+                                                clearable
+                                            />
+                                        </v-col>
+                                    </v-row>
+                                </div>
 
-                            <v-col cols="6">
-                                <v-text-field
-                                    v-model.number="form.capacity"
-                                    label="Cupo máximo"
-                                    type="number"
-                                    min="1"
-                                    prepend-inner-icon="mdi-account-multiple-outline"
-                                    :rules="[required]"
-                                />
-                            </v-col>
+                                <div class="p-4 mb-4 border border-gray-200 rounded-lg">
+                                    <div class="mb-3">
+                                        <span class="font-bold text-slate-900">Dia y horario</span>
+                                    </div>
+                                    <div class="grid grid-cols-4 gap-2 md:grid-cols-7">
+                                        <button
+                                            v-for="day in DAYS"
+                                            :key="day.value"
+                                            type="button"
+                                            class="font-bold border rounded-lg h-11"
+                                            :class="form.day_of_week === day.value
+                                                ? 'border-yellow-400 bg-yellow-400 text-slate-900'
+                                                : 'border-slate-300 bg-slate-50 text-slate-900'"
+                                            @click="setDay(day.value)"
+                                        >
+                                            {{ day.label }}
+                                        </button>
+                                    </div>
+                                    <v-row class="mt-2">
+                                        <v-col cols="12" md="4">
+                                            <v-text-field
+                                                v-model="form.start_time"
+                                                label="Inicio"
+                                                type="time"
+                                                prepend-inner-icon="mdi-clock-start"
+                                                :rules="[required]"
+                                            />
+                                        </v-col>
+                                        <v-col cols="12" md="4">
+                                            <v-text-field
+                                                v-model="form.end_time"
+                                                label="Fin"
+                                                type="time"
+                                                prepend-inner-icon="mdi-clock-end"
+                                                :rules="[required]"
+                                            />
+                                        </v-col>
+                                        <v-col cols="12" md="4">
+                                            <v-text-field
+                                                v-model.number="form.capacity"
+                                                label="Cupo"
+                                                type="number"
+                                                min="1"
+                                                prepend-inner-icon="mdi-account-multiple-outline"
+                                                :rules="[required]"
+                                            />
+                                        </v-col>
+                                    </v-row>
+                                    <div class="flex mt-1 mb-4 justify-stretch md:justify-end">
+                                        <v-btn
+                                            color="primary"
+                                            variant="tonal"
+                                            prepend-icon="mdi-plus"
+                                            type="button"
+                                            :disabled="!canAddSchedule"
+                                            @click="addPreviewRow"
+                                        >
+                                            Agregar horario
+                                        </v-btn>
+                                    </div>
 
-                            <v-col cols="12">
-                                <v-select
-                                    v-model="form.coach_id"
-                                    :items="coaches ?? []"
-                                    :item-title="(c: any) => `${c.first_name} ${c.last_name} ${c.second_last_name ?? ''}`.trim()"
-                                    item-value="id"
-                                    label="Entrenador"
-                                    prepend-inner-icon="mdi-account-star-outline"
-                                    :rules="[required]"
-                                    clearable
-                                />
-                            </v-col>
+                                    <div class="p-4 border border-dashed rounded-lg border-slate-300 bg-slate-50">
+                                        <div class="flex items-center justify-between gap-3 mb-3">
+                                            <span class="font-bold text-slate-900">
+                                                Horarios agregados
+                                            </span>
+                                            <v-chip size="small" variant="tonal">
+                                                {{ batchPreview.length }}
+                                            </v-chip>
+                                        </div>
 
-                            <v-col cols="12">
-                                <v-select
-                                    v-model="form.amenity_resource_id"
-                                    :items="amenityResources ?? []"
-                                    item-title="name"
-                                    item-value="id"
-                                    label="Cancha / recurso"
-                                    prepend-inner-icon="mdi-tennis-ball"
-                                    :rules="[required]"
-                                    clearable
-                                />
-                            </v-col>
+                                        <v-alert
+                                            v-if="batchPreview.length === 0"
+                                            type="info"
+                                            variant="tonal"
+                                            density="compact"
+                                        >
+                                            Agrega uno o mas horarios para esta clase.
+                                        </v-alert>
 
-                            <v-col cols="12">
-                                <v-select
-                                    v-model="form.day_of_week"
-                                    :items="DAYS"
-                                    item-title="label"
-                                    item-value="value"
-                                    label="Día de la semana"
-                                    prepend-inner-icon="mdi-calendar-week-outline"
-                                    :rules="[required]"
-                                />
-                            </v-col>
+                                        <div v-else class="grid gap-3">
+                                            <div
+                                                v-for="(row, index) in batchPreview"
+                                                :key="index"
+                                                class="grid gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center"
+                                            >
+                                                <div class="grid gap-1">
+                                                    <strong>{{ dayLabel(row.day) }}</strong>
+                                                    <span class="text-sm text-slate-500">
+                                                        {{ row.start }} a {{ row.end }}
+                                                    </span>
+                                                </div>
+                                                <v-chip size="small" variant="tonal">
+                                                    Cupo {{ row.capacity }}
+                                                </v-chip>
+                                                <v-btn
+                                                    icon="mdi-delete-outline"
+                                                    variant="text"
+                                                    color="error"
+                                                    type="button"
+                                                    @click="removePreviewRow(index)"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
 
-                            <v-col cols="6">
-                                <v-text-field
-                                    v-model="form.start_time"
-                                    label="Hora inicio"
-                                    type="time"
-                                    prepend-inner-icon="mdi-clock-start"
-                                    :rules="[required]"
-                                />
-                            </v-col>
+                                </div>
+                            </div>
 
-                            <v-col cols="6">
-                                <v-text-field
-                                    v-model="form.end_time"
-                                    label="Hora fin"
-                                    type="time"
-                                    prepend-inner-icon="mdi-clock-end"
-                                    :rules="[required]"
-                                />
-                            </v-col>
-
-                            <v-col cols="12">
-                                <v-switch
-                                    v-model="form.is_active"
-                                    label="Activo"
-                                    color="success"
-                                    hide-details
-                                    inset
-                                />
-                            </v-col>
-                        </v-row>
+                        </div>
                     </v-card-text>
 
                     <v-card-actions>
@@ -377,6 +534,107 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                     </v-card-actions>
                 </v-card>
             </v-form>
+        </v-dialog>
+
+        <v-dialog v-model="showPreviewModal" max-width="720">
+            <v-card rounded="lg">
+                <div class="border-b border-gray-200 px-6 py-5">
+                    <p class="mb-1 text-xs font-bold uppercase text-slate-500">
+                        Revision antes de guardar
+                    </p>
+                    <h2 class="m-0 text-xl font-bold text-slate-900">
+                        Confirmar clase
+                    </h2>
+                </div>
+
+                <v-card-text>
+                    <div class="grid gap-4">
+                        <div class="rounded-lg border border-gray-200 p-4">
+                            <div class="grid gap-3 md:grid-cols-2">
+                                <div>
+                                    <p class="mb-1 text-xs font-bold uppercase text-slate-500">
+                                        Clase
+                                    </p>
+                                    <p class="m-0 font-bold text-slate-900">
+                                        {{ form.name || "-" }}
+                                    </p>
+                                    <v-chip
+                                        class="mt-2"
+                                        size="small"
+                                        :color="form.type === 'adults' ? 'primary' : 'orange'"
+                                        variant="tonal"
+                                    >
+                                        {{ typeLabel(form.type) }}
+                                    </v-chip>
+                                </div>
+
+                                <div>
+                                    <p class="mb-1 text-xs font-bold uppercase text-slate-500">
+                                        Entrenador
+                                    </p>
+                                    <p class="m-0 font-bold text-slate-900">
+                                        {{ coachName(selectedCoach) }}
+                                    </p>
+                                    <p class="mb-0 mt-3 text-xs font-bold uppercase text-slate-500">
+                                        Cancha / recurso
+                                    </p>
+                                    <p class="m-0 font-bold text-slate-900">
+                                        {{ resourceName(selectedResource) }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4">
+                            <div class="mb-3 flex items-center justify-between gap-3">
+                                <span class="font-bold text-slate-900">
+                                    Horarios por guardar
+                                </span>
+                                <v-chip size="small" variant="tonal">
+                                    {{ previewSchedules.length }}
+                                </v-chip>
+                            </div>
+
+                            <div class="grid gap-3">
+                                <div
+                                    v-for="(row, index) in previewSchedules"
+                                    :key="index"
+                                    class="grid gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"
+                                >
+                                    <div class="grid gap-1">
+                                        <strong>{{ dayLabel(row.day) }}</strong>
+                                        <span class="text-sm text-slate-500">
+                                            {{ row.start }} a {{ row.end }}
+                                        </span>
+                                    </div>
+                                    <v-chip size="small" variant="tonal">
+                                        Cupo {{ row.capacity }}
+                                    </v-chip>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </v-card-text>
+
+                <v-card-actions>
+                    <v-spacer />
+                    <BaseButton
+                        text="Volver"
+                        :icon-only="false"
+                        action="cancel"
+                        variant="elevated"
+                        @click="showPreviewModal = false"
+                    />
+                    <BaseButton
+                        text="Confirmar guardado"
+                        :icon-only="false"
+                        action="save"
+                        variant="elevated"
+                        :loading="saving"
+                        @click="confirmSave"
+                    />
+                </v-card-actions>
+            </v-card>
         </v-dialog>
     </AppLayout>
 </template>

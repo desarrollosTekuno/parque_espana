@@ -144,7 +144,6 @@ class ClassScheduleSeeder extends Seeder
                     'type'       => $data['type'],
                     'end_time'   => $data['end_time'],
                     'capacity'   => $data['capacity'],
-                    'is_active'  => true,
                 ]
             );
         }
