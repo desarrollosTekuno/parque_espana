@@ -24,6 +24,7 @@ const imageRef = ref<any>(null);
 const iconRef = ref<any>(null);
 const iconInputRef = ref<HTMLInputElement | null>(null);
 const imageInputRef = ref<HTMLInputElement | null>(null);
+const regulationInputRef = ref<HTMLInputElement | null>(null);
 
 const onIconFileChange = (e: Event) => {
     const file = (e.target as HTMLInputElement).files?.[0] ?? null;
@@ -36,8 +37,28 @@ const onImageFileChange = (e: Event) => {
     form.background_image = file;
 };
 
+const onRegulationFileChange = (e: Event) => {
+    const file = (e.target as HTMLInputElement).files?.[0] ?? null;
+    form.regulation_file = file;
+    form.remove_regulation_file = !file;
+    regulationFileName.value = file ? file.name : null;
+    if (regulationObjectUrl) {
+        URL.revokeObjectURL(regulationObjectUrl);
+        regulationObjectUrl = null;
+    }
+    if (file) {
+        regulationObjectUrl = URL.createObjectURL(file);
+        regulationPreviewUrl.value = regulationObjectUrl;
+        showRegulationPreview.value = true;
+    } else {
+        regulationPreviewUrl.value = null;
+        showRegulationPreview.value = false;
+    }
+};
+
 const triggerIconInput = () => iconInputRef.value?.click();
 const triggerImageInput = () => imageInputRef.value?.click();
+const triggerRegulationInput = () => regulationInputRef.value?.click();
 const tab = ref('amenities')
 const props = withDefaults(defineProps<Props>(), {
     amenities: null,
@@ -118,6 +139,7 @@ const cancelReservation = (event: any) => {
 //    Computeds
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 
 const iconError = computed(() => {
     if (!form.icon) return null;
@@ -133,7 +155,14 @@ const imageError = computed(() => {
     return null;
 });
 
-const isSaveDisabled = computed(() => !!iconError.value || !!imageError.value);
+const regulationError = computed(() => {
+    if (!form.regulation_file) return null;
+    if (form.regulation_file.type !== 'application/pdf') return 'Solo se permiten archivos PDF';
+    if (form.regulation_file.size > MAX_FILE_SIZE_BYTES) return 'El archivo supera 10 MB';
+    return null;
+});
+
+const isSaveDisabled = computed(() => !!iconError.value || !!imageError.value || !!regulationError.value);
 /*const isAmenities = computed(() => tab.value === 'amenities')
 const handleCreate = () => {
     if (isAmenities.value) {
@@ -181,6 +210,9 @@ interface Amenity {
     background_image: File | null;
     background_image_path?: string | null;
     remove_background_image: boolean;
+    regulation_file: File | null;
+    regulation_file_path?: string | null;
+    remove_regulation_file: boolean;
     description: string;
     reservation_type: string;
     is_active: boolean;
@@ -190,6 +222,10 @@ let showModal = ref(false);
 const formSendRef = ref();
 const imagePreview = ref<string | null>(null);
 const iconPreview = ref<string | null>(null);
+const regulationFileName = ref<string | null>(null);
+const regulationPreviewUrl = ref<string | null>(null);
+const showRegulationPreview = ref(false);
+let regulationObjectUrl: string | null = null;
 
 const form = useForm<Amenity>({
     id: null,
@@ -200,6 +236,9 @@ const form = useForm<Amenity>({
     background_image: null,
     background_image_path: null,
     remove_background_image: false,
+    regulation_file: null,
+    regulation_file_path: null,
+    remove_regulation_file: false,
     description: "",
     reservation_type: null,
     is_active: true,
@@ -233,6 +272,9 @@ const create = () => {
     form.reset();
     imagePreview.value = null;
     iconPreview.value = null;
+    regulationFileName.value = null;
+    regulationPreviewUrl.value = null;
+    showRegulationPreview.value = false;
     showModal.value = true;
 };
 const savingAmenity = ref(false)
@@ -274,6 +316,10 @@ const save = async () => {
                 delete payload.background_image
             }
 
+            if (!data.regulation_file && !data.remove_regulation_file) {
+                delete payload.regulation_file
+            }
+
             return payload
         })
         .post(
@@ -296,6 +342,13 @@ const save = async () => {
 
                     imagePreview.value = null
                     iconPreview.value = null
+                    regulationFileName.value = null
+                    regulationPreviewUrl.value = null
+                    showRegulationPreview.value = false
+                    if (regulationObjectUrl) {
+                        URL.revokeObjectURL(regulationObjectUrl)
+                        regulationObjectUrl = null
+                    }
 
                     fetchItems()
 
@@ -328,8 +381,16 @@ const edit = (data: any) => {
     form.background_image = null;
     form.remove_background_image = false;
     form.background_image_path = data.background_image_url || null;
+    form.regulation_file = null;
+    form.regulation_file_path = data.regulation_file_url || null;
+    form.remove_regulation_file = false;
     iconPreview.value = data.icon_url ?? null;
     imagePreview.value = data.background_image_url ?? null;
+    regulationFileName.value = data.regulation_file
+        ? data.regulation_file.split('/').pop()
+        : null;
+    regulationPreviewUrl.value = data.regulation_file_url || null;
+    showRegulationPreview.value = false;
     showModal.value = true;
 };
 const schedule = async () => {
@@ -452,6 +513,13 @@ const close = () => {
     form.reset();
     iconPreview.value = null;
     imagePreview.value = null;
+    regulationFileName.value = null;
+    regulationPreviewUrl.value = null;
+    showRegulationPreview.value = false;
+    if (regulationObjectUrl) {
+        URL.revokeObjectURL(regulationObjectUrl)
+        regulationObjectUrl = null
+    }
     showModal.value = false;
 };
 const closeScheduleModal = () => {
@@ -746,6 +814,20 @@ const removeIcon = () => {
     form.icon_path = null
     form.remove_icon = true
     iconPreview.value = null
+}
+
+const removeRegulationFile = () => {
+    form.regulation_file = null
+    form.regulation_file_path = null
+    form.remove_regulation_file = true
+    regulationFileName.value = null
+    regulationPreviewUrl.value = null
+    showRegulationPreview.value = false
+    if (regulationObjectUrl) {
+        URL.revokeObjectURL(regulationObjectUrl)
+        regulationObjectUrl = null
+    }
+    if (regulationInputRef.value) regulationInputRef.value.value = ''
 }
 
 
@@ -1355,6 +1437,73 @@ const downloadQr = (resourceId: number) => {
                                     >
                                         <v-icon size="14" start>mdi-close</v-icon>Quitar
                                     </v-btn>
+                                </div>
+                            </v-col>
+
+                            <!-- ── Reglamento (PDF) ── -->
+                            <v-col cols="12">
+                                <div class="text-body-2 font-weight-medium mb-2">Reglamento</div>
+
+                                <input
+                                    ref="regulationInputRef"
+                                    type="file"
+                                    accept=".pdf"
+                                    class="d-none"
+                                    @change="onRegulationFileChange"
+                                />
+
+                                <div
+                                    class="d-flex align-center ga-3 pa-3 rounded-lg"
+                                    style="border: 1px dashed rgba(0,0,0,0.2); cursor: pointer;"
+                                    @click="triggerRegulationInput"
+                                >
+                                    <v-icon size="32" :color="regulationPreviewUrl ? 'red-darken-2' : 'grey-lighten-1'">
+                                        mdi-file-pdf-box
+                                    </v-icon>
+                                    <div class="flex-grow-1 overflow-hidden">
+                                        <div v-if="regulationFileName" class="text-body-2 font-weight-medium text-truncate">
+                                            {{ regulationFileName }}
+                                        </div>
+                                        <div v-else-if="regulationPreviewUrl" class="text-body-2 font-weight-medium text-truncate">
+                                            Reglamento cargado
+                                        </div>
+                                        <div v-else class="text-caption text-medium-emphasis">
+                                            Haz clic para subir el reglamento (PDF · máx. 10 MB)
+                                        </div>
+                                        <div v-if="regulationError" class="text-caption text-error mt-1">
+                                            {{ regulationError }}
+                                        </div>
+                                    </div>
+                                    <v-btn
+                                        v-if="regulationPreviewUrl"
+                                        size="x-small"
+                                        :color="showRegulationPreview ? 'grey' : 'primary'"
+                                        variant="text"
+                                        @click.stop="showRegulationPreview = !showRegulationPreview"
+                                    >
+                                        <v-icon size="14" start>{{ showRegulationPreview ? 'mdi-eye-off' : 'mdi-eye' }}</v-icon>
+                                        {{ showRegulationPreview ? 'Ocultar' : 'Ver' }}
+                                    </v-btn>
+                                    <v-btn
+                                        v-if="regulationPreviewUrl"
+                                        size="x-small"
+                                        color="error"
+                                        variant="text"
+                                        @click.stop="removeRegulationFile"
+                                    >
+                                        <v-icon size="14" start>mdi-close</v-icon>Quitar
+                                    </v-btn>
+                                </div>
+
+                                <!-- Visualizador embebido -->
+                                <div v-if="showRegulationPreview && regulationPreviewUrl" class="mt-2 rounded-lg overflow-hidden" style="border: 1px solid rgba(0,0,0,0.12);">
+                                    <iframe
+                                        :src="regulationPreviewUrl"
+                                        type="application/pdf"
+                                        width="100%"
+                                        height="480px"
+                                        style="display:block; border:none;"
+                                    />
                                 </div>
                             </v-col>
 

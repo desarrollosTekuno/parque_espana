@@ -32,7 +32,7 @@ const selectedAd = ref<Ad | null>(null);
 const headers = ref([
     { title: "Negocio", key: "name" },
     { title: "Categoría", key: "category" },
-    { title: "Socio", key: "member" },
+    { title: "Usuario", key: "member" },
     { title: "Estatus", key: "status" },
     { title: "Fecha de solicitud", key: "created_at" },
     { title: "Acciones", key: "actions" }
@@ -70,7 +70,7 @@ watch(search, debounce(() => { options.value.page = 1; fetchItems(); }, 400));
 watch([options], debounce(fetchItems, 400), { deep: true });
 
 const physicalHeaders = [
-    { title: "Socio", key: "member" },
+    { title: "Usuario", key: "member" },
     { title: "Tamaño", key: "size" },
     { title: "Cant.", key: "quantity" },
     { title: "Monto", key: "amount" },
@@ -391,7 +391,7 @@ watch(
                         <div class="d-flex align-center gap-2 pa-2">
                             <v-text-field
                                 v-model="physicalSearch"
-                                label="Buscar por socio"
+                                label="Buscar por usuario"
                                 density="compact"
                                 hide-details
                                 class="flex-grow-1"
@@ -475,14 +475,14 @@ watch(
             <v-card title="Nuevo anuncio físico">
                 <v-card-text class="overflow-y-auto" style="max-height: 80vh;">
 
-                    <!-- Socio -->
+                    <!-- usuario -->
                     <v-autocomplete
                         v-model="physicalForm.member_id"
                         v-model:search="memberSearch"
                         :items="memberOptions"
                         item-title="full_name"
                         item-value="id"
-                        label="Socio *"
+                        label="Usuario *"
                         placeholder="Buscar por nombre..."
                         :loading="memberLoading"
                         no-data-text="Sin resultados"
@@ -536,7 +536,7 @@ watch(
                     <!-- Firma y notas -->
                     <v-checkbox
                         v-model="physicalForm.signed_format"
-                        label="El socio firmó el formato presencialmente"
+                        label="El usuario firmó el formato presencialmente"
                         hide-details
                         class="mb-2"
                     />
