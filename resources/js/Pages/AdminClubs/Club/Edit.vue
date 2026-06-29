@@ -11,6 +11,7 @@ interface ClubData {
     address: string | null;
     is_active: boolean;
     logo_url: string | null;
+    mapa_url: string | null;
     social_whatsapp: string | null;
     social_instagram: string | null;
     social_facebook: string | null;
@@ -26,23 +27,42 @@ const formRef = ref<{ validate(): Promise<{ valid: boolean }> } | null>(null);
 
 const logoFiles   = ref<File[]>([]);
 const logoPreview = ref<string | null>(props.club.logo_url);
+const mapaFiles   = ref<File[]>([]);
+const mapaPreview = ref<string | null>(props.club.mapa_url);
 
 watch(logoFiles, (files) => {
     const file = files?.[0] ?? null;
     if (file) {
+        form.remove_logo = false;
         const reader = new FileReader();
-        reader.onload = (e) => { logoPreview.value = e.target?.result as string; };
+        reader.onload = (e) => {
+            logoPreview.value = e.target?.result as string;
+        };
+
         reader.readAsDataURL(file);
-    } else {
-        logoPreview.value = props.club.logo_url;
     }
 });
 
+watch(mapaFiles, (files) => {
+    const file = files?.[0] ?? null;
+    if (file) {
+        form.remove_mapa = false;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            mapaPreview.value = e.target?.result as string;
+        };
+
+        reader.readAsDataURL(file);
+    }
+});
 const form = useForm({
     name:             props.club.name ?? '',
     address:          props.club.address ?? '',
     is_active:        props.club.is_active,
     logo:             null as File | null,
+    mapa:             null as File | null,
+    remove_logo:       false,
+    remove_mapa:        false,
     social_whatsapp:  props.club.social_whatsapp ?? '',
     social_instagram: props.club.social_instagram ?? '',
     social_facebook:  props.club.social_facebook ?? '',
@@ -55,12 +75,14 @@ const submit = async () => {
 
     // Asignar archivo de logo antes de enviar
     form.logo = logoFiles.value?.[0] ?? null;
+    form.mapa = mapaFiles.value?.[0] ?? null;
 
     form.post(route('club-settings.update'), {
         forceFormData: true,
         preserveScroll: true,
         onSuccess: () => {
             logoFiles.value = [];
+            mapaFiles.value = [];
             customToastSwal({ title: 'Club actualizado correctamente.', icon: 'success' });
         },
         onError: () => {
@@ -121,6 +143,19 @@ const socialNetworks = [
         rules:       [urlRule, maxRule(500)],
     },
 ] as const;
+
+// Eliminar mapa y logo
+const removeLogo = () => {
+    logoFiles.value = [];
+    logoPreview.value = null;
+    form.remove_logo = true;
+};
+
+const removeMapa = () => {
+    mapaFiles.value = [];
+    mapaPreview.value = null;
+    form.remove_mapa = true;
+};
 </script>
 
 <template>
@@ -189,6 +224,17 @@ const socialNetworks = [
                                             />
                                         </div>
                                     </div>
+                                    <div class="mt-2">
+                                        <v-btn
+                                            color="error"
+                                            variant="text"
+                                            size="small"
+                                            prepend-icon="mdi-delete"
+                                            @click="removeLogo"
+                                        >
+                                            Eliminar logo
+                                        </v-btn>
+                                    </div>
                                 </div>
 
                                 <v-divider class="mb-5" />
@@ -222,7 +268,49 @@ const socialNetworks = [
                                             placeholder="Ej. Av. Insurgentes Sur 1234, Ciudad de México"
                                         />
                                     </v-col>
-
+                                    <!-- Mapa -->
+                                    <v-col cols="12">
+                                        <v-file-input
+                                            v-model="mapaFiles"
+                                            label="Mapa del club"
+                                            accept="image/jpeg,image/png,image/webp"
+                                                prepend-icon=""
+                                                prepend-inner-icon="mdi-camera-outline"
+                                                variant="outlined"
+                                                density="compact"
+                                                clearable
+                                                show-size
+                                                :rules="[logoSizeRule, logoTypeRule]"
+                                                :error-messages="form.errors.logo"
+                                                hint="JPG, PNG o WEBP · Máximo 2 MB"
+                                                persistent-hint
+                                                multiple
+                                            />
+                                            <v-avatar
+                                                v-if="mapaPreview"
+                                                size="120"
+                                                rounded="lg"
+                                                :color="mapaPreview ? undefined : 'grey-lighten-3'"
+                                                class="border mt-3"
+                                            >
+                                                <v-img
+                                                    :src="mapaPreview"
+                                                    cover
+                                                    alt="Mapa del club"
+                                                />
+                                            </v-avatar>
+                                        <div class="mt-2">
+                                            <v-btn
+                                                color="error"
+                                                variant="text"
+                                                size="small"
+                                                prepend-icon="mdi-delete"
+                                                @click="removeMapa"
+                                            >
+                                                Eliminar mapa
+                                            </v-btn>
+                                        </div>
+                                    </v-col>
                                     <!-- Estado -->
                                     <v-col cols="12">
                                         <div class="d-flex align-center justify-space-between pa-3 border rounded-lg">
@@ -285,6 +373,14 @@ const socialNetworks = [
 
                             <!-- ══ Acciones ══ -->
                             <div class="d-flex justify-end ga-3">
+                                <base-button
+                                    variant="text"
+                                    color="secondary"
+                                    :icon-only="false"
+                                    action="cancel"
+                                    text="Cancelar"
+                                    @click="router.back()"
+                                />
                                 <BaseButton
                                     v-if="can.includes('club-settings.update')"
                                     :icon-only="false"

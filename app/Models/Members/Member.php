@@ -26,6 +26,9 @@ class Member extends Model
     protected $connection = 'pgsql';
     protected $appends = ['full_name', 'age'];
 
+    /** Valores válidos: 'H' (hombre) o 'M' (mujer) */
+    public const GENDERS = ['H', 'M'];
+
     public function scopeByClub($query, $clubId)
     {
         return $query->whereHas('accounts', function ($q) use ($clubId) {

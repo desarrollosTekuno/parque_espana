@@ -86,8 +86,8 @@ class FeedbackPriorityController extends Controller {
 
     public function update(Request $request, $id) {
         $request->validate([
-            'name' => 'required' | 'string' | 'max:25',
-            'code' => 'required' | 'string' | 'max:25',
+            'name' => 'required', 'string', 'max:30',
+            'code' => 'required', 'string', 'max:10',
             'sort_order' => 'required|integer|min:0',
             'is_active' => 'required|boolean',
         ]);

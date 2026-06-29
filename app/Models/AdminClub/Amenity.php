@@ -20,6 +20,7 @@ class Amenity extends Model
         'description',
         'icon',
         'background_image',
+        'regulation_file',
         'reservation_type',
         'capacity',
         'is_active',
@@ -27,7 +28,7 @@ class Amenity extends Model
     ];
     protected $dates = ['deleted_at'];
 
-    protected $appends = ['icon_url', 'background_image_url'];
+    protected $appends = ['icon_url', 'background_image_url', 'regulation_file_url'];
 
     public function getIconUrlAttribute(): ?string
     {
@@ -40,6 +41,13 @@ class Amenity extends Model
     {
         return $this->background_image
             ? Storage::disk('spaces')->url($this->background_image)
+            : null;
+    }
+
+    public function getRegulationFileUrlAttribute(): ?string
+    {
+        return $this->regulation_file
+            ? Storage::disk('spaces')->url($this->regulation_file)
             : null;
     }
 

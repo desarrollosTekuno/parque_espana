@@ -1201,9 +1201,6 @@ class MemberController extends Controller
                 'address.country_id' => ['nullable', new ExistsInSchema('catalogs', 'countries', 'id')],
                 'address.state_id' => ['nullable', new ExistsInSchema('catalogs', 'states', 'id')],
                 'address.city_id' => ['nullable', new ExistsInSchema('catalogs', 'cities', 'id')],
-                'address.city' => ['nullable', 'string', 'max:255'],
-                'address.state' => ['nullable', 'string', 'max:255'],
-                'address.country' => ['nullable', 'string', 'max:255'],
                 'address.years_in_city' => ['nullable', 'integer', 'min:0', 'max:999'],
                 'employment' => ['nullable', 'array'],
                 'employment.company_name' => ['nullable', 'string', 'max:255'],
@@ -1591,9 +1588,6 @@ class MemberController extends Controller
                 'members.*.address.country_id' => ['nullable', new ExistsInSchema('catalogs', 'countries', 'id')],
                 'members.*.address.state_id' => ['nullable', new ExistsInSchema('catalogs', 'states', 'id')],
                 'members.*.address.city_id' => ['nullable', new ExistsInSchema('catalogs', 'cities', 'id')],
-                'members.*.address.city' => ['nullable', 'string', 'max:255'],
-                'members.*.address.state' => ['nullable', 'string', 'max:255'],
-                'members.*.address.country' => ['nullable', 'string', 'max:255'],
                 'members.*.address.years_in_city' => ['nullable', 'integer', 'min:0', 'max:999'],
                 'members.*.employment' => ['nullable', 'array'],
                 'members.*.employment.company_name' => ['nullable', 'string', 'max:255'],
@@ -2474,11 +2468,8 @@ class MemberController extends Controller
                         'street' => $address?->street,
                         'neighborhood' => $address?->neighborhood,
                         'postal_code' => $address?->postal_code,
-                        'country' => $this->getCountryDisplayName($address?->country) ?? $address?->country,
                         'country_id' => $address?->country_id,
-                        'state' => $address?->state?->name ?? $address?->state,
                         'state_id' => $address?->state_id,
-                        'city' => $address?->city?->name ?? $address?->city,
                         'city_id' => $address?->city_id,
                         'years_in_city' => $address?->years_in_city,
                     ],
@@ -2620,11 +2611,8 @@ class MemberController extends Controller
         );
 
         return [
-            'country' => $this->getCountryDisplayName($country) ?? ($payload['country'] ?? null),
             'country_id' => $country?->id,
-            'state' => $state?->name ?? ($payload['state'] ?? null),
             'state_id' => $state?->id,
-            'city' => $city?->name ?? ($payload['city'] ?? null),
             'city_id' => $city?->id,
         ];
     }
@@ -3116,9 +3104,9 @@ class MemberController extends Controller
                 'street' => $address?->street,
                 'neighborhood' => $address?->neighborhood,
                 'postal_code' => $address?->postal_code,
-                'city' => $address?->city?->name ?? $address?->city,
-                'state' => $address?->state?->name ?? $address?->state,
-                'country' => $this->getCountryDisplayName($address?->country) ?? $address?->country,
+                'city' => $address?->city?->name,
+                'state' => $address?->state?->name,
+                'country' => $this->getCountryDisplayName($address?->country),
                 'years_in_city' => $address?->years_in_city,
             ],
             'employment' => [

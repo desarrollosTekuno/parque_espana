@@ -198,9 +198,6 @@ const form = useForm({
         street: "",
         neighborhood: "",
         postal_code: "",
-        city: "",
-        state: "",
-        country: "",
         years_in_city: null as number | null,
     },
     employment: {
@@ -241,7 +238,6 @@ const defaultCountry = computed(
 
 if (defaultCountry.value) {
     form.address.country_id = defaultCountry.value.id;
-    form.address.country = getCountryDisplayName(defaultCountry.value);
 }
 
 const countryOptions = computed(() =>
@@ -330,25 +326,19 @@ const onBirthCityChange = (cityId: number | null) => {
 
 const onAddressCountryChange = async (countryId: number | null) => {
     form.address.country_id = countryId;
-    form.address.country = getCountryName(countryId);
     form.address.state_id = null;
-    form.address.state = "";
     form.address.city_id = null;
-    form.address.city = "";
     if (countryId) await fetchStates(countryId);
 };
 
 const onAddressStateChange = async (stateId: number | null) => {
     form.address.state_id = stateId;
-    form.address.state = getStateName(form.address.country_id, stateId);
     form.address.city_id = null;
-    form.address.city = "";
     if (stateId) await fetchCities(stateId);
 };
 
 const onAddressCityChange = (cityId: number | null) => {
     form.address.city_id = cityId;
-    form.address.city = getCityName(form.address.state_id, cityId);
 };
 
 if (form.address.country_id) {

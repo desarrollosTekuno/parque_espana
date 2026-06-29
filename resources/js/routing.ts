@@ -330,7 +330,19 @@ const routes: Routing[] = [
                 title: "Pagos",
                 icon: "mdi-cash",
                 value: "pagos",
-            }
+            },
+            {
+                name: "day-passes.index",
+                title: "Pase por Día",
+                icon: "mdi-ticket-account",
+                value: "pase-por-dia",
+            },
+            {
+                name: "day-passes.incidents.index",
+                title: "Incidencias",
+                icon: "mdi-alert-circle-outline",
+                value: "incidencias-visitantes",
+            },
         ],
     },
     // Anuncios

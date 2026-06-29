@@ -6,6 +6,7 @@ use App\Http\Controllers\Web\AdminClub\MemberController;
 use App\Http\Controllers\Web\AdminClub\BillingController;
 use App\Http\Controllers\Web\AdminClub\AmenityController;
 use App\Http\Controllers\Web\AdminClub\BusinessAdController;
+use App\Http\Controllers\Web\AdminClub\PhysicalAdController;
 use App\Http\Controllers\Web\AdminClub\ReservationController;
 use App\Http\Controllers\Web\AdminClub\AnnouncementController;
 use App\Http\Controllers\Web\AdminClub\BlockedPeriodController;
@@ -39,6 +40,7 @@ use App\Http\Controllers\Web\Administrator\EmailConfigController;
 use App\Http\Controllers\Web\Administrator\EmailNotificationController;
 use App\Http\Controllers\Web\Administrator\NotificationController;
 use App\Http\Controllers\Web\AdminClub\FileController;
+use App\Http\Controllers\Web\AdminClub\DayPassController;
 use App\Http\Controllers\Web\AdminClub\GuestListPaymentController;
 use App\Http\Controllers\Web\AdminClub\MembershipTypeController;
 use App\Http\Controllers\Web\AdminClub\PaymentMethodController;
@@ -74,9 +76,17 @@ Route::resource('/guest-lists', ReservationGuestListController::class)->only(['i
 Route::resource('/guest-list-variables', GuestListVariableController::class)->only(['index', 'store', 'update', 'destroy']);
 Route::resource('/guest-list-payments', GuestListPaymentController::class)->only(['index'])->names('guest-list-payments');
 
+Route::get('/day-passes/members-search', [DayPassController::class, 'searchMembers'])->name('day-passes.members-search');
+Route::get('/day-passes/check-incidents', [DayPassController::class, 'checkIncidents'])->name('day-passes.check-incidents');
+Route::get('/day-passes/incidents',  [DayPassController::class, 'indexIncidents'])->name('day-passes.incidents.index');
+Route::post('/day-passes/incidents', [DayPassController::class, 'storeIncident'])->name('day-passes.incidents.store');
+Route::resource('/day-passes', DayPassController::class)->only(['index', 'store'])->names('day-passes');
+
 Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
 Route::get('/billing/charges', [BillingController::class, 'chargesList'])->name('billing.charges.index');
 Route::post('/billing/payments', [BillingController::class, 'storePayment'])->name('billing.payments.store');
+Route::get('/billing/annual-payment/preview', [BillingController::class, 'annualPaymentPreview'])->name('billing.annual-payment.preview');
+Route::post('/billing/annual-payment', [BillingController::class, 'storeAnnualPayment'])->name('billing.annual-payment.store');
 
 // cash cuts
 Route::get('/cash-cuts', [CashCutController::class, 'index'])->name('cash-cuts.index');
@@ -140,6 +150,10 @@ Route::post('/business-ads/{id}/confirm-payment', [BusinessAdController::class, 
 Route::post('/business-ads/{id}/publish', [BusinessAdController::class, 'publish'])->name('business-ads.publish');
 Route::delete('/business-ads/{id}', [BusinessAdController::class, 'destroy'])->name('business-ads.destroy');
 
+// physical_ads
+Route::get('/physical-ads/members-search', [PhysicalAdController::class, 'searchMembers'])->name('physical-ads.members-search');
+Route::post('/physical-ads', [PhysicalAdController::class, 'store'])->name('physical-ads.store');
+
 // business_ads categories
 Route::prefix('business-categories')->name('business-categories.')->group(function () {
     Route::get('/', [BusinessCategoryController::class, 'index'])->name('index');
@@ -182,6 +196,8 @@ Route::patch('/members/{membership}/internal-account-number', [MemberController:
     ->name('members.internal-account-number.update');
 Route::get('/members/{membership}/history', [MemberController::class, 'membershipHistory'])
     ->name('members.manage.history');
+Route::get('/members/{membership}/billing/charges', [BillingController::class, 'accountCharges'])
+    ->name('members.billing.charges');
 Route::post('/members/{membership}/documents', [MemberController::class, 'storeDocument'])
     ->name('members.documents.store');
 Route::post('/members/{membership}/absence-permits', [MemberController::class, 'storeAbsencePermit'])
@@ -279,7 +295,6 @@ Route::resource('/files', FileController::class)->only(['index', 'store', 'updat
 Route::post('files/{file}/club-file', [FileController::class, 'uploadClubFile'])->name('files.club-file.upload');
 Route::delete('files/{file}/club-file', [FileController::class, 'destroyClubFile'])->name('files.club-file.destroy');
 Route::post('/files/variables', [FileController::class, 'previewVariables'])->name('files.variables');
-
 
 // Historia Clínica
 Route::get('/members/{membership}/clinical-history', [ClinicalHistoryController::class, 'index'])
