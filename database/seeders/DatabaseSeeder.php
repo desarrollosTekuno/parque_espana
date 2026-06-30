@@ -42,8 +42,6 @@ class DatabaseSeeder extends Seeder
             MembershipTypeRequiredDocumentSeeder::class,
             InterclubPackageRuleSeeder::class,
             BillingConceptSeeder::class,
-            PaymentMethodSeeder::class,
-            ClubPaymentMethodSeeder::class,
             LockerSeeder::class,
 
             FeedbackCategoriesSeeder::class,

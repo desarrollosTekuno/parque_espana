@@ -26,7 +26,7 @@ class PaymentMethodSeeder extends Seeder
             ],
             [
                 'code' => 'BANK_TRANSFER_PE1',
-                'name' => 'Transferencia',
+                'name' => 'Transferencia PE1',
                 'description' => 'Pago por transferencia bancaria para el Parque España 1.',
                 'requires_reference' => true,
                 'requires_bank_name' => true,
@@ -37,7 +37,7 @@ class PaymentMethodSeeder extends Seeder
             ],
             [
                 'code' => 'BANK_TRANSFER_PE2',
-                'name' => 'Transferencia',
+                'name' => 'Transferencia PE2',
                 'description' => 'Pago por transferencia bancaria para el Parque España 2.',
                 'requires_reference' => true,
                 'requires_bank_name' => true,
@@ -60,7 +60,7 @@ class PaymentMethodSeeder extends Seeder
             ],
             [
                 'code' => 'CHECK_PE1',
-                'name' => 'Cheque',
+                'name' => 'Cheque PE1',
                 'description' => 'Pago mediante cheque bancario para el Parque España 1.',
                 'requires_reference' => false,
                 'requires_bank_name' => true,
@@ -71,7 +71,7 @@ class PaymentMethodSeeder extends Seeder
             ],
             [
                 'code' => 'CHECK_PE2',
-                'name' => 'Cheque',
+                'name' => 'Cheque PE2',
                 'description' => 'Pago mediante cheque bancario para el Parque España 2.',
                 'requires_reference' => false,
                 'requires_bank_name' => true,
@@ -83,7 +83,7 @@ class PaymentMethodSeeder extends Seeder
             // credit card
             [
                 'code' => 'CREDIT_CARD_PE1',
-                'name' => 'Tarjeta de crédito',
+                'name' => 'Tarjeta de crédito PE1',
                 'description' => 'Pago realizado con tarjeta de crédito para el Parque España 1.',
                 'requires_reference' => true,
                 'requires_bank_name' => false,
@@ -94,7 +94,7 @@ class PaymentMethodSeeder extends Seeder
             ],
             [
                 'code' => 'CREDIT_CARD_PE2',
-                'name' => 'Tarjeta de crédito',
+                'name' => 'Tarjeta de crédito PE2',
                 'description' => 'Pago realizado con tarjeta de crédito para el Parque España 2.',
                 'requires_reference' => true,
                 'requires_bank_name' => false,
@@ -106,7 +106,7 @@ class PaymentMethodSeeder extends Seeder
             // tarjeta de débito
             [
                 'code' => 'DEBIT_CARD_PE1',
-                'name' => 'Tarjeta de débito',
+                'name' => 'Tarjeta de débito PE1',
                 'description' => 'Pago realizado con tarjeta de débito para el Parque España 1.',
                 'requires_reference' => true,
                 'requires_bank_name' => false,
@@ -117,7 +117,7 @@ class PaymentMethodSeeder extends Seeder
             ],
             [
                 'code' => 'DEBIT_CARD_PE2',
-                'name' => 'Tarjeta de débito',
+                'name' => 'Tarjeta de débito PE2',
                 'description' => 'Pago realizado con tarjeta de débito para el Parque España 2.',
                 'requires_reference' => true,
                 'requires_bank_name' => false,

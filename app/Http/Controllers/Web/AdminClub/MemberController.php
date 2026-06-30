@@ -51,6 +51,7 @@ class MemberController extends Controller
             $clubId = $request->club_id ?? session('club_id');
             $prefix = 'members';
             $driver = DB::getDriverName();
+            $like = $driver === 'pgsql' ? 'ilike' : 'like';
 
             $query = MembershipAccount::query()
                 ->with([
@@ -62,40 +63,47 @@ class MemberController extends Controller
                         ->where('is_primary', true),
                 ])
                 ->withCount('accountMembers')
-                ->whereHas('memberships', function (Builder $membershipQuery) use ($clubId) {
-                    $membershipQuery->where('club_id', $clubId)
-                        ->where('status', 'active')
-                        ->where('is_primary', true);
-                })
-                ->whereHas('primaryHolder.member');
+                ->join(
+                    'memberships.memberships as _m_filter',
+                    fn ($join) => $join
+                        ->on('_m_filter.membership_account_id', '=', 'memberships.accounts.id')
+                        ->where('_m_filter.club_id', $clubId)
+                        ->where('_m_filter.status', 'active')
+                        ->where('_m_filter.is_primary', true)
+                )
+                ->join(
+                    'memberships.account_members as _am_filter',
+                    fn ($join) => $join
+                        ->on('_am_filter.membership_account_id', '=', 'memberships.accounts.id')
+                        ->where('_am_filter.is_primary_holder', true)
+                )
+                ->join('members.members as _holder', '_holder.id', '=', '_am_filter.member_id')
+                ->select('memberships.accounts.*');
 
             if ($search = $request->input("{$prefix}_search")) {
-                $like = $driver === 'pgsql' ? 'ilike' : 'like';
-
                 $query->where(function (Builder $builder) use ($search, $like) {
-                    $builder->where('membership_number', $like, "%{$search}%")
-                        ->orWhere('internal_account_number', $like, "%{$search}%")
-                        ->orWhereHas('primaryHolder.member', function (Builder $memberQuery) use ($search, $like) {
-                            $memberQuery->where('first_name', $like, "%{$search}%")
-                                ->orWhere('last_name', $like, "%{$search}%")
-                                ->orWhere('second_last_name', $like, "%{$search}%")
-                                ->orWhere('email', $like, "%{$search}%")
-                                ->orWhere('phone', $like, "%{$search}%");
-                        })->orWhereHas('memberships.membershipType', function (Builder $membershipTypeQuery) use ($search, $like) {
-                            $membershipTypeQuery->where('name', $like, "%{$search}%");
+                    $builder->where('memberships.accounts.membership_number', $like, "%{$search}%")
+                        ->orWhere('memberships.accounts.internal_account_number', $like, "%{$search}%")
+                        ->orWhere('_holder.first_name', $like, "%{$search}%")
+                        ->orWhere('_holder.last_name', $like, "%{$search}%")
+                        ->orWhere('_holder.second_last_name', $like, "%{$search}%")
+                        ->orWhere('_holder.email', $like, "%{$search}%")
+                        ->orWhere('_holder.phone', $like, "%{$search}%")
+                        ->orWhereHas('memberships.membershipType', function (Builder $q) use ($search, $like) {
+                            $q->where('name', $like, "%{$search}%");
                         });
                 });
             }
 
             $sortMap = [
-                'id' => 'id',
-                'membership_number' => 'membership_number',
-                'created_at' => 'created_at',
+                'id' => 'memberships.accounts.id',
+                'membership_number' => 'memberships.accounts.membership_number',
+                'created_at' => 'memberships.accounts.created_at',
             ];
 
             $sort = $request->input("{$prefix}_sort", 'id');
             $order = $request->input("{$prefix}_order", 'desc');
-            $sortColumn = $sortMap[$sort] ?? 'id';
+            $sortColumn = $sortMap[$sort] ?? 'memberships.accounts.id';
 
             $pendingMembersCount = Membership::query()
                 ->where('club_id', $clubId)
@@ -173,7 +181,7 @@ class MemberController extends Controller
                 $cancelledSearch = $request->input("{$cancelledPrefix}_search");
                 $cancelledSort = $request->input("{$cancelledPrefix}_sort", 'id');
                 $cancelledOrder = $request->input("{$cancelledPrefix}_order", 'desc');
-                $cancelledSortColumn = $sortMap[$cancelledSort] ?? 'id';
+                $cancelledSortColumn = $sortMap[$cancelledSort] ?? 'memberships.accounts.id';
 
                 $cancelledQuery = MembershipAccount::query()
                     ->with([
@@ -184,23 +192,31 @@ class MemberController extends Controller
                             ->where('is_primary', true),
                     ])
                     ->withCount('accountMembers')
-                    ->where('status', 'cancelled')
-                    ->where('cancellation_type', 'voluntary')
-                    ->whereHas('memberships', function (Builder $q) use ($clubId) {
-                        $q->where('club_id', $clubId)->where('is_primary', true);
-                    })
-                    ->whereHas('primaryHolder.member');
+                    ->where('memberships.accounts.status', 'cancelled')
+                    ->where('memberships.accounts.cancellation_type', 'voluntary')
+                    ->join(
+                        'memberships.memberships as _cm_filter',
+                        fn ($join) => $join
+                            ->on('_cm_filter.membership_account_id', '=', 'memberships.accounts.id')
+                            ->where('_cm_filter.club_id', $clubId)
+                            ->where('_cm_filter.is_primary', true)
+                    )
+                    ->join(
+                        'memberships.account_members as _cam_filter',
+                        fn ($join) => $join
+                            ->on('_cam_filter.membership_account_id', '=', 'memberships.accounts.id')
+                            ->where('_cam_filter.is_primary_holder', true)
+                    )
+                    ->join('members.members as _cholder', '_cholder.id', '=', '_cam_filter.member_id')
+                    ->select('memberships.accounts.*');
 
                 if ($cancelledSearch) {
-                    $like = $driver === 'pgsql' ? 'ilike' : 'like';
                     $cancelledQuery->where(function (Builder $b) use ($cancelledSearch, $like) {
-                        $b->where('membership_number', $like, "%{$cancelledSearch}%")
-                            ->orWhereHas('primaryHolder.member', function (Builder $mq) use ($cancelledSearch, $like) {
-                                $mq->where('first_name', $like, "%{$cancelledSearch}%")
-                                    ->orWhere('last_name', $like, "%{$cancelledSearch}%")
-                                    ->orWhere('second_last_name', $like, "%{$cancelledSearch}%")
-                                    ->orWhere('email', $like, "%{$cancelledSearch}%");
-                            });
+                        $b->where('memberships.accounts.membership_number', $like, "%{$cancelledSearch}%")
+                            ->orWhere('_cholder.first_name', $like, "%{$cancelledSearch}%")
+                            ->orWhere('_cholder.last_name', $like, "%{$cancelledSearch}%")
+                            ->orWhere('_cholder.second_last_name', $like, "%{$cancelledSearch}%")
+                            ->orWhere('_cholder.email', $like, "%{$cancelledSearch}%");
                     });
                 }
 
