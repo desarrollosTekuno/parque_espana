@@ -53,7 +53,6 @@ class DatabaseSeeder extends Seeder
 
             SpecialtySeeder::class,
             CoachSeeder::class,
-            ClassScheduleSeeder::class,
         ]);
     }
 }

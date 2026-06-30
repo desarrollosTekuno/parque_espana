@@ -5,7 +5,7 @@ import AppLayout from "@/Layouts/AppLayout.vue";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import { Head, router, useForm, usePage } from "@inertiajs/vue3";
 import { debounce } from "lodash";
-import { computed, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 
 const page = usePage();
 const can = page.props.auth.permissions;
@@ -73,11 +73,26 @@ const form = useForm({
     start_time: "",
     end_time: "",
     capacity: 1,
+    schedules: [] as { day_of_week: number; start_time: string; end_time: string; capacity: number }[],
 });
+
+/* ====================== Validaciones ====================== */
+const endAfterStart = (v: string) => {
+    if (!v || !form.start_time) return true;
+    return v > form.start_time || "La hora de fin debe ser mayor a la de inicio";
+};
+
+const minCapacity = (v: number | string) => {
+    const n = Number(v);
+    return (!isNaN(n) && n >= 1) || "El cupo mínimo es 1";
+};
 
 /* ====================== Computed ====================== */
 const canAddSchedule = computed(() =>
-    form.day_of_week !== null && form.start_time !== "" && form.end_time !== "",
+    form.day_of_week !== null &&
+    form.start_time !== "" &&
+    form.end_time !== "" &&
+    form.end_time > form.start_time,
 );
 
 const selectedCoach = computed(() =>
@@ -114,11 +129,17 @@ const previewSchedules = computed(() => {
 });
 
 /* ====================== Funciones ====================== */
-const create = () => {
+const resetForm = () => {
     form.reset();
     form.type = "adults";
     form.capacity = 1;
+    form.schedules = [];
     batchPreview.value = [];
+    nextTick(() => formSendRef.value?.resetValidation());
+};
+
+const create = () => {
+    resetForm();
     showModal.value = true;
 };
 
@@ -166,7 +187,7 @@ const confirmSave = () => {
         onSuccess: () => {
             customToastSwal({ title: page.props.flash.success, icon: "success" });
             showModal.value = false;
-            batchPreview.value = [];
+            resetForm();
             fetchItems();
             saving.value = false;
         },
@@ -181,6 +202,13 @@ const confirmSave = () => {
         form.put(route("classSchedules.update", form.id), callbacks);
         return;
     }
+
+    form.schedules = previewSchedules.value.map((s) => ({
+        day_of_week: s.day,
+        start_time: s.start,
+        end_time: s.end,
+        capacity: Number(s.capacity),
+    }));
 
     form.post(route("classSchedules.store"), callbacks);
 };
@@ -436,7 +464,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                                 label="Fin"
                                                 type="time"
                                                 prepend-inner-icon="mdi-clock-end"
-                                                :rules="[required]"
+                                                :rules="[required, endAfterStart]"
                                             />
                                         </v-col>
                                         <v-col cols="12" md="4">
@@ -446,7 +474,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                                 type="number"
                                                 min="1"
                                                 prepend-inner-icon="mdi-account-multiple-outline"
-                                                :rules="[required]"
+                                                :rules="[required, minCapacity]"
                                             />
                                         </v-col>
                                     </v-row>

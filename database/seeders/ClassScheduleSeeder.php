@@ -9,10 +9,8 @@ use App\Models\Classes\ClassSchedule;
 use App\Models\Classes\Coach;
 use Illuminate\Database\Seeder;
 
-class ClassScheduleSeeder extends Seeder
-{
-    public function run(): void
-    {
+class ClassScheduleSeeder extends Seeder {
+    public function run(): void {
         $club = Club::where('code', 'PE1')->first();
 
         if (!$club) {
