@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\V1\ChargePaymentController;
 use App\Http\Controllers\Api\V1\PaymentSourceController;
 use App\Http\Controllers\Api\V1\ReservationController;
 use App\Http\Controllers\Api\V1\BusinessAdController;
+use App\Http\Controllers\Api\V1\BusinessCategoryController;
 use App\Http\Controllers\Api\V1\ReservationGuestController;
 use App\Http\Controllers\Api\V1\SurveyController;
 use App\Http\Controllers\Api\V1\ClinicalHistoryController;
@@ -46,10 +47,20 @@ Route::prefix('v1')->name('api.')->group(function () {
     Route::get('/clubs/{club}/amenities', [AmenityController::class, 'amenitiesByClub'])->middleware('auth:sanctum');
 
     // Business Ads
+    // Enviar solicitud de promoción desde la app
     Route::post('/business-ads', [BusinessAdController::class, 'store'])->middleware('auth:sanctum');
 
     // Agrupadas por club
     Route::middleware('auth:sanctum')->prefix('clubs/{club}')->group(function () {
+        // Mostrar categorías de negocios en la pantalla principal de la app
+        Route::get('/business-categories', [BusinessCategoryController::class, 'index']);
+
+        // Mostrar negocios publicados por categoría en la app
+        Route::get('/business-ads', [BusinessAdController::class, 'index']);
+
+        // Mostrar detalle de un negocio publicado
+        Route::get('/business-ads/{businessAd}', [BusinessAdController::class, 'show']);
+
         // Encuestas
         Route::get('/surveys', [SurveyController::class, 'index']);                      // Encuestas activas pendientes
         Route::get('/surveys/{survey}', [SurveyController::class, 'show']);              // Detalle con preguntas
