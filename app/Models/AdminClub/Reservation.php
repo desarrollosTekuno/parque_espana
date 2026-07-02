@@ -24,6 +24,7 @@ class Reservation extends Model {
         'member_id',
         'amenity_resource_id',
         'reservation_status_id',
+        'reservation_date',
         ];
     protected $dates = ['deleted_at'];
     protected $casts = [ 'start_datetime' => 'datetime', 'end_datetime' => 'datetime' ];

@@ -64,8 +64,11 @@ class AmenityController extends Controller {
     public function availableSlots(Request $request, AmenityResource $amenityResource)
     {
         try {
+            $validated = $request->validate([
+                'date' => ['required', 'date_format:Y-m-d'],
+            ]);
 
-            $availableSlots = $this->amenityAvailabilityService->getSlots($amenityResource, $request->date);
+            $availableSlots = $this->amenityAvailabilityService->getSlots($amenityResource, $validated['date']);
 
             return response()->json([
                 'success' => true,

@@ -39,6 +39,161 @@
             ]
         },
         {
+            "name": "Reservations",
+            "item": [
+                {
+                    "name": "Get My Reservations",
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{token}}",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/my-reservations",
+                            "host": ["{{base_url}}"],
+                            "path": ["my-reservations"]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Club Amenities",
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{token}}",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/clubs/{{club_id}}/amenities",
+                            "host": ["{{base_url}}"],
+                            "path": [
+                                "clubs",
+                                "{{club_id}}",
+                                "amenities"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Available Slots",
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{token}}",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/amenities/{{amenity_resource_id}}/available-slots?date={{reservation_date}}",
+                            "host": ["{{base_url}}"],
+                            "path": [
+                                "amenities",
+                                "{{amenity_resource_id}}",
+                                "available-slots"
+                            ],
+                            "query": [
+                                {
+                                    "key": "date",
+                                    "value": "{{reservation_date}}"
+                                }
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Create Reservation",
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{token}}",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"start_datetime\": \"{{reservation_start_datetime}}\",\n  \"end_datetime\": \"{{reservation_end_datetime}}\",\n  \"club_id\": {{club_id}},\n  \"amenity_resource_id\": {{amenity_resource_id}}\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/reservations",
+                            "host": ["{{base_url}}"],
+                            "path": ["reservations"]
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
             "name": "Feedback Tickets",
             "item": [
                 {
@@ -357,6 +512,22 @@
         {
             "key": "club_id",
             "value": "1"
+        },
+        {
+            "key": "amenity_resource_id",
+            "value": "1"
+        },
+        {
+            "key": "reservation_date",
+            "value": "2026-04-06"
+        },
+        {
+            "key": "reservation_start_datetime",
+            "value": "2026-04-06 13:00"
+        },
+        {
+            "key": "reservation_end_datetime",
+            "value": "2026-04-06 14:00"
         },
         {
             "key": "ticket_id",
