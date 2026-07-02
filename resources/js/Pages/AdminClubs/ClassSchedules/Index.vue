@@ -56,6 +56,8 @@ const items = ref<any[]>([]);
 const total = ref(0);
 const loading = ref(false);
 const search = ref("");
+const coachFilter = ref<number | null>(null);
+const amenityResourceFilter = ref<number | null>(null);
 const options = ref({
     page: 1,
     itemsPerPage: 10,
@@ -259,7 +261,15 @@ const fetchItems = () => {
     loading.value = true;
     router.get(
         route("classSchedules.index"),
-        { page: options.value.page, per_page: options.value.itemsPerPage, search: search.value },
+        {
+            page: options.value.page,
+            per_page: options.value.itemsPerPage,
+            search: search.value,
+            coach_id: coachFilter.value,
+            amenity_resource_id: amenityResourceFilter.value,
+            sort: options.value.sortBy?.[0]?.key ?? "",
+            order: options.value.sortBy?.[0]?.order ?? "",
+        },
         { preserveState: true, replace: true, only: ["classSchedules"] },
     );
 };
@@ -275,7 +285,7 @@ watch(
     { immediate: true },
 );
 
-watch([options, search], debounce(fetchItems, 400), { deep: true });
+watch([options, search, coachFilter, amenityResourceFilter], debounce(fetchItems, 400), { deep: true });
 </script>
 
 <template>
@@ -304,14 +314,39 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
             class="elevation-1"
         >
             <template #top>
-                <v-text-field
-                    v-model="search"
-                    label="Buscar por clase"
-                    prepend-inner-icon="mdi-magnify"
-                    clearable
-                    hide-details
-                    class="ma-2"
-                />
+                <div class="flex-wrap mx-4 d-flex ga-2">
+                    <v-autocomplete
+                        v-model="coachFilter"
+                        :items="props.coaches ?? []"
+                        :item-title="(c: any) => `${c.first_name} ${c.last_name} ${c.second_last_name ?? ''}`.trim()"
+                        item-value="id"
+                        label="Maestro"
+                        prepend-inner-icon="mdi-account-star-outline"
+                        clearable
+                        class="flex-grow-1"
+                        style="min-width: 160px; max-width: 220px;"
+                    />
+                    <v-autocomplete
+                        v-model="amenityResourceFilter"
+                        :items="filteredAmenityResources"
+                        :item-title="resourceName"
+                        item-value="id"
+                        label="Cancha"
+                        prepend-inner-icon="mdi-tennis-ball"
+                        clearable
+                        class="flex-grow-1"
+                        style="min-width: 160px; max-width: 220px;"
+                    />
+                </div>
+                <div>
+                    <v-text-field
+                        v-model="search"
+                        label="Buscar por clase"
+                        prepend-inner-icon="mdi-magnify"
+                        clearable
+                        class="mx-4 mt-2"
+                    />
+                </div>
             </template>
 
             <template #item.type="{ item }">

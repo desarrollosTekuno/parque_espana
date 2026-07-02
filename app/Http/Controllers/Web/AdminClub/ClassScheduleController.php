@@ -21,13 +21,26 @@ class ClassScheduleController extends Controller {
     public function index(Request $request) {
         $clubId = $request->club_id ?? session('club_id');
 
+        $sort = $request->sort;
+        $order = $request->order === 'desc' ? 'desc' : 'asc';
+        $allowedSorts = ['name', 'type', 'day_of_week', 'capacity'];
+
         $classSchedules = ClassSchedule::with(['coach', 'amenityResource.amenity'])
             ->where('club_id', $clubId)
             ->when($request->search, fn($q, $s) =>
                 $q->where('name', 'ILIKE', "%{$s}%")
             )
-            ->orderBy('day_of_week')
-            ->orderBy('start_time')
+            ->when($request->coach_id, fn($q, $coachId) =>
+                $q->where('coach_id', $coachId)
+            )
+            ->when($request->amenity_resource_id, fn($q, $amenityResourceId) =>
+                $q->where('amenity_resource_id', $amenityResourceId)
+            )
+            ->when(
+                in_array($sort, $allowedSorts, true),
+                fn($q) => $q->orderBy($sort, $order),
+                fn($q) => $q->orderBy('day_of_week')->orderBy('start_time')
+            )
             ->paginate($request->per_page ?? 10)
             ->appends($request->all());
 
