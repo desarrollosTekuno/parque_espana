@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\FeedbackTicketMobileController;
 use App\Http\Controllers\Api\V1\LoginController;
 use App\Http\Controllers\Api\V1\MemberProfileController;
 use App\Http\Controllers\Api\V1\PasswordResetController;
+use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\LockerApiController;
 use App\Http\Controllers\Api\V1\MemberDocumentController;
 use App\Http\Controllers\Api\V1\ChargePaymentController;
@@ -74,6 +75,15 @@ Route::prefix('v1')->name('api.')->group(function () {
 
         // Estado de cuenta (solo socio titular)
         Route::get('/account-statement', [AccountStatementController::class, 'show']);
+
+        // APIs para pagos de la app movil.
+        Route::prefix('payments')->group(function () {
+            Route::get('/pending', [PaymentController::class, 'pending']);
+            Route::get('/history', [PaymentController::class, 'history']);
+            Route::get('/monthly-fees', [PaymentController::class, 'monthlyFees']);
+            Route::get('/{payment}/receipt', [PaymentController::class, 'receipt']);
+            Route::get('/{payment}', [PaymentController::class, 'show']);
+        });
 
         // Integrantes de membresía familiar (solo socio titular)
         Route::get('/family-members', [FamilyMembersController::class, 'index']);
