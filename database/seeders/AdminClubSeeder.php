@@ -120,10 +120,24 @@ class AdminClubSeeder extends Seeder
             'email-configs.store',
             'email-configs.update',
             'email-configs.destroy',
-            'email-notifications.index',
-            'email-notifications.store',
-            'email-notifications.update',
-            'email-notifications.destroy',
+            'notifications.index',
+            'notifications.store',
+            'notifications.update',
+            'notifications.destroy',
+
+            // clases
+            'specialties.index',
+            'specialties.store',
+            'specialties.update',
+            'specialties.destroy',
+            'coaches.index',
+            'coaches.store',
+            'coaches.update',
+            'coaches.destroy',
+            'classSchedules.index',
+            'classSchedules.store',
+            'classSchedules.update',
+            'classSchedules.destroy',
 
         );
         $adminClubRole = Role::updateOrCreate([

@@ -12,10 +12,10 @@ class UserOverlapRule implements ReservationRule
     public function validate(ReservationContext $context): void
     {
         $data = $context->data;
-        $user = $context->user;
+        $member = $context->member;
 
-        //Valida que el usuario no pueda reservar en el mismo horario
-        $reservations = Reservation::where('user_id', $user->id)
+        //Valida que el socio no pueda reservar en el mismo horario
+        $reservations = Reservation::where('member_id', $member->id)
             ->where('amenity_resource_id', $data['amenity_resource_id'])
             ->where('club_id', $data['club_id'])
             ->where('reservation_status_id', '!=', ReservationStatus::CANCELADA)

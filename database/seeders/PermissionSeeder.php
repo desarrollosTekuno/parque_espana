@@ -56,9 +56,24 @@ class PermissionSeeder extends Seeder
             ['module' => 'Amenidades', 'name' => 'amenityResource.downloadQrPdf', 'description' => 'Descargar código QR en PDF', 'contexts' => ['web']],
             ['module' => 'Amenidades', 'name' => 'amenityResource.downloadQr', 'description' => 'Descargar código QR para recurso de amenidad', 'contexts' => ['web']],
 
+            // Clases
+            ['module' => 'Clases', 'name' => 'specialties.index',      'description' => 'Ver especialidades',     'contexts' => ['web']],
+            ['module' => 'Clases', 'name' => 'specialties.store',      'description' => 'Crear especialidades',   'contexts' => ['web']],
+            ['module' => 'Clases', 'name' => 'specialties.update',     'description' => 'Actualizar especialidades', 'contexts' => ['web']],
+            ['module' => 'Clases', 'name' => 'specialties.destroy',    'description' => 'Eliminar especialidades', 'contexts' => ['web']],
+            ['module' => 'Clases', 'name' => 'coaches.index',          'description' => 'Ver entrenadores',         'contexts' => ['web']],
+            ['module' => 'Clases', 'name' => 'coaches.store',          'description' => 'Crear entrenadores',        'contexts' => ['web']],
+            ['module' => 'Clases', 'name' => 'coaches.update',         'description' => 'Actualizar entrenadores',   'contexts' => ['web']],
+            ['module' => 'Clases', 'name' => 'coaches.destroy',        'description' => 'Eliminar entrenadores',     'contexts' => ['web']],
+            ['module' => 'Clases', 'name' => 'classSchedules.index',   'description' => 'Ver clases',                'contexts' => ['web']],
+            ['module' => 'Clases', 'name' => 'classSchedules.store',   'description' => 'Crear clases',              'contexts' => ['web']],
+            ['module' => 'Clases', 'name' => 'classSchedules.update',  'description' => 'Actualizar clases',         'contexts' => ['web']],
+            ['module' => 'Clases', 'name' => 'classSchedules.destroy', 'description' => 'Eliminar clases',           'contexts' => ['web']],
+
             // Reservaciones
             ['module' => 'Reservaciones', 'name' => 'reservations.index', 'description' => 'Ver reservaciones', 'contexts' => ['web']],
             ['module' => 'Reservaciones', 'name' => 'reservations.store', 'description' => 'Crear reservaciones', 'contexts' => ['web']],
+            ['module' => 'Reservaciones', 'name' => 'reservations.update', 'description' => 'Actualizar reservaciones', 'contexts' => ['web']],
             ['module' => 'Reservaciones', 'name' => 'reservations.cancel', 'description' => 'Cancelar reservaciones', 'contexts' => ['web']],
             ['module' => 'Reservaciones', 'name' => 'reservations.calendar', 'description' => 'Ver calendario de reservaciones', 'contexts' => ['web']],
 
@@ -76,6 +91,10 @@ class PermissionSeeder extends Seeder
             ['module' => 'Correo', 'name' => 'email-notifications.store', 'description' => 'Crear notificaciones por correo', 'contexts' => ['web']],
             ['module' => 'Correo', 'name' => 'email-notifications.update', 'description' => 'Actualizar notificaciones por correo', 'contexts' => ['web']],
             ['module' => 'Correo', 'name' => 'email-notifications.destroy', 'description' => 'Eliminar notificaciones por correo', 'contexts' => ['web']],
+            ['module' => 'Correo', 'name' => 'notifications.index', 'description' => 'Ver notificaciones', 'contexts' => ['web']],
+            ['module' => 'Correo', 'name' => 'notifications.store', 'description' => 'Crear notificaciones', 'contexts' => ['web']],
+            ['module' => 'Correo', 'name' => 'notifications.update', 'description' => 'Actualizar notificaciones', 'contexts' => ['web']],
+            ['module' => 'Correo', 'name' => 'notifications.destroy', 'description' => 'Eliminar notificaciones', 'contexts' => ['web']],
             ['module' => 'Comunicación', 'name' => 'announcements.storeGallery', 'description' => 'Agregar imagen a galería de anuncio', 'contexts' => ['web']],
             ['module' => 'Comunicación', 'name' => 'announcements.getGallery', 'description' => 'Ver galería de anuncio', 'contexts' => ['web']],
             ['module' => 'Comunicación', 'name' => 'announcements.destroyGalleryImage', 'description' => 'Eliminar imagen de galería de anuncio', 'contexts' => ['web']],

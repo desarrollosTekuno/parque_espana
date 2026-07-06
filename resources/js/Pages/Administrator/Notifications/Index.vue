@@ -6,7 +6,7 @@ import { fileMaxCountRule, fileMaxSizeRule, fileTypeRule, required } from "@/con
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import { Head, router, useForm } from "@inertiajs/vue3";
 import { debounce } from "lodash";
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import axios from "axios";
 
 /* ====================== Props ====================== */
@@ -22,21 +22,26 @@ interface NotificationItem {
     recipients_count: number;
     status: { id: number; name: string; code: string } | null;
     creator: { id: number; name: string } | null;
-    email_logs: Array<{
+    delivery_logs: Array<{
         id: number;
-        to_email: string;
+        channel: string;
+        destination: string | null;
+        provider: string | null;
         status: string;
         sent_at: string | null;
         error_message: string | null;
-        email_config: { id: number; profile_name: string; from_address: string; host: string } | null;
+        created_at?: string | null;
     }>;
 }
 
 interface Props {
     club_id: number | null;
-    email_notifications: {
+    notifications: {
         data: NotificationItem[];
         total: number;
+    };
+    channels: {
+        data: Array<{ id: number; name: string; code: string }>;
     };
 }
 
@@ -56,9 +61,9 @@ const recipientsCount = ref(0);
 const selectedRecipientsCount = ref(0);
 const allRecipientsSelected = ref(false);
 const formSendRef = ref();
-const prefix = "email_notifications";
-const items = ref<NotificationItem[]>(props.email_notifications?.data ?? []);
-const total = ref(props.email_notifications?.total ?? 0);
+const prefix = "notifications";
+const items = ref<NotificationItem[]>(props.notifications?.data ?? []);
+const total = ref(props.notifications?.total ?? 0);
 const loading = ref(false);
 const search = ref("");
 const type = ref<number | null>(null);
@@ -75,6 +80,7 @@ const headers = [
     { title: "Alcance", key: "scope", sortable: false },
     { title: "Destinatarios", key: "recipients_count", sortable: false },
     { title: "SMTP", key: "smtp", sortable: false },
+    { title: "Push", key: "push", sortable: false },
     { title: "Estado", key: "status", sortable: false },
     { title: "Fecha", key: "created_at" },
     { title: "Creado por", key: "creator", sortable: false },
@@ -82,9 +88,9 @@ const headers = [
 ];
 
 const historyHeaders = [
-    { title: "Destinatario", key: "to_email" },
-    { title: "SMTP", key: "smtp", sortable: false },
-    { title: "Remitente", key: "from_address", sortable: false },
+    { title: "Canal", key: "channel" },
+    { title: "Destino", key: "destination" },
+    { title: "Proveedor", key: "provider" },
     { title: "Estado", key: "status" },
     { title: "Enviado en", key: "sent_at" },
     { title: "Error", key: "error_message" },
@@ -94,7 +100,6 @@ const historyHeaders = [
 const form = useForm({
     scope: "G" as "I" | "G",
     club_id: props.club_id,
-    individual_email: "",
     title: "",
     body: "",
     attachments: [] as File[],
@@ -102,21 +107,102 @@ const form = useForm({
     scheduled_date: "",
     scheduled_time: "",
     selected_recipient_ids: [] as number[],
+    channels_to_send: ["email"] as string[],
 });
 
 /* ====================== Computed ====================== */
+const minScheduledDate = computed(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+});
+
+const minScheduledTime = computed(() => {
+    if (form.scheduled_date !== minScheduledDate.value) {
+        return undefined;
+    }
+
+    const now = new Date();
+    const hours = String(now.getHours()).padStart(2, "0");
+    const minutes = String(now.getMinutes()).padStart(2, "0");
+
+    return `${hours}:${minutes}`;
+});
+
+const sortedHistoryLogs = computed(() => {
+    const logs = selectedNotification.value?.delivery_logs ?? [];
+
+    return [...logs].sort((a, b) => {
+        const aDate = new Date(a.sent_at || a.created_at || 0).getTime();
+        const bDate = new Date(b.sent_at || b.created_at || 0).getTime();
+
+        return bDate - aDate;
+    });
+});
+
+const scheduledDateRule = (value: string) => {
+    if (form.send_type !== "scheduled") {
+        return true;
+    }
+
+    if (!value) {
+        return "El campo es requerido";
+    }
+
+    if (value < minScheduledDate.value) {
+        return "No puedes programar una fecha anterior a hoy";
+    }
+
+    return true;
+};
+
+const scheduledTimeRule = (value: string) => {
+    if (form.send_type !== "scheduled") {
+        return true;
+    }
+
+    if (!value) {
+        return "El campo es requerido";
+    }
+
+    if (form.scheduled_date !== minScheduledDate.value) {
+        return true;
+    }
+
+    if (minScheduledTime.value && value < minScheduledTime.value) {
+        return "No puedes programar una hora anterior a la actual";
+    }
+
+    return true;
+};
 
 /* ====================== Funciones ====================== */
 const create = () => {
     showModal.value = true;
     form.scope = "G";
     form.club_id = props.club_id;
-    form.title = "Prueba de notificacion";
-    form.body = "<p>Correo de prueba temporal.</p>";
+    form.title = "";
+    form.body = "";
     form.send_type = "now";
     form.scheduled_date = "";
     form.scheduled_time = "";
+    form.channels_to_send = ["email"];
     getMembers();
+};
+
+const subscribeTestToken = () => {
+    router.post(route("notifications.subscribe-test-token"), {}, {
+        preserveScroll: true,
+        onSuccess: () => {
+            customToastSwal("Token de prueba suscrito al club", "success");
+        },
+        onError: () => {
+            customToastSwal("No se pudo suscribir el token de prueba", "error");
+        },
+    });
 };
 
 const fetchItems = async () => {
@@ -133,12 +219,12 @@ const fetchItems = async () => {
         [`${prefix}_order`]: options.value.sortBy?.[0]?.order ?? "desc",
     };
 
-    router.get(route("email-notifications.index"), params, {
+    router.get(route("notifications.index"), params, {
         preserveState: true,
         replace: true,
         onSuccess: (inertiaPage) => {
-            items.value = inertiaPage.props.email_notifications?.data ?? [];
-            total.value = inertiaPage.props.email_notifications?.total ?? 0;
+            items.value = inertiaPage.props.notifications?.data ?? [];
+            total.value = inertiaPage.props.notifications?.total ?? 0;
             loading.value = false;
         },
         onError: () => {
@@ -184,7 +270,6 @@ const generatePreview = () => {
 const onScopeChange = (value: "I" | "G") => {
     form.scope = value;
     form.club_id = props.club_id;
-    form.individual_email = "";
     form.selected_recipient_ids = [];
     getMembers();
 };
@@ -197,13 +282,9 @@ const getMembers = async () => {
     }
 
     try {
-        const response = await axios.get(route("email-notifications.members", { club_id: form.club_id }));
+        const response = await axios.get(route("notifications.members", { club_id: form.club_id }));
 
         recipients.value = response.data.recipients ?? [];
-
-        if (form.scope === "G") {
-            form.selected_recipient_ids = recipients.value.map((recipient) => recipient.id);
-        }
     } catch (e) {
         console.error(e);
         recipients.value = [];
@@ -233,8 +314,8 @@ const getSendTypeLabel = () => {
 };
 
 const getDestinationLabel = () => {
-    if (form.scope === "I") {
-        return form.individual_email || "Sin correo individual";
+    if (form.scope === "G") {
+        return "Todos los miembros del club";
     }
 
     return `${selectedRecipientsCount.value} destinatarios`;
@@ -305,11 +386,104 @@ const getLogStatusText = (status: string) => {
 };
 
 const getNotificationSmtp = (item: NotificationItem) => {
-    if (!item.email_logs || item.email_logs.length === 0) {
+    if (!item.delivery_logs || item.delivery_logs.length === 0) {
         return null;
     }
 
-    return item.email_logs[0].email_config;
+    const emailLog = item.delivery_logs.find((log) => log.channel === "email");
+
+    if (!emailLog) {
+        return null;
+    }
+
+    return emailLog.provider;
+};
+
+const getPushLog = (item: NotificationItem) => {
+    if (!item.delivery_logs || item.delivery_logs.length === 0) {
+        return null;
+    }
+
+    const logs = item.delivery_logs.filter((log) => log.channel === "push");
+
+    if (logs.length === 0) {
+        return null;
+    }
+
+    return logs[logs.length - 1];
+};
+
+const getPushStatusText = (item: NotificationItem) => {
+    const pushLog = getPushLog(item);
+
+    if (!pushLog) {
+        return "Sin envío";
+    }
+
+    if (pushLog.status === "sent") {
+        return "Enviado";
+    }
+
+    if (pushLog.status === "queued") {
+        return "En cola";
+    }
+
+    if (pushLog.status === "failed") {
+        return "Fallido";
+    }
+
+    return pushLog.status;
+};
+
+const getPushStatusColor = (item: NotificationItem) => {
+    const pushLog = getPushLog(item);
+
+    if (!pushLog) {
+        return "default";
+    }
+
+    if (pushLog.status === "sent") {
+        return "success";
+    }
+
+    if (pushLog.status === "queued") {
+        return "warning";
+    }
+
+    if (pushLog.status === "failed") {
+        return "error";
+    }
+
+    return "default";
+};
+
+const retryPush = async (item: NotificationItem) => {
+    const confirmed = await customConfirmSwal({
+        title: "¿Reintentar push?",
+        text: `Se volverá a encolar push para \"${item.title}\".`,
+        confirmText: "Sí, reintentar",
+        actionType: "accept",
+    });
+
+    if (!confirmed) return;
+
+    router.patch(route("notifications.retry-push", item.id), {
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: () => {
+            fetchItems();
+            customToastSwal({
+                title: "Reintento push encolado.",
+                icon: "success",
+            });
+        },
+        onError: () => {
+            customToastSwal({
+                title: "No se pudo reintentar push.",
+                icon: "error",
+            });
+        },
+    });
 };
 
 const isImageFile = (file: File) => {
@@ -321,7 +495,7 @@ const getFilePreviewUrl = (file: File) => {
 };
 
 const save = () => {
-    form.post(route("email-notifications.store"), {
+    form.post(route("notifications.store"), {
         forceFormData: true,
         preserveScroll: true,
         preserveState: true,
@@ -330,13 +504,20 @@ const save = () => {
             closeModal();
             fetchItems();
             customToastSwal({
-                title: "Correo registrado con exito.",
+                title: "Notificación registrada con éxito.",
                 icon: "success",
             });
         },
         onError: () => {
+            const errorMessage =
+                form.errors.scheduled_time ||
+                form.errors.scheduled_date ||
+                form.errors.title ||
+                form.errors.body ||
+                "No se pudo registrar la notificación.";
+
             customToastSwal({
-                title: "No se pudo registrar el correo.",
+                title: errorMessage,
                 icon: "error",
             });
         },
@@ -345,21 +526,21 @@ const save = () => {
 
 const cancelNotification = async (item: NotificationItem) => {
     const confirmed = await customConfirmSwal({
-        title: "¿Cancelar notificacion?",
-        text: `Se cancelara "${item.title}" y no se enviara.`,
+        title: "¿Cancelar notificación?",
+        text: `Se cancelará "${item.title}" y no se enviará.`,
         confirmText: "Sí, cancelar",
         actionType: "reject",
     });
 
     if (!confirmed) return;
 
-    router.patch(route("email-notifications.cancel", item.id), {
+    router.patch(route("notifications.cancel", item.id), {
         preserveState: true,
         preserveScroll: true,
         onSuccess: () => {
             fetchItems();
             customToastSwal({
-                title: "Notificacion cancelada.",
+                title: "Notificación cancelada.",
                 icon: "success",
             });
         },
@@ -379,14 +560,14 @@ const exportExcel = () => {
     if (dateFrom.value) params.set(`${prefix}_date_from`, dateFrom.value);
     if (dateTo.value) params.set(`${prefix}_date_to`, dateTo.value);
 
-    window.location.href = route("email-notifications.export") + "?" + params.toString();
+    window.location.href = route("notifications.export") + "?" + params.toString();
 };
 /* ====================== Watchers ====================== */
 watch(
-    () => props.email_notifications,
+    () => props.notifications,
     () => {
-        items.value = props.email_notifications?.data ?? [];
-        total.value = props.email_notifications?.total ?? 0;
+        items.value = props.notifications?.data ?? [];
+        total.value = props.notifications?.total ?? 0;
     },
     { deep: true }
 );
@@ -400,6 +581,24 @@ watch(
 
 watch([options, search], debounce(fetchItems, 400), { deep: true });
 watch([type, dateFrom, dateTo], debounce(fetchItems, 400));
+
+watch(
+    () => form.scheduled_date,
+    () => {
+        if (form.scheduled_date && form.scheduled_date < minScheduledDate.value) {
+            form.scheduled_date = minScheduledDate.value;
+        }
+
+        if (
+            form.scheduled_date === minScheduledDate.value &&
+            form.scheduled_time &&
+            minScheduledTime.value &&
+            form.scheduled_time < minScheduledTime.value
+        ) {
+            form.scheduled_time = minScheduledTime.value;
+        }
+    }
+);
 
 watch([recipients, () => form.selected_recipient_ids], () => {
         recipientsCount.value = recipients.value.length;
@@ -415,14 +614,21 @@ watch([recipients, () => form.selected_recipient_ids], () => {
 </script>
 
 <template>
-    <Head title="Notificaciones por correo" />
+    <Head title="Notificaciones" />
 
     <AppLayout>
         <template #header>
-            <h2 class="text-h5">Notificaciones por correo</h2>
+            <h2 class="text-h5">Panel de Notificaciones</h2>
         </template>
 
         <template #options>
+            <!-- <BaseButton
+                variant="tonal"
+                :icon-only="false"
+                text="Suscribir token test"
+                icon="mdi-link-plus"
+                @click="subscribeTestToken"
+            /> -->
             <BaseButton
                 variant="elevated"
                 :icon-only="false"
@@ -444,7 +650,7 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                 class="elevation-1"
                 :items-per-page-options="[10, 25, 50, 100]"
                 items-per-page-text=" Mostrar"
-                no-data-text="No hay notificaciones por correo guardadas"
+                no-data-text="No hay notificaciones guardadas"
             >
                 <template #top>
                     <div class="flex-wrap mx-4 d-flex ga-2">
@@ -504,16 +710,21 @@ watch([recipients, () => form.selected_recipient_ids], () => {
 
                 <template #item.smtp="{ item }">
                     <div v-if="getNotificationSmtp(item)">
-                        <div class="text-body-2 font-weight-medium">
-                            {{ getNotificationSmtp(item)?.profile_name }}
-                        </div>
-                        <div class="text-caption text-medium-emphasis">
-                            {{ getNotificationSmtp(item)?.from_address }}
-                        </div>
+                        <div class="text-body-2 font-weight-medium">{{ getNotificationSmtp(item) }}</div>
                     </div>
                     <span v-else class="text-caption text-medium-emphasis">
-                        Pendiente de envio
+                        Pendiente de envío
                     </span>
+                </template>
+
+                <template #item.push="{ item }">
+                    <v-chip
+                        size="small"
+                        variant="tonal"
+                        :color="getPushStatusColor(item)"
+                    >
+                        {{ getPushStatusText(item) }}
+                    </v-chip>
                 </template>
 
                 <template #item.created_at="{ item }">
@@ -528,6 +739,13 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                     <BaseButton
                         action="view"
                         @click="openHistoryModal(item)"
+                    />
+                    <BaseButton
+                        :icon-only="true"
+                        icon="mdi-bell-ring-outline"
+                        color="warning"
+                        tooltip="Reintentar push"
+                        @click="retryPush(item)"
                     />
                     <BaseButton
                         v-if="item.status?.code === 'scheduled' || item.status?.code === 'pending'"
@@ -550,50 +768,64 @@ watch([recipients, () => form.selected_recipient_ids], () => {
         <!-- ===================================== MODALES ===================================== -->
         <v-dialog v-model="showModal" max-width="900">
             <v-form ref="formSendRef" @submit.prevent="save">
-                <v-card title="Nueva notificacion">
+                <v-card title="Nueva notificación">
                     <v-card-text>
                         <v-row>
+
                             <v-col cols="12">
-                                    <div class="mb-2 text-subtitle-2">Selecciona a quienes se les enviara el correo</div>
-                                    <v-btn-toggle v-model="form.scope" class="w-100" color="primary" mandatory @update:model-value="onScopeChange">
-                                        <v-btn value="G" class="flex-grow-1" prepend-icon="mdi mdi-account-group-outline">Por parque</v-btn>
-                                        <v-btn value="I" class="flex-grow-1" prepend-icon="mdi-account">Individual</v-btn>
-                                    </v-btn-toggle>
-                                    <div class="mt-1 text-caption text-medium-emphasis">
-                                        {{ form.scope === 'I' ? 'Se enviara a la persona seleccionada.' : 'Se enviara al grupo general.' }}
-                                    </div>
-                                    <div class="px-1 mt-2 d-flex justify-space-between align-center">
-                                        <div class="text-caption text-medium-emphasis" v-if="form.scope == 'G'">
-                                            {{ `Seleccionados: ${selectedRecipientsCount} de ${recipientsCount}` }}
+                                <div class="mb-2 text-subtitle-2">Selecciona a quienes se les enviará la notificación</div>
+                                <v-btn-toggle v-model="form.scope" class="w-100" color="primary" mandatory @update:model-value="onScopeChange">
+                                    <v-btn value="G" class="flex-grow-1" prepend-icon="mdi mdi-account-group-outline">Por parque</v-btn>
+                                    <v-btn value="I" class="flex-grow-1" prepend-icon="mdi-account">Individual</v-btn>
+                                </v-btn-toggle>
+                            </v-col>
+
+                            <v-col cols="12">
+                                <v-select
+                                    v-model="form.channels_to_send"
+                                    :items="channels"
+                                    item-title="name"
+                                    item-value="code"
+                                    multiple
+                                    chips
+                                    clearable
+                                    :rules="[required]"
+                                    label="Canal de envío"
+                                    required
+                                />
+                            </v-col>
+
+                            <v-col v-if="form.scope == 'I'" cols="12">
+                                <v-autocomplete
+                                    v-model="form.selected_recipient_ids"
+                                    label="Seleccionar miembros"
+                                    :items="recipients"
+                                    item-title="name"
+                                    item-value="id"
+                                    :rules="[required]"
+                                    required
+                                    multiple
+                                    chips
+                                    clearable
+                                    no-data-text="No se encontraron personas"
+                                />
+                            </v-col>
+
+                            <v-col cols="12" class="-mt-8">
+                                    <div class="px-1 d-flex justify-space-between align-center">
+                                        <div class="text-caption text-medium-emphasis">
+                                            {{ form.scope === 'G' ? `Se enviará a ${recipientsCount} miembros del club.` : `Seleccionados: ${selectedRecipientsCount} de ${recipientsCount}` }}
                                         </div>
                                         <a
-                                            v-if="form.scope != 'I' && selectedRecipientsCount > 0"
+                                            v-if="form.scope === 'I' && selectedRecipientsCount > 0"
                                             href="#"
                                             class="text-primary text-decoration-underline text-caption"
                                             :style="recipientsCount == 0 ? 'pointer-events:none;opacity:0.5;' : ''"
                                             @click.prevent="changeRecipientsModal"
                                         >
-                                            Ver correos
+                                            Ver destinatarios
                                         </a>
                                     </div>
-                            </v-col>
-
-                            <v-col v-if="form.scope == 'G'" cols="12">
-
-                            </v-col>
-
-                            <v-col v-if="form.scope == 'I'" cols="12">
-                                <v-autocomplete
-                                    v-model="form.individual_email"
-                                    label="Seleccionar persona"
-                                    :items="recipients"
-                                    item-title="name"
-                                    item-value="email"
-                                    :rules="[required]"
-                                    required
-                                    clearable
-                                    no-data-text="No se encontraron personas"
-                                />
                             </v-col>
 
                             <v-col cols="12">
@@ -609,7 +841,7 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                                 <FormQuillEditor
                                     v-model="form.body"
                                     label="Descripcion"
-                                    placeholder="Escribe el contenido del correo..."
+                                    placeholder="Escribe el contenido de la notificación..."
                                     :required="true"
                                     toolbar="essential"
                                 />
@@ -629,12 +861,12 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                                     prepend-icon=""
                                     append-inner-icon="mdi-paperclip"
                                     accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-                                    hint="Puedes adjuntar varios archivos (PDF, Office o imagen). Maximo 5 archivos de 10MB c/u."
+                                    hint="Puedes adjuntar varios archivos (PDF, Office o imagen). Maximo 5 archivos de 2MB c/u."
                                     persistent-hint
                                     :rules="[
                                         fileMaxCountRule(5),
                                         fileTypeRule(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png']),
-                                        fileMaxSizeRule(10),
+                                        fileMaxSizeRule(2),
                                     ]"
                                 />
                             </v-col>
@@ -642,10 +874,10 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                             <v-col cols="12" md="6">
                                 <v-select
                                     v-model="form.send_type"
-                                    label="Tipo de envio"
+                                    label="Tipo de envío"
                                     :items="[
                                         { title: 'Enviar ahora', value: 'now' },
-                                        { title: 'Programar envio', value: 'scheduled' },
+                                        { title: 'Programar envío', value: 'scheduled' },
                                     ]"
                                     item-title="title"
                                     item-value="value"
@@ -659,7 +891,8 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                                     v-model="form.scheduled_date"
                                     label="Fecha"
                                     type="date"
-                                    :rules="[required]"
+                                    :min="minScheduledDate"
+                                    :rules="[required, scheduledDateRule]"
                                     required
                                 />
                             </v-col>
@@ -669,7 +902,8 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                                     v-model="form.scheduled_time"
                                     label="Hora"
                                     type="time"
-                                    :rules="[required]"
+                                    :min="minScheduledTime"
+                                    :rules="[required, scheduledTimeRule]"
                                     required
                                 />
                             </v-col>
@@ -687,7 +921,7 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                         />
                         <BaseButton
                             :icon-only="false"
-                            text="Generar notificacion"
+                            text="Generar notificación"
                             variant="flat"
                             action="save"
                             @click="generatePreview"
@@ -705,8 +939,8 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                             <v-icon size="20">mdi-email-multiple-outline</v-icon>
                         </v-avatar>
                         <div>
-                            <div class="text-subtitle-1 font-weight-bold">Seleccion de correos</div>
-                            <div class="text-caption text-medium-emphasis">Elige quienes recibiran la notificacion</div>
+                            <div class="text-subtitle-1 font-weight-bold">Selección de destinatarios</div>
+                            <div class="text-caption text-medium-emphasis">Elige quiénes recibirán la notificación</div>
                         </div>
                     </div>
 
@@ -720,7 +954,7 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                 <v-card-text class="px-5 py-4">
                     <div class="mb-4 d-flex align-center justify-space-between">
                         <div class="text-caption text-medium-emphasis">
-                            Revisa y confirma los destinatarios del envio general.
+                            Revisa y confirma los destinatarios del envío general.
                         </div>
 
                         <v-btn
@@ -770,7 +1004,7 @@ watch([recipients, () => form.selected_recipient_ids], () => {
 
                             <tr v-if="recipients.length === 0">
                                 <td colspan="3" class="py-6 text-center text-medium-emphasis">
-                                    No se encontraron correos.
+                                    No se encontraron destinatarios.
                                 </td>
                             </tr>
                         </tbody>
@@ -802,7 +1036,7 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                             </div>
 
                             <div class="text-h5 font-weight-bold">
-                                Notificación por correo
+                                Notificacion
                             </div>
 
                             <div class="mt-1 text-body-2 text-medium-emphasis">
@@ -824,13 +1058,13 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                 <v-card-text class="pa-8 overflow-auto h-[50vh]">
                     <section class="border border-gray-200 rounded-xl ">
                         <div class="px-4 py-3 border-b border-gray-200 bg-slate-50 d-flex align-center justify-space-between ga-3">
-                            <div class="text-caption text-medium-emphasis">Vista previa del correo</div>
+                            <div class="text-caption text-medium-emphasis">Vista previa de la notificación</div>
                         </div>
 
                         <div class="bg-white border-b border-gray-200">
                             <div class="px-5 py-4 border-b border-gray-200 bg-slate-50/60">
                                 <div class="mb-1 text-caption text-medium-emphasis">Titulo</div>
-                                <div class="text-body-1 font-weight-bold">{{ form.title || "Sin titulo" }}</div>
+                                <div class="text-body-1 font-weight-bold">{{ form.title || "Sin título" }}</div>
                             </div>
 
                             <div class="flex-wrap px-5 py-3 d-flex ga-4 text-body-2">
@@ -841,12 +1075,12 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                                         {{ getDestinationLabel() }}
                                     </template>
                                     <a
-                                        v-if="form.scope === 'G'"
+                                        v-if="form.scope === 'I'"
                                         href="#"
                                         class="ml-2 text-caption text-primary text-decoration-underline"
                                         @click.prevent="changeRecipientsModal"
                                     >
-                                        Ver mas
+                                        Ver más
                                     </a>
                                 </div>
                             </div>
@@ -946,25 +1180,25 @@ watch([recipients, () => form.selected_recipient_ids], () => {
             <v-card>
                 <v-card-title class="d-flex align-center justify-space-between">
                     <div>
-                        <div class="text-h6">Historial de envio</div>
+                        <div class="text-h6">Historial de envío</div>
                         <div class="text-caption text-medium-emphasis">
                             {{ selectedNotification?.title || "Notificacion" }}
                         </div>
                     </div>
                     <v-chip size="small" variant="tonal" color="primary">
-                        {{ selectedNotification?.email_logs?.length || 0 }} registro(s)
+                        {{ selectedNotification?.delivery_logs?.length || 0 }} registro(s)
                     </v-chip>
                 </v-card-title>
 
                 <v-card-text>
                     <v-data-table
                         :headers="historyHeaders"
-                        :items="selectedNotification?.email_logs || []"
+                        :items="sortedHistoryLogs"
                         :search="historySearch"
                         :items-per-page="10"
                         :items-per-page-options="[10, 25, 50, 100]"
                         items-per-page-text=" Mostrar"
-                        no-data-text="Todavia no hay historial de envio para esta notificacion"
+                        no-data-text="Todavía no hay historial de envío para esta notificación"
                         class="border rounded-lg"
                     >
                         <template #top>
@@ -976,12 +1210,16 @@ watch([recipients, () => form.selected_recipient_ids], () => {
                             />
                         </template>
 
-                        <template #item.smtp="{ item }">
-                            {{ item.email_config?.profile_name || "-" }}
+                        <template #item.channel="{ item }">
+                            {{ item.channel || "-" }}
                         </template>
 
-                        <template #item.from_address="{ item }">
-                            {{ item.email_config?.from_address || "-" }}
+                        <template #item.destination="{ item }">
+                            {{ item.destination || "-" }}
+                        </template>
+
+                        <template #item.provider="{ item }">
+                            {{ item.provider || "-" }}
                         </template>
 
                         <template #item.status="{ item }">

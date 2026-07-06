@@ -50,6 +50,9 @@ class DatabaseSeeder extends Seeder
             FeedbackPrioritiesSeeder::class,
 
             GuestListVariableSeeder::class,
+
+            SpecialtySeeder::class,
+            CoachSeeder::class,
         ]);
     }
 }

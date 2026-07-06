@@ -13,12 +13,14 @@ use App\Http\Controllers\Api\V1\FeedbackTicketMobileController;
 use App\Http\Controllers\Api\V1\LoginController;
 use App\Http\Controllers\Api\V1\MemberProfileController;
 use App\Http\Controllers\Api\V1\PasswordResetController;
+use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\LockerApiController;
 use App\Http\Controllers\Api\V1\MemberDocumentController;
 use App\Http\Controllers\Api\V1\ChargePaymentController;
 use App\Http\Controllers\Api\V1\PaymentSourceController;
 use App\Http\Controllers\Api\V1\ReservationController;
 use App\Http\Controllers\Api\V1\BusinessAdController;
+use App\Http\Controllers\Api\V1\BusinessCategoryController;
 use App\Http\Controllers\Api\V1\ReservationGuestController;
 use App\Http\Controllers\Api\V1\SurveyController;
 use App\Http\Controllers\Api\V1\ClinicalHistoryController;
@@ -46,10 +48,20 @@ Route::prefix('v1')->name('api.')->group(function () {
     Route::get('/clubs/{club}/amenities', [AmenityController::class, 'amenitiesByClub'])->middleware('auth:sanctum');
 
     // Business Ads
+    // Enviar solicitud de promoción desde la app
     Route::post('/business-ads', [BusinessAdController::class, 'store'])->middleware('auth:sanctum');
 
     // Agrupadas por club
     Route::middleware('auth:sanctum')->prefix('clubs/{club}')->group(function () {
+        // Mostrar categorías de negocios en la pantalla principal de la app
+        Route::get('/business-categories', [BusinessCategoryController::class, 'index']);
+
+        // Mostrar negocios publicados por categoría en la app
+        Route::get('/business-ads', [BusinessAdController::class, 'index']);
+
+        // Mostrar detalle de un negocio publicado
+        Route::get('/business-ads/{businessAd}', [BusinessAdController::class, 'show']);
+
         // Encuestas
         Route::get('/surveys', [SurveyController::class, 'index']);                      // Encuestas activas pendientes
         Route::get('/surveys/{survey}', [SurveyController::class, 'show']);              // Detalle con preguntas
@@ -63,6 +75,15 @@ Route::prefix('v1')->name('api.')->group(function () {
 
         // Estado de cuenta (solo socio titular)
         Route::get('/account-statement', [AccountStatementController::class, 'show']);
+
+        // APIs para pagos de la app movil.
+        Route::prefix('payments')->group(function () {
+            Route::get('/pending', [PaymentController::class, 'pending']);
+            Route::get('/history', [PaymentController::class, 'history']);
+            Route::get('/monthly-fees', [PaymentController::class, 'monthlyFees']);
+            Route::get('/{payment}/receipt', [PaymentController::class, 'receipt']);
+            Route::get('/{payment}', [PaymentController::class, 'show']);
+        });
 
         // Integrantes de membresía familiar (solo socio titular)
         Route::get('/family-members', [FamilyMembersController::class, 'index']);

@@ -13,6 +13,7 @@ use App\Models\Members\ClinicalHistory;
 use App\Models\User;
 use App\Traits\SerializesDates;
 use Carbon\Carbon;
+use Database\Factories\MemberFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -34,6 +35,11 @@ class Member extends Model
             $q->where('club_id', $clubId)
             ->where('status', 'active');
         });
+    }
+
+    protected static function newFactory(): MemberFactory
+    {
+        return MemberFactory::new();
     }
 
     public function user()

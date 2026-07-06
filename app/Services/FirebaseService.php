@@ -49,19 +49,20 @@ class FirebaseService
      * Requiere que los tokens estén suscritos al topic del club.
      * Esto ocurre automáticamente en DeviceTokenController::store().
      */
-    public function sendToClub(int $clubId, string $title, string $body, array $data = []): void
+    public function sendToClub(int $clubId, string $title, string $body, array $data = []): bool
     {
-        $this->sendToTopic("club_{$clubId}", $title, $body, $data);
+        return $this->sendToTopic("club_{$clubId}", $title, $body, $data);
     }
 
     /**
      * Envía una notificación a un FCM Topic.
      */
-    public function sendToTopic(string $topic, string $title, string $body, array $data = []): void
+    public function sendToTopic(string $topic, string $title, string $body, array $data = []): bool
     {
         $stringData = collect($data)->map(fn($v) => (string) $v)->toArray();
 
-        $message = CloudMessage::withTarget('topic', $topic)
+        $message = CloudMessage::new()
+            ->toTopic($topic)
             ->withNotification(Notification::create($title, $body))
             ->withData($stringData);
 
@@ -72,11 +73,15 @@ class FirebaseService
                 'topic' => $topic,
                 'title' => $title,
             ]);
+
+            return true;
         } catch (MessagingException $e) {
             Log::error('Error enviando notificación a topic FCM', [
                 'topic' => $topic,
                 'error' => $e->getMessage(),
             ]);
+
+            return false;
         }
     }
 
@@ -111,13 +116,20 @@ class FirebaseService
      * Suscribe un token FCM a los topics de los clubs del usuario.
      * Llamar al registrar un nuevo device token.
      */
-    public function subscribeTokenToUserClubs(string $token, int $userId): void
+    public function subscribeTokenToUserClubs(string $token, int $userId): array
     {
         $clubIds = $this->getActiveClubIdsForUser($userId);
+        $subscribedClubIds = [];
 
         foreach ($clubIds as $clubId) {
-            $this->subscribeToTopic($token, "club_{$clubId}");
+            $subscribed = $this->subscribeToTopic($token, "club_{$clubId}");
+
+            if ($subscribed) {
+                $subscribedClubIds[] = (int) $clubId;
+            }
         }
+
+        return $subscribedClubIds;
     }
 
     /**
@@ -136,15 +148,23 @@ class FirebaseService
     /**
      * Suscribe un token a un topic específico.
      */
-    public function subscribeToTopic(string $token, string $topic): void
+    public function subscribeToTopic(string $token, string $topic): bool
     {
         try {
             $this->messaging->subscribeToTopic($topic, [$token]);
+
+            Log::info('Token suscrito a topic FCM', [
+                'topic' => $topic,
+            ]);
+
+            return true;
         } catch (\Throwable $e) {
             Log::warning('No se pudo suscribir token a topic FCM', [
                 'topic' => $topic,
                 'error' => $e->getMessage(),
             ]);
+
+            return false;
         }
     }
 

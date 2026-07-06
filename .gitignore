@@ -1,5 +1,6 @@
 *.log
 /firebase-credentials.json
+/firebase_credentials.json
 .DS_Store
 .env
 .env.backup

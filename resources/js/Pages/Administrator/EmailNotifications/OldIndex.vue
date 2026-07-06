@@ -19,7 +19,7 @@ interface NotificationItem {
 }
 
 interface Props {
-    email_notifications: {
+    notifications: {
         data: NotificationItem[];
         total: number;
     };
@@ -31,7 +31,7 @@ interface Props {
 const can = usePage().props.auth.permissions;
 const page = usePage<any>();
 const props = defineProps<Props>();
-const prefix = "email_notifications";
+const prefix = "notifications";
 
 const showModal = ref(false);
 const showPreviewModal = ref(false);
@@ -65,8 +65,8 @@ const headers = [
     { title: "Contenido", key: "body_preview", sortable: false },
 ];
 
-const items = ref<NotificationItem[]>(props.email_notifications?.data ?? []);
-const total = ref<number>(props.email_notifications?.total ?? 0);
+const items = ref<NotificationItem[]>(props.notifications?.data ?? []);
+const total = ref<number>(props.notifications?.total ?? 0);
 const loading = ref(false);
 const search = ref("");
 const options = ref({
@@ -185,12 +185,12 @@ const fetchItems = async () => {
         [`${prefix}_order`]: options.value.sortBy?.[0]?.order ?? "desc",
     };
 
-    router.get(route("email-notifications.index"), params, {
+    router.get(route("notifications.index"), params, {
         preserveState: true,
         replace: true,
         onSuccess: (responsePage: any) => {
-            items.value = responsePage.props.email_notifications?.data ?? [];
-            total.value = responsePage.props.email_notifications?.total ?? 0;
+            items.value = responsePage.props.notifications?.data ?? [];
+            total.value = responsePage.props.notifications?.total ?? 0;
             loading.value = false;
         },
         onError: () => {
@@ -265,7 +265,7 @@ const loadRecipientsPreview = async () => {
     }
 
     try {
-        const response = await fetch(`${route("email-notifications.recipients-preview")}?${params.toString()}`, {
+        const response = await fetch(`${route("notifications.recipients-preview")}?${params.toString()}`, {
             headers: {
                 Accept: "application/json",
             },
@@ -417,7 +417,7 @@ const saveStepOne = () => {
         form.selected_recipient_ids = [...selectedRecipientIds.value];
         form.extra_emails = [...extraEmails.value];
 
-        form.post(route("email-notifications.store"), {
+        form.post(route("notifications.store"), {
             forceFormData: true,
             preserveScroll: true,
             onSuccess: () => {
@@ -480,7 +480,7 @@ onBeforeUnmount(() => {
 
         <template #options>
             <BaseButton
-                v-if="can.includes('email-notifications.store')"
+                v-if="can.includes('notifications.store')"
                 variant="elevated"
                 :icon-only="false"
                 action="add"
@@ -705,7 +705,7 @@ onBeforeUnmount(() => {
                             @click="closeModal"
                         />
                         <BaseButton
-                            v-if="can.includes('email-notifications.store')"
+                            v-if="can.includes('notifications.store')"
                             :icon-only="false"
                             text="Generar notificacion"
                             variant="flat"
@@ -935,7 +935,7 @@ onBeforeUnmount(() => {
                         @click="closePreviewModal"
                     />
                     <BaseButton
-                        v-if="can.includes('email-notifications.store')"
+                        v-if="can.includes('notifications.store')"
                         :icon-only="false"
                         text="Enviar"
                         variant="flat"
