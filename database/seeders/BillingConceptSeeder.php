@@ -66,7 +66,26 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
-            ]
+            ],
+            [
+                'code' => 'OTHER',
+                'name' => 'Otros',
+                'description' => 'Cargo por concepto no definido.',
+                'default_amount' => null,
+                'is_recurring' => false,
+                'allows_partial_payments' => false,
+                'is_active' => true,
+            ],
+            // event
+            [
+                'code' => 'EVENT',
+                'name' => 'Evento',
+                'description' => 'Cargo por evento.',
+                'default_amount' => null,
+                'is_recurring' => false,
+                'allows_partial_payments' => false,
+                'is_active' => true,
+            ],
         ];
 
         foreach ($concepts as $concept) {
