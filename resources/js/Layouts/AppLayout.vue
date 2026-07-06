@@ -1,18 +1,15 @@
 <script setup lang="ts">
 import Loader from "@/Components/Loader.vue";
 import Navigation from "@/Layouts/Navigation.vue";
-import { requestFirebaseNotificationPermission } from "@/firebase";
 import { router, usePage } from "@inertiajs/vue3";
-import { customToastSwal } from "@/utils/swal";
 import { isLoading } from "@/loading";
-import axios from "axios";
 import { ref } from "vue";
 
 const page = usePage<any>();
 
 const clubs = page.props.auth?.clubs ?? [];
 const selectedClub = ref(page.props.auth?.currentClub ?? null);
-const sendingNotification = ref(false);
+const supportUrl = import.meta.env.VITE_SUPPORT_URL ?? "https://tekuno.odoo.com/soporte";
 
 const changeClub = () => {
     router.post(route("change.club"), {
@@ -33,43 +30,8 @@ const clicStop = (displayMobile: boolean) => {
     }
 };
 
-const sendPushNotification = async () => {
-    const token = await requestFirebaseNotificationPermission();
-
-    if (!token) {
-        customToastSwal({
-            icon: "warning",
-            title: "Notificaciones no disponibles",
-            text: "Faltan credenciales Firebase o el permiso fue denegado.",
-        });
-        return;
-    }
-
-    try {
-        sendingNotification.value = true;
-
-        await axios.post("/api/v1/firebase/test", {
-            token: token,
-            title: "Notificacion de prueba",
-            body: "La notificacion push funciona correctamente.",
-        });
-
-        customToastSwal({
-            icon: "success",
-            title: "Notificacion enviada",
-            text: "Se envio una notificacion push de prueba.",
-        });
-    } catch (e) {
-        console.error(e);
-
-        customToastSwal({
-            icon: "error",
-            title: "Error",
-            text: "No se pudo enviar la notificacion push.",
-        });
-    } finally {
-        sendingNotification.value = false;
-    }
+const openSupport = () => {
+    window.open(supportUrl, "_blank", "noopener,noreferrer");
 };
 </script>
 
@@ -98,12 +60,10 @@ const sendPushNotification = async () => {
                     class="mr-2"
                     color="#F4B403"
                     variant="flat"
-                    prepend-icon="mdi-bell"
-                    :loading="sendingNotification"
-                    :disabled="sendingNotification"
-                    @click="sendPushNotification"
+                    prepend-icon="mdi-headset"
+                    @click="openSupport"
                 >
-                    Push
+                    Soporte
                 </v-btn>
                 <!-- <v-btn icon="mdi-dots-vertical" variant="text"></v-btn> -->
                 <!-- <v-btn icon="mdi-dots-vertical" id="menu-activator" color="primary">
