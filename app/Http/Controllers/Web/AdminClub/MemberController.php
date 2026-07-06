@@ -1400,7 +1400,7 @@ class MemberController extends Controller
                 'target_membership_type_id' => ['required', new ExistsInSchema('memberships', 'types', 'id')],
                 'separation_reason_id' => ['nullable', new ExistsInSchema('memberships', 'separation_reasons', 'id')],
                 'reason' => ['nullable', 'string', 'max:255'],
-                'reason_document' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+                'reason_document' => ['nullable', 'file'],
             ]);
 
             $accountMember = $membership->account->accountMembers
@@ -1461,6 +1461,29 @@ class MemberController extends Controller
                     throw ValidationException::withMessages([
                         'reason_document' => 'El motivo seleccionado no tiene un tipo de documento configurado.',
                     ]);
+                }
+
+                if ($request->hasFile('reason_document')) {
+                    $documentType = $selectedSeparationReason->documentType;
+                    $allowedExtensions = collect(explode(',', $documentType?->allowed_extensions ?: 'pdf,jpg,png'))
+                        ->map(fn ($extension) => strtolower(trim($extension)))
+                        ->filter()
+                        ->values()
+                        ->all();
+                    $fileExtension = strtolower($request->file('reason_document')->getClientOriginalExtension());
+
+                    if (!in_array($fileExtension, $allowedExtensions, true)) {
+                        throw ValidationException::withMessages([
+                            'reason_document' => 'Solo se permiten archivos con extensión: ' . implode(', ', $allowedExtensions),
+                        ]);
+                    }
+
+                    $maxFileSizeKb = $documentType?->max_file_size_kb ?: 5120;
+                    if (($request->file('reason_document')->getSize() / 1024) > $maxFileSizeKb) {
+                        throw ValidationException::withMessages([
+                            'reason_document' => 'El archivo supera el tamaño máximo permitido.',
+                        ]);
+                    }
                 }
             }
 

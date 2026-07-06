@@ -55,7 +55,7 @@ class DatabaseSeeder extends Seeder
             SpecialtySeeder::class,
             CoachSeeder::class,
 
-            SeparationReasonSeeder::class
+            SeparationReasonSeeder::class //Catalogo de motivos de separacion
         ]);
     }
 }
