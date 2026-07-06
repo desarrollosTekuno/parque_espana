@@ -61,8 +61,8 @@ const form = useForm({
     is_active:        props.club.is_active,
     logo:             null as File | null,
     mapa:             null as File | null,
-    remove_logo:       false,
-    remove_mapa:        false,
+    remove_logo:      false,
+    remove_mapa:      false,
     social_whatsapp:  props.club.social_whatsapp ?? '',
     social_instagram: props.club.social_instagram ?? '',
     social_facebook:  props.club.social_facebook ?? '',
@@ -73,7 +73,6 @@ const submit = async () => {
     const result = await formRef.value?.validate();
     if (!result?.valid) return;
 
-    // Asignar archivo de logo antes de enviar
     form.logo = logoFiles.value?.[0] ?? null;
     form.mapa = mapaFiles.value?.[0] ?? null;
 
@@ -226,6 +225,7 @@ const removeMapa = () => {
                                     </div>
                                     <div class="mt-2">
                                         <v-btn
+                                        v-if="logoPreview"
                                             color="error"
                                             variant="text"
                                             size="small"
@@ -301,6 +301,7 @@ const removeMapa = () => {
                                             </v-avatar>
                                         <div class="mt-2">
                                             <v-btn
+                                            v-if ="mapaPreview"
                                                 color="error"
                                                 variant="text"
                                                 size="small"
@@ -373,14 +374,14 @@ const removeMapa = () => {
 
                             <!-- ══ Acciones ══ -->
                             <div class="d-flex justify-end ga-3">
-                                <base-button
+                                <!-- <base-button
                                     variant="text"
                                     color="secondary"
                                     :icon-only="false"
                                     action="cancel"
                                     text="Cancelar"
                                     @click="router.back()"
-                                />
+                                />-->
                                 <BaseButton
                                     v-if="can.includes('club-settings.update')"
                                     :icon-only="false"

@@ -14,6 +14,7 @@ const can = page.props.auth.permissions;
 interface Props {
     ads?: any;
     physicalAds?: any;
+    physicalAdSizes?: { id: number; label: string; price: number }[];
 }
 interface Ad {
     rejection_reason?: string;
@@ -139,12 +140,7 @@ const physicalStatusLabel: Record<string, string> = {
     cancelled: "Cancelado",
 };
 
-const sizeLabel: Record<string, string> = {
-    carta:        "Carta",
-    oficio:       "Oficio",
-    doble_carta:  "Doble Carta",
-    doble_oficio: "Doble Oficio",
-};
+const getSizeLabel = (item: any): string => item.size_label ?? item.size ?? '-';
 
 const isExpired = (item: any) => {
     if (!item.ends_at) return false;
@@ -185,20 +181,13 @@ const reject = (item: any) => {
     });
 };
 
-// Modal Anuncio Físico 
+// Modal Anuncio Físico
 const showPhysicalAdModal = ref(false);
-
-const SIZES = [
-    { value: "carta",        label: "Carta",        price: 15 },
-    { value: "oficio",       label: "Oficio",       price: 20 },
-    { value: "doble_carta",  label: "Doble Carta",  price: 30 },
-    { value: "doble_oficio", label: "Doble Oficio", price: 40 },
-] as const;
 
 const physicalForm = ref({
     member_id:             null as number | null,
     membership_account_id: null as number | null,
-    size:                  "carta" as string,
+    physical_ad_size_id:   null as number | null,
     quantity:              1,
     signed_format:         false,
     notes:                 "",
@@ -209,7 +198,10 @@ const memberOptions = ref<{ id: number; full_name: string; membership_account_id
 const memberLoading = ref(false);
 const physicalSubmitting = ref(false);
 
-const selectedSizePrice = computed(() => SIZES.find(s => s.value === physicalForm.value.size)?.price ?? 0);
+const selectedSize = computed(() =>
+    props.physicalAdSizes?.find(s => s.id === physicalForm.value.physical_ad_size_id) ?? null
+);
+const selectedSizePrice = computed(() => Number(selectedSize.value?.price ?? 0));
 const physicalFormTotal = computed(() => selectedSizePrice.value * physicalForm.value.quantity);
 
 const periodLabel = computed(() => {
@@ -262,25 +254,31 @@ const onlyNumbers = (e: KeyboardEvent) => {
 };
 const openPhysicalModal = () => {
     physicalForm.value = {
-        member_id: null, membership_account_id: null,
-        size: "carta", quantity: 1, signed_format: false, notes: "",
+        member_id:             null,
+        membership_account_id: null,
+        physical_ad_size_id:   props.physicalAdSizes?.[0]?.id ?? null,
+        quantity:              1,
+        signed_format:         false,
+        notes:                 "",
     };
-    memberSearch.value = "";
-    memberOptions.value = [];
+    memberSearch.value    = "";
+    memberOptions.value   = [];
     showPhysicalAdModal.value = true;
 };
 
-const canSubmit = computed(() => !!physicalForm.value.member_id);
+const canSubmit = computed(() =>
+    !!physicalForm.value.member_id && !!physicalForm.value.physical_ad_size_id
+);
 
 const submitPhysicalAd = () => {
     if (!canSubmit.value) return;
     physicalSubmitting.value = true;
     router.post(route("physical-ads.store"), {
-        member_id:     physicalForm.value.member_id,
-        size:          physicalForm.value.size,
-        quantity:      physicalForm.value.quantity,
-        signed_format: physicalForm.value.signed_format,
-        notes:         physicalForm.value.notes || null,
+        member_id:            physicalForm.value.member_id,
+        physical_ad_size_id:  physicalForm.value.physical_ad_size_id,
+        quantity:             physicalForm.value.quantity,
+        signed_format:        physicalForm.value.signed_format,
+        notes:                physicalForm.value.notes || null,
     }, {
         onSuccess: () => {
             customToastSwal({ title: "Anuncio físico registrado y cobrado correctamente", icon: "success" });
@@ -407,7 +405,7 @@ watch(
                         </div>
                     </template>
                     <template #item.member="{ item }">{{ item.member?.full_name ?? '-' }}</template>
-                    <template #item.size="{ item }">{{ sizeLabel[item.size] ?? item.size }}</template>
+                    <template #item.size="{ item }">{{ getSizeLabel(item) }}</template>
                     <template #item.amount="{ item }">${{ Number(item.amount).toFixed(2) }}</template>
                     <template #item.starts_at="{ item }">{{ formatDate(item.starts_at) }}</template>
                     <template #item.ends_at="{ item }">{{ formatDate(item.ends_at) }}</template>
@@ -491,10 +489,22 @@ watch(
                     />
                     <!-- Tamaño -->
                     <div class="text-subtitle-2 mb-1">Tamaño *</div>
-                    <v-radio-group v-model="physicalForm.size" inline hide-details class="mb-3">
+                    <v-alert
+                        v-if="!props.physicalAdSizes?.length"
+                        type="warning" variant="tonal" class="mb-3" density="compact"
+                    >
+                        No hay tamaños activos configurados. Ve a Publicidad → Tamaños de anuncios físicos para crearlos.
+                    </v-alert>
+                    <v-radio-group
+                        v-else
+                        v-model="physicalForm.physical_ad_size_id"
+                        inline hide-details class="mb-3"
+                    >
                         <v-radio
-                            v-for="s in SIZES" :key="s.value"
-                            :value="s.value" :label="`${s.label} — $${s.price}`"
+                            v-for="s in props.physicalAdSizes"
+                            :key="s.id"
+                            :value="s.id"
+                            :label="`${s.label} — $${Number(s.price).toFixed(2)}`"
                             class="mr-4"
                         />
                     </v-radio-group>

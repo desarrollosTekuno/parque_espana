@@ -214,12 +214,19 @@ class PermissionSeeder extends Seeder
             ['module' => 'Publicidad', 'name' => 'business-ads.reject', 'description' => 'Rechazar publicidad de negocios', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'physical-ads.index', 'description' => 'Ver anuncios físicos', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'physical-ads.store', 'description' => 'Crear anuncio físico', 'contexts' => ['web']],
+            ['module' => 'Publicidad', 'name' => 'physical-ad-sizes.index', 'description' => 'Ver tamaños de anuncios físicos', 'contexts' => ['web']],
+            ['module' => 'Publicidad', 'name' => 'physical-ad-sizes.store', 'description' => 'Crear tamaño de anuncio físico', 'contexts' => ['web']],
+            ['module' => 'Publicidad', 'name' => 'physical-ad-sizes.update', 'description' => 'Actualizar tamaño de anuncio físico', 'contexts' => ['web']],
+            ['module' => 'Publicidad', 'name' => 'physical-ad-sizes.destroy', 'description' => 'Eliminar tamaño de anuncio físico', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-categories.index', 'description' => 'Ver categorías de negocios', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-categories.store', 'description' => 'Crear categorías de negocios', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-categories.update', 'description' => 'Actualizar categorías de negocios', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-categories.destroy', 'description' => 'Eliminar categorías de negocios', 'contexts' => ['web']],
-            ['module' => 'Publicidad', 'name' => 'physical-ads.store', 'description' => 'Crear publicidad de negocios física', 'contexts' => ['web']],
-            ['module' => 'Publicidad', 'name' => 'physical-ads.index', 'description' => 'Visualizar publicidad de negocios física', 'contexts' => ['web']],
+
+            // Cafetería
+            ['module' => 'Cafetería', 'name' => 'cafeteria-visits.index',    'description' => 'Ver ingresos a cafetería',         'contexts' => ['web']],
+            ['module' => 'Cafetería', 'name' => 'cafeteria-visits.store',    'description' => 'Registrar ingreso a cafetería',     'contexts' => ['web']],
+            ['module' => 'Cafetería', 'name' => 'cafeteria-visits.checkout', 'description' => 'Procesar salida de cafetería',      'contexts' => ['web']],
 
             // App Móvil
             ['module' => 'App Móvil', 'name' => 'mobile.reservations.index', 'description' => 'Ver mis reservaciones', 'contexts' => ['mobile_club_1', 'mobile_club_2']],

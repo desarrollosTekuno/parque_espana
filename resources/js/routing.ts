@@ -307,7 +307,7 @@ const routes: Routing[] = [
     },
     // Listas de invitados
     {
-        name: ["guest-lists.index"],
+        name: ["guest-lists.index", "day-passes.index", "cafeteria-visits.index"],
         title: "Listas de invitados",
         icon: "mdi-account-group-outline",
         value: "listas-invitadosMenu",
@@ -338,6 +338,12 @@ const routes: Routing[] = [
                 value: "pase-por-dia",
             },
             {
+                name: "cafeteria-visits.index",
+                title: "Ingresos Cafetería",
+                icon: "mdi-coffee",
+                value: "cafeteria-visitas",
+            },
+            {
                 name: "day-passes.incidents.index",
                 title: "Incidencias",
                 icon: "mdi-alert-circle-outline",
@@ -355,7 +361,7 @@ const routes: Routing[] = [
     },
     // Publicidad de negocios
     {
-        name: ["business-ads.index", "business-categories.index"],
+        name: ["business-ads.index", "business-categories.index", "physical-ad-sizes.index"],
         title: "Publicidad",
         icon: "mdi-storefront-outline",
         value: "publicidad-negocios",
@@ -373,6 +379,12 @@ const routes: Routing[] = [
                 title: "Publicaciones de negocios",
                 icon: "mdi-storefront-outline",
                 value: "anuncios-activos",
+            },
+            {
+                name: "physical-ad-sizes.index",
+                title: "Tamaños de anuncios físicos",
+                icon: "mdi-ruler",
+                value: "tamanos-anuncios-fisicos",
             },
         ],
     },

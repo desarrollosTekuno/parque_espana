@@ -273,6 +273,8 @@ const selectedPass    = ref<any>(null);
 const openDetailModal = (pass: any) => {
     selectedPass.value    = pass;
     showDetailModal.value = true;
+
+    console.log('PASS: ', pass);
 };
 
 const formatDate = (date: string) => {
@@ -732,7 +734,7 @@ const submitIncident = () => {
                             </div>
                             <div>
                                 <div class="text-caption text-medium-emphasis">Fecha</div>
-                                <div class="text-body-2 font-weight-medium">{{ selectedPass.date }}</div>
+                                <div class="text-body-2 font-weight-medium">{{ formatDate(selectedPass.date) }}</div>
                             </div>
                             <div>
                                 <div class="text-caption text-medium-emphasis">Total cobrado</div>

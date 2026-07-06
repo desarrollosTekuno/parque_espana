@@ -7,6 +7,7 @@ use App\Http\Controllers\Web\AdminClub\BillingController;
 use App\Http\Controllers\Web\AdminClub\AmenityController;
 use App\Http\Controllers\Web\AdminClub\BusinessAdController;
 use App\Http\Controllers\Web\AdminClub\PhysicalAdController;
+use App\Http\Controllers\Web\AdminClub\PhysicalAdSizeController;
 use App\Http\Controllers\Web\AdminClub\ReservationController;
 use App\Http\Controllers\Web\AdminClub\AnnouncementController;
 use App\Http\Controllers\Web\AdminClub\BlockedPeriodController;
@@ -40,6 +41,7 @@ use App\Http\Controllers\Web\Administrator\EmailConfigController;
 use App\Http\Controllers\Web\Administrator\EmailNotificationController;
 use App\Http\Controllers\Web\Administrator\NotificationController;
 use App\Http\Controllers\Web\AdminClub\FileController;
+use App\Http\Controllers\Web\AdminClub\CafeteriaVisitController;
 use App\Http\Controllers\Web\AdminClub\DayPassController;
 use App\Http\Controllers\Web\AdminClub\GuestListPaymentController;
 use App\Http\Controllers\Web\AdminClub\MembershipTypeController;
@@ -81,6 +83,11 @@ Route::get('/day-passes/check-incidents', [DayPassController::class, 'checkIncid
 Route::get('/day-passes/incidents',  [DayPassController::class, 'indexIncidents'])->name('day-passes.incidents.index');
 Route::post('/day-passes/incidents', [DayPassController::class, 'storeIncident'])->name('day-passes.incidents.store');
 Route::resource('/day-passes', DayPassController::class)->only(['index', 'store'])->names('day-passes');
+
+// cafeteria visits
+Route::get('/cafeteria-visits', [CafeteriaVisitController::class, 'index'])->name('cafeteria-visits.index');
+Route::post('/cafeteria-visits', [CafeteriaVisitController::class, 'store'])->name('cafeteria-visits.store');
+Route::post('/cafeteria-visits/{cafeteriaVisit}/checkout', [CafeteriaVisitController::class, 'checkout'])->name('cafeteria-visits.checkout');
 
 Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
 Route::get('/billing/charges', [BillingController::class, 'chargesList'])->name('billing.charges.index');
@@ -153,6 +160,11 @@ Route::delete('/business-ads/{id}', [BusinessAdController::class, 'destroy'])->n
 // physical_ads
 Route::get('/physical-ads/members-search', [PhysicalAdController::class, 'searchMembers'])->name('physical-ads.members-search');
 Route::post('/physical-ads', [PhysicalAdController::class, 'store'])->name('physical-ads.store');
+
+// physical_ad_sizes (catálogo de tamaños)
+Route::resource('/physical-ad-sizes', PhysicalAdSizeController::class)
+    ->only(['index', 'store', 'update', 'destroy'])
+    ->names('physical-ad-sizes');
 
 // business_ads categories
 Route::prefix('business-categories')->name('business-categories.')->group(function () {

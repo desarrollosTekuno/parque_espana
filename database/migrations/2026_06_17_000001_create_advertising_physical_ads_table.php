@@ -12,7 +12,8 @@ return new class extends Migration {
             $table->unsignedBigInteger('club_id');
             $table->foreignId('member_id')->constrained('members.members');
             $table->foreignId('membership_account_id')->constrained('memberships.accounts');
-            $table->enum('size', ['carta', 'oficio', 'doble_carta', 'doble_oficio']);
+            $table->unsignedBigInteger('physical_ad_size_id')->nullable();
+            $table->string('size_label', 100)->nullable();
             $table->unsignedSmallInteger('quantity')->default(1);
             $table->decimal('amount', 12, 2);
             $table->date('starts_at');
