@@ -17,7 +17,8 @@ class PhysicalAd extends Model
         'club_id',
         'member_id',
         'membership_account_id',
-        'size',
+        'physical_ad_size_id',
+        'size_label',
         'quantity',
         'amount',
         'starts_at',
@@ -33,15 +34,13 @@ class PhysicalAd extends Model
         'signed_format' => 'boolean',
     ];
 
-    const SIZES = [
-        'carta'        => ['label' => 'Carta',        'price' => 15],
-        'oficio'       => ['label' => 'Oficio',       'price' => 20],
-        'doble_carta'  => ['label' => 'Doble Carta',  'price' => 30],
-        'doble_oficio' => ['label' => 'Doble Oficio', 'price' => 40],
-    ];
-
     public function member()
     {
         return $this->belongsTo(Member::class, 'member_id');
+    }
+
+    public function adSize()
+    {
+        return $this->belongsTo(PhysicalAdSize::class, 'physical_ad_size_id')->withTrashed();
     }
 }

@@ -59,6 +59,15 @@ class BillingConceptSeeder extends Seeder
                 'is_active' => true,
             ],
             [
+                'code' => 'CAFETERIA_PASS',
+                'name' => 'Cafetería',
+                'description' => 'Cargo por acceso a la cafetería.',
+                'default_amount' => null,
+                'is_recurring' => false,
+                'allows_partial_payments' => false,
+                'is_active' => true,
+            ],
+            [
                 'code' => 'OTHER',
                 'name' => 'Otros',
                 'description' => 'Cargo por concepto no definido.',

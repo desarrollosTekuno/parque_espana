@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web\AdminClub;
 
 use App\Models\AdminClub\PhysicalAd;
+use App\Models\AdminClub\PhysicalAdSize;
 use App\Models\Billing\Charge;
 use App\Models\Billing\ChargeConcept;
 use App\Models\Billing\Payment;
@@ -21,30 +22,6 @@ class PhysicalAdController extends Controller
     {
         $this->middleware('permission:physical-ads.index')->only('index');
         $this->middleware('permission:physical-ads.store')->only('store');
-    }
-
-    public function index(Request $request)
-    {
-        $clubId = $request->club_id ?? session('club_id');
-        $driver = DB::getDriverName();
-        $like   = $driver === 'pgsql' ? 'ilike' : 'like';
-
-        $query = PhysicalAd::with('member')->where('club_id', $clubId);
-
-        if ($search = $request->input('search')) {
-            $query->whereHas('member', function ($q) use ($search, $like) {
-                $q->where('first_name', $like, "%{$search}%")
-                  ->orWhere('last_name', $like, "%{$search}%");
-            });
-        }
-
-        $ads = $query->orderBy('id', 'desc')
-            ->paginate($request->input('per_page', 10))
-            ->withQueryString();
-
-        return \Inertia\Inertia::render('AdminClubs/BusinessAds/Index', [
-            'physicalAds' => $ads,
-        ]);
     }
 
     public function searchMembers(Request $request)
@@ -79,22 +56,27 @@ class PhysicalAdController extends Controller
         $clubId = (int) session('club_id');
 
         $request->validate([
-            'member_id'     => ['required', 'integer',
+            'member_id'           => ['required', 'integer',
                 Rule::exists((new Member)->getConnectionName().'.'.(new Member)->getTable(), 'id')],
-            'size'          => ['required', Rule::in(array_keys(PhysicalAd::SIZES))],
-            'quantity'      => ['required', 'integer', 'min:1', 'max:99'],
-            'signed_format' => ['required', 'boolean'],
-            'notes'         => ['nullable', 'string', 'max:500'],
+            'physical_ad_size_id' => ['required', 'integer'],
+            'quantity'            => ['required', 'integer', 'min:1', 'max:99'],
+            'signed_format'       => ['required', 'boolean'],
+            'notes'               => ['nullable', 'string', 'max:500'],
         ]);
 
         try {
             DB::beginTransaction();
 
-            $unitPrice  = PhysicalAd::SIZES[$request->size]['price'];
-            $total      = $unitPrice * $request->quantity;
+            $size = PhysicalAdSize::where('id', $request->physical_ad_size_id)
+                ->where('club_id', $clubId)
+                ->where('is_active', true)
+                ->firstOrFail();
+
+            $unitPrice = (float) $size->price;
+            $total     = $unitPrice * $request->quantity;
 
             $startsAt = Carbon::today();
-            $endsAt = $startsAt->copy()->addMonthNoOverflow();
+            $endsAt   = $startsAt->copy()->addMonthNoOverflow();
 
             $member = Member::with('accountMemberships.membershipAccount.memberships')
                 ->findOrFail($request->member_id);
@@ -111,7 +93,8 @@ class PhysicalAdController extends Controller
                 'club_id'               => $clubId,
                 'member_id'             => $member->id,
                 'membership_account_id' => $accountMembership->membership_account_id,
-                'size'                  => $request->size,
+                'physical_ad_size_id'   => $size->id,
+                'size_label'            => $size->label,
                 'quantity'              => $request->quantity,
                 'amount'                => $total,
                 'starts_at'             => $startsAt,
@@ -129,7 +112,7 @@ class PhysicalAdController extends Controller
                 'membership_id'           => $membership?->id,
                 'member_id'               => $member->id,
                 'concept_id'              => $concept->id,
-                'description'             => $this->buildDescription($request->size, $request->quantity),
+                'description'             => $this->buildDescription($size->label, $request->quantity),
                 'amount'                  => $total,
                 'balance'                 => 0,
                 'issue_date'              => now(),
@@ -139,11 +122,12 @@ class PhysicalAdController extends Controller
                 'allows_partial_payments' => false,
                 'status'                  => 'paid',
                 'metadata'                => [
-                    'physical_ad_id' => $physicalAd->id,
-                    'club_id'        => $clubId,
-                    'size'           => $request->size,
-                    'quantity'       => $request->quantity,
-                    'unit_price'     => $unitPrice,
+                    'physical_ad_id'      => $physicalAd->id,
+                    'club_id'             => $clubId,
+                    'physical_ad_size_id' => $size->id,
+                    'size_label'          => $size->label,
+                    'quantity'            => $request->quantity,
+                    'unit_price'          => $unitPrice,
                 ],
             ]);
 
@@ -183,11 +167,10 @@ class PhysicalAdController extends Controller
         }
     }
 
-    private function buildDescription(string $size, int $quantity): string
+    private function buildDescription(string $sizeLabel, int $quantity): string
     {
-        $label = PhysicalAd::SIZES[$size]['label'];
         return $quantity > 1
-            ? "Anuncio físico {$label} x{$quantity}"
-            : "Anuncio físico {$label}";
+            ? "Anuncio físico {$sizeLabel} x{$quantity}"
+            : "Anuncio físico {$sizeLabel}";
     }
 }
