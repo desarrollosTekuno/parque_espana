@@ -407,6 +407,253 @@
             ]
         },
         {
+            "name": "Payments",
+            "item": [
+                {
+                    "name": "Get Account Statement",
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{token}}",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/clubs/{{club_id}}/account-statement",
+                            "host": ["{{base_url}}"],
+                            "path": [
+                                "clubs",
+                                "{{club_id}}",
+                                "account-statement"
+                            ]
+                        },
+                        "description": "Obtiene el estado de cuenta general del socio en el club."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Pending Payments",
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{token}}",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/clubs/{{club_id}}/payments/pending",
+                            "host": ["{{base_url}}"],
+                            "path": [
+                                "clubs",
+                                "{{club_id}}",
+                                "payments",
+                                "pending"
+                            ]
+                        },
+                        "description": "Lista los pagos o cargos pendientes del socio."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Payment History",
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{token}}",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/clubs/{{club_id}}/payments/history?search={{payment_history_search}}&date_from={{payment_date_from}}&date_to={{payment_date_to}}",
+                            "host": ["{{base_url}}"],
+                            "path": [
+                                "clubs",
+                                "{{club_id}}",
+                                "payments",
+                                "history"
+                            ],
+                            "query": [
+                                {
+                                    "key": "search",
+                                    "value": "{{payment_history_search}}"
+                                },
+                                {
+                                    "key": "date_from",
+                                    "value": "{{payment_date_from}}"
+                                },
+                                {
+                                    "key": "date_to",
+                                    "value": "{{payment_date_to}}"
+                                }
+                            ]
+                        },
+                        "description": "Consulta el historial de pagos. Los filtros son opcionales."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Payment Detail",
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{token}}",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/clubs/{{club_id}}/payments/{{payment_id}}",
+                            "host": ["{{base_url}}"],
+                            "path": [
+                                "clubs",
+                                "{{club_id}}",
+                                "payments",
+                                "{{payment_id}}"
+                            ]
+                        },
+                        "description": "Muestra el detalle de un pago o cargo del socio."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Monthly Fees",
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{token}}",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/clubs/{{club_id}}/payments/monthly-fees",
+                            "host": ["{{base_url}}"],
+                            "path": [
+                                "clubs",
+                                "{{club_id}}",
+                                "payments",
+                                "monthly-fees"
+                            ]
+                        },
+                        "description": "Consulta la informacion de mensualidades del socio."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Payment Receipt",
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{token}}",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/clubs/{{club_id}}/payments/{{payment_id}}/receipt",
+                            "host": ["{{base_url}}"],
+                            "path": [
+                                "clubs",
+                                "{{club_id}}",
+                                "payments",
+                                "{{payment_id}}",
+                                "receipt"
+                            ]
+                        },
+                        "description": "Obtiene el comprobante de un pago realizado."
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
             "name": "Feedback Tickets",
             "item": [
                 {
@@ -741,6 +988,22 @@
         {
             "key": "business_ad_id",
             "value": "1"
+        },
+        {
+            "key": "payment_id",
+            "value": "1"
+        },
+        {
+            "key": "payment_history_search",
+            "value": ""
+        },
+        {
+            "key": "payment_date_from",
+            "value": ""
+        },
+        {
+            "key": "payment_date_to",
+            "value": ""
         },
         {
             "key": "amenity_resource_id",
