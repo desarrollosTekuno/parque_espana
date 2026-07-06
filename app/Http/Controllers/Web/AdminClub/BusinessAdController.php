@@ -8,6 +8,7 @@ use App\Models\Billing\Charge;
 use Illuminate\Support\Facades\DB;
 use App\Models\AdminClub\BusinessAd;
 use App\Models\AdminClub\PhysicalAd;
+use App\Models\AdminClub\PhysicalAdSize;
 use App\Models\Billing\ChargeConcept;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
@@ -66,16 +67,24 @@ class BusinessAdController extends Controller {
                 )
                 ->withQueryString();
 
+            $physicalAdSizes = PhysicalAdSize::where('club_id', $clubId)
+                ->where('is_active', true)
+                ->orderBy('display_order')
+                ->orderBy('id')
+                ->get(['id', 'label', 'price']);
+
             return Inertia::render('AdminClubs/BusinessAds/Index', [
-                'ads'         => $ads,
-                'physicalAds' => $physicalAds,
+                'ads'             => $ads,
+                'physicalAds'     => $physicalAds,
+                'physicalAdSizes' => $physicalAdSizes,
             ]);
         } catch (\Exception $e) {
             report($e);
             return Inertia::render('AdminClubs/BusinessAds/Index', [
-                'ads'                => ['data' => [], 'total' => 0],
-                'physicalAds'        => ['data' => [], 'total' => 0],
-                'messageError' => $e->getMessage()
+                'ads'             => ['data' => [], 'total' => 0],
+                'physicalAds'     => ['data' => [], 'total' => 0],
+                'physicalAdSizes' => [],
+                'messageError'    => $e->getMessage(),
             ]);
         }
     }
