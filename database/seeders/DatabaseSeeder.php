@@ -52,6 +52,7 @@ class DatabaseSeeder extends Seeder
             FeedbackPrioritiesSeeder::class,
 
             GuestListVariableSeeder::class,
+            PhysicalAdSizeSeeder::class,
         ]);
     }
 }
