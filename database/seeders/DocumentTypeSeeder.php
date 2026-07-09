@@ -113,6 +113,13 @@ class DocumentTypeSeeder extends Seeder
                 'description' => 'Documento que certifica que una persona no tiene adeudos pendientes con el Parque España I.',
                 'allowed_extensions' => 'pdf',
             ],
+            // acta de divorcio en separacion
+            [
+                'code' => 'acta_divorcio',
+                'name' => 'Acta de Divorcio',
+                'description' => 'Documento que respalda la separación del cónyuge por divorcio.',
+                'allowed_extensions' => 'pdf,jpg,png',
+            ],
         ];
 
         foreach ($documentTypes as $type) {

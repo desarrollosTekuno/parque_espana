@@ -30,6 +30,7 @@ class DatabaseSeeder extends Seeder
             ReservationStatusSeeder::class,
             DocumentTypeSeeder::class,
             RelationshipSeeder::class,
+            SeparationReasonSeeder::class,
             NationalitySeeder::class,
             MaritalStatusSeeder::class,
             BillingConceptSeeder::class,
@@ -53,6 +54,8 @@ class DatabaseSeeder extends Seeder
 
             SpecialtySeeder::class,
             CoachSeeder::class,
+
+            SeparationReasonSeeder::class //Catalogo de motivos de separacion
         ]);
     }
 }

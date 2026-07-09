@@ -23,6 +23,7 @@ use App\Models\Memberships\MembershipAccountGroup;
 use App\Models\Memberships\MembershipAccountMember;
 use App\Models\Memberships\MembershipType;
 use App\Models\Memberships\PricingRule;
+use App\Models\Memberships\SeparationReason;
 use App\Services\Billing\MembershipChargeService;
 use App\Rules\ExistsInSchema;
 use Carbon\Carbon;
@@ -1365,6 +1366,7 @@ class MemberController extends Controller
         return Inertia::render('Members/SeparateMember', [
             'membership' => $this->buildSourceMembershipPayload($membership),
             'candidateMembers' => $candidateMembers->values(),
+            'separationReasons' => $this->buildSeparationReasonOptions(),
         ]);
     }
 
@@ -1396,7 +1398,9 @@ class MemberController extends Controller
             $validated = $request->validate([
                 'member_id' => ['required', new ExistsInSchema('members', 'members', 'id')],
                 'target_membership_type_id' => ['required', new ExistsInSchema('memberships', 'types', 'id')],
+                'separation_reason_id' => ['nullable', new ExistsInSchema('memberships', 'separation_reasons', 'id')],
                 'reason' => ['nullable', 'string', 'max:255'],
+                'reason_document' => ['nullable', 'file'],
             ]);
 
             $accountMember = $membership->account->accountMembers
@@ -1430,11 +1434,66 @@ class MemberController extends Controller
                 ]);
             }
 
+            $selectedSeparationReason = null;
+
+            if (!empty($validated['separation_reason_id'])) {
+                $selectedSeparationReason = SeparationReason::query()
+                    ->with('documentType')
+                    ->where('is_active', true)
+                    ->findOrFail($validated['separation_reason_id']);
+
+                if (
+                    $selectedSeparationReason->relationship_id
+                    && (int) $selectedSeparationReason->relationship_id !== (int) $accountMember->relationship_id
+                ) {
+                    throw ValidationException::withMessages([
+                        'separation_reason_id' => 'El motivo seleccionado no aplica para este integrante.',
+                    ]);
+                }
+
+                if ($selectedSeparationReason->requires_document && !$request->hasFile('reason_document')) {
+                    throw ValidationException::withMessages([
+                        'reason_document' => 'Debes cargar el documento requerido para este motivo.',
+                    ]);
+                }
+
+                if ($selectedSeparationReason->requires_document && !$selectedSeparationReason->document_type_id) {
+                    throw ValidationException::withMessages([
+                        'reason_document' => 'El motivo seleccionado no tiene un tipo de documento configurado.',
+                    ]);
+                }
+
+                if ($request->hasFile('reason_document')) {
+                    $documentType = $selectedSeparationReason->documentType;
+                    $allowedExtensions = collect(explode(',', $documentType?->allowed_extensions ?: 'pdf,jpg,png'))
+                        ->map(fn ($extension) => strtolower(trim($extension)))
+                        ->filter()
+                        ->values()
+                        ->all();
+                    $fileExtension = strtolower($request->file('reason_document')->getClientOriginalExtension());
+
+                    if (!in_array($fileExtension, $allowedExtensions, true)) {
+                        throw ValidationException::withMessages([
+                            'reason_document' => 'Solo se permiten archivos con extensión: ' . implode(', ', $allowedExtensions),
+                        ]);
+                    }
+
+                    $maxFileSizeKb = $documentType?->max_file_size_kb ?: 5120;
+                    if (($request->file('reason_document')->getSize() / 1024) > $maxFileSizeKb) {
+                        throw ValidationException::withMessages([
+                            'reason_document' => 'El archivo supera el tamaño máximo permitido.',
+                        ]);
+                    }
+                }
+            }
+
             $targetMembershipType = MembershipType::findOrFail($validated['target_membership_type_id']);
             $titularRelationshipId = Relationship::query()
                 ->where('name', 'Titular')
                 ->value('id');
-            $reason = $validated['reason'] ?? 'Separación de integrante a cuenta nueva';
+            $reason = $selectedSeparationReason?->name
+                ?? ($validated['reason'] ?? 'Separación de integrante a cuenta nueva');
+            $reasonDocument = $request->file('reason_document');
 
             // If the member being separated already holds their own primary membership in
             // another club, reuse their existing account group so synchronizeMembershipFees
@@ -1528,6 +1587,17 @@ class MemberController extends Controller
                     'updated_at' => now(),
                 ]);
             });
+
+            if ($selectedSeparationReason?->requires_document && $reasonDocument) {
+                $this->uploadMemberDocuments([
+                    $accountMember->member_id => [
+                        [
+                            'document_type_id' => $selectedSeparationReason->document_type_id,
+                            'files' => [$reasonDocument],
+                        ],
+                    ],
+                ]);
+            }
 
             return redirect()->route('members.index')->with('success', 'El integrante fue separado correctamente en una nueva cuenta.');
         } catch (ValidationException $e) {
@@ -2709,6 +2779,7 @@ class MemberController extends Controller
                 $member?->last_name,
                 $member?->second_last_name,
             ])->filter()->implode(' ')),
+            'relationship_id' => $accountMember->relationship_id,
             'relationship_name' => $accountMember->relationship?->name,
             'email' => $member?->email,
             'phone' => $member?->phone,
@@ -3193,6 +3264,35 @@ class MemberController extends Controller
                 ];
             })
             ->filter(fn(array $candidate) => !empty($candidate['target_membership_options']))
+            ->values();
+    }
+
+    protected function buildSeparationReasonOptions()
+    {
+        return SeparationReason::query()
+            ->with(['relationship', 'documentType'])
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get()
+            ->map(function (SeparationReason $reason) {
+                return [
+                    'id' => $reason->id,
+                    'code' => $reason->code,
+                    'name' => $reason->name,
+                    'relationship_id' => $reason->relationship_id,
+                    'relationship_name' => $reason->relationship?->name,
+                    'document_type_id' => $reason->document_type_id,
+                    'document_type_code' => $reason->documentType?->code,
+                    'document_type_name' => $reason->documentType?->name,
+                    'allowed_extensions' => $reason->documentType?->allowed_extensions
+                        ? collect(explode(',', $reason->documentType->allowed_extensions))
+                            ->map(fn ($extension) => trim(strtolower($extension)))
+                            ->values()
+                        : [],
+                    'max_file_size_kb' => $reason->documentType?->max_file_size_kb,
+                    'requires_document' => (bool) $reason->requires_document,
+                ];
+            })
             ->values();
     }
 
