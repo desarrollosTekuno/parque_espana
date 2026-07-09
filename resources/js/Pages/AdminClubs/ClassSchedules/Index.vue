@@ -89,12 +89,31 @@ const minCapacity = (v: number | string) => {
     return (!isNaN(n) && n >= 1) || "El cupo mínimo es 1";
 };
 
+const timeToMinutes = (time: string) => {
+    const [hours, minutes] = time.split(":").map(Number);
+
+    return (hours * 60) + minutes;
+};
+
+const scheduleDurationMinutes = () => {
+    if (!form.start_time || !form.end_time) return 0;
+
+    return timeToMinutes(form.end_time) - timeToMinutes(form.start_time);
+};
+
+const isValidScheduleDuration = () => {
+    const minutes = scheduleDurationMinutes();
+
+    return minutes === 60 || minutes === 120;
+};
+
 /* ====================== Computed ====================== */
 const canAddSchedule = computed(() =>
     form.day_of_week !== null &&
     form.start_time !== "" &&
     form.end_time !== "" &&
-    form.end_time > form.start_time,
+    form.end_time > form.start_time &&
+    isValidScheduleDuration(),
 );
 
 const selectedCoach = computed(() =>
@@ -242,13 +261,26 @@ const setDay = (day: number) => {
     form.day_of_week = day;
 };
 
-const addPreviewRow = () => {
-    if (!canAddSchedule.value) return;
+const addPreviewRow = () => { //Preañadir clases
+    if (form.day_of_week === null ||!form.start_time ||!form.end_time ||!form.capacity) {
+        customToastSwal({ title: "Completa dia, inicio, fin y cupo", icon: "warning" });
+        return;
+    }
+
+    if (form.end_time <= form.start_time) {
+        customToastSwal({ title: "La hora de fin debe ser mayor a la de inicio", icon: "warning" });
+        return;
+    }
+
+    if (!isValidScheduleDuration()) {
+        customToastSwal({ title: "El horario de clases solo debe durar entre 1 hora y 2 horas", icon: "warning" });
+        return;
+    }
 
     batchPreview.value.push({
-        day: form.day_of_week ?? 1,
-        start: form.start_time || "08:00",
-        end: form.end_time || "09:00",
+        day: form.day_of_week,
+        start: form.start_time,
+        end: form.end_time,
         capacity: Number(form.capacity || 1),
     });
 };
@@ -519,7 +551,6 @@ watch([options, search, coachFilter, amenityResourceFilter], debounce(fetchItems
                                             variant="tonal"
                                             prepend-icon="mdi-plus"
                                             type="button"
-                                            :disabled="!canAddSchedule"
                                             @click="addPreviewRow"
                                         >
                                             Agregar horario
@@ -601,7 +632,7 @@ watch([options, search, coachFilter, amenityResourceFilter], debounce(fetchItems
 
         <v-dialog v-model="showPreviewModal" max-width="720">
             <v-card rounded="lg">
-                <div class="border-b border-gray-200 px-6 py-5">
+                <div class="px-6 py-5 border-b border-gray-200">
                     <p class="mb-1 text-xs font-bold uppercase text-slate-500">
                         Revision antes de guardar
                     </p>
@@ -612,7 +643,7 @@ watch([options, search, coachFilter, amenityResourceFilter], debounce(fetchItems
 
                 <v-card-text>
                     <div class="grid gap-4">
-                        <div class="rounded-lg border border-gray-200 p-4">
+                        <div class="p-4 border border-gray-200 rounded-lg">
                             <div class="grid gap-3 md:grid-cols-2">
                                 <div>
                                     <p class="mb-1 text-xs font-bold uppercase text-slate-500">
@@ -638,7 +669,7 @@ watch([options, search, coachFilter, amenityResourceFilter], debounce(fetchItems
                                     <p class="m-0 font-bold text-slate-900">
                                         {{ coachName(selectedCoach) }}
                                     </p>
-                                    <p class="mb-0 mt-3 text-xs font-bold uppercase text-slate-500">
+                                    <p class="mt-3 mb-0 text-xs font-bold uppercase text-slate-500">
                                         Cancha / recurso
                                     </p>
                                     <p class="m-0 font-bold text-slate-900">
@@ -648,8 +679,8 @@ watch([options, search, coachFilter, amenityResourceFilter], debounce(fetchItems
                             </div>
                         </div>
 
-                        <div class="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4">
-                            <div class="mb-3 flex items-center justify-between gap-3">
+                        <div class="p-4 border border-dashed rounded-lg border-slate-300 bg-slate-50">
+                            <div class="flex items-center justify-between gap-3 mb-3">
                                 <span class="font-bold text-slate-900">
                                     Horarios por guardar
                                 </span>

@@ -90,6 +90,14 @@ class ClassScheduleController extends Controller {
         return ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][$day] ?? "día {$day}";
     }
 
+    private function isValidDuration(string $startTime, string $endTime): bool {
+        $start = strtotime($startTime);
+        $end = strtotime($endTime);
+        $minutes = ($end - $start) / 60;
+
+        return $minutes === 60 || $minutes === 120;
+    }
+
     public function store(Request $request) {
         $validated = $request->validate([
             'name'                    => 'required|string|max:255',
@@ -106,6 +114,10 @@ class ClassScheduleController extends Controller {
         $clubId = session('club_id');
 
         foreach ($validated['schedules'] as $index => $schedule) {
+            if (!$this->isValidDuration($schedule['start_time'], $schedule['end_time'])) {
+                return back()->withErrors(['schedules.' . $index => 'El horario de clases solo debe durar entre 1 hora y 2 horas.'])->withInput();
+            }
+
             $conflicts = $this->detectConflicts(
                 $validated['coach_id'],
                 $validated['amenity_resource_id'],
@@ -147,6 +159,10 @@ class ClassScheduleController extends Controller {
             'end_time'            => 'required|date_format:H:i',
             'capacity'            => 'required|integer|min:1',
         ]);
+
+        if (!$this->isValidDuration($validated['start_time'], $validated['end_time'])) {
+            return back()->withErrors(['conflict' => 'El horario de clases solo debe durar entre 1 hora y 2 horas.'])->withInput();
+        }
 
         $conflicts = $this->detectConflicts(
             $validated['coach_id'],

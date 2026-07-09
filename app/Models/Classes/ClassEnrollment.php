@@ -17,10 +17,13 @@ class ClassEnrollment extends Model
     protected $fillable = [
         'class_schedule_id',
         'member_id',
+        'reservation_date',
+        'reserved_by_member_id',
         'cancelled_at',
     ];
 
     protected $casts = [
+        'reservation_date' => 'date',
         'cancelled_at' => 'datetime',
     ];
 
@@ -32,5 +35,10 @@ class ClassEnrollment extends Model
     public function member()
     {
         return $this->belongsTo(Member::class);
+    }
+
+    public function reservedByMember()
+    {
+        return $this->belongsTo(Member::class, 'reserved_by_member_id');
     }
 }
