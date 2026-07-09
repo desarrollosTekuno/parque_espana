@@ -69,6 +69,9 @@ class PermissionSeeder extends Seeder
             ['module' => 'Clases', 'name' => 'classSchedules.store',   'description' => 'Crear clases',              'contexts' => ['web']],
             ['module' => 'Clases', 'name' => 'classSchedules.update',  'description' => 'Actualizar clases',         'contexts' => ['web']],
             ['module' => 'Clases', 'name' => 'classSchedules.destroy', 'description' => 'Eliminar clases',           'contexts' => ['web']],
+            ['module' => 'Clases', 'name' => 'classReservations.index', 'description' => 'Ver reservaciones de clases', 'contexts' => ['web']],
+            ['module' => 'Clases', 'name' => 'classReservations.store', 'description' => 'Crear reservaciones de clases', 'contexts' => ['web']],
+            ['module' => 'Clases', 'name' => 'classReservations.cancel', 'description' => 'Cancelar reservaciones de clases', 'contexts' => ['web']],
 
             // Reservaciones
             ['module' => 'Reservaciones', 'name' => 'reservations.index', 'description' => 'Ver reservaciones', 'contexts' => ['web']],

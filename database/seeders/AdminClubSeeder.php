@@ -138,6 +138,9 @@ class AdminClubSeeder extends Seeder
             'classSchedules.store',
             'classSchedules.update',
             'classSchedules.destroy',
+            'classReservations.index',
+            'classReservations.store',
+            'classReservations.cancel',
 
         );
         $adminClubRole = Role::updateOrCreate([

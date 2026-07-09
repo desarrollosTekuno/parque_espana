@@ -52,6 +52,7 @@ use App\Http\Controllers\Web\AdminClub\ClubSettingsController;
 use App\Http\Controllers\Web\AdminClub\CoachController;
 use App\Http\Controllers\Web\AdminClub\SpecialtyController;
 use App\Http\Controllers\Web\AdminClub\ClassScheduleController;
+use App\Http\Controllers\Web\AdminClub\ClassReservationController;
 use Illuminate\Support\Facades\Route;
 
 // amenities
@@ -322,6 +323,11 @@ Route::post('/club-settings', [ClubSettingsController::class, 'update'])->name('
 Route::resource('/specialties', SpecialtyController::class)->only(['index', 'store', 'update', 'destroy'])->names('specialties');
 Route::resource('/coaches', CoachController::class)->only(['index', 'store', 'update', 'destroy'])->names('coaches');
 Route::resource('/class-schedules', ClassScheduleController::class)->only(['index', 'store', 'update', 'destroy'])->names('classSchedules');
+Route::get('/class-reservations', [ClassReservationController::class, 'index'])->name('classReservations.index');
+Route::get('/class-reservations/account', [ClassReservationController::class, 'account'])->name('classReservations.account');
+Route::get('/class-reservations/schedules', [ClassReservationController::class, 'schedules'])->name('classReservations.schedules');
+Route::post('/class-reservations', [ClassReservationController::class, 'store'])->name('classReservations.store');
+Route::patch('/class-reservations/{classEnrollment}/cancel', [ClassReservationController::class, 'cancel'])->name('classReservations.cancel');
 
 // Acts
 Route::prefix('acts')->group(function () {
