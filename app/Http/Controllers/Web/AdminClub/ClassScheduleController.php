@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\AdminClub;
 
 use App\Models\AdminClub\AmenityResource;
 use App\Models\Classes\ClassSchedule;
+use App\Models\Classes\ClassSession;
 use App\Models\Classes\Coach;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -132,7 +133,7 @@ class ClassScheduleController extends Controller {
         }
 
         foreach ($validated['schedules'] as $schedule) {
-            ClassSchedule::create([
+            $classSchedule = ClassSchedule::create([
                 'club_id'             => $clubId,
                 'coach_id'            => $validated['coach_id'],
                 'amenity_resource_id' => $validated['amenity_resource_id'],
@@ -143,6 +144,8 @@ class ClassScheduleController extends Controller {
                 'end_time'            => $schedule['end_time'],
                 'capacity'            => $schedule['capacity'],
             ]);
+
+            ClassSession::generateForNextDays($classSchedule);
         }
 
         return redirect()->back()->with('success', 'Clase(s) creada(s) correctamente');

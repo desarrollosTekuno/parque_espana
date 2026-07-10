@@ -30,8 +30,12 @@
                         },
                         "url": {
                             "raw": "{{base_url}}/login",
-                            "host": ["{{base_url}}"],
-                            "path": ["login"]
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "login"
+                            ]
                         }
                     },
                     "response": []
@@ -67,14 +71,16 @@
                         ],
                         "url": {
                             "raw": "{{base_url}}/clubs/{{club_id}}/business-categories",
-                            "host": ["{{base_url}}"],
+                            "host": [
+                                "{{base_url}}"
+                            ],
                             "path": [
                                 "clubs",
                                 "{{club_id}}",
                                 "business-categories"
                             ]
                         },
-                        "description": "Lista las categor\u00edas activas de negocios para el club."
+                        "description": "Lista las categorías activas de negocios para el club."
                     },
                     "response": []
                 },
@@ -104,7 +110,9 @@
                         ],
                         "url": {
                             "raw": "{{base_url}}/clubs/{{club_id}}/business-ads?category_id={{business_category_id}}",
-                            "host": ["{{base_url}}"],
+                            "host": [
+                                "{{base_url}}"
+                            ],
                             "path": [
                                 "clubs",
                                 "{{club_id}}",
@@ -147,7 +155,9 @@
                         ],
                         "url": {
                             "raw": "{{base_url}}/clubs/{{club_id}}/business-ads/{{business_ad_id}}",
-                            "host": ["{{base_url}}"],
+                            "host": [
+                                "{{base_url}}"
+                            ],
                             "path": [
                                 "clubs",
                                 "{{club_id}}",
@@ -240,7 +250,9 @@
                         },
                         "url": {
                             "raw": "{{base_url}}/business-ads",
-                            "host": ["{{base_url}}"],
+                            "host": [
+                                "{{base_url}}"
+                            ],
                             "path": [
                                 "business-ads"
                             ]
@@ -280,7 +292,9 @@
                         ],
                         "url": {
                             "raw": "{{base_url}}/clubs/{{club_id}}/account-statement",
-                            "host": ["{{base_url}}"],
+                            "host": [
+                                "{{base_url}}"
+                            ],
                             "path": [
                                 "clubs",
                                 "{{club_id}}",
@@ -317,7 +331,9 @@
                         ],
                         "url": {
                             "raw": "{{base_url}}/clubs/{{club_id}}/payments/pending",
-                            "host": ["{{base_url}}"],
+                            "host": [
+                                "{{base_url}}"
+                            ],
                             "path": [
                                 "clubs",
                                 "{{club_id}}",
@@ -355,7 +371,9 @@
                         ],
                         "url": {
                             "raw": "{{base_url}}/clubs/{{club_id}}/payments/history?search={{payment_history_search}}&date_from={{payment_date_from}}&date_to={{payment_date_to}}",
-                            "host": ["{{base_url}}"],
+                            "host": [
+                                "{{base_url}}"
+                            ],
                             "path": [
                                 "clubs",
                                 "{{club_id}}",
@@ -407,7 +425,9 @@
                         ],
                         "url": {
                             "raw": "{{base_url}}/clubs/{{club_id}}/payments/{{payment_id}}",
-                            "host": ["{{base_url}}"],
+                            "host": [
+                                "{{base_url}}"
+                            ],
                             "path": [
                                 "clubs",
                                 "{{club_id}}",
@@ -445,7 +465,9 @@
                         ],
                         "url": {
                             "raw": "{{base_url}}/clubs/{{club_id}}/payments/monthly-fees",
-                            "host": ["{{base_url}}"],
+                            "host": [
+                                "{{base_url}}"
+                            ],
                             "path": [
                                 "clubs",
                                 "{{club_id}}",
@@ -483,7 +505,9 @@
                         ],
                         "url": {
                             "raw": "{{base_url}}/clubs/{{club_id}}/payments/{{payment_id}}/receipt",
-                            "host": ["{{base_url}}"],
+                            "host": [
+                                "{{base_url}}"
+                            ],
                             "path": [
                                 "clubs",
                                 "{{club_id}}",
@@ -527,7 +551,9 @@
                         ],
                         "url": {
                             "raw": "{{base_url}}/clubs/{{club_id}}/feedback/tickets",
-                            "host": ["{{base_url}}"],
+                            "host": [
+                                "{{base_url}}"
+                            ],
                             "path": [
                                 "clubs",
                                 "{{club_id}}",
@@ -550,7 +576,7 @@
                                     "if (json.ticket && json.ticket.id) { pm.collectionVariables.set('ticket_id', json.ticket.id); }"
                                 ],
                                 "type": "text/javascript",
-                                "packages": {}
+                                "packages": []
                             }
                         }
                     ],
@@ -645,7 +671,9 @@
                         },
                         "url": {
                             "raw": "{{base_url}}/clubs/{{club_id}}/feedback/tickets",
-                            "host": ["{{base_url}}"],
+                            "host": [
+                                "{{base_url}}"
+                            ],
                             "path": [
                                 "clubs",
                                 "{{club_id}}",
@@ -682,7 +710,9 @@
                         ],
                         "url": {
                             "raw": "{{base_url}}/clubs/{{club_id}}/feedback/tickets/{{ticket_id}}/cancel",
-                            "host": ["{{base_url}}"],
+                            "host": [
+                                "{{base_url}}"
+                            ],
                             "path": [
                                 "clubs",
                                 "{{club_id}}",
@@ -797,6 +827,203 @@
                     "response": []
                 }
             ]
+        },
+        {
+            "name": "Clases",
+            "item": [
+                {
+                    "name": "Get Specialties",
+                    "request": {
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/specialties?club_id={{club_id}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "specialties"
+                            ],
+                            "query": [
+                                {
+                                    "key": "club_id",
+                                    "value": "{{club_id}}"
+                                }
+                            ]
+                        },
+                        "description": "Lista las especialidades (Tenis, Padel) del club. Sin autenticacion por ahora."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Classes",
+                    "request": {
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/classes?club_id={{club_id}}&date={{reservation_date}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "classes"
+                            ],
+                            "query": [
+                                {
+                                    "key": "club_id",
+                                    "value": "{{club_id}}"
+                                },
+                                {
+                                    "key": "date",
+                                    "value": "{{reservation_date}}"
+                                }
+                            ]
+                        },
+                        "description": "Lista las clases del club. Filtros opcionales: specialty_id, coach_id, type (adults|kids), day_of_week, name. Si mandas date, crea/reusa la sesion de esa fecha y agrega available_spots y session_status por clase."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Class Detail",
+                    "request": {
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/classes/{{class_id}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "classes",
+                                "{{class_id}}"
+                            ]
+                        },
+                        "description": "Detalle de una clase por id."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Member Clubs",
+                    "request": {
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/members/{{member_id}}/clubs",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "members",
+                                "{{member_id}}",
+                                "clubs"
+                            ]
+                        },
+                        "description": "Clubes donde el socio tiene membresia activa o suspendida."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Reservable Members",
+                    "request": {
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/members/{{member_id}}/reservable-members",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "members",
+                                "{{member_id}}",
+                                "reservable-members"
+                            ]
+                        },
+                        "description": "A quien puede reservarle este socio (su nucleo familiar si es titular, o solo el mismo)."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Create Class Reservation",
+                    "request": {
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/classes/{{class_id}}/reservations",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "classes",
+                                "{{class_id}}",
+                                "reservations"
+                            ]
+                        },
+                        "description": "Crea una reservacion de clase. Internamente genera/reusa una sesion (classes.class_sessions) para esa fecha especifica, y valida contra esa sesion: membresia activa, fecha correcta, duplicado, cupo y traslape de horario.",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"member_id\": \"{{member_id}}\",\n    \"reserved_by_member_id\": \"{{reserved_by_member_id}}\",\n    \"reservation_date\": \"{{reservation_date}}\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                }
+            ]
         }
     ],
     "event": [
@@ -804,16 +1031,20 @@
             "listen": "prerequest",
             "script": {
                 "type": "text/javascript",
-                "requests": {},
-                "exec": [""]
+                "requests": [],
+                "exec": [
+                    ""
+                ]
             }
         },
         {
             "listen": "test",
             "script": {
                 "type": "text/javascript",
-                "requests": {},
-                "exec": [""]
+                "requests": [],
+                "exec": [
+                    ""
+                ]
             }
         }
     ],
@@ -873,6 +1104,18 @@
         {
             "key": "fcm_token",
             "value": ""
+        },
+        {
+            "key": "class_id",
+            "value": "1"
+        },
+        {
+            "key": "reserved_by_member_id",
+            "value": "1"
+        },
+        {
+            "key": "reservation_date",
+            "value": "2026-07-13"
         }
     ]
 }

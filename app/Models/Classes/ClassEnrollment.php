@@ -14,21 +14,19 @@ class ClassEnrollment extends Model
     protected $table = 'classes.class_enrollments';
 
     protected $fillable = [
-        'class_schedule_id',
+        'class_session_id',
         'member_id',
-        'reservation_date',
         'reserved_by_member_id',
         'cancelled_at',
     ];
 
     protected $casts = [
-        'reservation_date' => 'date',
-        'cancelled_at'      => 'datetime',
+        'cancelled_at' => 'datetime',
     ];
 
-    public function classSchedule()
+    public function classSession()
     {
-        return $this->belongsTo(ClassSchedule::class);
+        return $this->belongsTo(ClassSession::class);
     }
 
     public function member()

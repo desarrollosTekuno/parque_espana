@@ -1,6 +1,7 @@
 <?php
 
 // use App\Console\Commands\DispatchScheduledNotifications;
+use App\Console\Commands\GenerateClassSessions;
 use App\Console\Commands\GenerateMonthlyMembershipCharges;
 use App\Console\Commands\ProcessMembershipAgeTransitions;
 use App\Console\Commands\PruneStaleDeviceTokens;
@@ -18,4 +19,5 @@ Schedule::command(GenerateMonthlyMembershipCharges::class)->monthlyOn(1, '01:00'
 // Schedule::command(ProcessMembershipAgeTransitions::class)->dailyAt('01:00');
 Schedule::command(ProcessMembershipAgeTransitions::class)->everyMinute();
 Schedule::command(PruneStaleDeviceTokens::class)->weekly();
+Schedule::command(GenerateClassSessions::class)->daily();
 Schedule::command(SendScheduledEmailNotifications::class)->everyMinute();
