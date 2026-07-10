@@ -20,6 +20,7 @@ class DatabaseSeeder extends Seeder
             RoleSeeder::class,
             SuperAdminSeeder::class,
             AdminClubSeeder::class,
+            ClassReservationModuleSeeder::class,
             LocationCatalogsSeeder::class,
             ClubSeeder::class,
             UserSeeder::class,
