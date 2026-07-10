@@ -53,7 +53,6 @@ class DatabaseSeeder extends Seeder
             GuestListVariableSeeder::class,
 
             SpecialtySeeder::class,
-            CoachSeeder::class,
 
             SeparationReasonSeeder::class //Catalogo de motivos de separacion
         ]);

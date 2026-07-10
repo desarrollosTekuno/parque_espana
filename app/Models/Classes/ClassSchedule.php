@@ -18,6 +18,7 @@ class ClassSchedule extends Model
         'club_id',
         'coach_id',
         'amenity_resource_id',
+        'specialty_id',
         'name',
         'type',
         'day_of_week',
@@ -39,6 +40,11 @@ class ClassSchedule extends Model
     public function amenityResource()
     {
         return $this->belongsTo(AmenityResource::class);
+    }
+
+    public function specialty()
+    {
+        return $this->belongsTo(Specialty::class);
     }
 
     public function enrollments()

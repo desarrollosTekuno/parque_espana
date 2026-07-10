@@ -7,6 +7,7 @@ use App\Models\AdminClub\AmenityResource;
 use App\Models\Administrator\Club;
 use App\Models\Classes\ClassSchedule;
 use App\Models\Classes\Coach;
+use App\Models\Classes\Specialty;
 use Illuminate\Database\Seeder;
 
 class ClassScheduleSeeder extends Seeder {
@@ -47,11 +48,15 @@ class ClassScheduleSeeder extends Seeder {
         $canchasTenis = AmenityResource::where('amenity_id', $amenityTenis->id)->get()->keyBy('name');
         $canchasPadel = AmenityResource::where('amenity_id', $amenityPadel->id)->get()->keyBy('name');
 
+        $especialidadTenis = Specialty::where('club_id', $club->id)->where('code', 'tennis')->first();
+        $especialidadPadel = Specialty::where('club_id', $club->id)->where('code', 'padel')->first();
+
         $schedules = [
             // Tenis adultos - Lunes/Miércoles/Viernes
             [
                 'coach'               => $tenis,
                 'amenity_resource'    => $canchasTenis->get('Cancha 1'),
+                'specialty'           => $especialidadTenis,
                 'name'                => 'Tenis adultos - Principiantes',
                 'type'                => 'adults',
                 'day_of_week'         => 1, // Lunes
@@ -62,6 +67,7 @@ class ClassScheduleSeeder extends Seeder {
             [
                 'coach'               => $tenis,
                 'amenity_resource'    => $canchasTenis->get('Cancha 1'),
+                'specialty'           => $especialidadTenis,
                 'name'                => 'Tenis adultos - Principiantes',
                 'type'                => 'adults',
                 'day_of_week'         => 3, // Miércoles
@@ -73,6 +79,7 @@ class ClassScheduleSeeder extends Seeder {
             [
                 'coach'               => $tenis,
                 'amenity_resource'    => $canchasTenis->get('Cancha 2'),
+                'specialty'           => $especialidadTenis,
                 'name'                => 'Tenis niños - Iniciación',
                 'type'                => 'kids',
                 'day_of_week'         => 2, // Martes
@@ -83,6 +90,7 @@ class ClassScheduleSeeder extends Seeder {
             [
                 'coach'               => $tenis,
                 'amenity_resource'    => $canchasTenis->get('Cancha 2'),
+                'specialty'           => $especialidadTenis,
                 'name'                => 'Tenis niños - Iniciación',
                 'type'                => 'kids',
                 'day_of_week'         => 4, // Jueves
@@ -94,6 +102,7 @@ class ClassScheduleSeeder extends Seeder {
             [
                 'coach'               => $padel,
                 'amenity_resource'    => $canchasPadel->get('Cancha 1'),
+                'specialty'           => $especialidadPadel,
                 'name'                => 'Pádel adultos - Nivel básico',
                 'type'                => 'adults',
                 'day_of_week'         => 1, // Lunes
@@ -104,6 +113,7 @@ class ClassScheduleSeeder extends Seeder {
             [
                 'coach'               => $padel,
                 'amenity_resource'    => $canchasPadel->get('Cancha 1'),
+                'specialty'           => $especialidadPadel,
                 'name'                => 'Pádel adultos - Nivel básico',
                 'type'                => 'adults',
                 'day_of_week'         => 3, // Miércoles
@@ -115,6 +125,7 @@ class ClassScheduleSeeder extends Seeder {
             [
                 'coach'               => $tenisPadel,
                 'amenity_resource'    => $canchasPadel->get('Cancha 2'),
+                'specialty'           => $especialidadPadel,
                 'name'                => 'Pádel niños - Iniciación',
                 'type'                => 'kids',
                 'day_of_week'         => 6, // Sábado
@@ -139,9 +150,10 @@ class ClassScheduleSeeder extends Seeder {
                     'start_time'          => $data['start_time'],
                 ],
                 [
-                    'type'       => $data['type'],
-                    'end_time'   => $data['end_time'],
-                    'capacity'   => $data['capacity'],
+                    'specialty_id' => $data['specialty']?->id,
+                    'type'         => $data['type'],
+                    'end_time'     => $data['end_time'],
+                    'capacity'     => $data['capacity'],
                 ]
             );
         }
