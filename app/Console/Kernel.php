@@ -22,6 +22,8 @@ class Kernel extends ConsoleKernel
     {
         $schedule->command('app:expire-business-ads')->daily();
 
+        $schedule->command('classes:generate-sessions')->daily();
+
         // Paso 1: Genera las mensualidades del mes (día 1 a las 6:00 AM)
         $schedule->command('memberships:generate-monthly-charges')
             ->monthlyOn(1, '06:00');

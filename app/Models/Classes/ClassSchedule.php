@@ -14,21 +14,14 @@ class ClassSchedule extends Model
 
     protected $table = 'classes.class_schedules';
 
-    protected $fillable = [
-        'club_id',
-        'coach_id',
-        'amenity_resource_id',
-        'name',
-        'type',
-        'day_of_week',
-        'start_time',
-        'end_time',
-        'capacity',
-    ];
+    protected $guarded = ['id'];
 
     protected $casts = [
         'capacity'    => 'integer',
         'day_of_week' => 'integer',
+        'start_date'  => 'date',
+        'end_date'    => 'date',
+        'is_active'   => 'boolean',
     ];
 
     public function coach()
@@ -41,14 +34,9 @@ class ClassSchedule extends Model
         return $this->belongsTo(AmenityResource::class);
     }
 
-    public function enrollments()
+    public function sessions()
     {
-        return $this->hasMany(ClassEnrollment::class);
-    }
-
-    public function activeEnrollments()
-    {
-        return $this->hasMany(ClassEnrollment::class)->whereNull('cancelled_at');
+        return $this->hasMany(ClassSession::class);
     }
 
 }

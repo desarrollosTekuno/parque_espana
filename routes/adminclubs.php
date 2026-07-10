@@ -322,6 +322,8 @@ Route::post('/club-settings', [ClubSettingsController::class, 'update'])->name('
 Route::resource('/specialties', SpecialtyController::class)->only(['index', 'store', 'update', 'destroy'])->names('specialties');
 Route::resource('/coaches', CoachController::class)->only(['index', 'store', 'update', 'destroy'])->names('coaches');
 Route::resource('/class-schedules', ClassScheduleController::class)->only(['index', 'store', 'update', 'destroy'])->names('classSchedules');
+Route::get('/class-schedules/{classSchedule}/sessions', [ClassScheduleController::class, 'sessions'])
+    ->name('classSchedules.sessions');
 
 // Acts
 Route::prefix('acts')->group(function () {

@@ -8,11 +8,26 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void
     {
-        // 1. Agregar columnas nuevas (nullable para poder migrar datos)
-        Schema::table('advertising.physical_ads', function (Blueprint $table) {
-            $table->unsignedBigInteger('physical_ad_size_id')->nullable()->after('membership_account_id');
-            $table->string('size_label', 100)->nullable()->after('physical_ad_size_id');
-        });
+        $hasSizeColumn = Schema::hasColumn('advertising.physical_ads', 'size');
+        $hasSizeIdColumn = Schema::hasColumn('advertising.physical_ads', 'physical_ad_size_id');
+        $hasSizeLabelColumn = Schema::hasColumn('advertising.physical_ads', 'size_label');
+
+        // 1. Agregar columnas nuevas si no existen ya (la tabla puede haberse
+        // creado directamente con esta estructura en ambientes nuevos).
+        if (!$hasSizeIdColumn || !$hasSizeLabelColumn) {
+            Schema::table('advertising.physical_ads', function (Blueprint $table) use ($hasSizeIdColumn, $hasSizeLabelColumn) {
+                if (!$hasSizeIdColumn) {
+                    $table->unsignedBigInteger('physical_ad_size_id')->nullable()->after('membership_account_id');
+                }
+                if (!$hasSizeLabelColumn) {
+                    $table->string('size_label', 100)->nullable()->after('physical_ad_size_id');
+                }
+            });
+        }
+
+        if (!$hasSizeColumn) {
+            return;
+        }
 
         // 2. Poblar size_label desde el valor del enum original
         $sizeMap = [

@@ -2,21 +2,26 @@
 
 namespace App\Models\Classes;
 
+use App\Models\Administrator\Club;
 use App\Traits\SerializesDates;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class Specialty extends Model
+class ClubClosure extends Model
 {
     use HasFactory, SoftDeletes, SerializesDates;
 
-    protected $table = 'classes.specialties';
+    protected $table = 'classes.club_closures';
 
     protected $guarded = ['id'];
 
-    public function coaches()
+    protected $casts = [
+        'date' => 'date',
+    ];
+
+    public function club()
     {
-        return $this->belongsToMany(Coach::class, 'classes.coach_specialties', 'specialty_id', 'coach_id');
+        return $this->belongsTo(Club::class);
     }
 }

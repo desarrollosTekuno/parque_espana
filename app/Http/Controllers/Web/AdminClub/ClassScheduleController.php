@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web\AdminClub;
 use App\Models\AdminClub\AmenityResource;
 use App\Models\Classes\ClassSchedule;
 use App\Models\Classes\Coach;
+use App\Services\ClassSessionGeneratorService;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Inertia\Inertia;
@@ -12,7 +13,7 @@ use Inertia\Inertia;
 class ClassScheduleController extends Controller {
 
     public function __construct() {
-        $this->middleware('permission:classSchedules.index')->only('index');
+        $this->middleware('permission:classSchedules.index')->only(['index', 'sessions']);
         $this->middleware('permission:classSchedules.store')->only('store');
         $this->middleware('permission:classSchedules.update')->only('update');
         $this->middleware('permission:classSchedules.destroy')->only('destroy');
@@ -62,11 +63,19 @@ class ClassScheduleController extends Controller {
         ]);
     }
 
-    private function detectConflicts(int $coachId, int $amenityResourceId, int $dayOfWeek, string $startTime, string $endTime, ?int $excludeId = null): array {
+    private function detectConflicts(int $coachId, int $amenityResourceId, int $dayOfWeek, string $startTime, string $endTime, ?string $startDate = null, ?string $endDate = null, ?int $excludeId = null): array {
         $base = ClassSchedule::where('day_of_week', $dayOfWeek)
             ->where(function ($q) use ($startTime, $endTime) {
                 $q->where('start_time', '<', $endTime)
                 ->where('end_time', '>', $startTime);
+            })
+            ->where(function ($q) use ($endDate) {
+                $q->whereNull('start_date')
+                    ->orWhere('start_date', '<=', $endDate ?? '9999-12-31');
+            })
+            ->where(function ($q) use ($startDate) {
+                $q->whereNull('end_date')
+                    ->orWhere('end_date', '>=', $startDate ?? '0001-01-01');
             })
             ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId));
 
@@ -86,16 +95,29 @@ class ClassScheduleController extends Controller {
         return $errors;
     }
 
+    private function validateDuration(string $startTime, string $endTime): ?string {
+        $minutes = (strtotime($endTime) - strtotime($startTime)) / 60;
+
+        if ($minutes < 60 || $minutes > 120) {
+            return 'La clase debe durar entre 1 y 2 horas.';
+        }
+
+        return null;
+    }
+
     private function dayLabel(int $day) {
         return ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][$day] ?? "día {$day}";
     }
 
-    public function store(Request $request) {
+    public function store(Request $request, ClassSessionGeneratorService $sessionGenerator) {
         $validated = $request->validate([
             'name'                    => 'required|string|max:255',
             'type'                    => 'required|in:adults,kids',
             'coach_id'                => 'required',
             'amenity_resource_id'     => 'required',
+            'start_date'              => 'nullable|date',
+            'end_date'                => 'nullable|date|after_or_equal:start_date',
+            'is_active'               => 'sometimes|boolean',
             'schedules'               => 'required|array|min:1',
             'schedules.*.day_of_week' => 'required|integer|between:0,6',
             'schedules.*.start_time'  => 'required|date_format:H:i',
@@ -106,12 +128,18 @@ class ClassScheduleController extends Controller {
         $clubId = session('club_id');
 
         foreach ($validated['schedules'] as $index => $schedule) {
+            if ($durationError = $this->validateDuration($schedule['start_time'], $schedule['end_time'])) {
+                return back()->withErrors(['schedules.' . $index => $durationError])->withInput();
+            }
+
             $conflicts = $this->detectConflicts(
                 $validated['coach_id'],
                 $validated['amenity_resource_id'],
                 $schedule['day_of_week'],
                 $schedule['start_time'],
                 $schedule['end_time'],
+                $validated['start_date'] ?? null,
+                $validated['end_date'] ?? null,
             );
 
             if (!empty($conflicts)) {
@@ -120,7 +148,7 @@ class ClassScheduleController extends Controller {
         }
 
         foreach ($validated['schedules'] as $schedule) {
-            ClassSchedule::create([
+            $classSchedule = ClassSchedule::create([
                 'club_id'             => $clubId,
                 'coach_id'            => $validated['coach_id'],
                 'amenity_resource_id' => $validated['amenity_resource_id'],
@@ -130,13 +158,18 @@ class ClassScheduleController extends Controller {
                 'start_time'          => $schedule['start_time'],
                 'end_time'            => $schedule['end_time'],
                 'capacity'            => $schedule['capacity'],
+                'start_date'          => $validated['start_date'] ?? null,
+                'end_date'            => $validated['end_date'] ?? null,
+                'is_active'           => $validated['is_active'] ?? true,
             ]);
+
+            $sessionGenerator->generate($classSchedule);
         }
 
         return redirect()->back()->with('success', 'Clase(s) creada(s) correctamente');
     }
 
-    public function update(Request $request, ClassSchedule $classSchedule) {
+    public function update(Request $request, ClassSchedule $classSchedule, ClassSessionGeneratorService $sessionGenerator) {
         $validated = $request->validate([
             'name'                => 'required|string|max:255',
             'type'                => 'required|in:adults,kids',
@@ -146,7 +179,14 @@ class ClassScheduleController extends Controller {
             'start_time'          => 'required|date_format:H:i',
             'end_time'            => 'required|date_format:H:i',
             'capacity'            => 'required|integer|min:1',
+            'start_date'          => 'nullable|date',
+            'end_date'            => 'nullable|date|after_or_equal:start_date',
+            'is_active'           => 'sometimes|boolean',
         ]);
+
+        if ($durationError = $this->validateDuration($validated['start_time'], $validated['end_time'])) {
+            return back()->withErrors(['conflict' => $durationError])->withInput();
+        }
 
         $conflicts = $this->detectConflicts(
             $validated['coach_id'],
@@ -154,6 +194,8 @@ class ClassScheduleController extends Controller {
             $validated['day_of_week'],
             $validated['start_time'],
             $validated['end_time'],
+            $validated['start_date'] ?? null,
+            $validated['end_date'] ?? null,
             $classSchedule->id,
         );
 
@@ -163,7 +205,18 @@ class ClassScheduleController extends Controller {
 
         $classSchedule->update($validated);
 
+        $sessionGenerator->generate($classSchedule);
+
         return redirect()->back()->with('success', 'Clase actualizada correctamente');
+    }
+
+    public function sessions(ClassSchedule $classSchedule) {
+        $sessions = $classSchedule->sessions()
+            ->with(['coach', 'amenityResource'])
+            ->orderBy('date')
+            ->get();
+
+        return response()->json($sessions);
     }
 
     public function destroy(ClassSchedule $classSchedule) {

@@ -13,15 +13,7 @@ class Coach extends Model
 
     protected $table = 'classes.coaches';
 
-    protected $fillable = [
-        'club_id',
-        'first_name',
-        'last_name',
-        'second_last_name',
-        'phone',
-        'email',
-        'photo',
-    ];
+    protected $guarded = ['id'];
 
     public function getFullNameAttribute(): string
     {

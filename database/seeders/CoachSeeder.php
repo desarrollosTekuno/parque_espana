@@ -11,12 +11,6 @@ class CoachSeeder extends Seeder
 {
     public function run(): void
     {
-        $club = Club::where('code', 'PE1')->first();
-
-        if (!$club) {
-            return;
-        }
-
         $coaches = [
             [
                 'first_name'       => 'Carlos',
@@ -52,25 +46,33 @@ class CoachSeeder extends Seeder
             ],
         ];
 
-        foreach ($coaches as $coachData) {
-            $coach = Coach::updateOrCreate(
-                [
-                    'club_id'   => $club->id,
-                    'last_name' => $coachData['last_name'],
-                    'email'     => $coachData['email'],
-                ],
-                [
-                    'first_name'       => $coachData['first_name'],
-                    'second_last_name' => $coachData['second_last_name'],
-                    'phone'            => $coachData['phone'],
-                ]
-            );
+        foreach (['PE1', 'PE2'] as $clubCode) {
+            $club = Club::where('code', $clubCode)->first();
 
-            $specialtyIds = Specialty::where('club_id', $club->id)
-                ->whereIn('code', $coachData['specialties'])
-                ->pluck('id');
+            if (!$club) {
+                continue;
+            }
 
-            $coach->specialties()->sync($specialtyIds);
+            foreach ($coaches as $coachData) {
+                $coach = Coach::updateOrCreate(
+                    [
+                        'club_id'   => $club->id,
+                        'last_name' => $coachData['last_name'],
+                        'email'     => $coachData['email'],
+                    ],
+                    [
+                        'first_name'       => $coachData['first_name'],
+                        'second_last_name' => $coachData['second_last_name'],
+                        'phone'            => $coachData['phone'],
+                    ]
+                );
+
+                $specialtyIds = Specialty::where('club_id', $club->id)
+                    ->whereIn('code', $coachData['specialties'])
+                    ->pluck('id');
+
+                $coach->specialties()->sync($specialtyIds);
+            }
         }
     }
 }

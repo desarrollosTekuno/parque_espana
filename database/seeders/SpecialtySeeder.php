@@ -10,12 +10,6 @@ class SpecialtySeeder extends Seeder
 {
     public function run(): void
     {
-        $club = Club::where('code', 'PE1')->first();
-
-        if (!$club) {
-            return;
-        }
-
         $specialties = [
             [
                 'name' => 'Tenis',
@@ -27,16 +21,24 @@ class SpecialtySeeder extends Seeder
             ],
         ];
 
-        foreach ($specialties as $specialtyData) {
-            Specialty::updateOrCreate(
-                [
-                    'club_id' => $club->id,
-                    'code' => $specialtyData['code'],
-                ],
-                [
-                    'name' => $specialtyData['name'],
-                ]
-            );
+        foreach (['PE1', 'PE2'] as $clubCode) {
+            $club = Club::where('code', $clubCode)->first();
+
+            if (!$club) {
+                continue;
+            }
+
+            foreach ($specialties as $specialtyData) {
+                Specialty::updateOrCreate(
+                    [
+                        'club_id' => $club->id,
+                        'code' => $specialtyData['code'],
+                    ],
+                    [
+                        'name' => $specialtyData['name'],
+                    ]
+                );
+            }
         }
     }
 }
