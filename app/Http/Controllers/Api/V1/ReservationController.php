@@ -38,7 +38,8 @@ class ReservationController extends Controller {
             $validated = $request->validate([
                 'start_datetime' => 'required|date_format:Y-m-d H:i',
                 'end_datetime' => 'required|date_format:Y-m-d H:i|after:start_datetime',
-                'club_id' =>  ['required', Rule::exists('clubs.clubs as c', 'id')],
+                //'club_id' =>  ['required', Rule::exists('clubs.clubs as c', 'id')],
+                'club_id' =>  ['required', new ExistsInSchema('clubs', 'clubs', 'id')],
                 'amenity_resource_id' => ['required', new ExistsInSchema('amenities', 'resources', 'id')] 
             ]);
 
@@ -88,14 +89,14 @@ class ReservationController extends Controller {
                 'success' => false,
                 'error' => 'Error de regla',
                 'error_details' => $e->getMessage()
-            ], 200);
+            ], 422);
 
         } catch ( ValidationException $e){
             return response()->json([
                 'success' => false,
                 'error' => 'Error de validación',
                 'error_details' => $e->errors()
-            ], 200);
+            ], 422);
         } catch (\Exception $e) {
             return response()->json([
                 'error' => 'Ocurrió un error al crear la reservación',
@@ -132,11 +133,11 @@ class ReservationController extends Controller {
                 'success' => false,
                 'error' => 'Error de regla',
                 'error_details' => $e->getMessage()
-            ], 200);
+            ], 422);
         } catch (\Exception $e) {
-            return redirect()->back()->withErrors([
-                'messageError' => 'Ocurrió un error al cancelar la reservación',
-                'exception' => $e->getMessage(),
+            return response()->json([
+                'error' => 'Ocurrió un error al cancelar la reservación',
+                'error_details' => $e->getMessage(),
             ], 500);
         }
     }
