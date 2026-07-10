@@ -23,26 +23,13 @@ use App\Http\Controllers\Api\V1\BusinessAdController;
 use App\Http\Controllers\Api\V1\BusinessCategoryController;
 use App\Http\Controllers\Api\V1\ReservationGuestController;
 use App\Http\Controllers\Api\V1\SurveyController;
-use App\Http\Controllers\Api\V1\ClassController;
-use App\Http\Controllers\Api\V1\ClassReservationController;
 use App\Http\Controllers\Api\V1\ClinicalHistoryController;
-use App\Http\Controllers\Api\V1\MemberClubController;
-use App\Http\Controllers\Api\V1\ReservableMemberController;
-use App\Http\Controllers\Api\V1\SpecialtyController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 // Api V1
 Route::prefix('v1')->name('api.')->group(function () {
     Route::post('login', [LoginController::class, 'login']);
-
-    // Clases
-    Route::get('/members/{member}/clubs', [MemberClubController::class, 'getMemberClubs']);
-    Route::get('/specialties', [SpecialtyController::class, 'getSpecialties']);
-    Route::get('/classes', [ClassController::class, 'getClasses']);
-    Route::get('/classes/{id}', [ClassController::class, 'getClass']);
-    Route::get('/members/{member}/reservable-members', [ReservableMemberController::class, 'getReservableMembers']);
-    Route::post('/classes/{id}/reservations', [ClassReservationController::class, 'createReservation']);
     Route::post('logout', [LoginController::class, 'logout'])->middleware('auth:sanctum');
 
     // Recuperación de contraseña

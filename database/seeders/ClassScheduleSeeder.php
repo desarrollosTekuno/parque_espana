@@ -6,7 +6,6 @@ use App\Models\AdminClub\Amenity;
 use App\Models\AdminClub\AmenityResource;
 use App\Models\Administrator\Club;
 use App\Models\Classes\ClassSchedule;
-use App\Models\Classes\ClassSession;
 use App\Models\Classes\Coach;
 use App\Models\Classes\Specialty;
 use Illuminate\Database\Seeder;
@@ -19,45 +18,144 @@ class ClassScheduleSeeder extends Seeder {
             return;
         }
 
+        $tenisPadel = Coach::where('club_id', $club->id)
+            ->whereHas('specialties', fn($q) => $q->where('code', 'tennis'))
+            ->whereHas('specialties', fn($q) => $q->where('code', 'padel'))
+            ->first();
+
         $tenis = Coach::where('club_id', $club->id)
             ->whereHas('specialties', fn($q) => $q->where('code', 'tennis'))
+            ->whereDoesntHave('specialties', fn($q) => $q->where('code', 'padel'))
+            ->first();
+
+        $padel = Coach::where('club_id', $club->id)
+            ->whereHas('specialties', fn($q) => $q->where('code', 'padel'))
+            ->whereDoesntHave('specialties', fn($q) => $q->where('code', 'tennis'))
             ->first();
 
         $amenityTenis = Amenity::where('club_id', $club->id)
             ->where('name', 'Canchas de tenis')
             ->first();
 
-        if (!$tenis || !$amenityTenis) {
+        $amenityPadel = Amenity::where('club_id', $club->id)
+            ->where('name', 'Canchas de pádel')
+            ->first();
+
+        if (!$amenityTenis || !$amenityPadel) {
             return;
         }
 
-        $canchaTenis = AmenityResource::where('amenity_id', $amenityTenis->id)->first();
+        $canchasTenis = AmenityResource::where('amenity_id', $amenityTenis->id)->get()->keyBy('name');
+        $canchasPadel = AmenityResource::where('amenity_id', $amenityPadel->id)->get()->keyBy('name');
+
         $especialidadTenis = Specialty::where('club_id', $club->id)->where('code', 'tennis')->first();
+        $especialidadPadel = Specialty::where('club_id', $club->id)->where('code', 'padel')->first();
 
-        if (!$canchaTenis) {
-            return;
-        }
+        $schedules = [
+            // Tenis adultos - Lunes/Miércoles/Viernes
+            [
+                'coach'               => $tenis,
+                'amenity_resource'    => $canchasTenis->get('Cancha 1'),
+                'specialty'           => $especialidadTenis,
+                'name'                => 'Tenis adultos - Principiantes',
+                'type'                => 'adults',
+                'day_of_week'         => 1, // Lunes
+                'start_time'          => '08:00:00',
+                'end_time'            => '09:00:00',
+                'capacity'            => 6,
+            ],
+            [
+                'coach'               => $tenis,
+                'amenity_resource'    => $canchasTenis->get('Cancha 1'),
+                'specialty'           => $especialidadTenis,
+                'name'                => 'Tenis adultos - Principiantes',
+                'type'                => 'adults',
+                'day_of_week'         => 3, // Miércoles
+                'start_time'          => '08:00:00',
+                'end_time'            => '09:00:00',
+                'capacity'            => 6,
+            ],
+            // Tenis niños - Martes/Jueves
+            [
+                'coach'               => $tenis,
+                'amenity_resource'    => $canchasTenis->get('Cancha 2'),
+                'specialty'           => $especialidadTenis,
+                'name'                => 'Tenis niños - Iniciación',
+                'type'                => 'kids',
+                'day_of_week'         => 2, // Martes
+                'start_time'          => '10:00:00',
+                'end_time'            => '11:00:00',
+                'capacity'            => 8,
+            ],
+            [
+                'coach'               => $tenis,
+                'amenity_resource'    => $canchasTenis->get('Cancha 2'),
+                'specialty'           => $especialidadTenis,
+                'name'                => 'Tenis niños - Iniciación',
+                'type'                => 'kids',
+                'day_of_week'         => 4, // Jueves
+                'start_time'          => '10:00:00',
+                'end_time'            => '11:00:00',
+                'capacity'            => 8,
+            ],
+            // Pádel adultos - Lunes/Miércoles
+            [
+                'coach'               => $padel,
+                'amenity_resource'    => $canchasPadel->get('Cancha 1'),
+                'specialty'           => $especialidadPadel,
+                'name'                => 'Pádel adultos - Nivel básico',
+                'type'                => 'adults',
+                'day_of_week'         => 1, // Lunes
+                'start_time'          => '09:00:00',
+                'end_time'            => '10:00:00',
+                'capacity'            => 4,
+            ],
+            [
+                'coach'               => $padel,
+                'amenity_resource'    => $canchasPadel->get('Cancha 1'),
+                'specialty'           => $especialidadPadel,
+                'name'                => 'Pádel adultos - Nivel básico',
+                'type'                => 'adults',
+                'day_of_week'         => 3, // Miércoles
+                'start_time'          => '09:00:00',
+                'end_time'            => '10:00:00',
+                'capacity'            => 4,
+            ],
+            // Pádel niños - Sábado
+            [
+                'coach'               => $tenisPadel,
+                'amenity_resource'    => $canchasPadel->get('Cancha 2'),
+                'specialty'           => $especialidadPadel,
+                'name'                => 'Pádel niños - Iniciación',
+                'type'                => 'kids',
+                'day_of_week'         => 6, // Sábado
+                'start_time'          => '09:00:00',
+                'end_time'            => '10:00:00',
+                'capacity'            => 6,
+            ],
+        ];
 
-        // Una sola clase, de lunes a viernes, para pruebas.
-        for ($dayOfWeek = 1; $dayOfWeek <= 5; $dayOfWeek++) {
-            $classSchedule = ClassSchedule::updateOrCreate(
+        foreach ($schedules as $data) {
+            if (!$data['coach'] || !$data['amenity_resource']) {
+                continue;
+            }
+
+            ClassSchedule::updateOrCreate(
                 [
                     'club_id'             => $club->id,
-                    'coach_id'            => $tenis->id,
-                    'amenity_resource_id' => $canchaTenis->id,
-                    'name'                => 'Tenis General',
-                    'day_of_week'         => $dayOfWeek,
-                    'start_time'          => '08:00:00',
+                    'coach_id'            => $data['coach']->id,
+                    'amenity_resource_id' => $data['amenity_resource']->id,
+                    'name'                => $data['name'],
+                    'day_of_week'         => $data['day_of_week'],
+                    'start_time'          => $data['start_time'],
                 ],
                 [
-                    'specialty_id' => $especialidadTenis?->id,
-                    'type'         => 'adults',
-                    'end_time'     => '09:00:00',
-                    'capacity'     => 6,
+                    'specialty_id' => $data['specialty']?->id,
+                    'type'         => $data['type'],
+                    'end_time'     => $data['end_time'],
+                    'capacity'     => $data['capacity'],
                 ]
             );
-
-            ClassSession::generateForNextDays($classSchedule);
         }
     }
 }
