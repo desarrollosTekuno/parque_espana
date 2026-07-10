@@ -144,16 +144,41 @@ watch(() => createForm.member_id, (id) => {
 const maxGuests   = computed(() => props.guestListVariables?.MAX_GUESTS   ?? 0);
 const normalPrice = computed(() => props.guestListVariables?.NORMAL_PRICE  ?? 0);
 const specialPrice = computed(() => props.guestListVariables?.SPECIAL_PRICE ?? 0);
+const minAge     = computed(() => props.guestListVariables?.MIN_AGE      ?? 0);
+const maxAge     = computed(() => props.guestListVariables?.MAX_AGE      ?? 0);
+console.log('minAge: ', minAge.value);
+console.log('maxAge: ', maxAge.value);
 
-const priceForAge = (age: number | null) => {
+/*const priceForAge = (age: number | null) => {
     if (age === null) return 0;
     return age >= 7 ? normalPrice.value : specialPrice.value;
 };
 
 const receptionTotal = computed(() =>
-    createForm.visitors.reduce((sum, v) => sum + priceForAge(v.age), 0)
-);
+    createForm.visitors.reduce(
+        (sum, v) => sum + (v.age >= minAge ? priceForAge(v.age) : 0),
+        0
+    )
+);*/
 
+const priceForAge = (age: number | null) => {
+    if (age == null) return 0;
+
+    if (age >= minAge.value && age <= maxAge.value) {
+        return specialPrice.value;
+    }
+
+    if (age > maxAge.value) {
+        return normalPrice.value;
+    }
+    return 0;
+};
+const receptionTotal = computed(() =>
+    createForm.visitors.reduce(
+        (sum, visitor) => sum + priceForAge(visitor.age),
+        0
+    )
+);
 // Método de pago seleccionado
 interface PaymentMethodItem {
     id: number; code: string; name: string;
@@ -419,11 +444,11 @@ const submitIncident = () => {
                                 <div class="text-body-1 font-weight-bold">{{ maxGuests }}</div>
                             </div>
                             <div>
-                                <div class="text-caption text-medium-emphasis">Adultos (7+ años)</div>
+                                <div class="text-caption text-medium-emphasis">Adultos ({{ maxAge }}+ años)</div>
                                 <div class="text-body-1 font-weight-bold text-primary">{{ formatCurrency(normalPrice) }}</div>
                             </div>
                             <div>
-                                <div class="text-caption text-medium-emphasis">Menores (0–6 años)</div>
+                                <div class="text-caption text-medium-emphasis">Menores ({{ minAge }}-{{ maxAge }} años)</div>
                                 <div class="text-body-1 font-weight-bold text-primary">{{ formatCurrency(specialPrice) }}</div>
                             </div>
                         </div>

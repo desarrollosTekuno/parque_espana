@@ -51,9 +51,10 @@ class DatabaseSeeder extends Seeder
             FeedbackPrioritiesSeeder::class,
 
             GuestListVariableSeeder::class,
+            PhysicalAdSizeSeeder::class,
 
             SpecialtySeeder::class,
-            CoachSeeder::class,
+            // CoachSeeder::class,
 
             SeparationReasonSeeder::class //Catalogo de motivos de separacion
         ]);
