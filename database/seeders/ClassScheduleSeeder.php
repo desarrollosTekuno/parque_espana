@@ -11,7 +11,7 @@ use Illuminate\Database\Seeder;
 
 class ClassScheduleSeeder extends Seeder {
     public function run(): void {
-        $club = Club::where('code', 'PE2')->first();
+        $club = Club::where('code', 'PE1')->first();
 
         if (!$club) {
             return;

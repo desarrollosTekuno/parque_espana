@@ -27,7 +27,7 @@ class AmenityController extends Controller
             $clubId = $request->club_id ?? session('club_id');
             $prefix = 'amenities';
             $driver = DB::getDriverName();
-            $query = Amenity::with(['schedules', 'resources'])->where('club_id', $clubId);
+            $query = Amenity::with('schedules')->where('club_id', $clubId);
             $members = DB::table('members.members')->select('id', 'first_name', 'last_name', DB::raw("CONCAT(first_name, ' ', last_name) as full_name"))->orderBy('full_name')->get();
 
              if ($search = $request->input("{$prefix}_search")) {

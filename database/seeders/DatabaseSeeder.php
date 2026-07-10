@@ -20,7 +20,6 @@ class DatabaseSeeder extends Seeder
             RoleSeeder::class,
             SuperAdminSeeder::class,
             AdminClubSeeder::class,
-            ClassReservationModuleSeeder::class,
             LocationCatalogsSeeder::class,
             ClubSeeder::class,
             UserSeeder::class,
@@ -54,7 +53,7 @@ class DatabaseSeeder extends Seeder
             GuestListVariableSeeder::class,
 
             SpecialtySeeder::class,
-            // CoachSeeder::class, //Solo pruebas
+            CoachSeeder::class,
 
             SeparationReasonSeeder::class //Catalogo de motivos de separacion
         ]);

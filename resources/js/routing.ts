@@ -235,7 +235,7 @@ const routes: Routing[] = [
     },
     // Clases
     {
-        name: ["specialties.index", "coaches.index", "classSchedules.index", "classReservations.index"],
+        name: ["specialties.index", "coaches.index", "classSchedules.index"],
         title: "Clases",
         icon: "mdi-whistle-outline",
         value: "clasesMenu",
@@ -258,12 +258,6 @@ const routes: Routing[] = [
                 title: "Horarios de clases",
                 icon: "mdi-calendar-clock-outline",
                 value: "horarios-clases",
-            },
-            {
-                name: "classReservations.index",
-                title: "Reservar clases",
-                icon: "mdi-calendar-check-outline",
-                value: "reservar-clases",
             },
         ],
     },

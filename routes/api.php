@@ -24,9 +24,6 @@ use App\Http\Controllers\Api\V1\BusinessCategoryController;
 use App\Http\Controllers\Api\V1\ReservationGuestController;
 use App\Http\Controllers\Api\V1\SurveyController;
 use App\Http\Controllers\Api\V1\ClinicalHistoryController;
-use App\Http\Controllers\Api\V1\ClassScheduleController;
-use App\Http\Controllers\Api\V1\ClassEnrollmentController;
-use App\Http\Controllers\Api\V1\SpecialtyController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -90,13 +87,6 @@ Route::prefix('v1')->name('api.')->group(function () {
 
         // Integrantes de membresía familiar (solo socio titular)
         Route::get('/family-members', [FamilyMembersController::class, 'index']);
-
-        Route::get('/specialties', [SpecialtyController::class, 'list']); //Consulta tipo clases
-        Route::get('/class-schedules', [ClassScheduleController::class, 'list']); //Consulta horarios de clases del club
-        Route::get('/class-reservation-members', [ClassEnrollmentController::class, 'reservationMembers']); // socios disponibles para reservar clase
-        Route::get('/class-enrollments', [ClassEnrollmentController::class, 'index']);
-        Route::post('/class-enrollments', [ClassEnrollmentController::class, 'store']);
-        Route::patch('/class-enrollments/{classEnrollment}/cancel', [ClassEnrollmentController::class, 'cancel']);
 
         // SPEI — generar CLABE y consultar estado de orden
         Route::post('/spei-payment', [SpeiPaymentController::class, 'store']);
