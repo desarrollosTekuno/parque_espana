@@ -35,6 +35,10 @@ return new class extends Migration {
                 ->constrained('amenities.resources')
                 ->cascadeOnDelete();
 
+            $table->foreignId('specialty_id')
+                ->constrained('classes.specialties')
+                ->cascadeOnDelete();
+
             $table->timestamps();
             $table->softDeletes();
         });

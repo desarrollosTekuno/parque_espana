@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web\AdminClub;
 use App\Models\AdminClub\AmenityResource;
 use App\Models\Classes\ClassSchedule;
 use App\Models\Classes\Coach;
+use App\Models\Classes\Specialty;
 use App\Services\ClassSessionGeneratorService;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -26,7 +27,7 @@ class ClassScheduleController extends Controller {
         $order = $request->order === 'desc' ? 'desc' : 'asc';
         $allowedSorts = ['name', 'type', 'day_of_week', 'capacity'];
 
-        $classSchedules = ClassSchedule::with(['coach', 'amenityResource.amenity'])
+        $classSchedules = ClassSchedule::with(['coach', 'amenityResource.amenity', 'specialty'])
             ->where('club_id', $clubId)
             ->when($request->search, fn($q, $s) =>
                 $q->where('name', 'ILIKE', "%{$s}%")
@@ -56,10 +57,15 @@ class ClassScheduleController extends Controller {
             ->orderBy('name')
             ->get();
 
+        $specialties = Specialty::where('club_id', $clubId)
+            ->orderBy('name')
+            ->get();
+
         return Inertia::render('AdminClubs/ClassSchedules/Index', [
             'classSchedules'  => $classSchedules,
             'coaches'         => $coaches,
             'amenityResources' => $amenityResources,
+            'specialties'     => $specialties,
         ]);
     }
 
@@ -115,6 +121,7 @@ class ClassScheduleController extends Controller {
             'type'                    => 'required|in:adults,kids',
             'coach_id'                => 'required',
             'amenity_resource_id'     => 'required',
+            'specialty_id'            => 'required',
             'start_date'              => 'nullable|date',
             'end_date'                => 'nullable|date|after_or_equal:start_date',
             'is_active'               => 'sometimes|boolean',
@@ -152,6 +159,7 @@ class ClassScheduleController extends Controller {
                 'club_id'             => $clubId,
                 'coach_id'            => $validated['coach_id'],
                 'amenity_resource_id' => $validated['amenity_resource_id'],
+                'specialty_id'        => $validated['specialty_id'],
                 'name'                => $validated['name'],
                 'type'                => $validated['type'],
                 'day_of_week'         => $schedule['day_of_week'],
@@ -175,6 +183,7 @@ class ClassScheduleController extends Controller {
             'type'                => 'required|in:adults,kids',
             'coach_id'            => 'required',
             'amenity_resource_id' => 'required',
+            'specialty_id'        => 'required',
             'day_of_week'         => 'required|integer|between:0,6',
             'start_time'          => 'required|date_format:H:i',
             'end_time'            => 'required|date_format:H:i',

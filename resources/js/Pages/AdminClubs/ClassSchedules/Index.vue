@@ -15,6 +15,7 @@ interface Props {
     classSchedules?: any;
     coaches?: any[];
     amenityResources?: any[];
+    specialties?: any[];
 }
 
 const props = defineProps<Props>();
@@ -57,6 +58,7 @@ const TYPES = [
 const headers = [
     { title: "Clase", key: "name" },
     { title: "Tipo", key: "type" },
+    { title: "Especialidad", key: "specialty", sortable: false },
     { title: "Entrenador", key: "coach", sortable: false },
     { title: "Cancha", key: "amenity_resource", sortable: false },
     { title: "Dia", key: "day_of_week" },
@@ -88,6 +90,7 @@ const form = useForm({
     type: "adults" as string,
     coach_id: null as number | null,
     amenity_resource_id: null as number | null,
+    specialty_id: null as number | null,
     day_of_week: null as number | null,
     start_time: "",
     end_time: "",
@@ -189,6 +192,7 @@ const edit = (item: any) => {
     form.type = item.type;
     form.coach_id = item.coach_id;
     form.amenity_resource_id = item.amenity_resource_id;
+    form.specialty_id = item.specialty_id;
     form.day_of_week = item.day_of_week;
     form.start_time = item.start_time?.substring(0, 5) ?? "";
     form.end_time = item.end_time?.substring(0, 5) ?? "";
@@ -293,6 +297,7 @@ const resourceName = (resource: any) =>
     resource
         ? `${resource.name} - ${resource.amenity?.name ?? ""}`.trim().toUpperCase()
         : "-";
+const specialtyName = (specialty: any) => specialty?.name ?? "-";
 const formatDate = (date: string) => date?.split("T")[0].split("-").reverse().join("/") ?? "-";
 
 const setDay = (day: number) => {
@@ -416,6 +421,10 @@ watch([options, search, coachFilter, amenityResourceFilter], debounce(fetchItems
                 </v-chip>
             </template>
 
+            <template #item.specialty="{ item }">
+                {{ specialtyName(item.specialty) }}
+            </template>
+
             <template #item.coach="{ item }">
                 {{ coachName(item.coach) }}
             </template>
@@ -534,6 +543,18 @@ watch([options, search, coachFilter, amenityResourceFilter], debounce(fetchItems
                                                 item-value="id"
                                                 label="Cancha / recurso"
                                                 prepend-inner-icon="mdi-tennis-ball"
+                                                :rules="[required]"
+                                                clearable
+                                            />
+                                        </v-col>
+                                        <v-col cols="12">
+                                            <v-autocomplete
+                                                v-model="form.specialty_id"
+                                                :items="props.specialties ?? []"
+                                                item-title="name"
+                                                item-value="id"
+                                                label="Especialidad"
+                                                prepend-inner-icon="mdi-tag-outline"
                                                 :rules="[required]"
                                                 clearable
                                             />

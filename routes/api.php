@@ -23,7 +23,12 @@ use App\Http\Controllers\Api\V1\BusinessAdController;
 use App\Http\Controllers\Api\V1\BusinessCategoryController;
 use App\Http\Controllers\Api\V1\ReservationGuestController;
 use App\Http\Controllers\Api\V1\SurveyController;
+use App\Http\Controllers\Api\V1\ClassController;
+use App\Http\Controllers\Api\V1\ClassEnrollmentController;
 use App\Http\Controllers\Api\V1\ClinicalHistoryController;
+use App\Http\Controllers\Api\V1\MemberAccountController;
+use App\Http\Controllers\Api\V1\MemberClubController;
+use App\Http\Controllers\Api\V1\SpecialtyController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -141,6 +146,14 @@ Route::prefix('v1')->name('api.')->group(function () {
         Route::delete('/{source}', [PaymentSourceController::class, 'destroy']);
         Route::patch('/{source}/set-default', [PaymentSourceController::class, 'setDefault']);
     });
+
+    // Clases / reservaciones (app movil) — sin auth por ahora, en fase de pruebas
+    Route::get('/members/{member}', [MemberClubController::class, 'getMemberClubs']);
+    Route::get('/specialties', [SpecialtyController::class, 'getSpecialties']);
+    Route::get('/classes', [ClassController::class, 'getClasses']);
+    Route::post('/class-enrollments', [ClassEnrollmentController::class, 'store']);
+    Route::post('/class-enrollments-cancel/{enrollment}', [ClassEnrollmentController::class, 'cancel']);
+    Route::get('/account-members/{member}', [MemberAccountController::class, 'getAccountMembers']);
 
 });
 

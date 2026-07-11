@@ -34,6 +34,11 @@ class ClassSchedule extends Model
         return $this->belongsTo(AmenityResource::class);
     }
 
+    public function specialty()
+    {
+        return $this->belongsTo(Specialty::class);
+    }
+
     public function sessions()
     {
         return $this->hasMany(ClassSession::class);
