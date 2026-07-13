@@ -104,6 +104,8 @@ class AdminClubSeeder extends Seeder
             'payment-methods.update',
             'payment-methods.destroy',
 
+            'tickets.index',
+
             'surveys.index',
             'surveys.store',
             'surveys.create',
