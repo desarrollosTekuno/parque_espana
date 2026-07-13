@@ -125,6 +125,15 @@ class AdminClubSeeder extends Seeder
             'email-notifications.update',
             'email-notifications.destroy',
 
+            // files
+            'files.index',
+            'files.store',
+            'files.update',
+            'files.destroy',
+            'files.club-file.upload',
+            'files.club-file.destroy',
+            'files.variables',
+
         );
         $adminClubRole = Role::updateOrCreate([
             'name' => 'admin_club',

@@ -377,10 +377,17 @@ class FileController extends Controller
     public function previewVariables(Request $request)
     {
         $request->validate(['documento' => 'required|file']);
-        
-        $variables = $this->extractVariables($request->file('documento'));
 
-        return response()->json(['variables' => $variables]);
+        try {
+            $variables = $this->extractVariables($request->file('documento'));
+
+            return response()->json(['variables' => $variables]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'variables' => [],
+                'message'   => $e->getMessage(),
+            ], 422);
+        }
     }
 
     private function extractVariables($file)
@@ -399,24 +406,28 @@ class FileController extends Controller
     private function extractFromDocx($path): array
     {
         $zip = new ZipArchive();
+        $opened = $zip->open($path);
 
-        if ($zip->open($path) !== true) {
-            throw new \RuntimeException("No se pudo abrir el archivo Word: {$path}");
+        if ($opened !== true) {
+            throw new \RuntimeException(
+                $opened === ZipArchive::ER_NOZIP
+                    ? 'El archivo no tiene un formato Word válido. Los documentos .doc (formato antiguo) no son compatibles; guarda el archivo como .docx e inténtalo de nuevo.'
+                    : "No se pudo abrir el archivo Word: {$path}"
+            );
         }
 
         $variables = [];
 
-        // Archivos XML donde Word guarda el contenido
-        $xmlFiles = [
-            'word/document.xml',   // Cuerpo principal
-            'word/header1.xml',    // Encabezado
-            'word/footer1.xml',    // Pie de página
-            'word/header2.xml',
-            'word/footer2.xml',
-        ];
+        // Recorremos todo el paquete y leemos el cuerpo principal, encabezados y pies de página,
+        // sin importar cuántas secciones tenga el documento (header1.xml, header2.xml, header3.xml, ...)
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $name = $zip->getNameIndex($i);
 
-        foreach ($xmlFiles as $xmlFile) {
-            $content = $zip->getFromName($xmlFile);
+            if (!preg_match('#^word/(document|header\d*|footer\d*)\.xml$#', $name)) {
+                continue;
+            }
+
+            $content = $zip->getFromName($name);
             if ($content === false) {
                 continue;
             }

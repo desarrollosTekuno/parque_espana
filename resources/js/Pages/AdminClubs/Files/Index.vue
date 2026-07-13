@@ -8,7 +8,7 @@ import BaseButton from "@/Components/BaseButton.vue";
 import { required, maxLength, selectRequired, fileMaxSizeRule, requiredFileRule, fileMimeTypeRule } from "@/constants/validationRules";
 import CustomFileUploadField from "@/Components/CustomFileUploadField.vue";
 import { formatBytes, getFileMeta } from "@/utils/fileUtils";
-import axios from "axios"; 
+import axios from "axios";
 
 declare function route(name: string, params?: any): string;
 const showFormatModal = ref(false);
@@ -244,8 +244,12 @@ watch(selectedFiles, async (files) => {
         loadingVariables.value = true;
         const response = await axios.post(route('files.variables'), formData);
         detectedVariables.value = response.data.variables ?? [];
-    } catch {
+    } catch (error: any) {
         detectedVariables.value = [];
+        customToastSwal({
+            title: error.response?.data?.message ?? "No se pudieron leer las variables del archivo.",
+            icon: "error",
+        });
     } finally {
         loadingVariables.value = false;
     }
