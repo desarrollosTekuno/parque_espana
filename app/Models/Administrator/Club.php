@@ -75,4 +75,9 @@ class Club extends Model {
     {
         return $this->hasMany(ChargeConceptClubAmount::class, 'club_id');
     }
+
+    public function clubAddress()
+    {
+        return $this->hasOne(ClubAddress::class, 'club_id');
+    }
 }
