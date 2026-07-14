@@ -393,10 +393,12 @@ class BillingController extends Controller
                 });
             }
 
-            return redirect()->back()->with('success', sprintf(
-                'Cobro registrado correctamente por $%s.',
-                number_format((float) $payment->amount, 2)
-            ));
+            return redirect()->back()
+                ->with('success', sprintf(
+                    'Cobro registrado correctamente por $%s.',
+                    number_format((float) $payment->amount, 2)
+                ))
+                ->with('payment_id', $payment->id);
         } catch (ValidationException $e) {
             $errors = $e->errors();
 

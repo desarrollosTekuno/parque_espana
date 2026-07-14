@@ -120,6 +120,7 @@ Route::post('/payment-methods/{paymentMethod}/toggle-club', [PaymentMethodContro
 Route::put('/payment-methods/{paymentMethod}/club-config', [PaymentMethodController::class, 'updateClubConfig'])
     ->name('payment-methods.update-club-config');
 Route::get('/tickets', [TicketController::class, 'index'])->name('tickets.index');
+Route::get('/tickets/data/{payment}', [TicketController::class, 'data'])->name('tickets.data');
 Route::resource('/pricing-rules', PricingRuleController::class)
     ->only(['index', 'store', 'update', 'destroy'])
     ->names('pricing-rules');

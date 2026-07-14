@@ -5,6 +5,7 @@ import { Head, router, useForm, usePage } from "@inertiajs/vue3";
 import { debounce } from "lodash";
 import { computed, ref, watch } from "vue";
 import { customToastSwal } from "@/utils/swal";
+import { imprimirTicket, descargarTicket } from "@/utils/ticket";
 import {
     optionalLength,
     required,
@@ -744,6 +745,14 @@ const submitPayment = async () => {
                     "Cobro registrado correctamente.",
                 icon: "success",
             });
+
+            const paymentId = (pageResponse.props as any).flash?.payment_id;
+
+            if (paymentId) {
+                imprimirTicket(paymentId);
+                descargarTicket(paymentId);
+            }
+
             closePaymentModal();
         },
         onError: () => {

@@ -1,7 +1,71 @@
 <script setup lang="ts">
+import { ref } from "vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { Head } from "@inertiajs/vue3";
 import { customToastSwal } from "@/utils/swal";
+import { imprimirTicket, descargarTicket, obtenerDocumentoHtmlTicket } from "@/utils/ticket";
+
+const paymentIdPrueba = ref("");
+const mostrarModalPreview = ref(false);
+const documentoPreview = ref("");
+
+async function handlePrintReal() {
+    if (!paymentIdPrueba.value) {
+        customToastSwal({
+            icon: "error",
+            title: "Escribe el ID de un pago para probar.",
+        });
+        return;
+    }
+
+    try {
+        await imprimirTicket(paymentIdPrueba.value);
+    } catch (error) {
+        customToastSwal({
+            icon: "error",
+            title: "No se encontro el pago o hubo un error.",
+        });
+    }
+}
+
+async function handlePreviewReal() {
+    if (!paymentIdPrueba.value) {
+        customToastSwal({
+            icon: "error",
+            title: "Escribe el ID de un pago para probar.",
+        });
+        return;
+    }
+
+    try {
+        documentoPreview.value = await obtenerDocumentoHtmlTicket(paymentIdPrueba.value);
+        mostrarModalPreview.value = true;
+    } catch (error) {
+        customToastSwal({
+            icon: "error",
+            title: "No se encontro el pago o hubo un error.",
+        });
+    }
+}
+
+async function handleDownloadReal() {
+    if (!paymentIdPrueba.value) {
+        customToastSwal({
+            icon: "error",
+            title: "Escribe el ID de un pago para probar.",
+        });
+        return;
+    }
+
+    try {
+        await descargarTicket(paymentIdPrueba.value);
+    } catch (error) {
+        customToastSwal({
+            icon: "error",
+            title: "No se encontro el pago o hubo un error.",
+        });
+    }
+}
 
 function handlePrint() {
     const win = window.open("", "", "width=400,height=600");
@@ -122,5 +186,46 @@ function handlePrint() {
                 </v-btn>
             </v-card-text>
         </v-card>
+
+        <v-card class="mt-4">
+            <v-card-text>
+                <div class="mb-2">Imprimir ticket de un pago real (prueba temporal, mientras no hay historial):</div>
+
+                <v-text-field
+                    v-model="paymentIdPrueba"
+                    label="ID del pago"
+                    density="compact"
+                    style="max-width: 200px"
+                ></v-text-field>
+
+                <v-btn color="secondary" @click="handlePrintReal">
+                    Imprimir ticket real
+                </v-btn>
+
+                <v-btn color="secondary" variant="outlined" class="ml-2" @click="handlePreviewReal">
+                    Vista previa (sin imprimir)
+                </v-btn>
+
+                <v-btn color="secondary" variant="outlined" class="ml-2" @click="handleDownloadReal">
+                    Descargar ticket
+                </v-btn>
+            </v-card-text>
+        </v-card>
+
+        <v-dialog v-model="mostrarModalPreview" max-width="500">
+            <v-card>
+                <v-card-title>Vista previa del ticket</v-card-title>
+                <v-card-text>
+                    <iframe
+                        :srcdoc="documentoPreview"
+                        style="width: 100%; height: 500px; border: 1px solid #ccc"
+                    ></iframe>
+                </v-card-text>
+                <v-card-actions>
+                    <v-spacer></v-spacer>
+                    <v-btn @click="mostrarModalPreview = false">Cerrar</v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
     </AppLayout>
 </template>
