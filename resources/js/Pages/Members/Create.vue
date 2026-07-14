@@ -224,6 +224,7 @@ interface MembershipsForm {
     internal_account_number: string | null;
     inscription_fee_override: number | null;
     inscription_discount_document: File | null;
+    installment_months: number | null;
     members: MemberForm[];
 }
 
@@ -463,11 +464,14 @@ const form = useForm<MembershipsForm>({
     internal_account_number: null,
     inscription_fee_override: null,
     inscription_discount_document: null,
+    installment_months: null,
     members: [],
 });
 
 const applyInscriptionDiscount = ref(false);
 const discountDocFiles = ref<File[] | null>(null);
+const applyInstallments = ref(false);
+
 
 const createEmptyAddress = (
     defaultCountryId: number | null = null,
@@ -1253,6 +1257,7 @@ const submit = () => {
         internal_account_number: data.internal_account_number || null,
         inscription_fee_override: applyInscriptionDiscount.value ? data.inscription_fee_override : null,
         inscription_discount_document: applyInscriptionDiscount.value ? data.inscription_discount_document : null,
+        installment_months: applyInstallments.value ? data.installment_months : null,
         members: data.members.map((member) => ({
             id: member.id ?? null,
             first_name: member.first_name,
@@ -2310,8 +2315,8 @@ watch(applyInscriptionDiscount, (val) => {
                                                                       validatePhone,
                                                                   ]
                                                                 : [
-                                                                        validatePhone,
-                                                                ]
+                                                                      validatePhone,
+                                                                  ]
                                                         "
                                                     />
                                                 </v-col>
@@ -2815,6 +2820,47 @@ watch(applyInscriptionDiscount, (val) => {
                                                 >
                                                     {{ form.errors.inscription_discount_document }}
                                                 </div>
+                                            </v-col>
+                                        </v-row>
+                                    </template>
+                                </v-card>
+
+                                <!-- Pagos a meses -->
+                                <v-card class="pa-4 mb-4">
+                                    <div class="d-flex align-center justify-space-between mb-1">
+                                        <div class="text-subtitle-2 font-weight-medium">
+                                            <v-icon size="18" class="mr-1">mdi-calendar-month</v-icon>
+                                            Pagos a meses
+                                        </div>
+                                        <v-switch
+                                            v-model="applyInstallments"
+                                            color="primary"
+                                            hide-details
+                                            density="compact"
+                                            label="Aplicar meses"
+                                            @update:model-value="(v) => { if (!v) form.installment_months = null; }"
+                                        />
+                                    </div>
+
+                                    <template v-if="applyInstallments">
+                                        <v-row>
+                                            <v-col cols="12" md="4">
+                                                <v-text-field
+                                                    v-model.number="form.installment_months"
+                                                    label="Número de meses"
+                                                    type="number"
+                                                    min="1"
+                                                    max="60"
+                                                    step="1"
+                                                    suffix="meses"
+                                                    :error-messages="form.errors.installment_months"
+                                                    :rules="[
+                                                        (v) => (v !== null && v !== '') || 'Captura el número de meses',
+                                                        (v) => Number(v) >= 1 || 'Mínimo 1 mes',
+                                                        (v) => Number(v) <= 60 || 'Máximo 60 meses',
+                                                        (v) => Number.isInteger(Number(v)) || 'Debe ser un número entero',
+                                                    ]"
+                                                />
                                             </v-col>
                                         </v-row>
                                     </template>

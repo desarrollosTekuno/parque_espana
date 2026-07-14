@@ -9,6 +9,7 @@ use App\Models\AdminClub\AmenityResource;
 use App\Models\AdminClub\SystemVariable;
 use App\Models\Administrator\Club;
 use App\Services\AmenityAvailabilityService;
+use App\Support\SpanishDate;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -18,17 +19,6 @@ use Inertia\Inertia;
 class AmenityController extends Controller {
 
     private const TIMEZONE = 'America/Mexico_City';
-
-    private const MONTHS_ES = [
-        1 => 'enero', 2 => 'febrero', 3 => 'marzo', 4 => 'abril',
-        5 => 'mayo', 6 => 'junio', 7 => 'julio', 8 => 'agosto',
-        9 => 'septiembre', 10 => 'octubre', 11 => 'noviembre', 12 => 'diciembre',
-    ];
-
-    private const WEEKDAYS_ES = [
-        0 => 'Domingo', 1 => 'Lunes', 2 => 'Martes', 3 => 'Miércoles',
-        4 => 'Jueves', 5 => 'Viernes', 6 => 'Sábado',
-    ];
 
     // Nombres de reservations.system_variables que se exponen como reglas de reservación en la app.
     // Para agregar una nueva regla basta con sumar su nombre aquí.
@@ -107,13 +97,9 @@ class AmenityController extends Controller {
 
                 return [
                     'date' => $date->format('Y-m-d'),
-                    'label' => match ($offset) {
-                        0 => 'Hoy',
-                        1 => 'Mañana',
-                        default => self::WEEKDAYS_ES[$date->dayOfWeek],
-                    },
+                    'label' => SpanishDate::relativeLabel($date, $today),
                     'day' => $date->format('d'),
-                    'month' => self::MONTHS_ES[$date->month],
+                    'month' => SpanishDate::month($date->month),
                 ];
             })
             ->values();

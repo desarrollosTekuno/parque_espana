@@ -1645,6 +1645,7 @@ class MemberController extends Controller
                     'max:5120',
                     'required_with:inscription_fee_override',
                 ],
+                'installment_months' => ['nullable', 'integer', 'min:1', 'max:60'],
                 'members' => ['required', 'array', 'min:1'],
                 'members.*.id' => ['nullable', new ExistsInSchema('members', 'members', 'id')],
                 'members.*.first_name' => ['required', 'string', 'max:255'],
@@ -1701,6 +1702,9 @@ class MemberController extends Controller
                 ? (float) $validated['inscription_fee_override']
                 : null;
             $inscriptionDiscountDocument = $request->file('inscription_discount_document');
+            $installmentMonths = isset($validated['installment_months'])
+                ? (int) $validated['installment_months']
+                : null;
             $sameClubTransition = false;
 
             if (!empty($validated['source_membership_id'])) {
@@ -1916,7 +1920,7 @@ class MemberController extends Controller
             $savedMembershipAccount  = null;
             $savedPrimaryMemberId    = null;
 
-            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership, $sameClubTransition, $sourceAccountMembersById, $reusableSourceMemberIds, $internalAccountNumber, $inscriptionFeeOverride, &$savedMemberDocuments, &$savedMembershipAccount, &$savedPrimaryMemberId) {
+            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership, $sameClubTransition, $sourceAccountMembersById, $reusableSourceMemberIds, $internalAccountNumber, $inscriptionFeeOverride, $installmentMonths, &$savedMemberDocuments, &$savedMembershipAccount, &$savedPrimaryMemberId) {
                 $sourceAccount = $sourceMembership?->account;
 
                 $membershipAccount = $sameClubTransition
@@ -2109,7 +2113,8 @@ class MemberController extends Controller
                             'inscription_fee_override' => $inscriptionFeeOverride,
                         ],
                         chargeDate: now(),
-                        reconcileExistingMonthlyCharge: true
+                        reconcileExistingMonthlyCharge: true,
+                        installmentMonths: $installmentMonths,
                     );
 
                     return;
@@ -2175,7 +2180,8 @@ class MemberController extends Controller
                         'inscription_fee_override' => $inscriptionFeeOverride,
                     ],
                     chargeDate: now(),
-                    reconcileExistingMonthlyCharge: (bool) ($sourceMembership && ($pricing['source_membership_becomes_non_billable'] ?? false))
+                    reconcileExistingMonthlyCharge: (bool) ($sourceMembership && ($pricing['source_membership_becomes_non_billable'] ?? false)),
+                    installmentMonths: $installmentMonths,
                 );
 
                 if ($sourceMembership && ($pricing['source_membership_becomes_non_billable'] ?? false)) {

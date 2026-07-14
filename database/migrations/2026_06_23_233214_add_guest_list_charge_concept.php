@@ -27,8 +27,8 @@ return new class extends Migration {
 
     public function down(): void
     {
-        DB::table('billing.concepts')
-            ->where('code', 'GUEST_LIST')
-            ->delete();
+        // DB::table('billing.concepts')
+        //     ->where('code', 'GUEST_LIST')
+        //     ->delete();
     }
 };

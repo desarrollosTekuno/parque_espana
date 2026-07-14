@@ -10,12 +10,12 @@ return new class extends Migration {
     {
         // 1. Agregar columnas nuevas (nullable para poder migrar datos)
         Schema::table('advertising.physical_ads', function (Blueprint $table) {
-            $table->unsignedBigInteger('physical_ad_size_id')->nullable()->after('membership_account_id');
-            $table->string('size_label', 100)->nullable()->after('physical_ad_size_id');
+            // $table->unsignedBigInteger('physical_ad_size_id')->nullable()->after('membership_account_id');
+            // $table->string('size_label', 100)->nullable()->after('physical_ad_size_id');
         });
 
         // 2. Poblar size_label desde el valor del enum original
-        $sizeMap = [
+        /* $sizeMap = [
             'carta'        => 'Carta',
             'oficio'       => 'Oficio',
             'doble_carta'  => 'Doble Carta',
@@ -43,12 +43,12 @@ return new class extends Migration {
         // 4. Eliminar la columna original
         Schema::table('advertising.physical_ads', function (Blueprint $table) {
             $table->dropColumn('size');
-        });
+        }); */
     }
 
     public function down(): void
     {
-        Schema::table('advertising.physical_ads', function (Blueprint $table) {
+        /* Schema::table('advertising.physical_ads', function (Blueprint $table) {
             $table->string('size', 50)->nullable()->after('membership_account_id');
         });
 
@@ -68,6 +68,6 @@ return new class extends Migration {
 
         Schema::table('advertising.physical_ads', function (Blueprint $table) {
             $table->dropColumn(['physical_ad_size_id', 'size_label']);
-        });
+        }); */
     }
 };
