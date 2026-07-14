@@ -6,11 +6,7 @@ use App\Services\Auth\PermissionLandingRouteResolver;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-Route::get('/', function (PermissionLandingRouteResolver $permissionLandingRouteResolver) {
-    if (!auth()->check()) {
-        return redirect(route('login'));
-    }
-
+Route::middleware(['auth', 'verified'])->get('/', function (PermissionLandingRouteResolver $permissionLandingRouteResolver) {
     $routeName = $permissionLandingRouteResolver->resolve(auth()->user());
 
     return $routeName
