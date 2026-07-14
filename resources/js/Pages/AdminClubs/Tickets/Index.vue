@@ -1,175 +1,133 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed, watch } from "vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
-import { Head } from "@inertiajs/vue3";
+import { Head, router, usePage } from "@inertiajs/vue3";
+import { debounce } from "lodash";
 import { customToastSwal } from "@/utils/swal";
-import { imprimirTicket, descargarTicket, obtenerDocumentoHtmlTicket } from "@/utils/ticket";
+import { imprimirTicket, descargarTicket, obtenerDatosTicket } from "@/utils/ticket";
+import BaseButton from "@/Components/BaseButton.vue";
+import TicketPreview from "@/Components/TicketPreview.vue";
 
-const paymentIdPrueba = ref("");
+interface Props {
+    tickets?: any;
+    filters?: Record<string, string | number | null>;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+    tickets: null,
+    filters: () => ({}),
+});
+
+const page = usePage<any>();
+const prefix = "tickets";
+
+const items = ref(props.tickets?.data ?? []);
+const total = ref(props.tickets?.total ?? 0);
+const search = ref(String(props.filters?.search ?? ""));
+const loading = ref(false);
+
 const mostrarModalPreview = ref(false);
-const documentoPreview = ref("");
+const datosPreview = ref(null);
 
-async function handlePrintReal() {
-    if (!paymentIdPrueba.value) {
-        customToastSwal({
-            icon: "error",
-            title: "Escribe el ID de un pago para probar.",
-        });
-        return;
+const options = ref({
+    page: 1,
+    itemsPerPage: 10,
+});
+
+const headers = computed(() => [
+    { title: "Folio", key: "folio" },
+    { title: "Fecha", key: "fecha" },
+    { title: "Cuenta", key: "cuenta_numero" },
+    { title: "Titular", key: "titular" },
+    { title: "Parque", key: "club_nombre" },
+    { title: "Monto", key: "monto" },
+    { title: "Forma de pago", key: "forma_pago" },
+    { title: "Cajero", key: "cajero" },
+    { title: "Acciones", key: "actions", sortable: false },
+]);
+
+const currencyFormatter = new Intl.NumberFormat("es-MX", {
+    style: "currency",
+    currency: "MXN",
+    maximumFractionDigits: 2,
+});
+
+function formatearFechaCorta(fechaTexto) {
+    if (!fechaTexto) {
+        return "";
     }
 
+    const fecha = new Date(fechaTexto);
+
+    return fecha.toLocaleDateString("es-MX");
+}
+
+const fetchItems = () => {
+    loading.value = true;
+
+    const params = {
+        club_id: page.props.auth.currentClub,
+        [`${prefix}_page`]: options.value.page,
+        [`${prefix}_per_page`]: options.value.itemsPerPage,
+        [`${prefix}_search`]: search.value,
+    };
+
+    router.get(route("tickets.index"), params, {
+        preserveState: true,
+        replace: true,
+        preserveScroll: true,
+        onSuccess: (pageResponse) => {
+            items.value = pageResponse.props[prefix]?.data ?? [];
+            total.value = pageResponse.props[prefix]?.total ?? 0;
+            loading.value = false;
+        },
+        onError: () => {
+            loading.value = false;
+        },
+    });
+};
+
+watch([options, search], debounce(fetchItems, 400), { deep: true });
+
+watch(
+    () => page.props.auth.currentClub,
+    () => {
+        fetchItems();
+    },
+);
+
+async function handleReimprimir(item) {
     try {
-        await imprimirTicket(paymentIdPrueba.value);
+        await imprimirTicket(item.id);
     } catch (error) {
         customToastSwal({
             icon: "error",
-            title: "No se encontro el pago o hubo un error.",
+            title: "No se pudo reimprimir el ticket.",
         });
     }
 }
 
-async function handlePreviewReal() {
-    if (!paymentIdPrueba.value) {
-        customToastSwal({
-            icon: "error",
-            title: "Escribe el ID de un pago para probar.",
-        });
-        return;
-    }
-
+async function handleVistaPrevia(item) {
     try {
-        documentoPreview.value = await obtenerDocumentoHtmlTicket(paymentIdPrueba.value);
+        datosPreview.value = await obtenerDatosTicket(item.id);
         mostrarModalPreview.value = true;
     } catch (error) {
         customToastSwal({
             icon: "error",
-            title: "No se encontro el pago o hubo un error.",
+            title: "No se pudo generar la vista previa.",
         });
     }
 }
 
-async function handleDownloadReal() {
-    if (!paymentIdPrueba.value) {
-        customToastSwal({
-            icon: "error",
-            title: "Escribe el ID de un pago para probar.",
-        });
-        return;
-    }
-
+async function handleDescargar(item) {
     try {
-        await descargarTicket(paymentIdPrueba.value);
+        await descargarTicket(item.id);
     } catch (error) {
         customToastSwal({
             icon: "error",
-            title: "No se encontro el pago o hubo un error.",
+            title: "No se pudo descargar el ticket.",
         });
     }
-}
-
-function handlePrint() {
-    const win = window.open("", "", "width=400,height=600");
-    if (!win) {
-        customToastSwal({
-            icon: "error",
-            title: "No se pudo abrir la ventana de impresión. Revisa si el navegador bloqueó el popup.",
-        });
-        return;
-    }
-
-    const estilos = `
-        <style>
-            @page { size: 76mm 3276mm; margin: 0; }
-            html, body { margin: 0; padding: 0; }
-            .ticket {
-                width: 72mm;
-                box-sizing: border-box;
-                padding: 2mm;
-                font-family: monospace;
-                font-size: 3mm;
-                line-height: 1.35;
-                color: #000;
-            }
-            .center { text-align: center; }
-            .row { display: flex; justify-content: space-between; }
-            .bold { font-weight: bold; }
-            .sep { border-top: 1px dashed #000; margin: 1.5mm 0; }
-        </style>
-    `;
-
-    win.document.open();
-    win.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head><meta charset="utf-8" /><title>Ticket</title>${estilos}</head>
-        <body>
-            <div class="ticket">
-                <div class="center bold">FUNDACION DEPORTIVO PARQUE ESPAÑA II</div>
-                <div class="center">FUNDACION DEPORTIVO PARQUE ESPAÑA</div>
-                <div class="center">FDP990423J51</div>
-                <div class="center">Carril San Martinito Km. 1.5 s/n</div>
-                <div class="center">Col. Ampliación Emiliano Zapata CP 72810</div>
-                <div class="center">San Andrés Cholula Puebla México</div>
-
-                <div class="sep"></div>
-
-                <div class="row"><span>Ticket: A 30214</span><span>21/05/26</span></div>
-                <div>CNF</div>
-
-                <div class="sep"></div>
-
-                <div>Cuenta: 00046</div>
-                <div>OTERO SAN MARTIN LUIS MANUEL</div>
-
-                <div class="sep"></div>
-
-                <div>XAXX010101000</div>
-                <div>Casilleros:</div>
-                <div>NA00129 CA00494 DA00370 CA00948</div>
-
-                <div class="sep"></div>
-
-                <div class="row bold"><span>Concepto</span><span>Importe U.</span><span>Total</span></div>
-                <div>CUOTA PASE DIARIO 1-0 2026</div>
-                <div class="row"><span>1</span><span>$344.83</span><span>$344.83</span></div>
-
-                <div class="sep"></div>
-
-                <div class="row"><span>Subtotal</span><span>$344.83</span></div>
-                <div class="row"><span>IVA 16%</span><span>$55.17</span></div>
-                <div class="row bold"><span>Total</span><span>$400.00</span></div>
-
-                <div class="sep"></div>
-
-                <div>TD 400.00 1215121412 VISA</div>
-
-                <div class="sep"></div>
-
-                <div class="center">DOS MESES SIN APORTACIÓN GENERAN SUSPENSIÓN</div>
-                <div class="center">Este comprobante no tiene validez fiscal.</div>
-
-                <div class="sep"></div>
-
-                <div>Identificación de Archivo:</div>
-                <div>0000000046DPAA302147GZ0P8NS9</div>
-
-                <div class="sep"></div>
-
-                <div class="center">Puede descargar sus comprobantes fiscales en:</div>
-                <div class="center">http://www.parqueespana2.com.mx</div>
-            </div>
-        </body>
-        </html>
-    `);
-    win.document.close();
-
-    win.focus();
-    win.print();
-    setTimeout(() => {
-        try {
-            win.close();
-        } catch {}
-    }, 200);
 }
 </script>
 
@@ -180,46 +138,65 @@ function handlePrint() {
         <template #header>Tickets</template>
 
         <v-card>
-            <v-card-text>
-                <v-btn color="primary" @click="handlePrint">
-                    Imprimir prueba
-                </v-btn>
-            </v-card-text>
-        </v-card>
+            <v-data-table-server
+                fixed-header
+                hover
+                height="600px"
+                :headers="headers"
+                :items="items"
+                :items-length="total"
+                :loading="loading"
+                v-model:options="options"
+                class="elevation-1"
+                :items-per-page-options="[10, 25, 50, 100]"
+                items-per-page-text="Mostrar"
+                no-data-text="No hay tickets para mostrar"
+            >
+                <template #top>
+                    <v-text-field
+                        v-model="search"
+                        label="Buscar por folio, cuenta o titular"
+                        class="mx-4 mt-2"
+                        clearable
+                    />
+                </template>
 
-        <v-card class="mt-4">
-            <v-card-text>
-                <div class="mb-2">Imprimir ticket de un pago real (prueba temporal, mientras no hay historial):</div>
+                <template #item.fecha="{ item }">
+                    {{ formatearFechaCorta(item.fecha) }}
+                </template>
 
-                <v-text-field
-                    v-model="paymentIdPrueba"
-                    label="ID del pago"
-                    density="compact"
-                    style="max-width: 200px"
-                ></v-text-field>
+                <template #item.monto="{ item }">
+                    {{ currencyFormatter.format(item.monto) }}
+                </template>
 
-                <v-btn color="secondary" @click="handlePrintReal">
-                    Imprimir ticket real
-                </v-btn>
+                <template #item.actions="{ item }">
+                    <BaseButton
+                        icon="mdi-printer-outline"
+                        color="primary"
+                        tooltip="Reimprimir"
+                        @click="handleReimprimir(item)"
+                    />
 
-                <v-btn color="secondary" variant="outlined" class="ml-2" @click="handlePreviewReal">
-                    Vista previa (sin imprimir)
-                </v-btn>
+                    <BaseButton
+                        action="view"
+                        tooltip="Vista previa"
+                        @click="handleVistaPrevia(item)"
+                    />
 
-                <v-btn color="secondary" variant="outlined" class="ml-2" @click="handleDownloadReal">
-                    Descargar ticket
-                </v-btn>
-            </v-card-text>
+                    <BaseButton
+                        action="download"
+                        tooltip="Descargar"
+                        @click="handleDescargar(item)"
+                    />
+                </template>
+            </v-data-table-server>
         </v-card>
 
         <v-dialog v-model="mostrarModalPreview" max-width="500">
             <v-card>
                 <v-card-title>Vista previa del ticket</v-card-title>
                 <v-card-text>
-                    <iframe
-                        :srcdoc="documentoPreview"
-                        style="width: 100%; height: 500px; border: 1px solid #ccc"
-                    ></iframe>
+                    <TicketPreview :datos="datosPreview" />
                 </v-card-text>
                 <v-card-actions>
                     <v-spacer></v-spacer>

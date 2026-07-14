@@ -20,7 +20,7 @@ export async function descargarTicket(paymentId) {
     descargarComoArchivo(documento, "ticket-" + paymentId + ".html");
 }
 
-async function obtenerDatosTicket(paymentId) {
+export async function obtenerDatosTicket(paymentId) {
     const respuesta = await axios.get(route("tickets.data", paymentId));
 
     return respuesta.data;
@@ -44,10 +44,8 @@ function formatearMonto(monto) {
     return "$" + Number(monto).toFixed(2);
 }
 
-function armarHtmlTicket(datos) {
+function armarNombreParque(datos) {
     let html = "";
-
-    html += '<div class="ticket">';
 
     if (datos.club_razon_social_lineas && datos.club_razon_social_lineas.length > 0) {
         for (let i = 0; i < datos.club_razon_social_lineas.length; i++) {
@@ -58,6 +56,12 @@ function armarHtmlTicket(datos) {
         html += '<div class="center bold">' + (datos.club_nombre ?? "") + "</div>";
     }
 
+    return html;
+}
+
+function armarRfcYDireccion(datos) {
+    let html = "";
+
     if (datos.club_rfc) {
         html += '<div class="center">' + datos.club_rfc + "</div>";
     }
@@ -66,6 +70,27 @@ function armarHtmlTicket(datos) {
         for (let i = 0; i < datos.club_direccion_lineas.length; i++) {
             html += '<div class="center">' + datos.club_direccion_lineas[i] + "</div>";
         }
+    }
+
+    return html;
+}
+
+function armarHtmlTicket(datos) {
+    let html = "";
+
+    html += '<div class="ticket">';
+
+    html += armarNombreParque(datos);
+
+    if (datos.club_logo_url) {
+        html +=
+            '<div class="encabezado"><img class="logo" src="' +
+            datos.club_logo_url +
+            '" /><div class="encabezado-texto">' +
+            armarRfcYDireccion(datos) +
+            "</div></div>";
+    } else {
+        html += armarRfcYDireccion(datos);
     }
 
     html += '<div class="sep"></div>';
@@ -95,10 +120,11 @@ function armarHtmlTicket(datos) {
 
     for (let i = 0; i < datos.conceptos.length; i++) {
         const concepto = datos.conceptos[i];
+        const descripcion = concepto.descripcion ?? "";
 
         html +=
             '<div class="row"><span>' +
-            (concepto.descripcion ?? "") +
+            descripcion.toUpperCase() +
             "</span><span>" +
             formatearMonto(concepto.monto) +
             "</span></div>";
@@ -164,6 +190,9 @@ function estilosDelTicket() {
         ".row { display: flex; justify-content: space-between; }" +
         ".bold { font-weight: bold; }" +
         ".sep { border-top: 1px dashed #000; margin: 1.5mm 0; }" +
+        ".encabezado { display: flex; align-items: center; gap: 2mm; }" +
+        ".encabezado .logo { width: 14mm; height: 14mm; object-fit: contain; flex-shrink: 0; }" +
+        ".encabezado .encabezado-texto { flex: 1; }" +
         "@media print { html, body { background: #fff; } }" +
         "</style>"
     );

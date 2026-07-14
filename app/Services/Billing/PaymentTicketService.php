@@ -44,6 +44,7 @@ class PaymentTicketService {
         $clubDireccionLineas = [];
         $clubRfc = null;
         $clubUrlFacturacion = null;
+        $clubLogoUrl = null;
         $aplicaIva = false;
 
         if ($payment->club) {
@@ -51,6 +52,7 @@ class PaymentTicketService {
             $clubRazonSocialLineas = $this->razonSocialLineas($payment->club->code);
             $clubRfc = $payment->club->rfc;
             $clubUrlFacturacion = $payment->club->billing_url;
+            $clubLogoUrl = $this->logoUrlPorClub($payment->club->code);
             $aplicaIva = $payment->club->applies_iva;
             $clubDireccionLineas = $this->armarLineasDireccion($payment->club->clubAddress);
         }
@@ -92,6 +94,7 @@ class PaymentTicketService {
             'club_direccion_lineas' => $clubDireccionLineas,
             'club_rfc' => $clubRfc,
             'club_url_facturacion' => $clubUrlFacturacion,
+            'club_logo_url' => $clubLogoUrl,
             'cajero_nombre' => $cajeroNombre,
             'cajero_codigo' => $cajeroCodigo,
             'cuenta_numero' => $cuentaNumero,
@@ -103,6 +106,19 @@ class PaymentTicketService {
             'iva' => $iva,
             'total' => $payment->amount,
         ];
+    }
+
+    private function logoUrlPorClub($clubCode) {
+        $mapa = [
+            'PE1' => asset('assets/images/LogoP1.png'),
+            'PE2' => asset('assets/images/LogoP2.png'),
+        ];
+
+        if (isset($mapa[$clubCode])) {
+            return $mapa[$clubCode];
+        }
+
+        return null;
     }
 
     private function razonSocialLineas($clubCode) {
