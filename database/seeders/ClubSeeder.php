@@ -18,13 +18,17 @@ class ClubSeeder extends Seeder
                 'name' => 'Parque España 1',
                 'address' => 'Calle 1',
                 'is_active' => true,
-                'code' => 'PE1'
+                'code' => 'PE1',
+                'rfc' => '',
+                'applies_iva' => false
             ],
             [
                 'name' => 'Parque España 2',
                 'address' => 'Calle 2',
                 'is_active' => true,
-                'code' => 'PE2'
+                'code' => 'PE2',
+                'rfc' => '',
+                'applies_iva' => true
             ]
         ];
 

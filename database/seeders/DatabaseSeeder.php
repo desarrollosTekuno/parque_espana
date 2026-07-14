@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
             AdminClubSeeder::class,
             LocationCatalogsSeeder::class,
             ClubSeeder::class,
+            ClubAddressSeeder::class,
             UserSeeder::class,
             SystemVariableSeeder::class,
             NotificationChannelSeeder::class,
