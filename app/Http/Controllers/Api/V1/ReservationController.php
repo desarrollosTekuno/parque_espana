@@ -175,6 +175,7 @@ class ReservationController extends Controller {
             }
 
             $validated = $request->validate([
+                'club_id' => ['nullable', new ExistsInSchema('clubs', 'clubs', 'id')],
                 'status_id' => ['nullable', 'string'],
                 'amenity_id' => ['nullable', new ExistsInSchema('amenities', 'amenities', 'id')],
                 'date_from' => ['nullable', 'date_format:Y-m-d'],
@@ -183,8 +184,12 @@ class ReservationController extends Controller {
                 'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
             ]);
 
-            $query = Reservation::with(['amenity', 'amenityResource', 'status'])
+            $query = Reservation::with(['amenity', 'amenityResource', 'status', 'club'])
                 ->where('member_id', $member->id);
+
+            if (!empty($validated['club_id'])) {
+                $query->where('club_id', $validated['club_id']);
+            }
 
             if (!empty($validated['status_id'])) {
                 $statusIds = array_filter(explode(',', $validated['status_id']), 'is_numeric');

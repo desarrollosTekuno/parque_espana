@@ -3,6 +3,7 @@
 namespace App\Models\AdminClub;
 
 use App\Models\User;
+use App\Models\Administrator\Club;
 use App\Traits\SerializesDates;
 use App\Models\Members\Member;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -50,5 +51,10 @@ class Reservation extends Model {
     public function member()
     {
         return $this->belongsTo(Member::class);
+    }
+
+    public function club()
+    {
+        return $this->belongsTo(Club::class, 'club_id');
     }
 }
