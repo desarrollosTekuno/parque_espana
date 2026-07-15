@@ -32,6 +32,7 @@ interface PaymentMethodItem {
     requires_check_number: boolean;
     affects_cash_cut: boolean;
     show_in_billing: boolean;
+    internal_key: string | null;
 }
 
 interface ClubPaymentMethodItem {
@@ -728,7 +729,7 @@ watch([selectedClubId, selectedConceptCode], () => {
                                 <v-select
                                     v-model="paymentForm.payment_method_id"
                                     :items="selectedPaymentMethods.map((m) => ({
-                                        title: m.name,
+                                        title: m.internal_key ? `${m.name} (${m.internal_key})` : m.name,
                                         value: m.id,
                                     }))"
                                     label="Método de pago"

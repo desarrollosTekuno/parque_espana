@@ -895,6 +895,7 @@ interface PaymentMethodItem {
     requires_bank_name: boolean;
     requires_check_number: boolean;
     affects_cash_cut: boolean;
+    internal_key: string | null;
 }
 
 interface ClubPaymentMethodItem {
@@ -2430,7 +2431,7 @@ console.log(can)
                         <v-col cols="12">
                             <v-select
                                 v-model="memberPaymentForm.payment_method_id"
-                                :items="memberPaymentMethods.map(m => ({ title: m.name, value: m.id }))"
+                                :items="memberPaymentMethods.map(m => ({ title: m.internal_key ? `${m.name} (${m.internal_key})` : m.name, value: m.id }))"
                                 label="Método de pago"
                                 density="compact"
                                 variant="outlined"

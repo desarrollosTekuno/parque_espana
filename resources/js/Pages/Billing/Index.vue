@@ -97,6 +97,7 @@ interface PaymentMethodItem {
     requires_bank_name: boolean;
     requires_check_number: boolean;
     affects_cash_cut: boolean;
+    internal_key: string | null;
 }
 
 interface ClubPaymentMethodItem {
@@ -948,7 +949,7 @@ watch(
                                             color="success"
                                             variant="tonal"
                                         >
-                                            {{ method.name }}
+                                            {{ method.internal_key ? `${method.name} (${method.internal_key})` : method.name }}
                                         </v-chip>
                                     </div>
                                 </v-card-text>
@@ -1656,7 +1657,7 @@ watch(
                                             :items="
                                                 selectedPaymentMethods.map(
                                                     (method) => ({
-                                                        title: method.name,
+                                                        title: method.internal_key ? `${method.name} (${method.internal_key})` : method.name,
                                                         value: method.id,
                                                     }),
                                                 )
@@ -2122,7 +2123,7 @@ watch(
                             <v-col cols="12" md="6">
                                 <v-select
                                     v-model="annualForm.payment_method_id"
-                                    :items="annualPaymentMethods.map((m) => ({ title: m.name, value: m.id }))"
+                                    :items="annualPaymentMethods.map((m) => ({ title: m.internal_key ? `${m.name} (${m.internal_key})` : m.name, value: m.id }))"
                                     label="Método de pago"
                                     :rules="[selectRequired]"
                                     :error-messages="annualForm.errors.payment_method_id"
