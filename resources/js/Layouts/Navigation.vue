@@ -62,8 +62,9 @@ const saveOpened = (groups: string[]) => {
 const opened = ref<string[]>(loadOpened());
 
 // true cuando el drawer está en modo colapsado (solo íconos)
+// En móvil el modo rail no aplica: el drawer siempre es un overlay a pantalla completa
 const isRail = computed(() =>
-    display.mobile.value ? !props.rail : props.rail,
+    display.mobile.value ? false : props.rail,
 );
 
 const existSomeRoute = (routeNames: any): boolean => {
@@ -159,8 +160,8 @@ console.log(JSON.parse(JSON.stringify(page.props.auth.clubs)))
     <v-navigation-drawer
         v-model="drawer"
         :location="$vuetify.display.mobile ? 'left' : undefined"
-        :permanent="rail"
-        :rail="$vuetify.display.mobile ? !props.rail : props.rail"
+        :permanent="!$vuetify.display.mobile && rail"
+        :rail="isRail"
         theme="myDarkTheme"
         class="font-poppins"
         style="background-color: #0a2540"
