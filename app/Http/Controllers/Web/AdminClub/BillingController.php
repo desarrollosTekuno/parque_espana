@@ -70,7 +70,20 @@ class BillingController extends Controller
                             $membershipQuery->where('club_id', $clubId);
                         });
                     }
-                });
+                })
+                ->when(
+                    !$clubId && $sessionClubId,
+                    // Sin filtro explícito de parque: solo cuentas con membresía en el
+                    // parque activo, o cuentas hermanas del mismo account_group_id que
+                    // tengan membresía ahí (grupos repartidos entre parques).
+                    fn (Builder $query) => $query->where(function (Builder $sub) use ($sessionClubId) {
+                        $sub->whereHas('memberships', fn (Builder $mq) => $mq->where('club_id', $sessionClubId))
+                            ->orWhereHas(
+                                'accountGroup.accounts.memberships',
+                                fn (Builder $mq) => $mq->where('club_id', $sessionClubId)
+                            );
+                    })
+                );
 
             if ($search) {
                 $like = $driver === 'pgsql' ? 'ilike' : 'like';
@@ -97,6 +110,16 @@ class BillingController extends Controller
                     $clubId,
                     fn (Builder $query) => $query->whereHas('membership', function (Builder $membershipQuery) use ($clubId) {
                         $membershipQuery->where('club_id', $clubId);
+                    })
+                )
+                ->when(
+                    !$clubId && $sessionClubId,
+                    fn (Builder $query) => $query->whereHas('membershipAccount', function (Builder $aq) use ($sessionClubId) {
+                        $aq->whereHas('memberships', fn (Builder $mq) => $mq->where('club_id', $sessionClubId))
+                            ->orWhereHas(
+                                'accountGroup.accounts.memberships',
+                                fn (Builder $mq) => $mq->where('club_id', $sessionClubId)
+                            );
                     })
                 )
                 ->when(
@@ -440,6 +463,21 @@ class BillingController extends Controller
                     fn (Builder $q) => $q->whereHas('membership', fn (Builder $mq) => $mq->where('club_id', $clubId))
                 )
                 ->when(
+                    !$clubId && $sessionClubId,
+                    // Sin filtro explícito de parque: muestra los cargos de las cuentas que
+                    // tienen alguna membresía en el parque activo, aunque el cargo pertenezca
+                    // a la membresía del otro parque (cuentas compartidas entre parques), y
+                    // también los de cualquier cuenta hermana del mismo account_group_id
+                    // (grupos familiares/relacionados repartidos entre parques).
+                    fn (Builder $q) => $q->whereHas('membershipAccount', function (Builder $aq) use ($sessionClubId) {
+                        $aq->whereHas('memberships', fn (Builder $mq) => $mq->where('club_id', $sessionClubId))
+                            ->orWhereHas(
+                                'accountGroup.accounts.memberships',
+                                fn (Builder $mq) => $mq->where('club_id', $sessionClubId)
+                            );
+                    })
+                )
+                ->when(
                     $conceptCode,
                     fn (Builder $q) => $q->whereHas('concept', fn (Builder $cq) => $cq->where('code', $conceptCode))
                 )
@@ -464,6 +502,8 @@ class BillingController extends Controller
                     });
                 });
 
+            // El resumen se calcula sobre el mismo conjunto de cargos ya filtrado arriba
+            // (incluye cuentas compartidas entre parques cuando no hay filtro explícito).
             $summaryBase = clone $chargeQuery;
             $summary = [
                 'total_outstanding' => (float) (clone $summaryBase)->sum('balance'),

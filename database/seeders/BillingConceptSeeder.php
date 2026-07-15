@@ -28,7 +28,7 @@ class BillingConceptSeeder extends Seeder
                 'description' => 'Cargo de inscripción o alta de membresía.',
                 'default_amount' => null,
                 'is_recurring' => false,
-                'allows_partial_payments' => true,
+                'allows_partial_payments' => false,
                 'is_active' => true,
             ],
             [
