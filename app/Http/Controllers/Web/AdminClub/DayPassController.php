@@ -43,9 +43,14 @@ class DayPassController extends Controller
             ->where('club_id', $clubId);
 
         if ($search = $request->input("{$prefix}_search")) {
-            $query->whereHas('member', function ($q) use ($search, $like) {
-                $q->where('first_name', $like, "%{$search}%")
-                  ->orWhere('last_name', $like, "%{$search}%");
+            $query->where(function ($q) use ($search, $like) {
+                $q->whereHas('member', function ($mq) use ($search, $like) {
+                    $mq->where('first_name', $like, "%{$search}%")
+                       ->orWhere('last_name', $like, "%{$search}%");
+                })->orWhereHas('member.accounts', function ($aq) use ($search, $like) {
+                    $aq->where('membership_number', $like, "%{$search}%")
+                       ->orWhere('internal_account_number', $like, "%{$search}%");
+                });
             });
         }
 
@@ -100,29 +105,17 @@ class DayPassController extends Controller
 
     public function checkIncidents(Request $request)
     {
-        $firstName = trim($request->input('first_name', ''));
-        $lastName  = trim($request->input('last_name', ''));
+        $email  = trim($request->input('email', ''));
         $clubId = $request->club_id ?? session('club_id');
 
-        if (!$firstName || !$lastName) {
-            return response()->json([
-                'has_incidents' => false,
-                'incidents' => []
-            ]);
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return response()->json(['has_incidents' => false, 'incidents' => []]);
         }
 
-        $incidents = VisitorIncident::query()
-        ->whereRaw('LOWER(unaccent(visitor_first_name)) = LOWER(unaccent(?))', [$firstName])
-        ->whereRaw('LOWER(unaccent(visitor_last_name)) = LOWER(unaccent(?))', [$lastName])
-        ->where('club_id', $clubId)
-        ->latest()
-        ->get([
-            'id',
-            'incident_type',
-            'description',
-            'charged_amount',
-            'created_at'
-        ]);
+        $incidents = VisitorIncident::where('visitor_email', $email)
+            ->where('club_id', $clubId)
+            ->latest()
+            ->get(['id', 'incident_type', 'description', 'charged_amount', 'created_at']);
 
         return response()->json([
             'has_incidents' => $incidents->isNotEmpty(),
@@ -140,8 +133,8 @@ class DayPassController extends Controller
             'visitors'               => ['required', 'array', 'min:1'],
             'visitors.*.first_name'  => ['required', 'string', 'max:200'],
             'visitors.*.last_name'   => ['required', 'string', 'max:200'],
-            'visitors.*.phone'       => ['required', 'string', 'max:20'],
             'visitors.*.age'         => ['required', 'integer', 'min:0', 'max:120'],
+            'visitors.*.email'       => ['nullable', 'email', 'max:200'],
             'payment_method_id'      => ['required', 'integer'],
             'paid_at'                => ['required', 'date'],
             'reference'              => ['nullable', 'string', 'max:200'],
@@ -161,6 +154,14 @@ class DayPassController extends Controller
         if (count($request->visitors) > (int) $maxGuests) {
             return back()->withErrors(['messageError' => "El máximo de visitantes permitido es {$maxGuests}."]);
         }
+
+        // Normalizar emails vacíos a null
+        $request->merge([
+            'visitors' => collect($request->visitors)->map(function ($v) {
+                $v['email'] = !empty($v['email']) ? $v['email'] : null;
+                return $v;
+            })->all(),
+        ]);
 
         $totalAmount = 0;
         $visitors = collect($request->visitors)->map(function ($v) use ($normalPrice, $specialPrice, &$totalAmount) {
@@ -202,8 +203,8 @@ class DayPassController extends Controller
                     'day_pass_id' => $dayPass->id,
                     'first_name'  => $v['first_name'],
                     'last_name'   => $v['last_name'],
-                    'phone'       => $v['phone'],
                     'age'         => $v['age'],
+                    'email'       => $v['email'] ?? null,
                     'price'       => $v['price'],
                     'ticket_code' => $v['ticket_code'],
                 ]);
@@ -261,16 +262,29 @@ class DayPassController extends Controller
 
             DB::commit();
 
-            // Envío del ticket por correo al socio
+            // Envío del ticket al socio (todos los visitantes)
+            $dayPass->load('visitors');
+            $dayPass->update(['ticket_sent_at' => now()]);
+
             if ($member->user?->email) {
                 try {
-                    $dayPass->load('visitors');
-                    $dayPass->update(['ticket_sent_at' => now()]);
                     Mail::to($member->user->email)->send(new DayPassTicketMail($dayPass, $member));
                 } catch (\Exception $e) {
-                    Log::warning('No se pudo enviar el ticket de pase por día.', [
+                    Log::warning('No se pudo enviar el ticket de pase por día al socio.', [
                         'day_pass_id' => $dayPass->id,
                         'error'       => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            // Envío individual a visitantes mayores de edad con correo registrado
+            foreach ($dayPass->visitors->filter(fn ($v) => $v->age >= 18 && !empty($v->email)) as $visitor) {
+                try {
+                    Mail::to($visitor->email)->send(new DayPassTicketMail($dayPass, $member, $visitor));
+                } catch (\Exception $e) {
+                    Log::warning('No se pudo enviar el ticket al visitante.', [
+                        'visitor_id' => $visitor->id,
+                        'error'      => $e->getMessage(),
                     ]);
                 }
             }
@@ -297,7 +311,7 @@ class DayPassController extends Controller
             $query->where(function ($q) use ($search, $like) {
                 $q->where('visitor_first_name', $like, "%{$search}%")
                   ->orWhere('visitor_last_name',  $like, "%{$search}%")
-                  ->orWhere('visitor_phone',       $like, "%{$search}%")
+                  ->orWhere('visitor_email',       $like, "%{$search}%")
                   ->orWhere('incident_type',       $like, "%{$search}%");
             });
         }
@@ -335,7 +349,7 @@ class DayPassController extends Controller
             'day_pass_visitor_id' => $visitor->id,
             'visitor_first_name'  => $visitor->first_name,
             'visitor_last_name'   => $visitor->last_name,
-            'visitor_phone'       => $visitor->phone,
+            'visitor_email'       => $visitor->email,
             'incident_type'       => $request->incident_type,
             'description'         => $request->description,
             'charged_amount'      => $request->charged_amount,

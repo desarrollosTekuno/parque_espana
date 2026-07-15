@@ -17,7 +17,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const headers = [
     { title: "Visitante",  key: "visitor_name",   sortable: false },
-    { title: "Teléfono",   key: "visitor_phone",  sortable: true  },
+    { title: "Correo",     key: "visitor_email",  sortable: true  },
     { title: "Tipo",       key: "incident_type",  sortable: true  },
     { title: "Descripción",key: "description",    sortable: false },
     { title: "Monto",      key: "charged_amount", sortable: true  },
@@ -158,7 +158,7 @@ const openDetail   = (item: any) => { detailItem.value = item; showDetail.value 
                         <div class="text-body-2 font-weight-medium">
                             {{ detailItem.visitor_first_name }} {{ detailItem.visitor_last_name }}
                         </div>
-                        <div class="text-caption text-medium-emphasis">Tel: {{ detailItem.visitor_phone }}</div>
+                        <div class="text-caption text-medium-emphasis">{{ detailItem.visitor_email ?? 'Sin correo registrado' }}</div>
                     </v-sheet>
 
                     <div class="mb-3">

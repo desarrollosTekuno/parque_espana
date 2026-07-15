@@ -7,7 +7,7 @@ import { formatCurrency } from '@/constants/formatCurrency';
 import BaseButton from "@/Components/BaseButton.vue";
 import { customToastSwal } from '@/utils/swal';
 import { nowAsLocalInput } from "@/constants/formatDates";
-import { required, selectRequired } from "@/constants/validationRules";
+import { required, selectRequired, validatePhone } from "@/constants/validationRules";
 import axios from 'axios';
 
 const page = usePage();
@@ -75,8 +75,8 @@ const showCreateModal = ref(false);
 interface VisitorRow {
     first_name: string;
     last_name:  string;
-    phone:      string;
     age:        number | null;
+    email:      string;
 }
 
 interface CreateForm {
@@ -104,7 +104,7 @@ const createForm = useForm<CreateForm>({
 });
 
 function emptyVisitor(): VisitorRow {
-    return { first_name: "", last_name: "", phone: "", age: null };
+    return { first_name: "", last_name: "", age: null, email: "" };
 }
 
 // Estado de incidentes por visitante — separado del form para garantizar reactividad
@@ -206,34 +206,25 @@ const removeVisitor = (i: number) => {
     }
 };
 
-// Verificación de incidentes por teléfono
-const doCheckIncidents = debounce(async (visitor: VisitorRow, index: number) => {
-    console.log("entre aquí");
+// Verificación de incidentes por correo (solo adultos 18+)
+const doCheckIncidents = debounce(async (email: string, index: number) => {
     const state = incidentState.value[index];
     if (!state) return;
+    if (!email || !email.includes('@')) {
+        state.incidents = [];
+        return;
+    }
     state.checking = true;
     try {
-        const { data } = await axios.get(
-            route("day-passes.check-incidents"),
-            {
-                params: {
-                    first_name: visitor.first_name,
-                    last_name: visitor.last_name,
-                }
-            }
-        );
+        const { data } = await axios.get(route("day-passes.check-incidents"), { params: { email } });
         state.incidents = data.incidents ?? [];
     } finally {
         state.checking = false;
     }
 }, 500);
 
-/*const onPhoneInput = (phone: string, index: number) => {
-    doCheckIncidents(phone, index);
-};*/
-const onVisitorChange = (visitor: VisitorRow, index: number) => {
-    if (!visitor.first_name || !visitor.last_name) return;
-    doCheckIncidents(visitor, index);
+const onEmailBlur = (email: string, index: number) => {
+    doCheckIncidents(email, index);
 };
 // Conteo de visitantes con incidentes
 const visitorsWithIncidents = computed(() =>
@@ -286,7 +277,7 @@ const canSubmit = computed(() =>
     !!createForm.date &&
     !!createForm.payment_method_id &&
     createForm.visitors.length > 0 &&
-    createForm.visitors.every(v => v.first_name && v.last_name && v.phone && v.age !== null) &&
+    createForm.visitors.every(v => v.first_name && v.last_name && v.age !== null) &&
     receptionTotal.value > 0
 );
 
@@ -378,7 +369,7 @@ const submitIncident = () => {
                             <div class="d-flex align-center ga-3 mx-4 mt-2 mb-1">
                                 <v-text-field
                                     v-model="search"
-                                    label="Buscar por usuario"
+                                    label="Buscar por socio o número de cuenta"
                                     clearable
                                     hide-details
                                     class="flex-grow-1"
@@ -425,10 +416,10 @@ const submitIncident = () => {
             <v-card class="rounded-xl">
                 <v-card-title class="d-flex align-center ga-2 pa-4 border-b">
                     <v-icon color="primary">mdi-ticket-account</v-icon>
-                    <span class="text-h6 font-weight-bold">Registrar Pase por Día</span>
+                    <span class="text-h6 font-weight-bold">Registrar Pase por Día</span> 
                 </v-card-title>
 
-                <v-card-text class="pa-4">
+                <v-card-text class="pa-4  overflow-y-auto" style="max-height: 80vh;">
 
                     <!-- Tarifas vigentes -->
                     <v-sheet class="pa-3 mb-5 rounded-lg border" color="blue-lighten-5">
@@ -475,6 +466,7 @@ const submitIncident = () => {
                                 hide-no-data
                                 clearable
                                 hide-details="auto"
+                                :rules="[selectRequired]"
                                 :error-messages="createForm.errors.member_id"
                             />
                         </v-col>
@@ -485,6 +477,7 @@ const submitIncident = () => {
                                 type="date"
                                 prepend-inner-icon="mdi-calendar"
                                 hide-details="auto"
+                                :rules="[Required]"
                                 :error-messages="createForm.errors.date"
                                 :min="today"
                             />
@@ -493,7 +486,7 @@ const submitIncident = () => {
                             <v-sheet class="pa-2 rounded border d-flex align-center ga-2" color="grey-lighten-5">
                                 <v-icon size="16" color="primary">mdi-email-outline</v-icon>
                                 <span class="text-body-2 text-medium-emphasis">
-                                    El ticket se enviará a:
+                                    El pase se enviará a:
                                     <strong class="text-primary">{{ selectedMember.email }}</strong>
                                 </span>
                             </v-sheet>
@@ -565,7 +558,21 @@ const submitIncident = () => {
                             </v-alert>
 
                             <v-row dense align="center">
-                                <v-col cols="12" sm="3">
+                                <!-- Edad: primer campo para mostrar/ocultar correo dinámicamente -->
+                                <v-col cols="4" sm="2">
+                                    <v-text-field
+                                        v-model.number="visitor.age"
+                                        label="Edad *"
+                                        type="number"
+                                        min="0"
+                                        max="120"
+                                        density="compact"
+                                        hide-details="auto"
+                                        :error-messages="createForm.errors[`visitors.${index}.age`]"
+                                        @input="visitor.age = Math.min(Number(visitor.age?.toString().replace(/\D/g, '') || 0), 120)"
+                                    />
+                                </v-col>
+                                <v-col cols="8" sm="3">
                                     <v-text-field
                                         v-model="visitor.first_name"
                                         :label="`Nombre ${index + 1} *`"
@@ -581,33 +588,22 @@ const submitIncident = () => {
                                         density="compact"
                                         hide-details="auto"
                                         :error-messages="createForm.errors[`visitors.${index}.last_name`]"
+                                    />
+                                </v-col>
+                                <!-- Correo: solo para mayores de 18 años -->
+                                <v-col v-if="(visitor.age ?? -1) >= 18" cols="12" sm="3">
+                                    <v-text-field
+                                        v-model="visitor.email"
+                                        :label="`Correo visitante ${index + 1}`"
+                                        type="email"
+                                        density="compact"
+                                        hide-details="auto"
+                                        prepend-inner-icon="mdi-email-outline"
                                         :loading="incidentState[index]?.checking"
                                         :append-inner-icon="(incidentState[index]?.incidents.length ?? 0) > 0 ? 'mdi-alert-circle' : undefined"
                                         :base-color="(incidentState[index]?.incidents.length ?? 0) > 0 ? 'warning' : undefined"
-                                        @blur="onVisitorChange(visitor, index)"
-                                    />
-                                </v-col>
-                                <v-col cols="12" sm="3">
-                                    <v-text-field
-                                        v-model="visitor.phone"
-                                        :label="`Teléfono ${index + 1} *`"
-                                        density="compact"
-                                        hide-details="auto"
-                                        :error-messages="createForm.errors[`visitors.${index}.phone`]"
-                                        @input="visitor.phone = visitor.phone?.replace(/\D/g, '').slice(0, 10)"
-                                    />
-                                </v-col>
-                                <v-col cols="5" sm="2">
-                                    <v-text-field
-                                        v-model.number="visitor.age"
-                                        label="Edad *"
-                                        type="number"
-                                        min="0"
-                                        max="120"
-                                        density="compact"
-                                        hide-details="auto"
-                                        :error-messages="createForm.errors[`visitors.${index}.age`]"
-                                        @input="visitor.age = Math.min(Number(visitor.age?.toString().replace(/\D/g, '') || 0), 120)"
+                                        :error-messages="createForm.errors[`visitors.${index}.email`]"
+                                        @blur="onEmailBlur(visitor.email, index)"
                                     />
                                 </v-col>
                                 <v-col cols="5" sm="1" class="text-center">
@@ -778,7 +774,7 @@ const submitIncident = () => {
                                 {{ v.first_name }} {{ v.last_name }}
                             </v-list-item-title>
                             <v-list-item-subtitle>
-                                Edad: {{ v.age }} · Tel: {{ v.phone }}
+                                Edad: {{ v.age }} · {{ v.email ? v.email : 'Menor de edad' }}
                             </v-list-item-subtitle>
                             <template #append>
                                 <div class="d-flex align-center ga-3">
@@ -835,7 +831,7 @@ const submitIncident = () => {
                             {{ selectedVisitor?.first_name }} {{ selectedVisitor?.last_name }}
                         </div>
                         <div class="text-caption text-medium-emphasis">
-                            Tel: {{ selectedVisitor?.phone }}
+                            {{ selectedVisitor?.email ? selectedVisitor.email : 'Menor de edad' }}
                         </div>
                     </v-sheet>
 
