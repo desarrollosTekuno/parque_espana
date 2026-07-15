@@ -57,6 +57,7 @@ interface BillingAccountItem {
     holder_name: string;
     email: string | null;
     phone: string | null;
+    photo: string | null;
     primary_membership_id: number | null;
     has_session_membership: boolean;
     session_membership_club_name: string | null;
@@ -1383,7 +1384,7 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                         aplicará
                     </v-card-subtitle>
 
-                    <v-card-text class="d-flex flex-column ga-4">
+                    <v-card-text style="max-height:80vh" class="d-flex flex-column ga-4 overflow-y-auto">
                     <v-form
                         ref="paymentFormRef"
                         validate-on="input"
@@ -1393,6 +1394,21 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                             <v-col cols="12" md="4">
                                 <v-card variant="tonal" color="primary">
                                     <v-card-text class="py-3">
+                                         <v-avatar
+                                            size="100"
+                                            class="mb-4"
+                                        >
+                                            <v-img
+                                                :src="selectedPaymentAccount.photo"
+                                                cover
+                                            >
+                                                <template #error>
+                                                    <v-icon size="60">
+                                                        mdi-account-circle
+                                                    </v-icon>
+                                                </template>
+                                            </v-img>
+                                        </v-avatar>
                                         <div
                                             class="text-caption text-medium-emphasis"
                                         >

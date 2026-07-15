@@ -99,7 +99,7 @@ const Cerrar = () => {
 // Aquí se definen los encabezados de la tabla, donde key es el nombre de la columna en la base de datos
 const headers = [
     { title: "ID", key: "id" },
-    { title: "Socio", key: "member.first_name" },
+    { title: "Usuario", key: "member.first_name" },
     { title: "Evento", key:"title"},
     { title: "Hora", key:"time"},
     { title: "Total Invitados", key: "total_guests" },
@@ -291,7 +291,7 @@ const submitPayment = async () => {
                                     </div>
                                     <div class="d-flex ga-6 mt-2">
                                         <div>
-                                            <div class="text-caption text-medium-emphasis text-uppercase">Socio</div>
+                                            <div class="text-caption text-medium-emphasis text-uppercase">Usuario</div>
                                             <div class="text-body-2 font-weight-medium">{{ form.member }}</div>
                                         </div>
                                         <div>

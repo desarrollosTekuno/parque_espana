@@ -18,6 +18,7 @@ use App\Services\Billing\PaymentRegistrationService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
@@ -39,7 +40,8 @@ class BillingController extends Controller
 
             $accountQuery = MembershipAccount::query()
                 ->with([
-                    'primaryHolder.member',
+                    'primaryHolder.member.documents' => fn ($documentQuery) => $documentQuery
+                        ->where('document_type_id', 4),
                     'memberships' => fn ($membershipQuery) => $membershipQuery
                         ->with(['club', 'membershipType'])
                         ->where('status', 'active')
@@ -166,6 +168,7 @@ class BillingController extends Controller
                         'holder_name' => $fullName,
                         'email' => $holder?->email,
                         'phone' => $holder?->phone,
+                        'photo' => $this->resolveHolderPhotoUrl($holder),
                         'primary_membership_id' => $primaryMembershipId,
                         'has_session_membership' => $sessionMembership !== null,
                         'session_membership_club_name' => $sessionMembership?->club?->name,
@@ -566,6 +569,20 @@ class BillingController extends Controller
             'outstanding_balance' => (float) $account->charges->sum('balance'),
             'club_payment_methods' => $this->resolveClubPaymentMethods(),
         ]);
+    }
+
+    protected function resolveHolderPhotoUrl(?\App\Models\Members\Member $holder): ?string
+    {
+        $photoDocument = $holder?->documents->first();
+
+        if (!$photoDocument) {
+            return null;
+        }
+
+        return Storage::disk('spaces')->temporaryUrl(
+            $photoDocument->file_path,
+            now()->addMinutes(30)
+        );
     }
 
     protected function resolveClubPaymentMethods(): \Illuminate\Support\Collection

@@ -19,6 +19,7 @@ use App\Models\AdminClub\BlockedPeriod;
 use App\Services\Reservation\Context\ReservationContext;
 use App\Services\Reservation\Rules\CancelReservationRule;
 use App\Services\Reservation\Rules\UserNoShowPenaltyRule;
+use App\Services\Reservation\Rules\ReservationsPerDayRule;
 use App\Services\Reservation\Rules\ConsecutiveReservationRule;
 use App\Exceptions\ReservationException;
 
@@ -135,6 +136,7 @@ class ReservationController extends Controller {
             );
             (new UserNoShowPenaltyRule())->validate($context);
             (new ConsecutiveReservationRule())->validate($context);
+            (new ReservationsPerDayRule())->validate($context);
             Reservation::create([
                 'member_id' => $request->member_id,
                 'club_id' => $clubId,

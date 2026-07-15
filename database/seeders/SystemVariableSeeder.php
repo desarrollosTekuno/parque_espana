@@ -38,6 +38,12 @@ class SystemVariableSeeder extends Seeder {
                 'club_id' => 1
             ],
             [
+                'name' => 'reservaciones_por_dia',
+                'value' => '1',
+                'description' => 'Número máximo de reservaciones que un usuario puede tener en un mismo día',
+                'club_id' => 2
+            ],
+            [
                 'name' => 'feedback_notification_email',
                 'value' => 'notificaciones@parquesespana.com',
                 'description' => 'Correo del Club PE2 que recibe notificaciones de nuevas quejas/sugerencias y cancelaciones',
