@@ -1128,15 +1128,15 @@ watch(
                                         tooltip="Capturar un cobro para esta cuenta"
                                         @click="openPaymentModal(item)"
                                     />
-
-                                    <BaseButton
+<!-- TODO: ANUALIDAD -->
+                                    <!-- <BaseButton
                                         v-if="can.includes('billing.store')"
                                         :icon-only="false"
                                         action="add"
                                         text="Anualidad"
                                         tooltip="Registrar pago de anualidad con descuento"
                                         @click="openAnnualModal(item)"
-                                    />
+                                    /> -->
 
                                     <BaseButton
                                         :icon-only="false"
@@ -1152,6 +1152,7 @@ watch(
                                             )
                                         "
                                         :disabled="!item.primary_membership_id"
+                                        v-if="can.includes('accounts.view')"
                                     />
                                 </div>
                             </template>
