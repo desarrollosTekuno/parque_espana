@@ -842,9 +842,11 @@ class BillingController extends Controller
         ]);
     }
 
-    protected function resolveHolderPhotoUrl(?\App\Models\Members\Member $holder): ?string
+    protected function resolveHolderPhotoUrl(?\App\Models\Members\Member $holder): ?string 
     {
-        $photoDocument = $holder?->documents->first();
+        //$photoDocument = $holder?->documents->first();
+        $photoDocument = $holder?->documents
+        ->firstWhere('code', 'fotografia_infantil');
 
         if (!$photoDocument) {
             return null;

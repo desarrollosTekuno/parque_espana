@@ -214,6 +214,8 @@ const selectedPaymentClubId = ref<number | null>(null);
 const paymentDrafts = ref<PaymentDraftItem[]>([]);
 const paymentFormRef = ref();
 
+console.log(selectedPaymentAccount.value, "selectedPaymentAccount.value");
+
 // ── Anualidad ──────────────────────────────────────────────────────────────
 const showAnnualModal = ref(false);
 const annualAccount = ref<BillingAccountItem | null>(null);
@@ -1575,7 +1577,7 @@ watch(
                     >
                         <v-row v-if="selectedPaymentAccount">
                             <v-col cols="12" md="4">
-                                <v-card variant="tonal" color="primary">
+                                <v-card variant="tonal" color="primary"> 
                                     <v-card-text class="py-3">
                                          <v-avatar
                                             size="100"
