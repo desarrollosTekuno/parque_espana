@@ -17,6 +17,7 @@ use App\Models\AdminClub\PhysicalAd;
 use App\Models\Billing\AnnualDiscountRule;
 use App\Models\Billing\ClubPaymentMethod;
 use App\Models\Billing\Payment;
+use App\Models\Members\MemberDocument;
 use App\Rules\ExistsInSchema;
 use App\Services\Billing\AnnualPaymentService;
 use App\Services\Billing\MembershipChargeService;
@@ -49,7 +50,9 @@ class BillingController extends Controller
             $accountQuery = MembershipAccount::query()
                 ->with([
                     'primaryHolder.member.documents' => fn ($documentQuery) => $documentQuery
-                        ->where('document_type_id', 4),
+                        ->whereHas('documentType', fn (Builder $documentTypeQuery) => $documentTypeQuery
+                            ->where('code', 'fotografia_infantil')),
+                    'primaryHolder.member.documents.documentType',
                     'memberships' => fn ($membershipQuery) => $membershipQuery
                         ->with(['club', 'membershipType'])
                         ->where('status', 'active')
@@ -844,7 +847,8 @@ class BillingController extends Controller
 
     protected function resolveHolderPhotoUrl(?\App\Models\Members\Member $holder): ?string
     {
-        $photoDocument = $holder?->documents->first();
+        $photoDocument = $holder?->documents
+            ->first(fn (MemberDocument $document) => $document->documentType?->code === 'fotografia_infantil');
 
         if (!$photoDocument) {
             return null;

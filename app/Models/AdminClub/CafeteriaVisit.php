@@ -2,12 +2,13 @@
 
 namespace App\Models\AdminClub;
 
+use App\Traits\SerializesDates;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class CafeteriaVisit extends Model
 {
-    use SoftDeletes;
+    use SoftDeletes, SerializesDates;
 
     protected $table = 'guest_lists.cafeteria_visits';
     protected $connection = 'pgsql';
