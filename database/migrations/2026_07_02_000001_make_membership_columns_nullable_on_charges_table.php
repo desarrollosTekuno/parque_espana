@@ -20,8 +20,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        DB::statement('ALTER TABLE billing.charges ALTER COLUMN membership_account_id SET NOT NULL');
-        DB::statement('ALTER TABLE billing.charges ALTER COLUMN membership_id SET NOT NULL');
-        DB::statement('ALTER TABLE billing.charges ALTER COLUMN member_id SET NOT NULL');
+        // DB::statement('ALTER TABLE billing.charges ALTER COLUMN membership_account_id SET NOT NULL');
+        // DB::statement('ALTER TABLE billing.charges ALTER COLUMN membership_id SET NOT NULL');
+        // DB::statement('ALTER TABLE billing.charges ALTER COLUMN member_id SET NOT NULL');
     }
 };

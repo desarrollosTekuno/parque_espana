@@ -25,6 +25,6 @@ return new class extends Migration {
 
     public function down(): void
     {
-        DB::table('billing.concepts')->where('code', 'PHYSICAL_AD')->delete();
+        // DB::table('billing.concepts')->where('code', 'PHYSICAL_AD')->delete();
     }
 };
