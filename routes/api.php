@@ -91,6 +91,15 @@ Route::prefix('v1')->name('api.')->group(function () {
         // SPEI — generar CLABE y consultar estado de orden
         Route::post('/spei-payment', [SpeiPaymentController::class, 'store']);
         Route::get('/spei-payment/{speiOrder}', [SpeiPaymentController::class, 'show']);
+
+        // Tarjetas guardadas (domiciliación) — cada club es una cuenta Conekta
+        // independiente, por eso las tarjetas están scoped por club
+        Route::prefix('payment-sources')->group(function () {
+            Route::get('/',           [PaymentSourceController::class, 'index']);
+            Route::post('/',          [PaymentSourceController::class, 'store']);
+            Route::delete('/{source}', [PaymentSourceController::class, 'destroy']);
+            Route::patch('/{source}/set-default', [PaymentSourceController::class, 'setDefault']);
+        });
     });
 
     // Perfil del socio
@@ -133,14 +142,6 @@ Route::prefix('v1')->name('api.')->group(function () {
 
     // Cobro con tarjeta domiciliada (Conekta)
     Route::post('/charge-payment', [ChargePaymentController::class, 'store'])->middleware('auth:sanctum');
-
-    // Payment sources (domiciliación de tarjetas)
-    Route::middleware('auth:sanctum')->prefix('payment-sources')->group(function () {
-        Route::get('/',           [PaymentSourceController::class, 'index']);
-        Route::post('/',          [PaymentSourceController::class, 'store']);
-        Route::delete('/{source}', [PaymentSourceController::class, 'destroy']);
-        Route::patch('/{source}/set-default', [PaymentSourceController::class, 'setDefault']);
-    });
 
 });
 

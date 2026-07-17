@@ -26,6 +26,8 @@ class PermissionSeeder extends Seeder
             ['module' => 'Administración', 'name' => 'users.store', 'description' => 'Crear usuarios', 'contexts' => ['web']],
             ['module' => 'Administración', 'name' => 'users.update', 'description' => 'Actualizar usuarios', 'contexts' => ['web']],
             ['module' => 'Administración', 'name' => 'users.destroy', 'description' => 'Eliminar usuarios', 'contexts' => ['web']],
+            ['module' => 'Administración', 'name' => 'conekta-credentials.index', 'description' => 'Ver credenciales de Conekta por parque', 'contexts' => ['web']],
+            ['module' => 'Administración', 'name' => 'conekta-credentials.update', 'description' => 'Actualizar credenciales de Conekta por parque', 'contexts' => ['web']],
 
             // Clubes
             ['module' => 'Clubes', 'name' => 'clubs.index', 'description' => 'Ver clubes', 'contexts' => ['web']],

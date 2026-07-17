@@ -187,6 +187,14 @@ const routes: Routing[] = [
         value: "clubs-deportivos",
         group: null,
     },
+    // Credenciales Conekta por parque
+    {
+        name: ["conekta-credentials.index"],
+        title: "Credenciales Conekta",
+        icon: "mdi-credit-card-lock-outline",
+        value: "conekta-credentials",
+        group: null,
+    },
 
     //permisos
     {

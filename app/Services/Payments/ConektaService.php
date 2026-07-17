@@ -2,6 +2,9 @@
 
 namespace App\Services\Payments;
 
+use App\Models\Billing\ClubPaymentMethod;
+use App\Models\Billing\PaymentMethod;
+use App\Models\Members\ConektaCustomer;
 use App\Models\Members\Member;
 use App\Models\Members\MemberPaymentSource;
 use Conekta\Api\CustomersApi;
@@ -17,24 +20,51 @@ use Conekta\Model\ChargeRequest;
 use Conekta\Model\ChargeRequestPaymentMethod;
 use GuzzleHttp\Client;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
+use InvalidArgumentException;
 
 class ConektaService
 {
-    private CustomersApi $customersApi;
-    private PaymentMethodsApi $paymentMethodsApi;
-    private OrdersApi $ordersApi;
+    /**
+     * Clientes del SDK de Conekta ya construidos, indexados por club_id,
+     * para no reconstruir el SDK en cada llamada dentro del mismo request.
+     *
+     * @var array<int, array{customers: CustomersApi, paymentMethods: PaymentMethodsApi, orders: OrdersApi}>
+     */
+    private array $clientsCache = [];
 
-    public function __construct()
+    // ──────────────────────────────────────────────────────────────
+    // CLIENTES POR CLUB
+    // ──────────────────────────────────────────────────────────────
+
+    /**
+     * Resuelve las credenciales Conekta del club (cada parque opera su propia
+     * cuenta comercial) y construye/memoiza los clientes del SDK para ese club.
+     * Si el club no tiene credenciales propias configuradas, cae en la llave
+     * global de config/conekta.php.
+     *
+     * @return array{customers: CustomersApi, paymentMethods: PaymentMethodsApi, orders: OrdersApi}
+     */
+    private function clientsForClub(int $clubId): array
     {
-        $config = Configuration::getDefaultConfiguration()
-            ->setAccessToken(config('conekta.secret_key'));
+        if (isset($this->clientsCache[$clubId])) {
+            return $this->clientsCache[$clubId];
+        }
 
+        $clubPaymentMethod = ClubPaymentMethod::query()
+            ->where('club_id', $clubId)
+            ->whereHas('paymentMethod', fn ($q) => $q->where('provider', PaymentMethod::PROVIDER_CONEKTA))
+            ->first();
+
+        $secretKey = $clubPaymentMethod?->conekta_secret_key ?: config('conekta.secret_key');
+
+        $config = Configuration::getDefaultConfiguration()->setAccessToken($secretKey);
         $httpClient = new Client();
 
-        $this->customersApi    = new CustomersApi($httpClient, $config);
-        $this->paymentMethodsApi = new PaymentMethodsApi($httpClient, $config);
-        $this->ordersApi       = new OrdersApi($httpClient, $config);
+        return $this->clientsCache[$clubId] = [
+            'customers'      => new CustomersApi($httpClient, $config),
+            'paymentMethods' => new PaymentMethodsApi($httpClient, $config),
+            'orders'         => new OrdersApi($httpClient, $config),
+        ];
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -42,13 +72,21 @@ class ConektaService
     // ──────────────────────────────────────────────────────────────
 
     /**
-     * Obtiene o crea el cliente en Conekta para el miembro dado.
-     * Guarda el conekta_customer_id en la tabla members.members.
+     * Obtiene o crea el cliente en Conekta para el miembro dado, dentro de la
+     * cuenta Conekta del club indicado. Guarda el mapeo en
+     * members.conekta_customers (un customer_id distinto por cada club en el
+     * que el socio tenga cuenta, ya que cada club es una cuenta Conekta
+     * independiente).
      */
-    public function resolveCustomer(Member $member): string
+    public function resolveCustomer(Member $member, int $clubId): string
     {
-        if ($member->conekta_customer_id) {
-            return $member->conekta_customer_id;
+        $existing = ConektaCustomer::query()
+            ->where('member_id', $member->id)
+            ->where('club_id', $clubId)
+            ->first();
+
+        if ($existing) {
+            return $existing->conekta_customer_id;
         }
 
         $customerData = new Customer([
@@ -57,10 +95,14 @@ class ConektaService
             'phone' => $member->phone ?? '+5200000000000',
         ]);
 
-        $conektaCustomer = $this->customersApi->createCustomer($customerData);
+        $conektaCustomer = $this->clientsForClub($clubId)['customers']->createCustomer($customerData);
         $customerId      = $conektaCustomer->getId();
 
-        $member->update(['conekta_customer_id' => $customerId]);
+        ConektaCustomer::create([
+            'member_id'           => $member->id,
+            'club_id'             => $clubId,
+            'conekta_customer_id' => $customerId,
+        ]);
 
         return $customerId;
     }
@@ -71,34 +113,39 @@ class ConektaService
 
     /**
      * Agrega una tarjeta tokenizada desde Flutter al perfil del miembro en Conekta
-     * y la guarda localmente en members.payment_sources.
+     * y la guarda localmente en members.payment_sources, asociada al club cuya
+     * cuenta Conekta la tokenizó.
      *
      * @param  Member $member
+     * @param  int    $clubId
      * @param  string $tokenId   Token generado por el SDK de Conekta en Flutter (tok_xxx)
-     * @param  bool   $setDefault Marcarla como fuente predeterminada
+     * @param  bool   $setDefault Marcarla como fuente predeterminada para ese club
      * @return MemberPaymentSource
      */
-    public function addPaymentSource(Member $member, string $tokenId, bool $setDefault = false): MemberPaymentSource
+    public function addPaymentSource(Member $member, int $clubId, string $tokenId, bool $setDefault = false): MemberPaymentSource
     {
-        return DB::transaction(function () use ($member, $tokenId, $setDefault) {
-            $customerId = $this->resolveCustomer($member);
+        return DB::transaction(function () use ($member, $clubId, $tokenId, $setDefault) {
+            $customerId = $this->resolveCustomer($member, $clubId);
 
             $paymentMethodRequest = new CreateCustomerPaymentMethodsRequest([
                 'type'     => 'card',
                 'token_id' => $tokenId,
             ]);
 
-            $conektaSource = $this->paymentMethodsApi->createCustomerPaymentMethods(
+            $conektaSource = $this->clientsForClub($clubId)['paymentMethods']->createCustomerPaymentMethods(
                 $customerId,
                 $paymentMethodRequest
             );
 
             if ($setDefault) {
-                MemberPaymentSource::where('member_id', $member->id)->update(['is_default' => false]);
+                MemberPaymentSource::where('member_id', $member->id)
+                    ->where('club_id', $clubId)
+                    ->update(['is_default' => false]);
             }
 
-            $source = MemberPaymentSource::create([
+            return MemberPaymentSource::create([
                 'member_id'                  => $member->id,
+                'club_id'                    => $clubId,
                 'conekta_payment_source_id'  => $conektaSource->getId(),
                 'card_type'                  => $conektaSource->getType() ?? null,
                 'card_brand'                 => $conektaSource->getBrand() ?? null,
@@ -108,17 +155,16 @@ class ConektaService
                 'cardholder_name'            => $conektaSource->getName() ?? null,
                 'is_default'                 => $setDefault,
             ]);
-
-            return $source;
         });
     }
 
     /**
-     * Lista las fuentes de pago del miembro guardadas localmente.
+     * Lista las fuentes de pago del miembro guardadas localmente para un club.
      */
-    public function listPaymentSources(Member $member): \Illuminate\Database\Eloquent\Collection
+    public function listPaymentSources(Member $member, int $clubId): \Illuminate\Database\Eloquent\Collection
     {
         return MemberPaymentSource::where('member_id', $member->id)
+            ->where('club_id', $clubId)
             ->orderByDesc('is_default')
             ->orderByDesc('created_at')
             ->get();
@@ -127,13 +173,16 @@ class ConektaService
     /**
      * Elimina una fuente de pago en Conekta y en la BD local.
      */
-    public function deletePaymentSource(Member $member, MemberPaymentSource $source): void
+    public function deletePaymentSource(Member $member, int $clubId, MemberPaymentSource $source): void
     {
-        $customerId = $member->conekta_customer_id;
+        $customer = ConektaCustomer::query()
+            ->where('member_id', $member->id)
+            ->where('club_id', $clubId)
+            ->first();
 
-        if ($customerId) {
-            $this->paymentMethodsApi->deleteCustomerPaymentMethods(
-                $customerId,
+        if ($customer) {
+            $this->clientsForClub($clubId)['paymentMethods']->deleteCustomerPaymentMethods(
+                $customer->conekta_customer_id,
                 $source->conekta_payment_source_id
             );
         }
@@ -142,11 +191,14 @@ class ConektaService
     }
 
     /**
-     * Marca una fuente de pago como predeterminada.
+     * Marca una fuente de pago como predeterminada dentro de su club.
      */
-    public function setDefaultPaymentSource(Member $member, MemberPaymentSource $source): void
+    public function setDefaultPaymentSource(Member $member, int $clubId, MemberPaymentSource $source): void
     {
-        MemberPaymentSource::where('member_id', $member->id)->update(['is_default' => false]);
+        MemberPaymentSource::where('member_id', $member->id)
+            ->where('club_id', $clubId)
+            ->update(['is_default' => false]);
+
         $source->update(['is_default' => true]);
     }
 
@@ -162,6 +214,7 @@ class ConektaService
      * La confirmación llega vía webhook (charge.paid).
      *
      * @param  Member $member
+     * @param  int    $clubId
      * @param  int    $amountCents   Monto en centavos (ej. 250000 = $2,500.00 MXN)
      * @param  string $description   Concepto del cargo
      * @param  int    $expiresAt     Unix timestamp de expiración del CLABE
@@ -170,12 +223,13 @@ class ConektaService
      */
     public function createSpeiOrder(
         Member $member,
+        int    $clubId,
         int    $amountCents,
         string $description,
         int    $expiresAt,
         array  $metadata = []
     ): array {
-        $customerId = $this->resolveCustomer($member);
+        $customerId = $this->resolveCustomer($member, $clubId);
 
         $orderRequest = new OrderRequest([
             'currency'      => 'MXN',
@@ -201,7 +255,7 @@ class ConektaService
             'metadata' => $metadata,
         ]);
 
-        $order  = $this->ordersApi->createOrder($orderRequest);
+        $order  = $this->clientsForClub($clubId)['orders']->createOrder($orderRequest);
         $charge = $order->getCharges()->getData()[0] ?? null;
 
         // El SDK devuelve el payment_method del charge como objeto tipado.
@@ -241,7 +295,8 @@ class ConektaService
      * Crea un cargo (orden) en Conekta contra una fuente de pago guardada.
      *
      * @param  Member              $member
-     * @param  MemberPaymentSource $source        Fuente de pago a cobrar
+     * @param  MemberPaymentSource $source        Fuente de pago a cobrar (debe pertenecer a $clubId)
+     * @param  int                 $clubId        Club/cuenta Conekta contra la que se cobra
      * @param  int                 $amountCents   Monto en centavos (ej. 50000 = $500.00 MXN)
      * @param  string              $description   Concepto del cargo
      * @param  array               $metadata      Datos adicionales (membership_id, charge_id, etc.)
@@ -250,11 +305,18 @@ class ConektaService
     public function charge(
         Member $member,
         MemberPaymentSource $source,
+        int $clubId,
         int $amountCents,
         string $description,
         array $metadata = []
     ): array {
-        $customerId = $this->resolveCustomer($member);
+        if ((int) $source->club_id !== $clubId) {
+            throw new InvalidArgumentException(
+                'La fuente de pago pertenece a un club distinto al de la cuenta Conekta contra la que se intenta cobrar.'
+            );
+        }
+
+        $customerId = $this->resolveCustomer($member, $clubId);
 
         $orderRequest = new OrderRequest([
             'currency'      => 'MXN',
@@ -280,7 +342,7 @@ class ConektaService
             'metadata' => $metadata,
         ]);
 
-        $order  = $this->ordersApi->createOrder($orderRequest);
+        $order  = $this->clientsForClub($clubId)['orders']->createOrder($orderRequest);
         $charge = $order->getCharges()->getData()[0] ?? null;
 
         return [
