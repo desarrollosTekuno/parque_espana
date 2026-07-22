@@ -3444,9 +3444,17 @@ class MemberController extends Controller
         );
 
         if ($interclubRule) {
+            $monthlyFee = $interclubRule->resolveMonthlyFee();
+
+            if ($monthlyFee === null) {
+                throw ValidationException::withMessages([
+                    'membership_type_id' => 'El paquete interclub aplicable no tiene una cuota capturada para este año. Captúrala en el módulo de Cuotas por año.',
+                ]);
+            }
+
             return [
-                'monthly_fee' => (float) $interclubRule->monthly_fee,
-                'inscription_fee' => (float) $interclubRule->inscription_fee,
+                'monthly_fee' => $monthlyFee,
+                'inscription_fee' => (float) ($interclubRule->resolveInscriptionFee() ?? 0),
                 'rule_type' => 'interclub',
                 'source_membership_becomes_non_billable' => true,
                 'billing_split_mode' => $this->isMonthlyPassMembershipType($membershipType) ? 'single' : 'equal_split',
@@ -3472,6 +3480,14 @@ class MemberController extends Controller
             ]);
         }
 
+        $monthlyFee = $pricingRule->resolveMonthlyFee();
+
+        if ($monthlyFee === null) {
+            throw ValidationException::withMessages([
+                'membership_type_id' => 'La regla de precio encontrada no tiene una cuota capturada para este año. Captúrala en el módulo de Cuotas por año.',
+            ]);
+        }
+
         $sourceMembershipBecomesNonBillable = $this->shouldSourceMembershipBecomeNonBillable(
             membershipType: $membershipType,
             fromMembershipType: $fromMembershipType,
@@ -3479,8 +3495,8 @@ class MemberController extends Controller
         );
 
         return [
-            'monthly_fee' => (float) $pricingRule->monthly_fee,
-            'inscription_fee' => (float) ($pricingRule->inscription_fee ?? 0),
+            'monthly_fee' => $monthlyFee,
+            'inscription_fee' => (float) ($pricingRule->resolveInscriptionFee() ?? 0),
             'rule_type' => 'pricing_rule',
             'source_membership_becomes_non_billable' => $sourceMembershipBecomesNonBillable,
             'billing_split_mode' => $this->resolveBillingSplitMode(

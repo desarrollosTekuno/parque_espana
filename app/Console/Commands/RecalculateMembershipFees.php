@@ -134,7 +134,20 @@ class RecalculateMembershipFees extends Command
             return;
         }
 
-        $newFee     = round((float) $rule->monthly_fee, 2);
+        $resolvedFee = $rule->resolveMonthlyFee();
+
+        if ($resolvedFee === null) {
+            $this->warn(sprintf(
+                '  Regla sin cuota capturada: %s | %s | %s',
+                $membership->account?->membership_number ?? 'S/N',
+                $membership->club?->code              ?? 'N/D',
+                $membershipType->code
+            ));
+            $this->skipped++;
+            return;
+        }
+
+        $newFee     = round($resolvedFee, 2);
         $currentFee = round((float) $membership->monthly_fee, 2);
 
         $this->line(sprintf(

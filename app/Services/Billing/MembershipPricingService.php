@@ -65,7 +65,15 @@ class MembershipPricingService
                 continue;
             }
 
-            $standaloneFee = (float) $pricingRule->monthly_fee;
+            $standaloneFee = $pricingRule->resolveMonthlyFee();
+
+            if ($standaloneFee === null) {
+                Log::warning('Pricing rule standalone sin cuota capturada tras cancelación de grupo', [
+                    'membership_id' => $membership->id,
+                    'pricing_rule_id' => $pricingRule->id,
+                ]);
+                continue;
+            }
 
             $chargeService->synchronizeMembershipFees(
                 membership: $membership,

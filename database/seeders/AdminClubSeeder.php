@@ -93,6 +93,8 @@ class AdminClubSeeder extends Seeder
             'interclub-package-rules.store',
             'interclub-package-rules.update',
             'interclub-package-rules.destroy',
+            'fee-schedules.index',
+            'fee-schedules.store',
 
             // tipos de documento y de membresía
             'document-types.index',

@@ -665,16 +665,20 @@ class AgeTransitionController extends Controller
         );
 
         if ($rule) {
-            Log::info('Age transition: fee recalculated due to multiclub state change', [
-                'transition_id'              => $transition->id,
-                'stored_has_multiple_clubs'  => $transition->has_multiple_clubs,
-                'current_has_multiple_clubs' => $currentlyHasMultipleClubs,
-                'stored_monthly_fee'         => $transition->monthly_fee,
-                'resolved_monthly_fee'       => $rule->monthly_fee,
-                'pricing_rule_id'            => $rule->id,
-            ]);
+            $resolvedFee = $rule->resolveMonthlyFee();
 
-            return (float) $rule->monthly_fee;
+            if ($resolvedFee !== null) {
+                Log::info('Age transition: fee recalculated due to multiclub state change', [
+                    'transition_id'              => $transition->id,
+                    'stored_has_multiple_clubs'  => $transition->has_multiple_clubs,
+                    'current_has_multiple_clubs' => $currentlyHasMultipleClubs,
+                    'stored_monthly_fee'         => $transition->monthly_fee,
+                    'resolved_monthly_fee'       => $resolvedFee,
+                    'pricing_rule_id'            => $rule->id,
+                ]);
+
+                return $resolvedFee;
+            }
         }
 
         // Fallback: usar la cuota guardada y loggear la advertencia

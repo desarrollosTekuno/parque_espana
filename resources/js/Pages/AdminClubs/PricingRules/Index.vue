@@ -27,8 +27,8 @@ interface PricingRuleItem {
     max_age: number | null;
     requires_origin_family: boolean;
     requires_multiple_clubs: boolean;
-    monthly_fee: number;
-    inscription_fee: number;
+    monthly_fee: number | null;
+    inscription_fee: number | null;
     priority: number;
     valid_from: string | null;
     valid_until: string | null;
@@ -76,8 +76,8 @@ const headers = [
     { title: "Origen", key: "from_membership_type_name", sortable: false },
     { title: "Edad", key: "age_range", sortable: false },
     { title: "Condiciones", key: "conditions", sortable: false },
-    { title: "Cuota", key: "monthly_fee" },
-    { title: "Inscripción", key: "inscription_fee", sortable: false },
+    { title: "Cuota vigente", key: "monthly_fee", sortable: false },
+    { title: "Inscripción vigente", key: "inscription_fee", sortable: false },
     { title: "Prioridad", key: "priority" },
     { title: "Vigencia", key: "validity", sortable: false },
     { title: "Activo", key: "is_active", sortable: false },
@@ -89,6 +89,8 @@ const currencyFormatter = new Intl.NumberFormat("es-MX", {
     currency: "MXN",
     maximumFractionDigits: 2,
 });
+
+const formatAmount = (value: number | null) => (value === null ? "Sin definir" : currencyFormatter.format(value));
 
 const yesNoOptions = [
     { title: "Todos", value: null },
@@ -128,8 +130,6 @@ interface PricingRuleForm {
     max_age: number | null;
     requires_origin_family: boolean;
     requires_multiple_clubs: boolean;
-    monthly_fee: string | number;
-    inscription_fee: string | number;
     priority: number;
     valid_from: string | null;
     valid_until: string | null;
@@ -144,8 +144,6 @@ const form = useForm<PricingRuleForm>({
     max_age: null,
     requires_origin_family: false,
     requires_multiple_clubs: false,
-    monthly_fee: "",
-    inscription_fee: 0,
     priority: 10,
     valid_from: null,
     valid_until: null,
@@ -161,8 +159,6 @@ const resetForm = () => {
     form.max_age = null;
     form.requires_origin_family = false;
     form.requires_multiple_clubs = false;
-    form.monthly_fee = "";
-    form.inscription_fee = 0;
     form.priority = 10;
     form.valid_from = null;
     form.valid_until = null;
@@ -183,8 +179,6 @@ const openEdit = (item: PricingRuleItem) => {
     form.max_age = item.max_age;
     form.requires_origin_family = item.requires_origin_family;
     form.requires_multiple_clubs = item.requires_multiple_clubs;
-    form.monthly_fee = item.monthly_fee;
-    form.inscription_fee = item.inscription_fee;
     form.priority = item.priority;
     form.valid_from = item.valid_from;
     form.valid_until = item.valid_until;
@@ -364,6 +358,12 @@ watch(
         <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
             <v-row>
                 <v-col cols="12">
+                    <v-alert type="info" variant="tonal" class="mx-4 mt-4">
+                        Esta pantalla define a quién le aplica cada regla (tipo de membresía,
+                        edad, origen, multiclub). Las cuotas por año se capturan y consultan
+                        desde el módulo <strong>Cuotas por año</strong>.
+                    </v-alert>
+
                     <v-data-table-server
                         fixed-header
                         hover
@@ -479,11 +479,11 @@ watch(
                         </template>
 
                         <template #item.monthly_fee="{ item }">
-                            {{ currencyFormatter.format(item.monthly_fee) }}
+                            {{ formatAmount(item.monthly_fee) }}
                         </template>
 
                         <template #item.inscription_fee="{ item }">
-                            {{ currencyFormatter.format(item.inscription_fee) }}
+                            {{ formatAmount(item.inscription_fee) }}
                         </template>
 
                         <template #item.validity="{ item }">
@@ -524,6 +524,11 @@ watch(
                     :title="`${form.id ? 'Editar regla' : 'Nueva regla de precio'}`"
                 >
                     <v-card-text>
+                        <v-alert v-if="!form.id" type="info" variant="tonal" density="compact" class="mb-4">
+                            Después de guardar, captura la cuota de esta regla en el módulo
+                            Cuotas por año.
+                        </v-alert>
+
                         <v-row>
                             <v-col cols="12" md="6">
                                 <v-select
@@ -545,7 +550,7 @@ watch(
                                 />
                             </v-col>
 
-                            <v-col cols="12" md="3">
+                            <v-col cols="12" md="6">
                                 <v-text-field
                                     v-model="form.min_age"
                                     label="Edad mínima"
@@ -555,7 +560,7 @@ watch(
                                 />
                             </v-col>
 
-                            <v-col cols="12" md="3">
+                            <v-col cols="12" md="6">
                                 <v-text-field
                                     v-model="form.max_age"
                                     label="Edad máxima"
@@ -565,30 +570,7 @@ watch(
                                 />
                             </v-col>
 
-                            <v-col cols="12" md="3">
-                                <v-text-field
-                                    v-model="form.monthly_fee"
-                                    label="Cuota mensual"
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    :rules="[(value: unknown) => `${value}` !== '' || 'Campo requerido']"
-                                    :error-messages="form.errors.monthly_fee"
-                                />
-                            </v-col>
-
-                            <v-col cols="12" md="3">
-                                <v-text-field
-                                    v-model="form.inscription_fee"
-                                    label="Inscripción"
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    :error-messages="form.errors.inscription_fee"
-                                />
-                            </v-col>
-
-                            <v-col cols="12" md="4">
+                            <v-col cols="12" md="6">
                                 <v-text-field
                                     v-model="form.priority"
                                     label="Prioridad"
@@ -599,7 +581,7 @@ watch(
                                 />
                             </v-col>
 
-                            <v-col cols="12" md="4">
+                            <v-col cols="12" md="6">
                                 <v-text-field
                                     v-model="form.valid_from"
                                     label="Válida desde"
@@ -608,7 +590,7 @@ watch(
                                 />
                             </v-col>
 
-                            <v-col cols="12" md="4">
+                            <v-col cols="12" md="6">
                                 <v-text-field
                                     v-model="form.valid_until"
                                     label="Válida hasta"
