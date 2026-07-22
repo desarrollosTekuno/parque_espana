@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web\AdminClub;
 
 use Illuminate\Routing\Controller;
+use App\Models\Administrator\Club;
 use App\Models\Memberships\InterclubPackageRule;
 use App\Models\Memberships\InterclubPackageRuleFeeHistory;
 use App\Models\Memberships\PricingRule;
@@ -37,21 +38,30 @@ class FeeScheduleController extends Controller
             $pricingRules = PricingRule::query()
                 ->with(['membershipType', 'fromMembershipType', 'feeHistory'])
                 ->whereHas('membershipType', fn ($q) => $q->where('club_id', $clubId))
-                ->orderBy('priority')
                 ->get()
-                ->map(fn (PricingRule $rule) => $this->mapPricingRule($rule, $year));
+                ->map(fn (PricingRule $rule) => $this->mapPricingRule($rule, $year))
+                ->sortBy('membership_type_name')
+                ->values();
 
             $interclubRules = InterclubPackageRule::query()
                 ->with(['sourceClub', 'targetClub', 'sourceMembershipType', 'targetMembershipType', 'feeHistory'])
                 ->where('target_club_id', $clubId)
-                ->orderBy('priority')
                 ->get()
-                ->map(fn (InterclubPackageRule $rule) => $this->mapInterclubRule($rule, $year));
+                ->map(fn (InterclubPackageRule $rule) => $this->mapInterclubRule($rule, $year))
+                ->sortBy('target_membership_type_name')
+                ->values();
+
+            $currentClub = Club::query()->select('id', 'name', 'code')->find($clubId);
 
             return Inertia::render('AdminClubs/FeeSchedules/Index', [
                 'pricingRules' => $pricingRules,
                 'interclubRules' => $interclubRules,
                 'year' => $year,
+                'currentClub' => $currentClub ? [
+                    'id' => $currentClub->id,
+                    'name' => $currentClub->name,
+                    'code' => $currentClub->code,
+                ] : null,
             ]);
         } catch (\Exception $e) {
             report($e);
@@ -143,6 +153,7 @@ class FeeScheduleController extends Controller
             'id' => $rule->id,
             'membership_type_name' => $rule->membershipType?->name,
             'membership_type_code' => $rule->membershipType?->code,
+            'from_membership_type_id' => $rule->from_membership_type_id,
             'from_membership_type_name' => $rule->fromMembershipType?->name,
             'from_membership_type_code' => $rule->fromMembershipType?->code,
             'min_age' => $rule->min_age,

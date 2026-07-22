@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { Head, router, usePage } from "@inertiajs/vue3";
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { customToastSwal } from "@/utils/swal";
 import BaseButton from "@/Components/BaseButton.vue";
 
@@ -9,6 +9,7 @@ interface PricingRuleRow {
     id: number;
     membership_type_name: string | null;
     membership_type_code: string | null;
+    from_membership_type_id: number | null;
     from_membership_type_name: string | null;
     from_membership_type_code: string | null;
     min_age: number | null;
@@ -35,16 +36,24 @@ interface InterclubRuleRow {
     has_explicit_year: boolean;
 }
 
+interface CurrentClub {
+    id: number;
+    name: string;
+    code: string;
+}
+
 interface Props {
     pricingRules?: PricingRuleRow[];
     interclubRules?: InterclubRuleRow[];
     year?: number;
+    currentClub?: CurrentClub | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
     pricingRules: () => [],
     interclubRules: () => [],
     year: () => new Date().getFullYear(),
+    currentClub: null,
 });
 
 const page = usePage<any>();
@@ -59,10 +68,60 @@ const yearOptions = Array.from({ length: currentYear + 1 - 2010 + 1 }, (_, i) =>
 
 const pricingRows = ref<PricingRuleRow[]>(props.pricingRules.map((row) => ({ ...row })));
 const interclubRows = ref<InterclubRuleRow[]>(props.interclubRules.map((row) => ({ ...row })));
+const currentClub = ref<CurrentClub | null>(props.currentClub);
+
+const singleClubLabel = (): string => currentClub.value?.name ?? "Club único";
+
+// ── Filtros (client-side, la tabla ya trae todos los renglones del club) ──
+const pricingDestinationFilter = ref<string | null>(null);
+const pricingConditionFilter = ref<boolean | null>(null);
+const pricingActiveFilter = ref<boolean | null>(null);
+
+const destinationMembershipOptions = computed(() => {
+    const names = new Set(
+        pricingRows.value
+            .map((row) => row.membership_type_name)
+            .filter((name): name is string => !!name),
+    );
+
+    return Array.from(names)
+        .sort((a, b) => a.localeCompare(b))
+        .map((name) => ({ title: name, value: name }));
+});
+
+const conditionOptions = computed(() => [
+    { title: "Todas", value: null },
+    { title: "Ambos parques", value: true },
+    { title: singleClubLabel(), value: false },
+]);
+
+const yesNoOptions = [
+    { title: "Todas", value: null },
+    { title: "Activas", value: true },
+    { title: "Inactivas", value: false },
+];
+
+const filteredPricingRows = computed(() => {
+    return pricingRows.value.filter((row) => {
+        if (pricingDestinationFilter.value && row.membership_type_name !== pricingDestinationFilter.value) {
+            return false;
+        }
+
+        if (pricingConditionFilter.value !== null && row.requires_multiple_clubs !== pricingConditionFilter.value) {
+            return false;
+        }
+
+        if (pricingActiveFilter.value !== null && row.is_active !== pricingActiveFilter.value) {
+            return false;
+        }
+
+        return true;
+    });
+});
 
 const ageRangeLabel = (row: PricingRuleRow) => {
     if (row.min_age === null && row.max_age === null) {
-        return "Sin restricción";
+        return "";
     }
     if (row.min_age !== null && row.max_age !== null) {
         return `${row.min_age}-${row.max_age} años`;
@@ -83,6 +142,7 @@ const fetchItems = () => {
             onSuccess: (pageResponse) => {
                 pricingRows.value = (pageResponse.props.pricingRules as PricingRuleRow[]).map((row) => ({ ...row }));
                 interclubRows.value = (pageResponse.props.interclubRules as InterclubRuleRow[]).map((row) => ({ ...row }));
+                currentClub.value = (pageResponse.props.currentClub as CurrentClub | null) ?? null;
                 loading.value = false;
             },
             onError: () => {
@@ -178,6 +238,36 @@ const save = () => {
             </v-row>
 
             <h3 class="text-h6 mb-2">Reglas de precio</h3>
+            <v-row class="mb-2" dense>
+                <v-col cols="12" md="5">
+                    <v-autocomplete
+                        v-model="pricingDestinationFilter"
+                        :items="destinationMembershipOptions"
+                        label="Buscar por membresía de destino"
+                        density="compact"
+                        clearable
+                        hide-details
+                    />
+                </v-col>
+                <v-col cols="12" md="4">
+                    <v-select
+                        v-model="pricingConditionFilter"
+                        :items="conditionOptions"
+                        label="Condición"
+                        density="compact"
+                        hide-details
+                    />
+                </v-col>
+                <v-col cols="12" md="3">
+                    <v-select
+                        v-model="pricingActiveFilter"
+                        :items="yesNoOptions"
+                        label="Estado"
+                        density="compact"
+                        hide-details
+                    />
+                </v-col>
+            </v-row>
             <v-table :loading="loading" density="comfortable" fixed-header height="420px">
                 <thead>
                     <tr>
@@ -190,21 +280,19 @@ const save = () => {
                     </tr>
                 </thead>
                 <tbody>
-                    <tr v-for="row in pricingRows" :key="`pr-${row.id}`">
+                    <tr v-for="row in filteredPricingRows" :key="`pr-${row.id}`">
                         <td>
                             <div class="font-weight-medium">
-                                {{ row.membership_type_code }} · {{ row.membership_type_name }}
+                                {{ row.membership_type_name }}
                             </div>
                         </td>
                         <td>
-                            {{ row.from_membership_type_id
-                                ? `${row.from_membership_type_code} · ${row.from_membership_type_name}`
-                                : 'Sin origen' }}
+                            {{ row.from_membership_type_id ? row.from_membership_type_name : '--' }}
                         </td>
                         <td>{{ ageRangeLabel(row) }}</td>
                         <td>
                             <v-chip size="small" :color="row.requires_multiple_clubs ? 'success' : 'default'" variant="tonal">
-                                {{ row.requires_multiple_clubs ? 'Multiclub' : 'Club único' }}
+                                {{ row.requires_multiple_clubs ? 'Ambos parques' : singleClubLabel() }}
                             </v-chip>
                             <v-chip v-if="!row.is_active" size="small" color="default" variant="tonal" class="ml-1">
                                 Inactiva
@@ -238,6 +326,11 @@ const save = () => {
                             No hay reglas de precio para este club.
                         </td>
                     </tr>
+                    <tr v-else-if="!filteredPricingRows.length">
+                        <td colspan="6" class="text-center text-medium-emphasis py-4">
+                            Ningún resultado coincide con los filtros.
+                        </td>
+                    </tr>
                 </tbody>
             </v-table>
 
@@ -260,7 +353,7 @@ const save = () => {
                         </td>
                         <td>
                             <div class="font-weight-medium">
-                                {{ row.target_membership_type_code }} · {{ row.target_membership_type_name }}
+                                {{ row.target_membership_type_name }}
                             </div>
                         </td>
                         <td>
