@@ -8,6 +8,8 @@ use App\Models\Administrator\Club;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 trait HandlesFeedbackTickets {
 
@@ -46,15 +48,18 @@ trait HandlesFeedbackTickets {
                 continue;
             }
 
-            $path = $file->store($ticketFolder, 'public');
+            $filename    = Str::uuid() . '.' . $file->getClientOriginalExtension();
+            $storagePath = $ticketFolder . '/' . $filename;
+
+            Storage::disk('spaces')->putFileAs($ticketFolder, $file, $filename, 'public');
 
             Attachment::create([
-                'ticket_id' => $ticket->id,
-                'file_name' => $file->getClientOriginalName(),
-                'file_path' => basename($path),
-                'file_type' => $file->getClientMimeType(),
-                'file_size' => $file->getSize(),
-                'storage_disk' => 'public',
+                'ticket_id'           => $ticket->id,
+                'file_name'           => $file->getClientOriginalName(),
+                'file_path'           => $storagePath,
+                'file_type'           => $file->getClientMimeType(),
+                'file_size'           => $file->getSize(),
+                'storage_disk'        => 'spaces',
                 'uploaded_by_user_id' => Auth::id(),
             ]);
         }

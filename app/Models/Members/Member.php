@@ -13,6 +13,7 @@ use App\Models\Members\ClinicalHistory;
 use App\Models\User;
 use App\Traits\SerializesDates;
 use Carbon\Carbon;
+use Database\Factories\MemberFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -25,12 +26,20 @@ class Member extends Model
     protected $connection = 'pgsql';
     protected $appends = ['full_name', 'age'];
 
+    /** Valores válidos: 'H' (hombre) o 'M' (mujer) */
+    public const GENDERS = ['H', 'M'];
+
     public function scopeByClub($query, $clubId)
     {
         return $query->whereHas('accounts', function ($q) use ($clubId) {
             $q->where('club_id', $clubId)
             ->where('status', 'active');
         });
+    }
+
+    protected static function newFactory(): MemberFactory
+    {
+        return MemberFactory::new();
     }
 
     public function user()
@@ -133,6 +142,18 @@ class Member extends Model
     public function defaultPaymentSource()
     {
         return $this->hasOne(MemberPaymentSource::class, 'member_id')->where('is_default', true);
+    }
+
+    public function defaultPaymentSourceForClub(int $clubId)
+    {
+        return $this->hasOne(MemberPaymentSource::class, 'member_id')
+            ->where('club_id', $clubId)
+            ->where('is_default', true);
+    }
+
+    public function conektaCustomers()
+    {
+        return $this->hasMany(ConektaCustomer::class, 'member_id');
     }
 
 }

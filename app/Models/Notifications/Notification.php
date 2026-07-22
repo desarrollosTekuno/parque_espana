@@ -53,4 +53,9 @@ class Notification extends Model
     {
         return $this->hasMany(EmailLog::class, 'notification_id');
     }
+
+    public function deliveryLogs()
+    {
+        return $this->hasMany(NotificationDeliveryLog::class, 'notification_id');
+    }
 }

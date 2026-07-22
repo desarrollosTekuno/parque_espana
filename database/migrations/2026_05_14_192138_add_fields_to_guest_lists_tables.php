@@ -39,8 +39,8 @@ return new class extends Migration
         Schema::table('guest_lists.guest_lists', function (Blueprint $table) {
             $table->renameColumn('billable_subtotal', 'subtotal');
             $table->dropColumn('title');
-            $table->dropColumn('date');
-            $table->dropColumn('time');
+            // $table->dropColumn('date');
+            // $table->dropColumn('time');
             $table->dropColumn('description');
             $table->dropColumn('total_billable_guests');
             $table->dropColumn('non_billable_subtotal');

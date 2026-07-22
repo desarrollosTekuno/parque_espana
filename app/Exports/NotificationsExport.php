@@ -14,7 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
-class EmailNotificationsExport implements WithMultipleSheets
+class NotificationsExport implements WithMultipleSheets
 {
     public function __construct(
         protected Request $request,
@@ -33,7 +33,7 @@ class EmailNotificationsExport implements WithMultipleSheets
     private function getNotifications()
     {
         $driver = DB::getDriverName();
-        $prefix = 'email_notifications';
+        $prefix = 'notifications';
         $sessionClubId = (int) session('club_id');
         $requestedClubId = $this->request->input("{$prefix}_club_id", $this->request->input('club_id'));
         $clubIds = Auth::user()->clubs()->pluck('clubs.id');
@@ -41,9 +41,6 @@ class EmailNotificationsExport implements WithMultipleSheets
         $query = Notification::query()
             ->with(['creator:id,name', 'status:id,name,code', 'club:id,name'])
             ->withCount('recipients')
-            ->whereHas('channel', function ($channelQuery) {
-                $channelQuery->where('code', 'email');
-            })
             ->whereIn('club_id', $clubIds);
 
         if ($requestedClubId > 0) {

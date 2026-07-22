@@ -70,6 +70,10 @@ const uploadHint = computed(() => {
     return mimes.map(mime => props.commonMimeTypes.find(m => m.value === mime)?.title ?? mime).join(", ");
 });
 
+const types = (mimes: string[]) => {
+    return mimes.map(mime => props.commonMimeTypes.find(m => m.value === mime)?.title ?? mime).join(", ");
+}
+
 interface FormatForm {
     id: number | null;
     code: string;
@@ -308,7 +312,8 @@ const downloadClubFile = (item: FileFormatItem) => {
 // Aquí se definen los encabezados de la tabla, donde key es el nombre de la columna en la base de datos
 const headers = computed(() => [
     { title: "Código", key: "code", sortable: false },
-    { title: "Formato", key: "name", sortable: false },
+    { title: "Nombre", key: "name", sortable: false },
+    { title: "Tipo", key: "allowed_mime_types", sortable: false },
     { title: "Req.", key: "is_required", sortable: false },
     { title: "Activo", key: "is_active", sortable: false },
     {
@@ -326,6 +331,7 @@ const loading = ref(false);
 const items = ref<FileFormatItem[]>(props.files?.data ?? []);
 const total = ref<number>(props.files?.total ?? 0);
 const search = ref(String(props.filters?.search ?? ""));
+const isActive = ref(String(props.filters?.is_active ?? ""));
 const prefix = "files";
 
 const options = ref({
@@ -342,6 +348,7 @@ const fetchItems = () => {
         [`${prefix}_page`]: options.value.page,
         [`${prefix}_per_page`]: options.value.itemsPerPage,
         [`${prefix}_search`]: search.value,
+        [`${prefix}_is_active`]: isActive.value,
     };
 
     router.get(route("files.index"), params, {
@@ -359,7 +366,7 @@ const fetchItems = () => {
     });
 };
 
-watch([options, search], debounce(fetchItems, 400), { deep: true });
+watch([options, search, isActive], debounce(fetchItems, 400), { deep: true });
 watch(() => (page.props as any).auth.currentClub, fetchItems);
 </script>
 
@@ -408,12 +415,26 @@ watch(() => (page.props as any).auth.currentClub, fetchItems);
                     >
                         <template #top>
                             <v-row class="px-4 pt-4">
-                                <v-col cols="12" md="12">
+                                <v-col cols="12" md="8">
                                     <v-text-field
                                         v-model="search"
                                         label="Buscar por código, nombre o descripción"
                                         clearable
                                         prepend-inner-icon="mdi-magnify"
+                                    />
+                                </v-col>
+                                <v-col cols="12" md="4">
+                                    <v-select
+                                        v-model="isActive"
+                                        label="Estado"
+                                        prepend-inner-icon="mdi-filter"
+                                        :items="[
+                                            { title: 'Todos', value: '' },
+                                            { title: 'Activos', value: '1' },
+                                            { title: 'Inactivos', value: '0' },
+                                        ]"
+                                        item-title="title"
+                                        item-value="value"
                                     />
                                 </v-col>
                             </v-row>
@@ -430,6 +451,11 @@ watch(() => (page.props as any).auth.currentClub, fetchItems);
                             <div v-if="item.description" class="text-caption text-medium-emphasis">
                                 {{ item.description }}
                             </div>
+                        </template>
+
+                        <!-- TIPO DE ARCHIVO -->
+                        <template #item.allowed_mime_types="{ item }">
+                            <div class="font-weight-medium">{{ types(item.allowed_mime_types) }}</div>
                         </template>
 
                         <!-- REQUERIDO -->
@@ -529,7 +555,7 @@ watch(() => (page.props as any).auth.currentClub, fetchItems);
             <v-form @submit.prevent="saveFormat" ref="formFileSendRef">
                 <v-card
                 prepend-icon="mdi-file-cog-outline"
-                :title="formatForm.id ? 'Editar formato de archivo' : 'Nuevo formato de archivo'"
+                :title="formatForm.id ? 'Editar formato de archivo' : 'Nuevo formato de archivo' "
                 >
                     <v-card-text class="overflow-y-auto h-full">
                         <v-row>

@@ -50,7 +50,7 @@ const showDetailModal = ref(false);
 const formSendRef = ref();
 const selectedTicket = ref<any>(null);
 const previewAttachment = ref<any>(null);
-const visibleComments = computed(() => (selectedTicket.value?.comments ?? []).filter((comment: any) => !comment?.is_internal));
+const visibleComments = computed(() => (selectedTicket.value?.comments ?? []).filter((comment: any) => !comment?.is_internal)); 
 
 const form = useForm<FeedbackForm>({
     id: null,

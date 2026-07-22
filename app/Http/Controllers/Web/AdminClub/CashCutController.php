@@ -210,10 +210,21 @@ class CashCutController extends Controller
         $end   = $cashCut->date->copy()->endOfDay()->setTimezone($tz)->utc();
 
         return Payment::with(['paymentMethod', 'membershipAccount'])
-            ->where('club_id', $cashCut->club_id)
             ->where('received_by', $cashCut->user_id)
             ->whereBetween('paid_at', [$start, $end])
             ->whereJsonContains('metadata->settlement_channel', 'cashier')
+            ->where(function ($query) use ($cashCut) {
+                // El corte de caja se rige por el parque que estaba activo en la
+                // sesión del cajero al momento del cobro (metadata.session_club_id),
+                // no por el parque al que pertenece el cargo cobrado. Así, un cobro
+                // de un cargo del otro parque cae en el corte del cajero que lo cobró.
+                $query->whereJsonContains('metadata->session_club_id', $cashCut->club_id)
+                    ->orWhere(function ($fallback) use ($cashCut) {
+                        // Compatibilidad con pagos previos a este campo de metadata.
+                        $fallback->whereNull('metadata->session_club_id')
+                            ->where('club_id', $cashCut->club_id);
+                    });
+            })
             ->orderBy('paid_at')
             ->get()
             ->map(fn (Payment $p) => [

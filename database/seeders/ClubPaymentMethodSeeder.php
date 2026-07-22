@@ -22,12 +22,16 @@ class ClubPaymentMethodSeeder extends Seeder
                 'CASH',
                 'BANK_TRANSFER',
                 'APP_PAYMENT',
-                'SERVICES',
+                'CHECK',
+                'CREDIT_CARD',
+                'DEBIT_CARD',
             ];
 
-            if ($club->code === 'PE2') {
-                $allowedMethodCodes[] = 'CHECK';
-            }
+            // if ($club->code === 'PE2') {
+            //     $allowedMethodCodes[] = 'CHECK_PE2';
+            //     $allowedMethodCodes[] = 'CREDIT_CARD_PE2';
+            //     $allowedMethodCodes[] = 'DEBIT_CARD_PE2';
+            // }
 
             foreach ($allowedMethodCodes as $index => $code) {
                 $method = $methods->get($code);

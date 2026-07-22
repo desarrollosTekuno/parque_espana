@@ -1,17 +1,17 @@
 <script setup lang="ts">
 import routes from "@/routing";
 import { Link, usePage } from "@inertiajs/vue3";
-import { onMounted, onUnmounted, nextTick, ref, computed } from "vue";
+import { onMounted, onUnmounted, nextTick, ref, computed, watch } from "vue";
 import { router } from "@inertiajs/vue3";
 import { useDisplay } from "vuetify";
 
-const can = usePage().props.auth.permissions;
-const auth = usePage().props.auth;
 const page = usePage<any>();
+const auth = computed(() => page.props.auth ?? {});
+const can = computed(() => auth.value.permissions ?? []);
 const pendingAds = computed(() => page.props.pendingBusinessAds ?? 0);
 const pendingAgeTransitions = computed(() => (page.props as any).pendingAgeTransitions ?? 0);
-const clubs = page.props.auth?.clubs ?? [];
-const selectedClub = ref(page.props.auth?.currentClub ?? null);
+const clubs = computed(() => auth.value.clubs ?? []);
+const selectedClub = ref(auth.value.currentClub ?? null);
 
 const changeClub = () => {
     router.post(
@@ -34,9 +34,33 @@ const changeClub = () => {
         },
     );
 };
+
+// Mantiene sincronizado el club seleccionado cuando la lista de clubes se recarga:
+// usa el currentClub que reporta el backend si sigue en la lista, y si no
+// (por ejemplo, tras cambiar de parque y refrescarse la lista), cae al primero
+// y además sincroniza el club_id de la sesión, ya que todas las consultas del
+// backend se rigen por ese valor.
+watch(
+    clubs,
+    (list) => {
+        if (!list.length) {
+            selectedClub.value = null;
+            return;
+        }
+
+        const preferred = auth.value.currentClub;
+        const match = list.find((club: any) => club.id === preferred) ?? list[0];
+        selectedClub.value = match.id;
+
+        if (match.id !== preferred) {
+            changeClub();
+        }
+    },
+    { immediate: true },
+);
 // Devuelve el club actualmente seleccionado (o null si no hay)
 const currentClub = computed(() => {
-    return clubs.find((club: any) => club.id === selectedClub.value);
+    return clubs.value.find((club: any) => club.id === selectedClub.value) ?? null;
 });
 
 const drawer = defineModel("drawer");
@@ -62,21 +86,22 @@ const saveOpened = (groups: string[]) => {
 const opened = ref<string[]>(loadOpened());
 
 // true cuando el drawer está en modo colapsado (solo íconos)
+// En móvil el modo rail no aplica: el drawer siempre es un overlay a pantalla completa
 const isRail = computed(() =>
-    display.mobile.value ? !props.rail : props.rail,
+    display.mobile.value ? false : props.rail,
 );
 
 const existSomeRoute = (routeNames: any): boolean => {
     if (routeNames instanceof Array) {
-        return routeNames.some((routeName) => can.includes(routeName));
+        return routeNames.some((routeName) => can.value.includes(routeName));
     }
-    return can.includes(routeNames);
+    return can.value.includes(routeNames);
 };
 
 const isActive = (name: string[]): boolean => name.some((n) => route().current(n));
 
 const userInitials = computed(() => {
-    const parts = (auth.user.name ?? "").trim().split(/\s+/);
+    const parts = (auth.value.user?.name ?? "").trim().split(/\s+/);
     if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
     return parts[0]?.[0]?.toUpperCase() ?? "?";
 });
@@ -150,17 +175,16 @@ const getGroupItemBadgeCount = (groupItem: any): number => {
 //     return route().current("members.manage.show");
 // });
 const disabledSelectClub = computed(() => {
-    return route().current("members.lockers.create") || route().current("members.manage.show");
+    return route().current("members.lockers.create") || route().current("members.manage.show") || route().current("members.additional-membership.create");
 });
-console.log(JSON.parse(JSON.stringify(page.props.auth.clubs)))
 </script>
 
 <template>
     <v-navigation-drawer
         v-model="drawer"
         :location="$vuetify.display.mobile ? 'left' : undefined"
-        :permanent="rail"
-        :rail="$vuetify.display.mobile ? !props.rail : props.rail"
+        :permanent="!$vuetify.display.mobile && rail"
+        :rail="isRail"
         theme="myDarkTheme"
         class="font-poppins"
         style="background-color: #0a2540"
@@ -174,12 +198,12 @@ console.log(JSON.parse(JSON.stringify(page.props.auth.clubs)))
                         background-color: #0d2e52;
                         border-left: 4px solid #d4172a;
                     "
-                    :subtitle="auth.user.email"
-                    :title="auth.user.name"
+                    :subtitle="auth.user?.email"
+                    :title="auth.user?.name"
                 >
                     <template #prepend>
                         <v-img
-                            v-if="clubs?.length"
+                            v-if="currentClub?.logo_url"
                             :width="50"
                             aspect-ratio="16/9"
                             cover
@@ -219,7 +243,7 @@ console.log(JSON.parse(JSON.stringify(page.props.auth.clubs)))
                     :disabled="disabledSelectClub"
                     :hint="
                         !isRail && disabledSelectClub
-                            ? 'No puedes cambiar de club durante la asignación de casilleros o la gestión de miembros'
+                            ? 'No puedes cambiar de club desde esta sección'
                             : ''
                     "
                     persistent-hint

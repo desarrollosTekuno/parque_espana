@@ -9,6 +9,7 @@ import BaseButton from "@/Components/BaseButton.vue";
 interface BillingConceptItem {
     id: number;
     code: string;
+    internal_key: string | null;
     name: string;
     description: string | null;
     default_amount: number | null;
@@ -56,6 +57,7 @@ const options = ref({
 const headers = computed(() => [
     // { title: "ID", key: "id" },
     { title: "Concepto", key: "name" },
+    { title: "Clave interna", key: "internal_key", sortable: false },
     { title: "Monto base", key: "default_amount" },
     {
         title: props.currentClub?.code
@@ -83,6 +85,7 @@ const yesNoOptions = [
 interface BillingConceptForm {
     id: number | null;
     code: string;
+    internal_key: string | null;
     name: string;
     description: string | null;
     default_amount: string | number | null;
@@ -95,6 +98,7 @@ interface BillingConceptForm {
 const form = useForm<BillingConceptForm>({
     id: null,
     code: "",
+    internal_key: null,
     name: "",
     description: null,
     default_amount: null,
@@ -109,6 +113,7 @@ const resetForm = () => {
     form.clearErrors();
     form.id = null;
     form.code = "";
+    form.internal_key = null;
     form.name = "";
     form.description = null;
     form.default_amount = null;
@@ -127,6 +132,7 @@ const openEdit = (item: BillingConceptItem) => {
     resetForm();
     form.id = item.id;
     form.code = item.code;
+    form.internal_key = item.internal_key;
     form.name = item.name;
     form.description = item.description;
     form.default_amount = item.default_amount;
@@ -322,6 +328,13 @@ watch(
                             </div>
                         </template>
 
+                        <template #item.internal_key="{ item }">
+                            <v-chip v-if="item.internal_key" size="small" variant="tonal">
+                                {{ item.internal_key }}
+                            </v-chip>
+                            <span v-else class="text-medium-emphasis">—</span>
+                        </template>
+
                         <template #item.default_amount="{ item }">
                             {{ formatAmount(item.default_amount) }}
                         </template>
@@ -388,7 +401,7 @@ watch(
                 >
                     <v-card-text>
                         <v-row>
-                            <v-col cols="12" md="4">
+                            <v-col cols="12" md="3">
                                 <v-text-field
                                     v-model="form.code"
                                     label="Código"
@@ -397,7 +410,17 @@ watch(
                                 />
                             </v-col>
 
-                            <v-col cols="12" md="8">
+                            <v-col cols="12" md="3">
+                                <v-text-field
+                                    v-model="form.internal_key"
+                                    label="Clave interna"
+                                    hint="Referencia al catálogo contable/legado, opcional"
+                                    persistent-hint
+                                    :error-messages="form.errors.internal_key"
+                                />
+                            </v-col>
+
+                            <v-col cols="12" md="6">
                                 <v-text-field
                                     v-model="form.name"
                                     label="Nombre"

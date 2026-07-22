@@ -199,7 +199,8 @@ class MembershipChargeService
         float $inscriptionFee = 0,
         array $metadata = [],
         ?Carbon $chargeDate = null,
-        bool $reconcileExistingMonthlyCharge = false
+        bool $reconcileExistingMonthlyCharge = false,
+        ?int $installmentMonths = null
     ): void {
         $chargeDate = ($chargeDate ?? now())->copy()->startOfDay();
         $monthlyConcept = $this->resolveConcept('MONTHLY_FEE');
@@ -278,25 +279,42 @@ class MembershipChargeService
 
         if ($inscriptionFee > 0) {
             $inscriptionConcept = $this->resolveConcept('INSCRIPTION');
+            $months = ($installmentMonths !== null && $installmentMonths > 1) ? $installmentMonths : 1;
+            $baseAmount = round($inscriptionFee / $months, 2);
+            $remainder = round($inscriptionFee - ($baseAmount * $months), 2);
 
-            Charge::create([
+            $commonFields = [
                 'membership_account_id' => $membership->membership_account_id,
-                'membership_id' => $membership->id,
-                'member_id' => $membership->account?->primaryHolder?->member_id,
-                'concept_id' => $inscriptionConcept->id,
-                'description' => $this->buildInscriptionChargeDescription($membership),
-                'amount' => $inscriptionFee,
-                'balance' => $inscriptionFee,
-                'issue_date' => $chargeDate->toDateString(),
-                'due_date' => $chargeDate->toDateString(),
-                'period_year' => null,
-                'period_month' => null,
+                'membership_id'         => $membership->id,
+                'member_id'             => $membership->account?->primaryHolder?->member_id,
+                'concept_id'            => $inscriptionConcept->id,
+                'period_year'           => null,
+                'period_month'          => null,
                 'allows_partial_payments' => (bool) $inscriptionConcept->allows_partial_payments,
-                'status' => 'pending',
-                'metadata' => array_merge($metadata, [
-                    'concept_code' => $inscriptionConcept->code,
-                ]),
-            ]);
+                'status'                => 'pending',
+            ];
+
+            for ($i = 0; $i < $months; $i++) {
+                $dueDate = $chargeDate->copy()->addMonthsNoOverflow($i);
+                $amount  = $i === $months - 1
+                    ? round($baseAmount + $remainder, 2)
+                    : $baseAmount;
+
+                Charge::create(array_merge($commonFields, [
+                    'description' => $months > 1
+                        ? $this->buildInscriptionInstallmentDescription($membership, $i + 1, $months)
+                        : $this->buildInscriptionChargeDescription($membership),
+                    'amount'     => $amount,
+                    'balance'    => $amount,
+                    'issue_date' => $chargeDate->toDateString(),
+                    'due_date'   => $dueDate->toDateString(),
+                    'metadata'   => array_merge($metadata, [
+                        'concept_code'       => $inscriptionConcept->code,
+                        'installment_months' => $months > 1 ? $months : null,
+                        'installment_index'  => $months > 1 ? $i + 1 : null,
+                    ]),
+                ]));
+            }
         }
     }
 
@@ -377,6 +395,13 @@ class MembershipChargeService
         $membershipTypeName = $membership->membershipType?->name ?? 'Membresía';
 
         return sprintf('Inscripción - %s', $membershipTypeName);
+    }
+
+    protected function buildInscriptionInstallmentDescription(Membership $membership, int $index, int $total): string
+    {
+        $membershipTypeName = $membership->membershipType?->name ?? 'Membresía';
+
+        return sprintf('Inscripción - %s (Parcialidad %d de %d)', $membershipTypeName, $index, $total);
     }
 
     protected function resolveExistingPeriodMonthlyAmount(

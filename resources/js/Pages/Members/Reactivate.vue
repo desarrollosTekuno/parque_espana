@@ -345,7 +345,7 @@ const submit = () => {
                                                     Requiere nueva documentación
                                                 </div>
                                                 <div class="text-caption text-medium-emphasis">
-                                                    El socio deberá presentar documentación actualizada antes de gozar de todos los beneficios.
+                                                    El usuario deberá presentar documentación actualizada antes de gozar de todos los beneficios.
                                                 </div>
                                             </div>
                                         </template>
@@ -408,7 +408,7 @@ const submit = () => {
                                     <template #label>
                                         <span class="text-body-2">
                                             Confirmo que la reactivación de esta cuenta ha sido autorizada
-                                            y que el socio cumple con los requisitos para su reingreso.
+                                            y que el usuario cumple con los requisitos para su reingreso.
                                         </span>
                                     </template>
                                 </v-checkbox>

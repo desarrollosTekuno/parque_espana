@@ -22,6 +22,7 @@ class PaymentMethodSeeder extends Seeder
                 'requires_check_number' => false,
                 'affects_cash_cut' => true,
                 'is_active' => true,
+                'show_in_billing' => true,
             ],
             [
                 'code' => 'BANK_TRANSFER',
@@ -32,43 +33,71 @@ class PaymentMethodSeeder extends Seeder
                 'requires_check_number' => false,
                 'affects_cash_cut' => true,
                 'is_active' => true,
+                'show_in_billing' => true,
             ],
             [
                 'code' => 'APP_PAYMENT',
                 'name' => 'Pago en app',
-                'description' => 'Pago realizado mediante la aplicacion movil.',
+                'description' => 'Pago realizado mediante la aplicación móvil.',
                 'requires_reference' => true,
                 'requires_bank_name' => false,
                 'requires_check_number' => false,
                 'affects_cash_cut' => true,
                 'is_active' => true,
+                'show_in_billing' => false,
+                'provider' => 'conekta',
             ],
             [
                 'code' => 'CHECK',
                 'name' => 'Cheque',
-                'description' => 'Pago mediante cheque bancario.',
+                'description' => 'Pago mediante cheque bancario',
                 'requires_reference' => false,
                 'requires_bank_name' => true,
                 'requires_check_number' => true,
                 'affects_cash_cut' => true,
                 'is_active' => true,
+                'show_in_billing' => true,
             ],
+            // credit card
             [
-                'code' => 'SERVICES',
-                'name' => 'Pago con servicios',
-                'description' => 'Liquidacion de cargos mediante servicios autorizados, sin impacto en corte de caja monetario.',
-                'requires_reference' => false,
+                'code' => 'CREDIT_CARD',
+                'name' => 'Tarjeta de crédito',
+                'description' => 'Pago realizado con tarjeta de crédito.',
+                'requires_reference' => true,
                 'requires_bank_name' => false,
                 'requires_check_number' => false,
-                'affects_cash_cut' => false,
+                'affects_cash_cut' => true,
                 'is_active' => true,
+                'show_in_billing' => true,
+            ],
+            // tarjeta de débito
+            [
+                'code' => 'DEBIT_CARD',
+                'name' => 'Tarjeta de débito',
+                'description' => 'Pago realizado con tarjeta de débito.',
+                'requires_reference' => true,
+                'requires_bank_name' => false,
+                'requires_check_number' => false,
+                'affects_cash_cut' => true,
+                'is_active' => true,
+                'show_in_billing' => true,
             ],
         ];
 
         foreach ($methods as $method) {
             PaymentMethod::updateOrCreate(
                 ['code' => $method['code']],
-                $method
+                [
+                    'name' => $method['name'],
+                    'description' => $method['description'],
+                    'requires_reference' => $method['requires_reference'],
+                    'requires_bank_name' => $method['requires_bank_name'],
+                    'requires_check_number' => $method['requires_check_number'],
+                    'affects_cash_cut' => $method['affects_cash_cut'],
+                    'is_active' => $method['is_active'],
+                    'show_in_billing' => $method['show_in_billing'],
+                    'provider' => $method['provider'] ?? null,
+                ]
             );
         }
     }

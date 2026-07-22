@@ -99,7 +99,7 @@ const Cerrar = () => {
 // Aquí se definen los encabezados de la tabla, donde key es el nombre de la columna en la base de datos
 const headers = [
     { title: "ID", key: "id" },
-    { title: "Socio", key: "member.first_name" },
+    { title: "Usuario", key: "member.first_name" },
     { title: "Evento", key:"title"},
     { title: "Hora", key:"time"},
     { title: "Total Invitados", key: "total_guests" },
@@ -196,63 +196,7 @@ function toggleAll( v ) {
 }
 
 const submitPayment = async () => {
-    // cuenta del socio
-    // if (!selectedPaymentAccount.value) {
-    //     customToastSwal({
-    //         title: "Selecciona una cuenta para registrar el cobro.",
-    //         icon: "warning",
-    //     });
-    //     return;
-    // }
-
-    const validationResult = await paymentFormRef.value?.validate();
-
-    // if (validationResult && !validationResult.valid) {
-    //     customToastSwal({
-    //         title: "Revisa los campos marcados antes de guardar el cobro.",
-    //         icon: "warning",
-    //     });
-    //     return;
-    // }
-
-    // const applications = paymentDrafts.value
-    //     .filter((draft) => draft.selected && Number(draft.amount || 0) > 0)
-    //     .map((draft) => ({
-    //         charge_id: draft.charge_id,
-    //         amount: Number(Number(draft.amount).toFixed(2)),
-    //     }));
-
-    // if (!applications.length) {
-    //     customToastSwal({
-    //         title: "Selecciona al menos un cargo para registrar el cobro.",
-    //         icon: "warning",
-    //     });
-    //     return;
-    // }
-
-    // paymentForm.membership_account_id = selectedPaymentAccount.value.id;
-    // paymentForm.club_id = selectedPaymentClubId.value;
-    // paymentForm.applications = applications;
-
-    // paymentForm.post(route("billing.payments.store"), {
-    //     preserveScroll: true,
-    //     onSuccess: (pageResponse) => {
-    //         customToastSwal({
-    //             title:
-    //                 (pageResponse.props as any).flash?.success ||
-    //                 "Cobro registrado correctamente.",
-    //             icon: "success",
-    //         });
-    //         closePaymentModal();
-    //     },
-    //     onError: () => {
-    //         customToastSwal({
-    //             title: `Error: ${paymentForm.errors.messageError || "No se pudo registrar el cobro."}`,
-    //             text: `${paymentForm.errors.exception || ""}`,
-    //             icon: "error",
-    //         });
-    //     },
-    // });
+    // ...
 };
 
 </script>
@@ -347,7 +291,7 @@ const submitPayment = async () => {
                                     </div>
                                     <div class="d-flex ga-6 mt-2">
                                         <div>
-                                            <div class="text-caption text-medium-emphasis text-uppercase">Socio</div>
+                                            <div class="text-caption text-medium-emphasis text-uppercase">Usuario</div>
                                             <div class="text-body-2 font-weight-medium">{{ form.member }}</div>
                                         </div>
                                         <div>
@@ -447,7 +391,7 @@ const submitPayment = async () => {
                                             hide-details="auto"
                                         />
                                     </v-col>
-                                
+
                                     <!-- Fecha y hora -->
                                     <v-col cols="12" md="6">
                                         <v-text-field
@@ -459,7 +403,7 @@ const submitPayment = async () => {
                                             hide-details="auto"
                                         />
                                     </v-col>
-                                
+
                                     <!-- Banco (solo si el método lo requiere) -->
                                     <v-col v-if="selectedPaymentMethod?.requires_bank_name" cols="12" md="6">
                                         <v-text-field
@@ -470,7 +414,7 @@ const submitPayment = async () => {
                                             hide-details="auto"
                                         />
                                     </v-col>
-                                
+
                                     <!-- Referencia (solo si el método lo requiere) -->
                                     <v-col v-if="selectedPaymentMethod?.requires_reference" cols="12" md="6">
                                         <v-text-field
@@ -481,7 +425,7 @@ const submitPayment = async () => {
                                             hide-details="auto"
                                         />
                                     </v-col>
-                                
+
                                     <!-- Número de cheque (solo si el método lo requiere) -->
                                     <v-col v-if="selectedPaymentMethod?.requires_check_number" cols="12" md="6">
                                         <v-text-field
@@ -492,7 +436,7 @@ const submitPayment = async () => {
                                             hide-details="auto"
                                         />
                                     </v-col>
-                                
+
                                     <!-- Notas -->
                                     <v-col cols="12">
                                         <v-textarea

@@ -18,6 +18,7 @@ class AmenityResourceItem extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'capacity' => $this->capacity,
+            'slot_duration_minutes' => $this->slot_duration_minutes,
             'is_active' => $this->is_active
         ];
     }

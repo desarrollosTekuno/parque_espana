@@ -24,8 +24,8 @@ return new class extends Migration
 
     public function down(): void
     {
-        DB::table('catalogs.document_types')
-            ->where('code', 'INSCRIPTION_DISCOUNT')
-            ->delete();
+        // DB::table('catalogs.document_types')
+        //     ->where('code', 'INSCRIPTION_DISCOUNT')
+        //     ->delete();
     }
 };

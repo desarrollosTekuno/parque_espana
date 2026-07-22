@@ -261,7 +261,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 <v-text-field
                                     v-model="form.name"
                                     label="Nombre"
-                                    :rules="[required, alphaNumeric, maxLength(25)]"
+                                    :rules="[required, alphaNumeric, maxLength(30)]"
                                     :error-messages="form.errors.name"
                                 />
                             </v-col>
@@ -270,7 +270,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 <v-text-field
                                     v-model="form.code"
                                     label="Codigo"
-                                    :rules="[required, codeRule, maxLength(25)]"
+                                    :rules="[required, codeRule, maxLength(10)]"
                                     :error-messages="form.errors.code"
                                 />
                             </v-col>

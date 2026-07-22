@@ -60,7 +60,7 @@ class FeedbackStatusController extends Controller {
     public function store(Request $request) {
         $request->validate([
             'name' => ['required', 'string', 'max:35', 'regex:/^[A-Za-zÀ-ÿ0-9,\s]+$/u'],
-            'code' => ['required', 'string', 'max:30', 'regex:/^[A-Za-z0-9_]+$/', Rule::unique('feedback.statuses', 'code')],
+            'code' => ['required', 'string', 'max:30', 'regex:/^[A-Za-z0-9_]+$/', Rule::unique(Status::class, 'code')],
             'color' => ['nullable', 'string', 'max:20', 'regex:/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/'],
             'sort_order' => 'required|integer|min:0',
             'is_active' => 'boolean',
@@ -94,7 +94,7 @@ class FeedbackStatusController extends Controller {
     public function update(Request $request, $id) {
         $request->validate([
             'name' => ['required', 'string', 'max:35', 'regex:/^[A-Za-zÀ-ÿ0-9,\s]+$/u'],
-            'code' => ['required', 'string', 'max:30', 'regex:/^[A-Za-z0-9_]+$/', Rule::unique('feedback.statuses', 'code')->ignore($id)],
+            'code' => ['required', 'string', 'max:30', 'regex:/^[A-Za-z0-9_]+$/', Rule::unique(Status::class, 'code')->ignore($id)],
             'color' => ['nullable', 'string', 'max:20', 'regex:/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/'],
             'sort_order' => 'required|integer|min:0',
             'is_active' => 'required|boolean',

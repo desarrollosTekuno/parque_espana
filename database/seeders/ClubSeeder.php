@@ -15,13 +15,13 @@ class ClubSeeder extends Seeder
     {
         $clubs = [
             [
-                'name' => 'Parque España 1',
+                'name' => 'Parque España I',
                 'address' => 'Calle 1',
                 'is_active' => true,
                 'code' => 'PE1'
             ],
             [
-                'name' => 'Parque España 2',
+                'name' => 'Parque España II',
                 'address' => 'Calle 2',
                 'is_active' => true,
                 'code' => 'PE2'

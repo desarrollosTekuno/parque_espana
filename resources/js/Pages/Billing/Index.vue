@@ -57,6 +57,7 @@ interface BillingAccountItem {
     holder_name: string;
     email: string | null;
     phone: string | null;
+    photo: string | null;
     primary_membership_id: number | null;
     has_session_membership: boolean;
     session_membership_club_name: string | null;
@@ -96,6 +97,7 @@ interface PaymentMethodItem {
     requires_bank_name: boolean;
     requires_check_number: boolean;
     affects_cash_cut: boolean;
+    internal_key: string | null;
 }
 
 interface ClubPaymentMethodItem {
@@ -139,6 +141,31 @@ interface PaymentDraftItem {
     charge_id: number;
     selected: boolean;
     amount: string;
+}
+
+interface AnnualPaymentFormData {
+    membership_account_id: number | null;
+    club_id: number | null;
+    year: number;
+    payment_method_id: number | null;
+    paid_at: string;
+    reference: string;
+    bank_name: string;
+    check_number: string;
+    notes: string;
+}
+
+interface AnnualPaymentPreview {
+    charges_count: number;
+    months_covered: number[];
+    total_balance: number;
+    discount_rule: {
+        pay_by_month: number;
+        discount_months: number;
+        free_month: number;
+    } | null;
+    discount_amount: number;
+    payment_amount: number;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -186,6 +213,14 @@ const selectedPaymentAccount = ref<BillingAccountItem | null>(null);
 const selectedPaymentClubId = ref<number | null>(null);
 const paymentDrafts = ref<PaymentDraftItem[]>([]);
 const paymentFormRef = ref();
+
+// ── Anualidad ──────────────────────────────────────────────────────────────
+const showAnnualModal = ref(false);
+const annualAccount = ref<BillingAccountItem | null>(null);
+const annualFormRef = ref();
+const annualPreview = ref<AnnualPaymentPreview | null>(null);
+const annualPreviewLoading = ref(false);
+const annualPreviewError = ref<string | null>(null);
 const search = ref(props.filters.search ?? "");
 const selectedClubId = ref<number | null>(props.filters.club_id ?? null);
 const expanded = ref<number[]>([]);
@@ -216,6 +251,18 @@ const paymentForm = useForm<PaymentFormData>({
     check_number: "",
     notes: "",
     applications: [],
+});
+
+const annualForm = useForm<AnnualPaymentFormData>({
+    membership_account_id: null,
+    club_id: null,
+    year: new Date().getFullYear(),
+    payment_method_id: null,
+    paid_at: nowAsLocalInput(),
+    reference: "",
+    bank_name: "",
+    check_number: "",
+    notes: "",
 });
 
 const clubFilterItems = computed(() =>
@@ -468,6 +515,129 @@ const chargeAmountRules = (
     },
 ];
 
+// ── Computed anualidad ─────────────────────────────────────────────────────
+const annualClubs = computed(() => {
+    if (!annualAccount.value) return [];
+    const seen = new Set<number>();
+    const result: ClubItem[] = [];
+    annualAccount.value.charges.forEach((c) => {
+        if (c.club_id !== null && !seen.has(c.club_id)) {
+            seen.add(c.club_id);
+            result.push({ id: c.club_id, code: c.club_code ?? "", name: c.club_name ?? "" });
+        }
+    });
+    return result;
+});
+
+const annualPaymentMethods = computed(() => {
+    if (annualForm.club_id === null) return [];
+    return clubPaymentMethods.value.find((c) => c.id === annualForm.club_id)?.payment_methods ?? [];
+});
+
+const annualPaymentMethod = computed(
+    () => annualPaymentMethods.value.find((m) => m.id === annualForm.payment_method_id) ?? null,
+);
+
+const annualReferenceRules = [
+    (v: string) => !annualPaymentMethod.value?.requires_reference || !!v || "La referencia es obligatoria para este método.",
+    optionalLength(0, 255),
+];
+const annualBankRules = [
+    (v: string) => !annualPaymentMethod.value?.requires_bank_name || !!v || "El banco es obligatorio para este método.",
+    optionalLength(0, 255),
+];
+const annualCheckRules = [
+    (v: string) => !annualPaymentMethod.value?.requires_check_number || !!v || "El número de cheque es obligatorio para este método.",
+    optionalLength(0, 255),
+];
+
+const monthName = (num: number) => {
+    const names = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+    return names[num - 1] ?? num;
+};
+
+const fetchAnnualPreview = async () => {
+    if (!annualForm.membership_account_id || !annualForm.club_id || !annualForm.year || !annualForm.paid_at) {
+        annualPreview.value = null;
+        return;
+    }
+    annualPreviewLoading.value = true;
+    annualPreviewError.value = null;
+    try {
+        const params = new URLSearchParams({
+            membership_account_id: String(annualForm.membership_account_id),
+            club_id: String(annualForm.club_id),
+            year: String(annualForm.year),
+            paid_at: annualForm.paid_at,
+        });
+        const res = await fetch(route("billing.annual-payment.preview") + "?" + params.toString(), {
+            headers: { "X-Requested-With": "XMLHttpRequest" },
+        });
+        if (!res.ok) throw new Error("Error al obtener la previsualización.");
+        annualPreview.value = await res.json();
+    } catch (e: any) {
+        annualPreviewError.value = e.message ?? "Error desconocido.";
+        annualPreview.value = null;
+    } finally {
+        annualPreviewLoading.value = false;
+    }
+};
+
+const openAnnualModal = (account: BillingAccountItem) => {
+    annualAccount.value = account;
+    annualForm.reset();
+    annualForm.clearErrors();
+    annualFormRef.value?.resetValidation?.();
+    annualForm.membership_account_id = account.id;
+    annualForm.club_id = account.clubs[0]?.id ?? null;
+    annualForm.year = new Date().getFullYear();
+    annualForm.paid_at = nowAsLocalInput();
+    annualPreview.value = null;
+    annualPreviewError.value = null;
+    showAnnualModal.value = true;
+    fetchAnnualPreview();
+};
+
+const closeAnnualModal = () => {
+    showAnnualModal.value = false;
+    annualAccount.value = null;
+    annualPreview.value = null;
+    annualPreviewError.value = null;
+    annualForm.reset();
+    annualForm.clearErrors();
+    annualFormRef.value?.resetValidation?.();
+};
+
+const submitAnnualPayment = async () => {
+    const validationResult = await annualFormRef.value?.validate();
+    if (validationResult && !validationResult.valid) {
+        customToastSwal({ title: "Revisa los campos marcados antes de continuar.", icon: "warning" });
+        return;
+    }
+    if (!annualPreview.value || annualPreview.value.charges_count === 0) {
+        customToastSwal({ title: "No hay cargos pendientes para ese año y parque.", icon: "warning" });
+        return;
+    }
+
+    annualForm.post(route("billing.annual-payment.store"), {
+        preserveScroll: true,
+        onSuccess: (pageResponse) => {
+            customToastSwal({
+                title: (pageResponse.props as any).flash?.success || "Pago de anualidad registrado.",
+                icon: "success",
+            });
+            closeAnnualModal();
+        },
+        onError: () => {
+            customToastSwal({
+                title: `Error: ${annualForm.errors.annual_messageError || "No se pudo registrar el pago."}`,
+                text: annualForm.errors.annual_exception || "",
+                icon: "error",
+            });
+        },
+    });
+};
+
 const clearFilters = () => {
     search.value = "";
     selectedClubId.value = null;
@@ -663,6 +833,11 @@ watch(selectedPaymentClubId, (clubId) => {
 watch([options, search, selectedClubId], debounce(fetchItems, 400), {
     deep: true,
 });
+
+watch(
+    () => [annualForm.club_id, annualForm.year, annualForm.paid_at],
+    debounce(fetchAnnualPreview, 500),
+);
 </script>
 
 <template>
@@ -774,7 +949,7 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                                             color="success"
                                             variant="tonal"
                                         >
-                                            {{ method.name }}
+                                            {{ method.internal_key ? `${method.name} (${method.internal_key})` : method.name }}
                                         </v-chip>
                                     </div>
                                 </v-card-text>
@@ -953,6 +1128,15 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                                         tooltip="Capturar un cobro para esta cuenta"
                                         @click="openPaymentModal(item)"
                                     />
+<!-- TODO: ANUALIDAD -->
+                                    <!-- <BaseButton
+                                        v-if="can.includes('billing.store')"
+                                        :icon-only="false"
+                                        action="add"
+                                        text="Anualidad"
+                                        tooltip="Registrar pago de anualidad con descuento"
+                                        @click="openAnnualModal(item)"
+                                    /> -->
 
                                     <BaseButton
                                         :icon-only="false"
@@ -968,6 +1152,7 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                                             )
                                         "
                                         :disabled="!item.primary_membership_id"
+                                        v-if="can.includes('accounts.view')"
                                     />
                                 </div>
                             </template>
@@ -1383,7 +1568,7 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                         aplicará
                     </v-card-subtitle>
 
-                    <v-card-text class="d-flex flex-column ga-4">
+                    <v-card-text style="max-height:80vh" class="d-flex flex-column ga-4 overflow-y-auto">
                     <v-form
                         ref="paymentFormRef"
                         validate-on="input"
@@ -1393,6 +1578,21 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                             <v-col cols="12" md="4">
                                 <v-card variant="tonal" color="primary">
                                     <v-card-text class="py-3">
+                                         <v-avatar
+                                            size="100"
+                                            class="mb-4"
+                                        >
+                                            <v-img
+                                                :src="selectedPaymentAccount.photo"
+                                                cover
+                                            >
+                                                <template #error>
+                                                    <v-icon size="60">
+                                                        mdi-account-circle
+                                                    </v-icon>
+                                                </template>
+                                            </v-img>
+                                        </v-avatar>
                                         <div
                                             class="text-caption text-medium-emphasis"
                                         >
@@ -1458,7 +1658,7 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                                             :items="
                                                 selectedPaymentMethods.map(
                                                     (method) => ({
-                                                        title: method.name,
+                                                        title: method.internal_key ? `${method.name} (${method.internal_key})` : method.name,
                                                         value: method.id,
                                                     }),
                                                 )
@@ -1862,6 +2062,209 @@ watch([options, search, selectedClubId], debounce(fetchItems, 400), {
                         />
                     </v-card-actions>
                 </v-card>
+        </v-dialog>
+
+        <!-- ── Modal: Pago de Anualidad ──────────────────────────────────── -->
+        <v-dialog v-model="showAnnualModal" max-width="700" persistent scrollable>
+            <v-card>
+                <v-card-title>Pago de anualidad</v-card-title>
+                <v-card-subtitle>
+                    El sistema calcula el descuento automáticamente según el mes de pago.
+                </v-card-subtitle>
+
+                <v-card-text class="d-flex flex-column ga-4">
+                    <v-form ref="annualFormRef" validate-on="input" @submit.prevent="submitAnnualPayment">
+                        <!-- Titular -->
+                        <v-card variant="tonal" color="primary" class="mb-4">
+                            <v-card-text class="py-3">
+                                <div class="text-caption text-medium-emphasis">Titular</div>
+                                <div class="font-weight-bold">{{ annualAccount?.holder_name }}</div>
+                                <div class="text-caption text-medium-emphasis mt-2">No. cuenta</div>
+                                <div class="font-weight-medium">{{ annualAccount?.membership_number }}</div>
+                            </v-card-text>
+                        </v-card>
+
+                        <v-row>
+                            <!-- Parque -->
+                            <v-col cols="12" md="4">
+                                <v-select
+                                    v-model="annualForm.club_id"
+                                    :items="annualClubs.map((c) => ({ title: `${c.code} - ${c.name}`, value: c.id }))"
+                                    label="Parque"
+                                    :rules="[selectRequired]"
+                                    hide-details="auto"
+                                />
+                            </v-col>
+
+                            <!-- Año -->
+                            <v-col cols="12" md="4">
+                                <v-text-field
+                                    v-model.number="annualForm.year"
+                                    label="Año a cubrir"
+                                    type="number"
+                                    min="2020"
+                                    max="2035"
+                                    :rules="[required]"
+                                    hide-details="auto"
+                                />
+                            </v-col>
+
+                            <!-- Fecha del pago -->
+                            <v-col cols="12" md="4">
+                                <v-text-field
+                                    v-model="annualForm.paid_at"
+                                    label="Fecha y hora del pago"
+                                    type="datetime-local"
+                                    :rules="[required]"
+                                    hide-details="auto"
+                                />
+                            </v-col>
+
+                            <!-- Método de pago -->
+                            <v-col cols="12" md="6">
+                                <v-select
+                                    v-model="annualForm.payment_method_id"
+                                    :items="annualPaymentMethods.map((m) => ({ title: m.internal_key ? `${m.name} (${m.internal_key})` : m.name, value: m.id }))"
+                                    label="Método de pago"
+                                    :rules="[selectRequired]"
+                                    :error-messages="annualForm.errors.payment_method_id"
+                                    hide-details="auto"
+                                />
+                            </v-col>
+
+                            <!-- Referencia -->
+                            <v-col cols="12" md="6">
+                                <v-text-field
+                                    v-model="annualForm.reference"
+                                    label="Referencia"
+                                    :disabled="!annualPaymentMethod?.requires_reference"
+                                    :rules="annualReferenceRules"
+                                    :error-messages="annualForm.errors.reference"
+                                    hide-details="auto"
+                                />
+                            </v-col>
+
+                            <!-- Banco -->
+                            <v-col cols="12" md="6">
+                                <v-text-field
+                                    v-model="annualForm.bank_name"
+                                    label="Banco"
+                                    :disabled="!annualPaymentMethod?.requires_bank_name"
+                                    :rules="annualBankRules"
+                                    :error-messages="annualForm.errors.bank_name"
+                                    hide-details="auto"
+                                />
+                            </v-col>
+
+                            <!-- Cheque -->
+                            <v-col cols="12" md="6">
+                                <v-text-field
+                                    v-model="annualForm.check_number"
+                                    label="Número de cheque"
+                                    :disabled="!annualPaymentMethod?.requires_check_number"
+                                    :rules="annualCheckRules"
+                                    :error-messages="annualForm.errors.check_number"
+                                    hide-details="auto"
+                                />
+                            </v-col>
+
+                            <!-- Notas -->
+                            <v-col cols="12">
+                                <v-textarea
+                                    v-model="annualForm.notes"
+                                    label="Notas"
+                                    rows="2"
+                                    auto-grow
+                                    :rules="[optionalLength(0, 1000)]"
+                                    :error-messages="annualForm.errors.notes"
+                                    hide-details="auto"
+                                />
+                            </v-col>
+                        </v-row>
+
+                        <!-- Preview del descuento -->
+                        <div class="mt-2">
+                            <v-progress-linear v-if="annualPreviewLoading" indeterminate color="primary" class="mb-3" />
+
+                            <v-alert v-if="annualPreviewError" type="error" variant="tonal" class="mb-3">
+                                {{ annualPreviewError }}
+                            </v-alert>
+
+                            <v-card v-if="annualPreview && !annualPreviewLoading" variant="outlined">
+                                <v-card-text>
+                                    <div class="text-subtitle-2 font-weight-bold mb-3">
+                                        Resumen del pago
+                                    </div>
+
+                                    <v-alert v-if="annualPreview.charges_count === 0" type="warning" variant="tonal">
+                                        No se encontraron cargos de mensualidad pendientes para ese año y parque.
+                                    </v-alert>
+
+                                    <template v-else>
+                                        <div class="text-body-2">
+                                            Meses cubiertos:
+                                            <span class="font-weight-medium">
+                                                {{ annualPreview.months_covered.map(monthName).join(" · ") }}
+                                                ({{ annualPreview.charges_count }} cargos)
+                                            </span>
+                                        </div>
+
+                                        <div class="text-body-2 mt-1">
+                                            Total de cargos pendientes:
+                                            <span class="font-weight-medium">{{ formatCurrency(annualPreview.total_balance) }}</span>
+                                        </div>
+
+                                        <template v-if="annualPreview.discount_rule">
+                                            <v-divider class="my-3" />
+                                            <div class="text-body-2 text-success font-weight-medium">
+                                                Descuento aplicado (pagando antes del mes
+                                                {{ monthName(annualPreview.discount_rule.pay_by_month) }}):
+                                                {{ annualPreview.discount_rule.discount_months === 1
+                                                    ? "1 mes libre (diciembre)"
+                                                    : `${annualPreview.discount_rule.discount_months} mes(es)` }}
+                                            </div>
+                                            <div class="text-body-2 text-success">
+                                                Monto del descuento:
+                                                <span class="font-weight-bold">- {{ formatCurrency(annualPreview.discount_amount) }}</span>
+                                            </div>
+                                            <div v-if="annualPreview.discount_rule.discount_months < 1" class="text-caption text-medium-emphasis mt-1">
+                                                El descuento se genera como saldo a favor acumulable.
+                                                Diciembre quedará con saldo pendiente de
+                                                {{ formatCurrency(annualPreview.total_balance / annualPreview.charges_count - annualPreview.discount_amount) }}.
+                                            </div>
+                                        </template>
+
+                                        <v-alert v-else type="info" variant="tonal" class="mt-3" density="compact">
+                                            No aplica descuento de anualidad para el mes de pago seleccionado.
+                                        </v-alert>
+
+                                        <v-divider class="my-3" />
+                                        <div class="text-subtitle-2 d-flex justify-space-between">
+                                            <span>Total a cobrar</span>
+                                            <span class="font-weight-bold text-primary">
+                                                {{ formatCurrency(annualPreview.payment_amount) }}
+                                            </span>
+                                        </div>
+                                    </template>
+                                </v-card-text>
+                            </v-card>
+                        </div>
+                    </v-form>
+                </v-card-text>
+
+                <v-card-actions>
+                    <v-spacer />
+                    <BaseButton :icon-only="false" action="cancel" variant="tonal" @click="closeAnnualModal" />
+                    <BaseButton
+                        :icon-only="false"
+                        action="save"
+                        text="Registrar pago de anualidad"
+                        :loading="annualForm.processing"
+                        :disabled="!annualPreview || annualPreview.charges_count === 0 || annualPreviewLoading"
+                        @click="submitAnnualPayment"
+                    />
+                </v-card-actions>
+            </v-card>
         </v-dialog>
     </AppLayout>
 </template>

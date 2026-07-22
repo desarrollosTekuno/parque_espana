@@ -16,7 +16,7 @@ class BusinessAd extends Model {
         'member_id',
         'club_id',
         'name',
-        'category',
+        'category_id',
         'description',
         'image',
         'address',
@@ -50,6 +50,6 @@ class BusinessAd extends Model {
 
     public function category()
     {
-        return $this->belongsTo(BusinessCategory::class);
+        return $this->belongsTo(BusinessCategory::class, 'category_id');
     }
 }

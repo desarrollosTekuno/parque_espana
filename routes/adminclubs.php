@@ -6,6 +6,8 @@ use App\Http\Controllers\Web\AdminClub\MemberController;
 use App\Http\Controllers\Web\AdminClub\BillingController;
 use App\Http\Controllers\Web\AdminClub\AmenityController;
 use App\Http\Controllers\Web\AdminClub\BusinessAdController;
+use App\Http\Controllers\Web\AdminClub\PhysicalAdController;
+use App\Http\Controllers\Web\AdminClub\PhysicalAdSizeController;
 use App\Http\Controllers\Web\AdminClub\ReservationController;
 use App\Http\Controllers\Web\AdminClub\AnnouncementController;
 use App\Http\Controllers\Web\AdminClub\BlockedPeriodController;
@@ -37,12 +39,19 @@ use App\Http\Controllers\Web\AdminClub\GlobalCashCutController;
 use App\Http\Controllers\Web\AdminClub\DocumentTypeController;
 use App\Http\Controllers\Web\Administrator\EmailConfigController;
 use App\Http\Controllers\Web\Administrator\EmailNotificationController;
+use App\Http\Controllers\Web\Administrator\NotificationController;
 use App\Http\Controllers\Web\AdminClub\FileController;
+use App\Http\Controllers\Web\AdminClub\CafeteriaVisitController;
+use App\Http\Controllers\Web\AdminClub\DayPassController;
 use App\Http\Controllers\Web\AdminClub\GuestListPaymentController;
 use App\Http\Controllers\Web\AdminClub\MembershipTypeController;
 use App\Http\Controllers\Web\AdminClub\PaymentMethodController;
 use App\Http\Controllers\Web\AdminClub\LockerAssignmentHistoryController;
 use App\Http\Controllers\Web\AdminClub\ClinicalHistoryController;
+use App\Http\Controllers\Web\AdminClub\ClubSettingsController;
+use App\Http\Controllers\Web\AdminClub\CoachController;
+use App\Http\Controllers\Web\AdminClub\SpecialtyController;
+use App\Http\Controllers\Web\AdminClub\ClassScheduleController;
 use Illuminate\Support\Facades\Route;
 
 // amenities
@@ -69,9 +78,22 @@ Route::resource('/guest-lists', ReservationGuestListController::class)->only(['i
 Route::resource('/guest-list-variables', GuestListVariableController::class)->only(['index', 'store', 'update', 'destroy']);
 Route::resource('/guest-list-payments', GuestListPaymentController::class)->only(['index'])->names('guest-list-payments');
 
+Route::get('/day-passes/members-search', [DayPassController::class, 'searchMembers'])->name('day-passes.members-search');
+Route::get('/day-passes/check-incidents', [DayPassController::class, 'checkIncidents'])->name('day-passes.check-incidents');
+Route::get('/day-passes/incidents',  [DayPassController::class, 'indexIncidents'])->name('day-passes.incidents.index');
+Route::post('/day-passes/incidents', [DayPassController::class, 'storeIncident'])->name('day-passes.incidents.store');
+Route::resource('/day-passes', DayPassController::class)->only(['index', 'store'])->names('day-passes');
+
+// cafeteria visits
+Route::get('/cafeteria-visits', [CafeteriaVisitController::class, 'index'])->name('cafeteria-visits.index');
+Route::post('/cafeteria-visits', [CafeteriaVisitController::class, 'store'])->name('cafeteria-visits.store');
+Route::post('/cafeteria-visits/{cafeteriaVisit}/checkout', [CafeteriaVisitController::class, 'checkout'])->name('cafeteria-visits.checkout');
+
 Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
 Route::get('/billing/charges', [BillingController::class, 'chargesList'])->name('billing.charges.index');
 Route::post('/billing/payments', [BillingController::class, 'storePayment'])->name('billing.payments.store');
+Route::get('/billing/annual-payment/preview', [BillingController::class, 'annualPaymentPreview'])->name('billing.annual-payment.preview');
+Route::post('/billing/annual-payment', [BillingController::class, 'storeAnnualPayment'])->name('billing.annual-payment.store');
 
 // cash cuts
 Route::get('/cash-cuts', [CashCutController::class, 'index'])->name('cash-cuts.index');
@@ -94,6 +116,8 @@ Route::resource('/payment-methods', PaymentMethodController::class)
     ->names('payment-methods');
 Route::post('/payment-methods/{paymentMethod}/toggle-club', [PaymentMethodController::class, 'toggleClub'])
     ->name('payment-methods.toggle-club');
+Route::put('/payment-methods/{paymentMethod}/club-config', [PaymentMethodController::class, 'updateClubConfig'])
+    ->name('payment-methods.update-club-config');
 Route::resource('/pricing-rules', PricingRuleController::class)
     ->only(['index', 'store', 'update', 'destroy'])
     ->names('pricing-rules');
@@ -111,11 +135,13 @@ Route::resource('/email-configs', EmailConfigController::class)
     ->only(['index', 'store', 'update', 'destroy'])
     ->names('email-configs');
 
-Route::resource('/email-notifications', EmailNotificationController::class)->only(['index', 'store', 'update', 'destroy'])->names('email-notifications');
-Route::get('/email-notifications/members', [EmailNotificationController::class, 'getMembers'])->name('email-notifications.members');
-Route::get('/email-notifications/recipients-preview', [EmailNotificationController::class, 'recipientsPreview'])->name('email-notifications.recipients-preview');
-Route::patch('/email-notifications/{id}/cancel', [EmailNotificationController::class, 'cancel'])->name('email-notifications.cancel');
-Route::get('/email-notifications/export', [EmailNotificationController::class, 'export'])->name('email-notifications.export');
+Route::resource('/notifications', NotificationController::class)->only(['index', 'store', 'update', 'destroy'])->names('notifications');
+Route::get('/notifications/members', [NotificationController::class, 'getMembers'])->name('notifications.members');
+Route::get('/notifications/recipients-preview', [NotificationController::class, 'recipientsPreview'])->name('notifications.recipients-preview');
+Route::patch('/notifications/{id}/cancel', [NotificationController::class, 'cancel'])->name('notifications.cancel');
+Route::patch('/notifications/{id}/retry-push', [NotificationController::class, 'retryPush'])->name('notifications.retry-push');
+Route::post('/notifications/subscribe-test-token', [NotificationController::class, 'subscribeTestToken'])->name('notifications.subscribe-test-token');
+Route::get('/notifications/export', [NotificationController::class, 'export'])->name('notifications.export');
 
 // announcements
 Route::resource('/announcements', AnnouncementController::class)->names('announcements');
@@ -130,6 +156,15 @@ Route::post('/business-ads/{id}/reject', [BusinessAdController::class, 'reject']
 Route::post('/business-ads/{id}/confirm-payment', [BusinessAdController::class, 'confirmPayment'])->name('business-ads.confirm-payment');
 Route::post('/business-ads/{id}/publish', [BusinessAdController::class, 'publish'])->name('business-ads.publish');
 Route::delete('/business-ads/{id}', [BusinessAdController::class, 'destroy'])->name('business-ads.destroy');
+
+// physical_ads
+Route::get('/physical-ads/members-search', [PhysicalAdController::class, 'searchMembers'])->name('physical-ads.members-search');
+Route::post('/physical-ads', [PhysicalAdController::class, 'store'])->name('physical-ads.store');
+
+// physical_ad_sizes (catálogo de tamaños)
+Route::resource('/physical-ad-sizes', PhysicalAdSizeController::class)
+    ->only(['index', 'store', 'update', 'destroy'])
+    ->names('physical-ad-sizes');
 
 // business_ads categories
 Route::prefix('business-categories')->name('business-categories.')->group(function () {
@@ -173,6 +208,8 @@ Route::patch('/members/{membership}/internal-account-number', [MemberController:
     ->name('members.internal-account-number.update');
 Route::get('/members/{membership}/history', [MemberController::class, 'membershipHistory'])
     ->name('members.manage.history');
+Route::get('/members/{membership}/billing/charges', [BillingController::class, 'accountCharges'])
+    ->name('members.billing.charges');
 Route::post('/members/{membership}/documents', [MemberController::class, 'storeDocument'])
     ->name('members.documents.store');
 Route::post('/members/{membership}/absence-permits', [MemberController::class, 'storeAbsencePermit'])
@@ -271,12 +308,20 @@ Route::post('files/{file}/club-file', [FileController::class, 'uploadClubFile'])
 Route::delete('files/{file}/club-file', [FileController::class, 'destroyClubFile'])->name('files.club-file.destroy');
 Route::post('/files/variables', [FileController::class, 'previewVariables'])->name('files.variables');
 
-
 // Historia Clínica
 Route::get('/members/{membership}/clinical-history', [ClinicalHistoryController::class, 'index'])
     ->name('members.clinical-history.index');
 Route::put('/members/{membership}/members/{member}/clinical-history', [ClinicalHistoryController::class, 'upsert'])
     ->name('members.clinical-history.upsert');
+
+// Club Settings
+Route::get('/club-settings', [ClubSettingsController::class, 'edit'])->name('club-settings.edit');
+Route::post('/club-settings', [ClubSettingsController::class, 'update'])->name('club-settings.update');
+
+// Clases
+Route::resource('/specialties', SpecialtyController::class)->only(['index', 'store', 'update', 'destroy'])->names('specialties');
+Route::resource('/coaches', CoachController::class)->only(['index', 'store', 'update', 'destroy'])->names('coaches');
+Route::resource('/class-schedules', ClassScheduleController::class)->only(['index', 'store', 'update', 'destroy'])->names('classSchedules');
 
 // Acts
 Route::prefix('acts')->group(function () {

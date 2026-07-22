@@ -23,6 +23,7 @@ use App\Models\Memberships\MembershipAccountGroup;
 use App\Models\Memberships\MembershipAccountMember;
 use App\Models\Memberships\MembershipType;
 use App\Models\Memberships\PricingRule;
+use App\Models\Memberships\SeparationReason;
 use App\Services\Billing\MembershipChargeService;
 use App\Rules\ExistsInSchema;
 use Carbon\Carbon;
@@ -51,6 +52,7 @@ class MemberController extends Controller
             $clubId = $request->club_id ?? session('club_id');
             $prefix = 'members';
             $driver = DB::getDriverName();
+            $like = $driver === 'pgsql' ? 'ilike' : 'like';
 
             $query = MembershipAccount::query()
                 ->with([
@@ -62,40 +64,47 @@ class MemberController extends Controller
                         ->where('is_primary', true),
                 ])
                 ->withCount('accountMembers')
-                ->whereHas('memberships', function (Builder $membershipQuery) use ($clubId) {
-                    $membershipQuery->where('club_id', $clubId)
-                        ->where('status', 'active')
-                        ->where('is_primary', true);
-                })
-                ->whereHas('primaryHolder.member');
+                ->join(
+                    'memberships.memberships as _m_filter',
+                    fn ($join) => $join
+                        ->on('_m_filter.membership_account_id', '=', 'memberships.accounts.id')
+                        ->where('_m_filter.club_id', $clubId)
+                        ->where('_m_filter.status', 'active')
+                        ->where('_m_filter.is_primary', true)
+                )
+                ->join(
+                    'memberships.account_members as _am_filter',
+                    fn ($join) => $join
+                        ->on('_am_filter.membership_account_id', '=', 'memberships.accounts.id')
+                        ->where('_am_filter.is_primary_holder', true)
+                )
+                ->join('members.members as _holder', '_holder.id', '=', '_am_filter.member_id')
+                ->select('memberships.accounts.*');
 
             if ($search = $request->input("{$prefix}_search")) {
-                $like = $driver === 'pgsql' ? 'ilike' : 'like';
-
                 $query->where(function (Builder $builder) use ($search, $like) {
-                    $builder->where('membership_number', $like, "%{$search}%")
-                        ->orWhere('internal_account_number', $like, "%{$search}%")
-                        ->orWhereHas('primaryHolder.member', function (Builder $memberQuery) use ($search, $like) {
-                            $memberQuery->where('first_name', $like, "%{$search}%")
-                                ->orWhere('last_name', $like, "%{$search}%")
-                                ->orWhere('second_last_name', $like, "%{$search}%")
-                                ->orWhere('email', $like, "%{$search}%")
-                                ->orWhere('phone', $like, "%{$search}%");
-                        })->orWhereHas('memberships.membershipType', function (Builder $membershipTypeQuery) use ($search, $like) {
-                            $membershipTypeQuery->where('name', $like, "%{$search}%");
+                    $builder->where('memberships.accounts.membership_number', $like, "%{$search}%")
+                        ->orWhere('memberships.accounts.internal_account_number', $like, "%{$search}%")
+                        ->orWhere('_holder.first_name', $like, "%{$search}%")
+                        ->orWhere('_holder.last_name', $like, "%{$search}%")
+                        ->orWhere('_holder.second_last_name', $like, "%{$search}%")
+                        ->orWhere('_holder.email', $like, "%{$search}%")
+                        ->orWhere('_holder.phone', $like, "%{$search}%")
+                        ->orWhereHas('memberships.membershipType', function (Builder $q) use ($search, $like) {
+                            $q->where('name', $like, "%{$search}%");
                         });
                 });
             }
 
             $sortMap = [
-                'id' => 'id',
-                'membership_number' => 'membership_number',
-                'created_at' => 'created_at',
+                'id' => 'memberships.accounts.id',
+                'membership_number' => 'memberships.accounts.membership_number',
+                'created_at' => 'memberships.accounts.created_at',
             ];
 
             $sort = $request->input("{$prefix}_sort", 'id');
             $order = $request->input("{$prefix}_order", 'desc');
-            $sortColumn = $sortMap[$sort] ?? 'id';
+            $sortColumn = $sortMap[$sort] ?? 'memberships.accounts.id';
 
             $pendingMembersCount = Membership::query()
                 ->where('club_id', $clubId)
@@ -173,7 +182,7 @@ class MemberController extends Controller
                 $cancelledSearch = $request->input("{$cancelledPrefix}_search");
                 $cancelledSort = $request->input("{$cancelledPrefix}_sort", 'id');
                 $cancelledOrder = $request->input("{$cancelledPrefix}_order", 'desc');
-                $cancelledSortColumn = $sortMap[$cancelledSort] ?? 'id';
+                $cancelledSortColumn = $sortMap[$cancelledSort] ?? 'memberships.accounts.id';
 
                 $cancelledQuery = MembershipAccount::query()
                     ->with([
@@ -184,23 +193,31 @@ class MemberController extends Controller
                             ->where('is_primary', true),
                     ])
                     ->withCount('accountMembers')
-                    ->where('status', 'cancelled')
-                    ->where('cancellation_type', 'voluntary')
-                    ->whereHas('memberships', function (Builder $q) use ($clubId) {
-                        $q->where('club_id', $clubId)->where('is_primary', true);
-                    })
-                    ->whereHas('primaryHolder.member');
+                    ->where('memberships.accounts.status', 'cancelled')
+                    ->where('memberships.accounts.cancellation_type', 'voluntary')
+                    ->join(
+                        'memberships.memberships as _cm_filter',
+                        fn ($join) => $join
+                            ->on('_cm_filter.membership_account_id', '=', 'memberships.accounts.id')
+                            ->where('_cm_filter.club_id', $clubId)
+                            ->where('_cm_filter.is_primary', true)
+                    )
+                    ->join(
+                        'memberships.account_members as _cam_filter',
+                        fn ($join) => $join
+                            ->on('_cam_filter.membership_account_id', '=', 'memberships.accounts.id')
+                            ->where('_cam_filter.is_primary_holder', true)
+                    )
+                    ->join('members.members as _cholder', '_cholder.id', '=', '_cam_filter.member_id')
+                    ->select('memberships.accounts.*');
 
                 if ($cancelledSearch) {
-                    $like = $driver === 'pgsql' ? 'ilike' : 'like';
                     $cancelledQuery->where(function (Builder $b) use ($cancelledSearch, $like) {
-                        $b->where('membership_number', $like, "%{$cancelledSearch}%")
-                            ->orWhereHas('primaryHolder.member', function (Builder $mq) use ($cancelledSearch, $like) {
-                                $mq->where('first_name', $like, "%{$cancelledSearch}%")
-                                    ->orWhere('last_name', $like, "%{$cancelledSearch}%")
-                                    ->orWhere('second_last_name', $like, "%{$cancelledSearch}%")
-                                    ->orWhere('email', $like, "%{$cancelledSearch}%");
-                            });
+                        $b->where('memberships.accounts.membership_number', $like, "%{$cancelledSearch}%")
+                            ->orWhere('_cholder.first_name', $like, "%{$cancelledSearch}%")
+                            ->orWhere('_cholder.last_name', $like, "%{$cancelledSearch}%")
+                            ->orWhere('_cholder.second_last_name', $like, "%{$cancelledSearch}%")
+                            ->orWhere('_cholder.email', $like, "%{$cancelledSearch}%");
                     });
                 }
 
@@ -1201,9 +1218,6 @@ class MemberController extends Controller
                 'address.country_id' => ['nullable', new ExistsInSchema('catalogs', 'countries', 'id')],
                 'address.state_id' => ['nullable', new ExistsInSchema('catalogs', 'states', 'id')],
                 'address.city_id' => ['nullable', new ExistsInSchema('catalogs', 'cities', 'id')],
-                'address.city' => ['nullable', 'string', 'max:255'],
-                'address.state' => ['nullable', 'string', 'max:255'],
-                'address.country' => ['nullable', 'string', 'max:255'],
                 'address.years_in_city' => ['nullable', 'integer', 'min:0', 'max:999'],
                 'employment' => ['nullable', 'array'],
                 'employment.company_name' => ['nullable', 'string', 'max:255'],
@@ -1352,6 +1366,7 @@ class MemberController extends Controller
         return Inertia::render('Members/SeparateMember', [
             'membership' => $this->buildSourceMembershipPayload($membership),
             'candidateMembers' => $candidateMembers->values(),
+            'separationReasons' => $this->buildSeparationReasonOptions(),
         ]);
     }
 
@@ -1383,7 +1398,9 @@ class MemberController extends Controller
             $validated = $request->validate([
                 'member_id' => ['required', new ExistsInSchema('members', 'members', 'id')],
                 'target_membership_type_id' => ['required', new ExistsInSchema('memberships', 'types', 'id')],
+                'separation_reason_id' => ['nullable', new ExistsInSchema('memberships', 'separation_reasons', 'id')],
                 'reason' => ['nullable', 'string', 'max:255'],
+                'reason_document' => ['nullable', 'file'],
             ]);
 
             $accountMember = $membership->account->accountMembers
@@ -1417,11 +1434,66 @@ class MemberController extends Controller
                 ]);
             }
 
+            $selectedSeparationReason = null;
+
+            if (!empty($validated['separation_reason_id'])) {
+                $selectedSeparationReason = SeparationReason::query()
+                    ->with('documentType')
+                    ->where('is_active', true)
+                    ->findOrFail($validated['separation_reason_id']);
+
+                if (
+                    $selectedSeparationReason->relationship_id
+                    && (int) $selectedSeparationReason->relationship_id !== (int) $accountMember->relationship_id
+                ) {
+                    throw ValidationException::withMessages([
+                        'separation_reason_id' => 'El motivo seleccionado no aplica para este integrante.',
+                    ]);
+                }
+
+                if ($selectedSeparationReason->requires_document && !$request->hasFile('reason_document')) {
+                    throw ValidationException::withMessages([
+                        'reason_document' => 'Debes cargar el documento requerido para este motivo.',
+                    ]);
+                }
+
+                if ($selectedSeparationReason->requires_document && !$selectedSeparationReason->document_type_id) {
+                    throw ValidationException::withMessages([
+                        'reason_document' => 'El motivo seleccionado no tiene un tipo de documento configurado.',
+                    ]);
+                }
+
+                if ($request->hasFile('reason_document')) {
+                    $documentType = $selectedSeparationReason->documentType;
+                    $allowedExtensions = collect(explode(',', $documentType?->allowed_extensions ?: 'pdf,jpg,png'))
+                        ->map(fn ($extension) => strtolower(trim($extension)))
+                        ->filter()
+                        ->values()
+                        ->all();
+                    $fileExtension = strtolower($request->file('reason_document')->getClientOriginalExtension());
+
+                    if (!in_array($fileExtension, $allowedExtensions, true)) {
+                        throw ValidationException::withMessages([
+                            'reason_document' => 'Solo se permiten archivos con extensión: ' . implode(', ', $allowedExtensions),
+                        ]);
+                    }
+
+                    $maxFileSizeKb = $documentType?->max_file_size_kb ?: 5120;
+                    if (($request->file('reason_document')->getSize() / 1024) > $maxFileSizeKb) {
+                        throw ValidationException::withMessages([
+                            'reason_document' => 'El archivo supera el tamaño máximo permitido.',
+                        ]);
+                    }
+                }
+            }
+
             $targetMembershipType = MembershipType::findOrFail($validated['target_membership_type_id']);
             $titularRelationshipId = Relationship::query()
                 ->where('name', 'Titular')
                 ->value('id');
-            $reason = $validated['reason'] ?? 'Separación de integrante a cuenta nueva';
+            $reason = $selectedSeparationReason?->name
+                ?? ($validated['reason'] ?? 'Separación de integrante a cuenta nueva');
+            $reasonDocument = $request->file('reason_document');
 
             // If the member being separated already holds their own primary membership in
             // another club, reuse their existing account group so synchronizeMembershipFees
@@ -1516,6 +1588,17 @@ class MemberController extends Controller
                 ]);
             });
 
+            if ($selectedSeparationReason?->requires_document && $reasonDocument) {
+                $this->uploadMemberDocuments([
+                    $accountMember->member_id => [
+                        [
+                            'document_type_id' => $selectedSeparationReason->document_type_id,
+                            'files' => [$reasonDocument],
+                        ],
+                    ],
+                ]);
+            }
+
             return redirect()->route('members.index')->with('success', 'El integrante fue separado correctamente en una nueva cuenta.');
         } catch (ValidationException $e) {
             return $this->validationExceptionResponse($e);
@@ -1562,6 +1645,7 @@ class MemberController extends Controller
                     'max:5120',
                     'required_with:inscription_fee_override',
                 ],
+                'installment_months' => ['nullable', 'integer', 'min:1', 'max:60'],
                 'members' => ['required', 'array', 'min:1'],
                 'members.*.id' => ['nullable', new ExistsInSchema('members', 'members', 'id')],
                 'members.*.first_name' => ['required', 'string', 'max:255'],
@@ -1591,9 +1675,6 @@ class MemberController extends Controller
                 'members.*.address.country_id' => ['nullable', new ExistsInSchema('catalogs', 'countries', 'id')],
                 'members.*.address.state_id' => ['nullable', new ExistsInSchema('catalogs', 'states', 'id')],
                 'members.*.address.city_id' => ['nullable', new ExistsInSchema('catalogs', 'cities', 'id')],
-                'members.*.address.city' => ['nullable', 'string', 'max:255'],
-                'members.*.address.state' => ['nullable', 'string', 'max:255'],
-                'members.*.address.country' => ['nullable', 'string', 'max:255'],
                 'members.*.address.years_in_city' => ['nullable', 'integer', 'min:0', 'max:999'],
                 'members.*.employment' => ['nullable', 'array'],
                 'members.*.employment.company_name' => ['nullable', 'string', 'max:255'],
@@ -1621,6 +1702,9 @@ class MemberController extends Controller
                 ? (float) $validated['inscription_fee_override']
                 : null;
             $inscriptionDiscountDocument = $request->file('inscription_discount_document');
+            $installmentMonths = isset($validated['installment_months'])
+                ? (int) $validated['installment_months']
+                : null;
             $sameClubTransition = false;
 
             if (!empty($validated['source_membership_id'])) {
@@ -1836,7 +1920,7 @@ class MemberController extends Controller
             $savedMembershipAccount  = null;
             $savedPrimaryMemberId    = null;
 
-            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership, $sameClubTransition, $sourceAccountMembersById, $reusableSourceMemberIds, $internalAccountNumber, $inscriptionFeeOverride, &$savedMemberDocuments, &$savedMembershipAccount, &$savedPrimaryMemberId) {
+            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership, $sameClubTransition, $sourceAccountMembersById, $reusableSourceMemberIds, $internalAccountNumber, $inscriptionFeeOverride, $installmentMonths, &$savedMemberDocuments, &$savedMembershipAccount, &$savedPrimaryMemberId) {
                 $sourceAccount = $sourceMembership?->account;
 
                 $membershipAccount = $sameClubTransition
@@ -2029,7 +2113,8 @@ class MemberController extends Controller
                             'inscription_fee_override' => $inscriptionFeeOverride,
                         ],
                         chargeDate: now(),
-                        reconcileExistingMonthlyCharge: true
+                        reconcileExistingMonthlyCharge: true,
+                        installmentMonths: $installmentMonths,
                     );
 
                     return;
@@ -2095,7 +2180,8 @@ class MemberController extends Controller
                         'inscription_fee_override' => $inscriptionFeeOverride,
                     ],
                     chargeDate: now(),
-                    reconcileExistingMonthlyCharge: (bool) ($sourceMembership && ($pricing['source_membership_becomes_non_billable'] ?? false))
+                    reconcileExistingMonthlyCharge: (bool) ($sourceMembership && ($pricing['source_membership_becomes_non_billable'] ?? false)),
+                    installmentMonths: $installmentMonths,
                 );
 
                 if ($sourceMembership && ($pricing['source_membership_becomes_non_billable'] ?? false)) {
@@ -2474,11 +2560,8 @@ class MemberController extends Controller
                         'street' => $address?->street,
                         'neighborhood' => $address?->neighborhood,
                         'postal_code' => $address?->postal_code,
-                        'country' => $this->getCountryDisplayName($address?->country) ?? $address?->country,
                         'country_id' => $address?->country_id,
-                        'state' => $address?->state?->name ?? $address?->state,
                         'state_id' => $address?->state_id,
-                        'city' => $address?->city?->name ?? $address?->city,
                         'city_id' => $address?->city_id,
                         'years_in_city' => $address?->years_in_city,
                     ],
@@ -2620,11 +2703,8 @@ class MemberController extends Controller
         );
 
         return [
-            'country' => $this->getCountryDisplayName($country) ?? ($payload['country'] ?? null),
             'country_id' => $country?->id,
-            'state' => $state?->name ?? ($payload['state'] ?? null),
             'state_id' => $state?->id,
-            'city' => $city?->name ?? ($payload['city'] ?? null),
             'city_id' => $city?->id,
         ];
     }
@@ -2705,6 +2785,7 @@ class MemberController extends Controller
                 $member?->last_name,
                 $member?->second_last_name,
             ])->filter()->implode(' ')),
+            'relationship_id' => $accountMember->relationship_id,
             'relationship_name' => $accountMember->relationship?->name,
             'email' => $member?->email,
             'phone' => $member?->phone,
@@ -3116,9 +3197,9 @@ class MemberController extends Controller
                 'street' => $address?->street,
                 'neighborhood' => $address?->neighborhood,
                 'postal_code' => $address?->postal_code,
-                'city' => $address?->city?->name ?? $address?->city,
-                'state' => $address?->state?->name ?? $address?->state,
-                'country' => $this->getCountryDisplayName($address?->country) ?? $address?->country,
+                'city' => $address?->city?->name,
+                'state' => $address?->state?->name,
+                'country' => $this->getCountryDisplayName($address?->country),
                 'years_in_city' => $address?->years_in_city,
             ],
             'employment' => [
@@ -3189,6 +3270,35 @@ class MemberController extends Controller
                 ];
             })
             ->filter(fn(array $candidate) => !empty($candidate['target_membership_options']))
+            ->values();
+    }
+
+    protected function buildSeparationReasonOptions()
+    {
+        return SeparationReason::query()
+            ->with(['relationship', 'documentType'])
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get()
+            ->map(function (SeparationReason $reason) {
+                return [
+                    'id' => $reason->id,
+                    'code' => $reason->code,
+                    'name' => $reason->name,
+                    'relationship_id' => $reason->relationship_id,
+                    'relationship_name' => $reason->relationship?->name,
+                    'document_type_id' => $reason->document_type_id,
+                    'document_type_code' => $reason->documentType?->code,
+                    'document_type_name' => $reason->documentType?->name,
+                    'allowed_extensions' => $reason->documentType?->allowed_extensions
+                        ? collect(explode(',', $reason->documentType->allowed_extensions))
+                            ->map(fn ($extension) => trim(strtolower($extension)))
+                            ->values()
+                        : [],
+                    'max_file_size_kb' => $reason->documentType?->max_file_size_kb,
+                    'requires_document' => (bool) $reason->requires_document,
+                ];
+            })
             ->values();
     }
 

@@ -61,9 +61,12 @@ class ChargePaymentController extends Controller
             'notes'                       => ['nullable', 'string', 'max:500'],
         ]);
 
-        // 3. Validar que la tarjeta pertenezca al miembro
+        // 3. Validar que la tarjeta pertenezca al miembro y a este club
+        //    (una tarjeta solo es válida en la cuenta Conekta donde se tokenizó)
+        $clubId = (int) $validated['club_id'];
         $source = MemberPaymentSource::where('id', $validated['payment_source_id'])
             ->where('member_id', $member->id)
+            ->where('club_id', $clubId)
             ->first();
 
         if (!$source) {
@@ -74,7 +77,6 @@ class ChargePaymentController extends Controller
         }
 
         // 4. Encontrar el método de pago Conekta habilitado para el club
-        $clubId        = (int) $validated['club_id'];
         $paymentMethod = $this->resolveConektaPaymentMethod($clubId);
 
         if (!$paymentMethod) {
@@ -109,6 +111,7 @@ class ChargePaymentController extends Controller
             $conektaResult = $this->conekta->charge(
                 member:      $member,
                 source:      $source,
+                clubId:      $clubId,
                 amountCents: $amountCents,
                 description: $description,
                 metadata: [

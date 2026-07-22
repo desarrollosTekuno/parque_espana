@@ -20,6 +20,7 @@ class DatabaseSeeder extends Seeder
             RoleSeeder::class,
             SuperAdminSeeder::class,
             AdminClubSeeder::class,
+            AdminSubRolesSeeder::class,
             LocationCatalogsSeeder::class,
             ClubSeeder::class,
             UserSeeder::class,
@@ -30,6 +31,7 @@ class DatabaseSeeder extends Seeder
             ReservationStatusSeeder::class,
             DocumentTypeSeeder::class,
             RelationshipSeeder::class,
+            SeparationReasonSeeder::class,
             NationalitySeeder::class,
             MaritalStatusSeeder::class,
             BillingConceptSeeder::class,
@@ -42,8 +44,6 @@ class DatabaseSeeder extends Seeder
             MembershipTypeRequiredDocumentSeeder::class,
             InterclubPackageRuleSeeder::class,
             BillingConceptSeeder::class,
-            PaymentMethodSeeder::class,
-            ClubPaymentMethodSeeder::class,
             LockerSeeder::class,
 
             FeedbackCategoriesSeeder::class,
@@ -52,6 +52,7 @@ class DatabaseSeeder extends Seeder
             FeedbackPrioritiesSeeder::class,
 
             GuestListVariableSeeder::class,
+            PhysicalAdSizeSeeder::class,
         ]);
     }
 }
