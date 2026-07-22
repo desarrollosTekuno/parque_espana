@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Memberships\MembershipType;
 use App\Models\Memberships\PricingRule;
+use App\Models\Memberships\PricingRuleFeeHistory;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
@@ -13,6 +14,7 @@ class PricingRuleSeeder extends Seeder
     {
         DB::transaction(function () {
             $types = MembershipType::all()->keyBy('code');
+            $year = now()->year;
 
             foreach ($this->pricingMatrix() as $item) {
                 $membership = $types[$item['membership_code']] ?? null;
@@ -28,7 +30,7 @@ class PricingRuleSeeder extends Seeder
                         $fromMembershipId = $types[$rule['from_membership_code']]->id ?? null;
                     }
 
-                    PricingRule::updateOrCreate(
+                    $pricingRule = PricingRule::updateOrCreate(
                         [
                             'membership_type_id'      => $membership->id,
                             'from_membership_type_id' => $fromMembershipId,
@@ -38,9 +40,20 @@ class PricingRuleSeeder extends Seeder
                             'requires_multiple_clubs' => $rule['requires_multiple_clubs'],
                         ],
                         [
+                            'priority' => $rule['priority'],
+                        ]
+                    );
+
+                    // monthly_fee/inscription_fee viven en el historial por año
+                    // (ver memberships.pricing_rule_fee_history / módulo "Cuotas por año").
+                    PricingRuleFeeHistory::updateOrCreate(
+                        [
+                            'pricing_rule_id' => $pricingRule->id,
+                            'year'            => $year,
+                        ],
+                        [
                             'monthly_fee'     => $rule['monthly_fee'],
                             'inscription_fee' => $rule['inscription_fee'],
-                            'priority'        => $rule['priority'],
                         ]
                     );
                 }

@@ -62,6 +62,10 @@ class MemberController extends Controller
                         ->with(['membershipType', 'club'])
                         ->where('status', 'active')
                         ->where('is_primary', true),
+                    'accountGroup.accounts' => fn ($groupAccountQuery) => $groupAccountQuery
+                        ->with(['memberships' => fn ($membershipQuery) => $membershipQuery
+                            ->where('status', 'active')
+                            ->where('is_primary', true)]),
                 ])
                 ->withCount('accountMembers')
                 ->join(
@@ -133,6 +137,7 @@ class MemberController extends Controller
                         $holder?->last_name,
                         $holder?->second_last_name,
                     ])->filter()->implode(' '));
+                    $groupBillingSummary = $this->resolveGroupBillingSummary($account);
 
                     return [
                         'id' => $account->id,
@@ -144,7 +149,12 @@ class MemberController extends Controller
                         'holder_name' => $fullName,
                         'email' => $holder?->email,
                         'phone' => $holder?->phone,
-                        'monthly_fee' => (float) $activeMemberships->sum(fn (Membership $membership) => $membership->resolved_monthly_fee_share),
+                        // Total realmente cobrable para este titular, sumando todas las
+                        // cuentas de su grupo (puede incluir la del otro parque, ya que
+                        // desde aquí también se puede cobrar esa cuenta si pertenece al
+                        // mismo grupo).
+                        'monthly_fee' => $groupBillingSummary['total'],
+                        'spans_multiple_clubs' => $groupBillingSummary['spans_multiple_clubs'],
                         'status' => $currentMembership?->status,
                         'can_change_membership' => $currentMembership !== null
                             && Str::contains($currentMembershipCode, '_IND'),
@@ -2349,6 +2359,9 @@ class MemberController extends Controller
             'club',
             'account.memberships.membershipType',
             'account.memberships.club',
+            'account.accountGroup.accounts.memberships' => fn ($q) => $q
+                ->where('status', 'active')
+                ->where('is_primary', true),
         ]);
 
         return $membership;
@@ -2793,6 +2806,32 @@ class MemberController extends Controller
         ];
     }
 
+    /**
+     * Resuelve el total realmente cobrable para el grupo de cuentas del
+     * titular (puede abarcar la cuenta del otro parque, ya que desde
+     * cualquiera de las dos se puede cobrar la del grupo), y si el grupo
+     * tiene presencia en más de un parque ("ambos parques").
+     *
+     * @return array{total: float, spans_multiple_clubs: bool}
+     */
+    protected function resolveGroupBillingSummary(MembershipAccount $account): array
+    {
+        $groupAccounts = $account->accountGroup?->accounts ?? collect([$account]);
+
+        $groupMemberships = $groupAccounts->flatMap(
+            fn (MembershipAccount $groupAccount) => $groupAccount->memberships
+                ->where('status', 'active')
+                ->where('is_primary', true)
+        );
+
+        return [
+            'total' => (float) $groupMemberships
+                ->where('is_billable', true)
+                ->sum(fn (Membership $membership) => $membership->resolved_monthly_fee_share),
+            'spans_multiple_clubs' => $groupAccounts->pluck('club_id')->filter()->unique()->count() > 1,
+        ];
+    }
+
     protected function buildMembershipAccountPayload(Membership $membership): array
     {
         $this->syncAbsencePermitStatuses($membership->account?->accountGroup);
@@ -2809,7 +2848,12 @@ class MemberController extends Controller
                 ->values()
             : collect();
         $currentAbsencePermit = $this->resolveCurrentAbsencePermit($absencePermits);
+        $groupBillingSummary = $this->resolveGroupBillingSummary($membership->account);
+        // El "de descuento por permiso" se calcula sobre lo que esta cuenta
+        // específica cobra (no el total del grupo), ya que el permiso aplica
+        // al esquema de esta membresía.
         $billableMonthlyTotal = (float) $activeMemberships
+            ->where('is_billable', true)
             ->sum(fn (Membership $activeMembership) => $activeMembership->resolved_monthly_fee_share);
 
         return [
@@ -2820,7 +2864,8 @@ class MemberController extends Controller
             'account_club_code' => $accountClub?->code,
             'account_type' => $membership->account?->account_type,
             'status' => $membership->account?->status,
-            'current_monthly_fee' => (float) $activeMemberships->sum(fn (Membership $activeMembership) => $activeMembership->resolved_monthly_fee_share),
+            'current_monthly_fee' => $groupBillingSummary['total'],
+            'spans_multiple_clubs' => $groupBillingSummary['spans_multiple_clubs'],
             'absence_permit_preview_fee' => $currentAbsencePermit
                 ? round($billableMonthlyTotal * ((float) $currentAbsencePermit->charge_percentage / 100), 2)
                 : null,
@@ -3457,7 +3502,9 @@ class MemberController extends Controller
                 'inscription_fee' => (float) ($interclubRule->resolveInscriptionFee() ?? 0),
                 'rule_type' => 'interclub',
                 'source_membership_becomes_non_billable' => true,
-                'billing_split_mode' => $this->isMonthlyPassMembershipType($membershipType) ? 'single' : 'equal_split',
+                // Por ahora el split 50/50 entre parques queda deshabilitado
+                // (ver resolveBillingSplitMode) — siempre 'single'.
+                'billing_split_mode' => 'single',
             ];
         }
 
@@ -3613,11 +3660,11 @@ class MemberController extends Controller
         MembershipType $membershipType,
         bool $sourceMembershipBecomesNonBillable
     ): string {
-        if ($this->isMonthlyPassMembershipType($membershipType)) {
-            return 'single';
-        }
-
-        return $sourceMembershipBecomesNonBillable ? 'equal_split' : 'single';
+        // Por ahora el split 50/50 entre membresías de distintos parques queda
+        // deshabilitado: cuando la membresía origen se vuelve no cobrable
+        // (p.ej. "ambos parques"), solo la nueva membresía debe cobrar el
+        // monto completo — no repartirlo entre las dos.
+        return 'single';
     }
 
     protected function shouldApplyAgeFilter(MembershipType $membershipType): bool

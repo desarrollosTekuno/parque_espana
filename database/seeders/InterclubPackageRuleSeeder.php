@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use App\Models\Administrator\Club;
 use App\Models\Memberships\MembershipType;
 use App\Models\Memberships\InterclubPackageRule;
+use App\Models\Memberships\InterclubPackageRuleFeeHistory;
 
 class InterclubPackageRuleSeeder extends Seeder
 {
@@ -15,6 +16,7 @@ class InterclubPackageRuleSeeder extends Seeder
         DB::transaction(function () {
             $clubs = Club::all()->keyBy('code');
             $types = MembershipType::all()->keyBy('code');
+            $year = now()->year;
 
             $data = [
                 // =========================================================
@@ -476,7 +478,7 @@ class InterclubPackageRuleSeeder extends Seeder
                     continue;
                 }
 
-                InterclubPackageRule::updateOrCreate(
+                $interclubRule = InterclubPackageRule::updateOrCreate(
                     [
                         'source_club_id' => $sourceClub->id,
                         'target_club_id' => $targetClub->id,
@@ -487,10 +489,21 @@ class InterclubPackageRuleSeeder extends Seeder
                     [
                         'min_years_in_source_club' => $item['min_years_in_source_club'],
                         'requires_active_source_membership' => $item['requires_active_source_membership'],
-                        'inscription_fee' => $item['inscription_fee'],
-                        'monthly_fee' => $item['monthly_fee'],
                         'priority' => $item['priority'],
                         'is_active' => true,
+                    ]
+                );
+
+                // monthly_fee/inscription_fee viven en el historial por año
+                // (ver memberships.interclub_package_rule_fee_history / "Cuotas por año").
+                InterclubPackageRuleFeeHistory::updateOrCreate(
+                    [
+                        'interclub_package_rule_id' => $interclubRule->id,
+                        'year' => $year,
+                    ],
+                    [
+                        'monthly_fee' => $item['monthly_fee'],
+                        'inscription_fee' => $item['inscription_fee'],
                     ]
                 );
             }

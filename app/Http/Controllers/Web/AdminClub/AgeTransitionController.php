@@ -432,7 +432,9 @@ class AgeTransitionController extends Controller
         // fue promovido en otro parque entre la detección y la aprobación.
         $existingAccountGroup      = $this->findExistingAccountGroup($member->id, $familyMembership->club_id);
         $currentlyHasMultipleClubs = $existingAccountGroup !== null;
-        $billingSplitMode          = $currentlyHasMultipleClubs ? 'equal_split' : 'single';
+        // Por ahora el split 50/50 entre parques queda deshabilitado (ver
+        // MemberController::resolveBillingSplitMode) — siempre 'single'.
+        $billingSplitMode          = 'single';
 
         // Recalcular la cuota si el estado multiclub cambió respecto a lo detectado originalmente
         $monthlyFeeTotal = $this->resolveCurrentMonthlyFee(
@@ -545,7 +547,9 @@ class AgeTransitionController extends Controller
         // Re-evaluar en tiempo real si ya tiene membresía propia activa en otro parque
         $existingAccountGroup      = $this->findExistingAccountGroup($member->id, $solidariaMembership->club_id);
         $currentlyHasMultipleClubs = $existingAccountGroup !== null;
-        $billingSplitMode          = $currentlyHasMultipleClubs ? 'equal_split' : 'single';
+        // Por ahora el split 50/50 entre parques queda deshabilitado (ver
+        // MemberController::resolveBillingSplitMode) — siempre 'single'.
+        $billingSplitMode          = 'single';
 
         // Si ahora tiene múltiples parques pero la cuenta aún no está enlazada al grupo,
         // enlazarla para que synchronizeMembershipFees distribuya correctamente los cargos

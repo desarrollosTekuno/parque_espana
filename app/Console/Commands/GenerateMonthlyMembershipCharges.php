@@ -85,16 +85,22 @@ class GenerateMonthlyMembershipCharges extends Command
                 continue;
             }
 
-            $singleMembership = $eligibleMemberships
-                ->first(fn (Membership $membership) => (bool) $membership->is_billable)
-                ?? $eligibleMemberships->first();
+            // Un grupo (mismo account_group_id) puede tener más de una
+            // membresía cobrable de forma independiente (no relacionadas con
+            // el esquema de descuento "ambos parques") — cada una debe
+            // generar su propio cargo, no solo la primera que se encuentre.
+            $billableMemberships = $eligibleMemberships
+                ->filter(fn (Membership $membership) => (bool) $membership->is_billable)
+                ->values();
 
-            if (!$singleMembership) {
-                $this->skippedIneligible++;
+            if ($billableMemberships->isEmpty()) {
+                $this->skippedIneligible += $eligibleMemberships->count();
                 continue;
             }
 
-            $this->processSingleMembershipCharge($singleMembership, $periodDate, $dryRun);
+            foreach ($billableMemberships as $billableMembership) {
+                $this->processSingleMembershipCharge($billableMembership, $periodDate, $dryRun);
+            }
         }
 
         $this->newLine();
