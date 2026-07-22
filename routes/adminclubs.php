@@ -133,6 +133,7 @@ Route::resource('/interclub-package-rules', InterclubPackageRuleController::clas
     ->names('interclub-package-rules');
 Route::get('/fee-schedules', [FeeScheduleController::class, 'index'])->name('fee-schedules.index');
 Route::post('/fee-schedules', [FeeScheduleController::class, 'store'])->name('fee-schedules.store');
+Route::get('/fee-schedules/preview', [FeeScheduleController::class, 'preview'])->name('fee-schedules.preview');
 
 Route::resource('/email-configs', EmailConfigController::class)
     ->only(['index', 'store', 'update', 'destroy'])

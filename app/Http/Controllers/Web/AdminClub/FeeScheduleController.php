@@ -9,6 +9,7 @@ use App\Models\Memberships\InterclubPackageRuleFeeHistory;
 use App\Models\Memberships\PricingRule;
 use App\Models\Memberships\PricingRuleFeeHistory;
 use App\Rules\ExistsInSchema;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -25,7 +26,7 @@ class FeeScheduleController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('permission:fee-schedules.index')->only('index');
+        $this->middleware('permission:fee-schedules.index')->only(['index', 'preview']);
         $this->middleware('permission:fee-schedules.store')->only('store');
     }
 
@@ -35,27 +36,13 @@ class FeeScheduleController extends Controller
             $clubId = (int) ($request->input('club_id') ?? session('club_id'));
             $year = (int) ($request->input('year') ?? now()->year);
 
-            $pricingRules = PricingRule::query()
-                ->with(['membershipType', 'fromMembershipType', 'feeHistory'])
-                ->whereHas('membershipType', fn ($q) => $q->where('club_id', $clubId))
-                ->get()
-                ->map(fn (PricingRule $rule) => $this->mapPricingRule($rule, $year))
-                ->sortBy('membership_type_name')
-                ->values();
-
-            $interclubRules = InterclubPackageRule::query()
-                ->with(['sourceClub', 'targetClub', 'sourceMembershipType', 'targetMembershipType', 'feeHistory'])
-                ->where('target_club_id', $clubId)
-                ->get()
-                ->map(fn (InterclubPackageRule $rule) => $this->mapInterclubRule($rule, $year))
-                ->sortBy('target_membership_type_name')
-                ->values();
+            $rules = $this->resolveRules($clubId, $year);
 
             $currentClub = Club::query()->select('id', 'name', 'code')->find($clubId);
 
             return Inertia::render('AdminClubs/FeeSchedules/Index', [
-                'pricingRules' => $pricingRules,
-                'interclubRules' => $interclubRules,
+                'pricingRules' => $rules['pricingRules'],
+                'interclubRules' => $rules['interclubRules'],
                 'year' => $year,
                 'currentClub' => $currentClub ? [
                     'id' => $currentClub->id,
@@ -73,6 +60,43 @@ class FeeScheduleController extends Controller
                 'messageError' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Vista previa en JSON de las cuotas vigentes para un año, usada por el
+     * botón "Copiar cuotas de otro año" (no navega, solo trae los valores
+     * para que el admin los revise antes de guardarlos en el año actual).
+     */
+    public function preview(Request $request): JsonResponse
+    {
+        $clubId = (int) ($request->input('club_id') ?? session('club_id'));
+        $year = (int) $request->input('year', now()->year);
+
+        return response()->json($this->resolveRules($clubId, $year));
+    }
+
+    protected function resolveRules(int $clubId, int $year): array
+    {
+        $pricingRules = PricingRule::query()
+            ->with(['membershipType', 'fromMembershipType', 'feeHistory'])
+            ->whereHas('membershipType', fn ($q) => $q->where('club_id', $clubId))
+            ->get()
+            ->map(fn (PricingRule $rule) => $this->mapPricingRule($rule, $year))
+            ->sortBy('membership_type_name')
+            ->values();
+
+        $interclubRules = InterclubPackageRule::query()
+            ->with(['sourceClub', 'targetClub', 'sourceMembershipType', 'targetMembershipType', 'feeHistory'])
+            ->where('target_club_id', $clubId)
+            ->get()
+            ->map(fn (InterclubPackageRule $rule) => $this->mapInterclubRule($rule, $year))
+            ->sortBy('target_membership_type_name')
+            ->values();
+
+        return [
+            'pricingRules' => $pricingRules,
+            'interclubRules' => $interclubRules,
+        ];
     }
 
     public function store(Request $request)

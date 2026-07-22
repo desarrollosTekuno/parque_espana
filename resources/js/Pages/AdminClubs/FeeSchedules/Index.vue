@@ -154,6 +154,69 @@ const fetchItems = () => {
 
 watch(selectedYear, fetchItems);
 
+// ── Copiar cuotas de otro año ──────────────────────────────────────────────
+const showCopyDialog = ref(false);
+const copySourceYear = ref<number | null>(null);
+const copying = ref(false);
+
+const copySourceYearOptions = computed(() =>
+    yearOptions.filter((option) => option.value !== selectedYear.value),
+);
+
+const openCopyDialog = () => {
+    copySourceYear.value = null;
+    showCopyDialog.value = true;
+};
+
+const copyFromYear = async () => {
+    if (!copySourceYear.value) return;
+
+    copying.value = true;
+
+    try {
+        const params = new URLSearchParams({
+            club_id: String(page.props.auth.currentClub),
+            year: String(copySourceYear.value),
+        });
+        const res = await fetch(`${route("fee-schedules.preview")}?${params.toString()}`, {
+            headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
+        });
+
+        if (!res.ok) throw new Error("No se pudo obtener las cuotas de ese año.");
+
+        const data = await res.json();
+        const sourcePricingRules = data.pricingRules as PricingRuleRow[];
+        const sourceInterclubRules = data.interclubRules as InterclubRuleRow[];
+
+        pricingRows.value = pricingRows.value.map((row) => {
+            const source = sourcePricingRules.find((sourceRow) => sourceRow.id === row.id);
+            return source
+                ? { ...row, monthly_fee: source.monthly_fee, inscription_fee: source.inscription_fee }
+                : row;
+        });
+
+        interclubRows.value = interclubRows.value.map((row) => {
+            const source = sourceInterclubRules.find((sourceRow) => sourceRow.id === row.id);
+            return source
+                ? { ...row, monthly_fee: source.monthly_fee, inscription_fee: source.inscription_fee }
+                : row;
+        });
+
+        customToastSwal({
+            title: `Cuotas de ${copySourceYear.value} copiadas a ${selectedYear.value}. Revisa y da clic en "Guardar cuotas" para confirmar.`,
+            icon: "success",
+        });
+        showCopyDialog.value = false;
+    } catch (e: any) {
+        customToastSwal({
+            title: e.message ?? "Ocurrió un error al copiar las cuotas.",
+            icon: "error",
+        });
+    } finally {
+        copying.value = false;
+    }
+};
+
 watch(
     () => page.props.auth.currentClub,
     () => fetchItems(),
@@ -224,7 +287,15 @@ const save = () => {
                         label="Año"
                     />
                 </v-col>
-                <v-col cols="12" md="9" class="d-flex justify-end">
+                <v-col cols="12" md="9" class="d-flex justify-end ga-2">
+                    <BaseButton
+                        v-if="can.includes('fee-schedules.store')"
+                        :icon-only="false"
+                        text="Copiar cuotas de otro año"
+                        icon="mdi-content-copy"
+                        variant="tonal"
+                        @click="openCopyDialog"
+                    />
                     <BaseButton
                         v-if="can.includes('fee-schedules.store')"
                         :icon-only="false"
@@ -405,5 +476,41 @@ const save = () => {
                 />
             </div>
         </div>
+
+        <v-dialog v-model="showCopyDialog" max-width="420" persistent>
+            <v-card prepend-icon="mdi-content-copy" title="Copiar cuotas de otro año">
+                <v-card-text>
+                    <p class="text-body-2 text-medium-emphasis mb-4">
+                        Copia los montos vigentes de otro año hacia
+                        <strong>{{ selectedYear }}</strong>. Se copian a la tabla, pero
+                        no se guardan hasta que des clic en "Guardar cuotas".
+                    </p>
+                    <v-select
+                        v-model="copySourceYear"
+                        :items="copySourceYearOptions"
+                        label="Copiar desde el año"
+                    />
+                </v-card-text>
+                <v-card-actions>
+                    <v-spacer />
+                    <BaseButton
+                        :icon-only="false"
+                        variant="tonal"
+                        action="cancel"
+                        @click="showCopyDialog = false"
+                    />
+                    <BaseButton
+                        :icon-only="false"
+                        text="Copiar"
+                        icon="mdi-content-copy"
+                        variant="flat"
+                        color="primary"
+                        :loading="copying"
+                        :disabled="!copySourceYear"
+                        @click="copyFromYear"
+                    />
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
     </AppLayout>
 </template>
