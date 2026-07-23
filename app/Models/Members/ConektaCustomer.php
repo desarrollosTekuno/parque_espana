@@ -4,19 +4,12 @@ namespace App\Models\Members;
 
 use App\Models\Administrator\Club;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 
-class MemberPaymentSource extends Model
+class ConektaCustomer extends Model
 {
-    use SoftDeletes;
-
-    protected $table = 'members.payment_sources';
+    protected $table = 'members.conekta_customers';
 
     protected $guarded = ['id', 'created_at', 'updated_at'];
-
-    protected $casts = [
-        'is_default' => 'boolean',
-    ];
 
     public function member()
     {

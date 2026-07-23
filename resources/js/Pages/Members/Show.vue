@@ -115,6 +115,7 @@ interface MembershipAccount {
     account_type: string | null;
     status: string | null;
     current_monthly_fee: number;
+    spans_multiple_clubs: boolean;
     absence_permit_preview_fee: number | null;
     current_absence_permit: AbsencePermitItem | null;
     absence_permits: AbsencePermitItem[];
@@ -264,7 +265,7 @@ const currencyFormatter = new Intl.NumberFormat("es-MX", {
     currency: "MXN",
     maximumFractionDigits: 2,
 });
-console.log(props.account);
+
 const accountTypeLabel = computed(() =>
     props.account.account_type === "family" ? "Familiar" : "Individual",
 );
@@ -1155,7 +1156,12 @@ console.log(can)
                                 <v-card class="pa-4 h-100" variant="tonal">
                                     <div class="text-caption text-medium-emphasis">Cuota actual</div>
                                     <div class="text-h6 font-weight-bold">{{ currencyFormatter.format(props.account.current_monthly_fee) }}</div>
-                                    <div class="text-body-2 mt-2">Total actual a cobrar</div>
+                                    <div class="d-flex align-center flex-wrap ga-1 mt-2">
+                                        <span class="text-body-2">Total actual a cobrar</span>
+                                        <v-chip v-if="props.account.spans_multiple_clubs" size="x-small" color="info" variant="tonal">
+                                            Ambos parques
+                                        </v-chip>
+                                    </div>
                                 </v-card>
                             </v-col>
                         </v-row>
@@ -1243,9 +1249,8 @@ console.log(can)
                                                     </v-chip>
                                                 </div>
                                             </div>
-                                            <div class="text-body-2 mt-2">{{ currencyFormatter.format(activeMembership.monthly_fee_share) }}</div>
-                                            <div v-if="activeMembership.monthly_fee_total !== activeMembership.monthly_fee_share" class="text-caption text-medium-emphasis">
-                                                Cuota total del esquema: {{ currencyFormatter.format(activeMembership.monthly_fee_total) }}
+                                            <div v-if="activeMembership.is_billable" class="text-body-2 mt-2">
+                                                Cuota a cobrar: {{ currencyFormatter.format(activeMembership.monthly_fee_share) }}
                                             </div>
                                             <div class="text-caption text-medium-emphasis">
                                                 Vigencia: {{ formatDate(activeMembership.start_date) }} a {{ formatDate(activeMembership.end_date) }}

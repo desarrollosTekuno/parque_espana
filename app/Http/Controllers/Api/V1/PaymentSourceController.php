@@ -14,15 +14,16 @@ class PaymentSourceController extends Controller
     public function __construct(private ConektaService $conekta) {}
 
     // ──────────────────────────────────────────────────────────────
-    // GET /api/v1/payment-sources
-    // Lista las tarjetas guardadas del miembro autenticado
+    // GET /api/v1/clubs/{club}/payment-sources
+    // Lista las tarjetas guardadas del miembro autenticado para este club
+    // (cada club es una cuenta Conekta independiente)
     // ──────────────────────────────────────────────────────────────
-    public function index(Request $request): JsonResponse
+    public function index(Request $request, int $club): JsonResponse
     {
         $member = $this->resolveAuthMember($request);
         if (!$member) return $this->memberNotFound();
 
-        $sources = $this->conekta->listPaymentSources($member)
+        $sources = $this->conekta->listPaymentSources($member, $club)
             ->map(fn (MemberPaymentSource $s) => $this->formatSource($s));
 
         return response()->json([
@@ -32,12 +33,13 @@ class PaymentSourceController extends Controller
     }
 
     // ──────────────────────────────────────────────────────────────
-    // POST /api/v1/payment-sources
-    // Agrega una tarjeta tokenizada desde Flutter
+    // POST /api/v1/clubs/{club}/payment-sources
+    // Agrega una tarjeta tokenizada desde Flutter, bajo la cuenta Conekta
+    // de este club
     //
     // Body: { "token_id": "tok_xxx", "set_default": true }
     // ──────────────────────────────────────────────────────────────
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, int $club): JsonResponse
     {
         $member = $this->resolveAuthMember($request);
         if (!$member) return $this->memberNotFound();
@@ -50,6 +52,7 @@ class PaymentSourceController extends Controller
         try {
             $source = $this->conekta->addPaymentSource(
                 member:     $member,
+                clubId:     $club,
                 tokenId:    $validated['token_id'],
                 setDefault: $validated['set_default'] ?? false,
             );
@@ -70,21 +73,21 @@ class PaymentSourceController extends Controller
     }
 
     // ──────────────────────────────────────────────────────────────
-    // DELETE /api/v1/payment-sources/{source}
+    // DELETE /api/v1/clubs/{club}/payment-sources/{source}
     // Elimina una tarjeta guardada
     // ──────────────────────────────────────────────────────────────
-    public function destroy(Request $request, MemberPaymentSource $source): JsonResponse
+    public function destroy(Request $request, int $club, MemberPaymentSource $source): JsonResponse
     {
         $member = $this->resolveAuthMember($request);
         if (!$member) return $this->memberNotFound();
 
-        // Solo puede eliminar sus propias tarjetas
-        if ($source->member_id !== $member->id) {
+        // Solo puede eliminar sus propias tarjetas de este club
+        if ($source->member_id !== $member->id || (int) $source->club_id !== $club) {
             return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
         }
 
         try {
-            $this->conekta->deletePaymentSource($member, $source);
+            $this->conekta->deletePaymentSource($member, $club, $source);
 
             return response()->json([
                 'success' => true,
@@ -101,19 +104,19 @@ class PaymentSourceController extends Controller
     }
 
     // ──────────────────────────────────────────────────────────────
-    // PATCH /api/v1/payment-sources/{source}/set-default
-    // Marca una tarjeta como predeterminada
+    // PATCH /api/v1/clubs/{club}/payment-sources/{source}/set-default
+    // Marca una tarjeta como predeterminada dentro de este club
     // ──────────────────────────────────────────────────────────────
-    public function setDefault(Request $request, MemberPaymentSource $source): JsonResponse
+    public function setDefault(Request $request, int $club, MemberPaymentSource $source): JsonResponse
     {
         $member = $this->resolveAuthMember($request);
         if (!$member) return $this->memberNotFound();
 
-        if ($source->member_id !== $member->id) {
+        if ($source->member_id !== $member->id || (int) $source->club_id !== $club) {
             return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
         }
 
-        $this->conekta->setDefaultPaymentSource($member, $source);
+        $this->conekta->setDefaultPaymentSource($member, $club, $source);
 
         return response()->json([
             'success' => true,

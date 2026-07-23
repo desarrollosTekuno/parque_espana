@@ -23,12 +23,12 @@ return new class extends Migration
     {
         Schema::table('guest_lists.day_pass_visitors', function (Blueprint $table) {
             $table->dropColumn('email');
-            $table->string('phone')->after('last_name');
+            // $table->string('phone')->after('last_name');
         });
 
         Schema::table('guest_lists.visitor_incidents', function (Blueprint $table) {
             $table->dropColumn('visitor_email');
-            $table->string('visitor_phone')->after('visitor_last_name');
+            // $table->string('visitor_phone')->after('visitor_last_name');
         });
     }
 };

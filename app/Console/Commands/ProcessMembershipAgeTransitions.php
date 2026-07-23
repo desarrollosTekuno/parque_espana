@@ -119,12 +119,23 @@ class ProcessMembershipAgeTransitions extends Command
                     continue;
                 }
 
+                $monthlyFee = $pricingRule->resolveMonthlyFee();
+                if ($monthlyFee === null) {
+                    $this->warn(sprintf(
+                        'Omitido Familiar→Solidaria para %s en %s: la regla encontrada no tiene cuota capturada.',
+                        $this->memberDisplayName($member),
+                        $familyMembership->club?->code ?? 'N/D'
+                    ));
+                    $this->skipped++;
+                    continue;
+                }
+
                 $this->line(sprintf(
                     'Pendiente Familiar→Solidaria: %s | %s | %s | $%s',
                     $this->memberDisplayName($member),
                     $familyMembership->club?->code ?? 'N/D',
                     $targetType->code,
-                    number_format((float) $pricingRule->monthly_fee, 2)
+                    number_format($monthlyFee, 2)
                 ));
 
                 if ($dryRun) {
@@ -150,7 +161,7 @@ class ProcessMembershipAgeTransitions extends Command
                     'membership_account_id'    => $familyMembership->membership_account_id,
                     'target_membership_type_id' => $targetType->id,
                     'transition_type'          => 'family_to_solidaria',
-                    'monthly_fee'              => (float) $pricingRule->monthly_fee,
+                    'monthly_fee'              => $monthlyFee,
                     'has_multiple_clubs'       => $hasMultipleClubs,
                     'status'                   => 'pending',
                     'identified_at'            => now(),
@@ -214,12 +225,23 @@ class ProcessMembershipAgeTransitions extends Command
                 continue;
             }
 
+            $monthlyFee = $pricingRule->resolveMonthlyFee();
+            if ($monthlyFee === null) {
+                $this->warn(sprintf(
+                    'Omitido Solidaria→Individual para %s en %s: la regla encontrada no tiene cuota capturada.',
+                    $this->memberDisplayName($primaryHolder),
+                    $solidariaMembership->club?->code ?? 'N/D'
+                ));
+                $this->skipped++;
+                continue;
+            }
+
             $this->line(sprintf(
                 'Pendiente Solidaria→Individual: %s | %s | %s | $%s',
                 $this->memberDisplayName($primaryHolder),
                 $solidariaMembership->club?->code ?? 'N/D',
                 $targetType->code,
-                number_format((float) $pricingRule->monthly_fee, 2)
+                number_format($monthlyFee, 2)
             ));
 
             if ($dryRun) {
@@ -245,7 +267,7 @@ class ProcessMembershipAgeTransitions extends Command
                 'membership_account_id'    => $solidariaMembership->membership_account_id,
                 'target_membership_type_id' => $targetType->id,
                 'transition_type'          => 'solidaria_to_individual',
-                'monthly_fee'              => (float) $pricingRule->monthly_fee,
+                'monthly_fee'              => $monthlyFee,
                 'has_multiple_clubs'       => $hasMultipleClubs,
                 'status'                   => 'pending',
                 'identified_at'            => now(),

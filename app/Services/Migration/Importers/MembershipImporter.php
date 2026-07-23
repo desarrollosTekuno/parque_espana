@@ -210,7 +210,7 @@ class MembershipImporter extends BaseImporter
                         continue;
                     }
 
-                    $groupTotal   = round((float) $interclubRule->monthly_fee, 2);
+                    $groupTotal   = round((float) ($interclubRule->resolveMonthlyFee() ?? 0), 2);
                     $count        = $groupMemberships->count();
                     $splitAmount  = round($groupTotal / $count, 2);
                     $allocated    = 0.0;
@@ -264,6 +264,6 @@ class MembershipImporter extends BaseImporter
                 ->first();
         }
 
-        return $rule ? (float) $rule->monthly_fee : 0.00;
+        return $rule ? (float) ($rule->resolveMonthlyFee() ?? 0) : 0.00;
     }
 }

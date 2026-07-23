@@ -144,4 +144,16 @@ class Member extends Model
         return $this->hasOne(MemberPaymentSource::class, 'member_id')->where('is_default', true);
     }
 
+    public function defaultPaymentSourceForClub(int $clubId)
+    {
+        return $this->hasOne(MemberPaymentSource::class, 'member_id')
+            ->where('club_id', $clubId)
+            ->where('is_default', true);
+    }
+
+    public function conektaCustomers()
+    {
+        return $this->hasMany(ConektaCustomer::class, 'member_id');
+    }
+
 }

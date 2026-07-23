@@ -42,6 +42,7 @@ const routes: Routing[] = [
             "document-types.index",
             "pricing-rules.index",
             "interclub-package-rules.index",
+            "fee-schedules.index",
         ],
         title: "Configuración de membresías",
         icon: "mdi-cog-outline",
@@ -71,6 +72,12 @@ const routes: Routing[] = [
                 title: "Paquetes intermedios",
                 icon: "mdi-swap-horizontal",
                 value: "paquetes-intermedios",
+            },
+            {
+                name: "fee-schedules.index",
+                title: "Cuotas por año",
+                icon: "mdi-calendar-multiple",
+                value: "cuotas-por-anio",
             },
         ],
     },
@@ -192,6 +199,14 @@ const routes: Routing[] = [
         title: "Clubs deportivos",
         icon: "mdi-soccer",
         value: "clubs-deportivos",
+        group: null,
+    },
+    // Credenciales Conekta por parque
+    {
+        name: ["conekta-credentials.index"],
+        title: "Credenciales Conekta",
+        icon: "mdi-credit-card-lock-outline",
+        value: "conekta-credentials",
         group: null,
     },
 

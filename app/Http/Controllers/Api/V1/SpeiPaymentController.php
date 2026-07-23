@@ -103,6 +103,7 @@ class SpeiPaymentController extends Controller
             // ── 6. Crear orden SPEI en Conekta ────────────────────────────
             $speiResult = $this->conekta->createSpeiOrder(
                 member:      $member,
+                clubId:      $club,
                 amountCents: $amountCents,
                 description: $description,
                 expiresAt:   $expiresAt,

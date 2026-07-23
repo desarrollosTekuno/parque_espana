@@ -74,7 +74,6 @@ class InterclubPackageRuleController extends Controller
             $sortMap = [
                 'id' => 'id',
                 'priority' => 'priority',
-                'monthly_fee' => 'monthly_fee',
                 'created_at' => 'created_at',
             ];
 
@@ -108,8 +107,8 @@ class InterclubPackageRuleController extends Controller
                         'package_code' => $rule->package_code,
                         'min_years_in_source_club' => $rule->min_years_in_source_club,
                         'requires_active_source_membership' => (bool) $rule->requires_active_source_membership,
-                        'monthly_fee' => (float) $rule->monthly_fee,
-                        'inscription_fee' => (float) $rule->inscription_fee,
+                        'monthly_fee' => $rule->resolveMonthlyFee(),
+                        'inscription_fee' => $rule->resolveInscriptionFee(),
                         'priority' => (int) $rule->priority,
                         'valid_from' => $rule->valid_from,
                         'valid_until' => $rule->valid_until,
@@ -252,8 +251,6 @@ class InterclubPackageRuleController extends Controller
             'package_code' => ['required', 'string', 'max:100'],
             'min_years_in_source_club' => ['nullable', 'integer', 'min:0', 'max:120'],
             'requires_active_source_membership' => ['required', 'boolean'],
-            'inscription_fee' => ['required', 'numeric', 'min:0'],
-            'monthly_fee' => ['required', 'numeric', 'min:0'],
             'priority' => ['required', 'integer', 'min:1', 'max:999999'],
             'valid_from' => ['nullable', 'date'],
             'valid_until' => ['nullable', 'date', 'after_or_equal:valid_from'],

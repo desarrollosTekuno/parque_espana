@@ -17,6 +17,7 @@ use App\Http\Controllers\Web\AdminClub\BusinessCategoryController;
 use App\Http\Controllers\Web\AdminClub\BillingConceptController;
 use App\Http\Controllers\Web\AdminClub\InterclubPackageRuleController;
 use App\Http\Controllers\Web\AdminClub\PricingRuleController;
+use App\Http\Controllers\Web\AdminClub\FeeScheduleController;
 use App\Http\Controllers\Web\AdminClub\AmenityResourceController;
 use App\Http\Controllers\Web\AdminClub\Feedback\FeedbackCategoryController;
 use App\Http\Controllers\Web\AdminClub\Feedback\FeedbackController;
@@ -138,6 +139,9 @@ Route::resource('/document-types', DocumentTypeController::class)
 Route::resource('/interclub-package-rules', InterclubPackageRuleController::class)
     ->only(['index', 'store', 'update', 'destroy'])
     ->names('interclub-package-rules');
+Route::get('/fee-schedules', [FeeScheduleController::class, 'index'])->name('fee-schedules.index');
+Route::post('/fee-schedules', [FeeScheduleController::class, 'store'])->name('fee-schedules.store');
+Route::get('/fee-schedules/preview', [FeeScheduleController::class, 'preview'])->name('fee-schedules.preview');
 
 Route::resource('/email-configs', EmailConfigController::class)
     ->only(['index', 'store', 'update', 'destroy'])

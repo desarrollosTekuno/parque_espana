@@ -18,7 +18,9 @@ class MembershipChargeService
         ?float $groupTotalMonthlyFee = null,
         ?Carbon $effectiveDate = null,
         ?string $billingSplitMode = null,
-        ?string $historyReason = null
+        ?string $historyReason = null,
+        ?int $pricingRuleId = null,
+        ?int $interclubPackageRuleId = null
     ): Collection {
         $referenceDate = ($effectiveDate ?? now())->copy()->startOfDay();
         $groupMemberships = $this->resolveGroupPrimaryMemberships($membership, $referenceDate);
@@ -34,6 +36,8 @@ class MembershipChargeService
                 'monthly_fee_share' => $singleTotal,
                 'billing_split_mode' => 'single',
                 'is_billable' => $singleTotal > 0,
+                'pricing_rule_id' => $pricingRuleId,
+                'interclub_package_rule_id' => $interclubPackageRuleId,
             ]);
 
             if ($historyReason && abs($singleTotal - $previousFee) > 0.01) {
@@ -61,13 +65,16 @@ class MembershipChargeService
                 $allocated = round($allocated + $share, 2);
                 $previousFee = round((float) $groupMembership->monthly_fee, 2);
 
-                $groupMembership->update([
+                $groupMembership->update(array_merge([
                     'monthly_fee' => $groupTotal,
                     'monthly_fee_total' => $groupTotal,
                     'monthly_fee_share' => $share,
                     'billing_split_mode' => 'equal_split',
                     'is_billable' => $share > 0,
-                ]);
+                ], $groupMembership->is($membership) ? [
+                    'pricing_rule_id' => $pricingRuleId,
+                    'interclub_package_rule_id' => $interclubPackageRuleId,
+                ] : []));
 
                 if ($historyReason && abs($groupTotal - $previousFee) > 0.01) {
                     $this->insertFeeHistory($groupMembership, $previousFee, $groupTotal, $historyReason);
@@ -86,13 +93,21 @@ class MembershipChargeService
             );
             $previousFee = round((float) $groupMembership->monthly_fee, 2);
 
-            $groupMembership->update([
+            $groupMembership->update(array_merge([
                 'monthly_fee' => $total,
                 'monthly_fee_total' => $total,
                 'monthly_fee_share' => $total,
                 'billing_split_mode' => 'single',
-                'is_billable' => $total > 0,
-            ]);
+                // Solo la membresía que disparó esta sincronización puede cambiar
+                // su estado de facturable/no facturable aquí. Las demás del grupo
+                // conservan el suyo (fue decidido explícitamente al crearlas — ver
+                // MemberController::shouldSourceMembershipBecomeNonBillable) para
+                // no reactivar por accidente un cobro duplicado en el otro parque.
+                'is_billable' => $groupMembership->is($membership) ? ($total > 0) : (bool) $groupMembership->is_billable,
+            ], $groupMembership->is($membership) ? [
+                'pricing_rule_id' => $pricingRuleId,
+                'interclub_package_rule_id' => $interclubPackageRuleId,
+            ] : []));
 
             if ($historyReason && abs($total - $previousFee) > 0.01) {
                 $this->insertFeeHistory($groupMembership, $previousFee, $total, $historyReason);
@@ -137,7 +152,7 @@ class MembershipChargeService
             return false;
         }
 
-        $monthlyFee = round((float) ($monthlyFeeOverride ?? $this->resolveMembershipMonthlyFeeShare($membership)), 2);
+        $monthlyFee = round((float) ($monthlyFeeOverride ?? $this->resolveMembershipMonthlyFeeShare($membership, null, $chargeDate->year)), 2);
         $effectiveMonthlyFee = $this->resolveAbsenceAdjustedMonthlyFee(
             membership: $membership,
             monthlyFee: $monthlyFee,
@@ -165,7 +180,7 @@ class MembershipChargeService
             'metadata' => array_merge($metadata, [
                 'concept_code' => $monthlyConcept->code,
                 'target_monthly_fee' => $monthlyFee,
-                'monthly_fee_total' => $this->resolveMembershipMonthlyFeeTotal($membership),
+                'monthly_fee_total' => $this->resolveMembershipMonthlyFeeTotal($membership, null, $chargeDate->year),
                 'monthly_fee_share' => $monthlyFee,
                 'effective_monthly_fee' => $effectiveMonthlyFee,
                 'generation_type' => 'monthly_cycle',
@@ -234,7 +249,7 @@ class MembershipChargeService
                 membership: $membership,
                 monthlyFee: $splitAcrossGroup
                     ? (float) $groupTotalMonthlyFee
-                    : $this->resolveMembershipMonthlyFeeShare($membership, $monthlyFee),
+                    : $this->resolveMembershipMonthlyFeeShare($membership, $monthlyFee, $chargeDate->year),
                 chargeDate: $chargeDate
             );
 
@@ -262,7 +277,7 @@ class MembershipChargeService
                         amount: $monthlyChargeAmount,
                         targetMonthlyFee: $splitAcrossGroup
                             ? (float) $groupTotalMonthlyFee
-                            : $this->resolveMembershipMonthlyFeeShare($membership, $monthlyFee),
+                            : $this->resolveMembershipMonthlyFeeShare($membership, $monthlyFee, $chargeDate->year),
                         effectiveMonthlyFee: $effectiveMonthlyFee,
                         description: $monthlyChargeDescription,
                         metadata: array_merge($metadata, [
@@ -359,7 +374,7 @@ class MembershipChargeService
             'metadata' => array_merge($metadata, [
                 'concept_code' => $concept->code,
                 'target_monthly_fee' => $targetMonthlyFee,
-                'monthly_fee_total' => $this->resolveMembershipMonthlyFeeTotal($membership),
+                'monthly_fee_total' => $this->resolveMembershipMonthlyFeeTotal($membership, null, $chargeDate->year),
                 'monthly_fee_share' => $targetMonthlyFee,
                 'effective_monthly_fee' => $effectiveMonthlyFee,
             ]),
@@ -538,14 +553,18 @@ class MembershipChargeService
         }
     }
 
-    protected function resolveMembershipMonthlyFeeTotal(Membership $membership, ?float $fallback = null): float
+    protected function resolveMembershipMonthlyFeeTotal(Membership $membership, ?float $fallback = null, ?int $year = null): float
     {
-        return round((float) ($membership->monthly_fee_total ?? $membership->monthly_fee ?? $fallback ?? 0), 2);
+        $live = $membership->resolveLiveMonthlyFee($year);
+
+        return round((float) ($live ?? $membership->monthly_fee_total ?? $membership->monthly_fee ?? $fallback ?? 0), 2);
     }
 
-    protected function resolveMembershipMonthlyFeeShare(Membership $membership, ?float $fallback = null): float
+    protected function resolveMembershipMonthlyFeeShare(Membership $membership, ?float $fallback = null, ?int $year = null): float
     {
-        return round((float) ($membership->monthly_fee_share ?? $fallback ?? $membership->monthly_fee ?? 0), 2);
+        $live = $membership->resolveLiveMonthlyFee($year);
+
+        return round((float) ($live ?? $membership->monthly_fee_share ?? $fallback ?? $membership->monthly_fee ?? 0), 2);
     }
 
     protected function resolveAbsenceAdjustedMonthlyFee(

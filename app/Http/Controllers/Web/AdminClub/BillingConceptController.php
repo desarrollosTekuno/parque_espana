@@ -41,6 +41,7 @@ class BillingConceptController extends Controller
 
                 $query->where(function (Builder $builder) use ($search, $like) {
                     $builder->where('code', $like, "%{$search}%")
+                        ->orWhere('internal_key', $like, "%{$search}%")
                         ->orWhere('name', $like, "%{$search}%")
                         ->orWhere('description', $like, "%{$search}%");
                 });
@@ -76,6 +77,7 @@ class BillingConceptController extends Controller
                     return [
                         'id' => $concept->id,
                         'code' => $concept->code,
+                        'internal_key' => $concept->internal_key,
                         'name' => $concept->name,
                         'description' => $concept->description,
                         'default_amount' => $concept->default_amount !== null ? (float) $concept->default_amount : null,
@@ -199,6 +201,7 @@ class BillingConceptController extends Controller
                 Rule::unique(ChargeConcept::class, 'code')->ignore($concept?->id),
             ],
             'name' => ['required', 'string', 'max:255'],
+            'internal_key' => ['nullable', 'string', 'max:50'],
             'description' => ['nullable', 'string', 'max:1000'],
             'default_amount' => ['nullable', 'numeric', 'min:0'],
             'club_amount' => ['nullable', 'numeric', 'min:0'],
@@ -212,6 +215,7 @@ class BillingConceptController extends Controller
     {
         return [
             'code' => strtoupper(trim($validated['code'])),
+            'internal_key' => isset($validated['internal_key']) ? trim($validated['internal_key']) ?: null : null,
             'name' => trim($validated['name']),
             'description' => isset($validated['description']) ? trim((string) $validated['description']) : null,
             'default_amount' => $validated['default_amount'] !== null ? (float) $validated['default_amount'] : null,

@@ -26,6 +26,8 @@ class PermissionSeeder extends Seeder
             ['module' => 'Administración', 'name' => 'users.store', 'description' => 'Crear usuarios', 'contexts' => ['web']],
             ['module' => 'Administración', 'name' => 'users.update', 'description' => 'Actualizar usuarios', 'contexts' => ['web']],
             ['module' => 'Administración', 'name' => 'users.destroy', 'description' => 'Eliminar usuarios', 'contexts' => ['web']],
+            ['module' => 'Administración', 'name' => 'conekta-credentials.index', 'description' => 'Ver credenciales de Conekta por parque', 'contexts' => ['web']],
+            ['module' => 'Administración', 'name' => 'conekta-credentials.update', 'description' => 'Actualizar credenciales de Conekta por parque', 'contexts' => ['web']],
 
             // Clubes
             ['module' => 'Clubes', 'name' => 'clubs.index', 'description' => 'Ver clubes', 'contexts' => ['web']],
@@ -112,6 +114,8 @@ class PermissionSeeder extends Seeder
             ['module' => 'Sistema', 'name' => 'interclub-package-rules.store', 'description' => 'Crear paquetes interclub', 'contexts' => ['web']],
             ['module' => 'Sistema', 'name' => 'interclub-package-rules.update', 'description' => 'Actualizar paquetes interclub', 'contexts' => ['web']],
             ['module' => 'Sistema', 'name' => 'interclub-package-rules.destroy', 'description' => 'Eliminar paquetes interclub', 'contexts' => ['web']],
+            ['module' => 'Sistema', 'name' => 'fee-schedules.index', 'description' => 'Ver cuotas por año', 'contexts' => ['web']],
+            ['module' => 'Sistema', 'name' => 'fee-schedules.store', 'description' => 'Capturar cuotas por año', 'contexts' => ['web']],
 
             // Tipos de documento
             ['module' => 'Membresías', 'name' => 'document-types.index', 'description' => 'Ver tipos de documento', 'contexts' => ['web']],
