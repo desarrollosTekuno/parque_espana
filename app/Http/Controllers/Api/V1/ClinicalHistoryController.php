@@ -3,35 +3,22 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use App\Models\Members\Member;
-use App\Models\Members\ClinicalHistory;
 use App\Http\Requests\ClinicalHistoryRequest;
-use Illuminate\Support\Facades\Validator;
-use Inertia\Inertia;
+use App\Models\Members\ClinicalHistory;
+use App\Models\Members\Member;
+use Illuminate\Http\Request;
 
 class ClinicalHistoryController extends Controller
 {
     public function show(Request $request)
     {
-       
-        $history = ClinicalHistory::firstWhere( 
-            'member_id',
-            $request->member_id
-        );
+        $history = ClinicalHistory::firstWhere('member_id', $request->member_id);
 
-         if (!$history) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No existe información clínica para este miembro.',
-                'data' => null
-            ], 404);
+        if (!$history) {
+            return $this->notFound('No existe información clínica para este miembro.');
         }
 
-        return response()->json([
-            'success' => true,
-            'data' => $history
-        ]);
+        return $this->ok($history);
     }
 
     public function upsert(ClinicalHistoryRequest $request)
@@ -39,29 +26,18 @@ class ClinicalHistoryController extends Controller
         $member = Member::find($request->member_id);
 
         if (!$member) {
-            return response()->json([
-                'success' => false,
-                'message' => 'El miembro especificado no existe.',
-                'data' => null
-            ], 404);
+            return $this->notFound('El miembro especificado no existe.');
         }
+
         $history = ClinicalHistory::updateOrCreate(
             ['member_id' => $request->member_id],
             $request->validated()
         );
 
         if (!$history) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No se pudo guardar la historia clínica.',
-                'data' => null
-            ], 500);
+            return $this->serverError('No se pudo guardar la historia clínica.');
         }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Historia clínica guardada correctamente.',
-            'data' => $history
-        ]);
+        return $this->success('Historia clínica guardada correctamente.', $history);
     }
 }

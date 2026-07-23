@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 use App\Models\AdminClub\Survey;
 use App\Models\AdminClub\SurveyResponse;
@@ -20,37 +20,35 @@ class SurveyController extends Controller
      */
     public function index(Request $request, Club $club)
     {
-        try{
+        try {
             $member = $this->getMember($request);
-        if (!$member) {
-            return response()->json(['message' => 'Socio no encontrado.'], 404);
-        }
+            if (!$member) {
+                return $this->notFound('Socio no encontrado.');
+            }
 
-        if (!$this->memberBelongsToClub($member->id, $club->id)) {
-            return response()->json(['message' => 'No tienes acceso a este club.'], 403);
-        }
+            if (!$this->memberBelongsToClub($member->id, $club->id)) {
+                return $this->forbidden('No tienes acceso a este club.');
+            }
 
-        $answeredIds = SurveyResponse::where('member_id', $member->id)
-            ->pluck('survey_id');
+            $answeredIds = SurveyResponse::where('member_id', $member->id)->pluck('survey_id');
 
-        $surveys = Survey::where('club_id', $club->id)
-            ->where('status', 'active')
-            ->whereNotIn('id', $answeredIds)
-            ->withCount('questions')
-            ->orderByDesc('created_at')
-            ->get()
-            ->map(fn ($s) => [
-                'id'              => $s->id,
-                'title'           => $s->title,
-                'description'     => $s->description,
-                'questions_count' => $s->questions_count,
-            ]);
+            $surveys = Survey::where('club_id', $club->id)
+                ->where('status', 'active')
+                ->whereNotIn('id', $answeredIds)
+                ->withCount('questions')
+                ->orderByDesc('created_at')
+                ->get()
+                ->map(fn ($s) => [
+                    'id'              => $s->id,
+                    'title'           => $s->title,
+                    'description'     => $s->description,
+                    'questions_count' => $s->questions_count,
+                ]);
 
-        return response()->json(['data' => $surveys]);
-
+            return $this->ok($surveys);
         } catch (\Exception $e) {
             report($e);
-            return response()->json(['message' => "Error al obtener las encuestas. {$e->getMessage()}"], 500);
+            return $this->serverError('Error al obtener las encuestas.');
         }
     }
 
@@ -62,19 +60,19 @@ class SurveyController extends Controller
     {
         $member = $this->getMember($request);
         if (!$member) {
-            return response()->json(['message' => 'Socio no encontrado.'], 404);
+            return $this->notFound('Socio no encontrado.');
         }
 
         if ($survey->club_id !== $club->id) {
-            return response()->json(['message' => 'Encuesta no encontrada.'], 404);
+            return $this->notFound('Encuesta no encontrada.');
         }
 
         if ($survey->status !== 'active') {
-            return response()->json(['message' => 'Esta encuesta no está disponible.'], 403);
+            return $this->forbidden('Esta encuesta no está disponible.');
         }
 
         if (!$this->memberBelongsToClub($member->id, $club->id)) {
-            return response()->json(['message' => 'No tienes acceso a este club.'], 403);
+            return $this->forbidden('No tienes acceso a este club.');
         }
 
         $alreadyAnswered = SurveyResponse::where('survey_id', $survey->id)
@@ -82,59 +80,48 @@ class SurveyController extends Controller
             ->exists();
 
         if ($alreadyAnswered) {
-            return response()->json(['message' => 'Ya respondiste esta encuesta.'], 409);
+            return $this->conflict('Ya respondiste esta encuesta.');
         }
 
         $survey->load(['questions' => function ($q) {
             $q->orderBy('order')->with('options:id,question_id,option_text,order');
         }]);
 
-        return response()->json([
-            'data' => [
-                'id'          => $survey->id,
-                'title'       => $survey->title,
-                'description' => $survey->description,
-                'questions'   => $survey->questions->map(fn ($q) => [
-                    'id'          => $q->id,
-                    'text'        => $q->question_text,
-                    'type'        => $q->type,
-                    'is_required' => $q->is_required,
-                    'config'      => $q->config,
-                    'options'     => $q->options->map(fn ($o) => [
-                        'id'   => $o->id,
-                        'text' => $o->option_text,
-                    ])->values(),
+        return $this->ok([
+            'id'          => $survey->id,
+            'title'       => $survey->title,
+            'description' => $survey->description,
+            'questions'   => $survey->questions->map(fn ($q) => [
+                'id'          => $q->id,
+                'text'        => $q->question_text,
+                'type'        => $q->type,
+                'is_required' => $q->is_required,
+                'config'      => $q->config,
+                'options'     => $q->options->map(fn ($o) => [
+                    'id'   => $o->id,
+                    'text' => $o->option_text,
                 ])->values(),
-            ],
+            ])->values(),
         ]);
     }
 
     /**
      * Enviar respuestas del usuario autenticado.
      * POST /api/v1/clubs/{club}/surveys/{survey}/responses
-     *
-     * Body:
-     * {
-     *   "answers": [
-     *     { "question_id": 1, "answer_text": null,   "answer_options": [3] },
-     *     { "question_id": 2, "answer_text": "Texto", "answer_options": [] },
-     *     { "question_id": 3, "answer_text": "4",     "answer_options": [] }
-     *   ]
-     * }
      */
     public function store(Request $request, Club $club, Survey $survey)
     {
         $member = $this->getMember($request);
         if (!$member) {
-            return response()->json(['message' => 'Socio no encontrado.'], 404);
+            return $this->notFound('Socio no encontrado.');
         }
 
         if ($survey->club_id !== $club->id || $survey->status !== 'active') {
-            return response()->json(['message' => 'Esta encuesta no está disponible.'], 403);
+            return $this->forbidden('Esta encuesta no está disponible.');
         }
 
         if (!$this->memberBelongsToClub($member->id, $club->id)) {
-            return response()->json(['message' => 'No tienes acceso a este club.'], 403);
+            return $this->forbidden('No tienes acceso a este club.');
         }
 
         $alreadyAnswered = SurveyResponse::where('survey_id', $survey->id)
@@ -142,7 +129,7 @@ class SurveyController extends Controller
             ->exists();
 
         if ($alreadyAnswered) {
-            return response()->json(['message' => 'Ya respondiste esta encuesta.'], 409);
+            return $this->conflict('Ya respondiste esta encuesta.');
         }
 
         $request->validate([
@@ -173,14 +160,11 @@ class SurveyController extends Controller
 
             DB::commit();
 
-            return response()->json([
-                'message' => '¡Gracias! Tus respuestas fueron registradas correctamente.',
-            ], 201);
-
+            return $this->created('¡Gracias! Tus respuestas fueron registradas correctamente.');
         } catch (\Exception $e) {
             DB::rollBack();
             report($e);
-            return response()->json(['message' => 'Error al guardar las respuestas.'], 500);
+            return $this->serverError('Error al guardar las respuestas.');
         }
     }
 

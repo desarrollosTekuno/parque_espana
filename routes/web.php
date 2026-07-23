@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\Web\DashboardController;
-use App\Http\Controllers\Web\Survey\SurveyPublicController;
 use App\Services\Auth\PermissionLandingRouteResolver;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -31,6 +30,6 @@ Route::middleware(['auth', 'verified'])
     ->prefix('admin')
     ->group(__DIR__ . '/adminclubs.php');
 
-// Encuestas públicas (sin autenticación, acceso por token de usuario)
-Route::get('/encuesta/{slug}', [SurveyPublicController::class, 'show'])->name('survey.show');
-Route::post('/encuesta/{slug}', [SurveyPublicController::class, 'submit'])->name('survey.submit');
+// Las rutas públicas de encuesta por token (/encuesta/{slug}) fueron eliminadas.
+// La tabla survey_tokens fue removida en la migración 2026_04_23_000002.
+// Las encuestas ahora se responden exclusivamente desde la app móvil (autenticado via Sanctum).

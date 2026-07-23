@@ -12,9 +12,6 @@ class MemberDocumentController extends Controller
 {
     /**
      * GET /api/v1/my-documents
-     *
-     * Returns all documents for the authenticated member, grouped by member
-     * (titular + integrantes of the same account), with temporary signed URLs.
      */
     public function index(Request $request): JsonResponse
     {
@@ -23,13 +20,9 @@ class MemberDocumentController extends Controller
         $member = Member::where('user_id', $user->id)->first();
 
         if (!$member) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No se encontró un perfil de socio asociado a este usuario.',
-            ], 404);
+            return $this->notFound('No se encontró un perfil de socio asociado a este usuario.');
         }
 
-        // Load all members in the same account (titular + integrantes)
         $memberIds = $member->accounts()
             ->with('members')
             ->get()
@@ -53,38 +46,32 @@ class MemberDocumentController extends Controller
                 $url = null;
 
                 try {
-                    $url = Storage::disk('spaces')->temporaryUrl(
-                        $doc->file_path,
-                        $expiresAt,
-                    );
+                    $url = Storage::disk('spaces')->temporaryUrl($doc->file_path, $expiresAt);
                 } catch (\Throwable) {
-                    // file_path inválido o documento sin archivo físico
+                    // archivo no disponible
                 }
 
                 return [
-                    'id'                => $doc->id,
-                    'document_type_id'  => $doc->document_type_id,
-                    'document_type'     => $doc->documentType?->name ?? '',
-                    'is_verified'       => $doc->is_verified,
-                    'verified_at'       => $doc->verified_at,
-                    'uploaded_at'       => $doc->created_at,
-                    'url'               => $url,
-                    'url_expires_at'    => $url ? $expiresAt->toIso8601String() : null,
+                    'id'               => $doc->id,
+                    'document_type_id' => $doc->document_type_id,
+                    'document_type'    => $doc->documentType?->name ?? '',
+                    'is_verified'      => $doc->is_verified,
+                    'verified_at'      => $doc->verified_at,
+                    'uploaded_at'      => $doc->created_at,
+                    'url'              => $url,
+                    'url_expires_at'   => $url ? $expiresAt->toIso8601String() : null,
                 ];
             })->values();
 
             return [
-                'member_id'        => $m->id,
-                'full_name'        => $m->full_name,
-                'is_primary_holder'=> $isPrimaryHolder,
-                'is_self'          => $m->id === $member->id,
-                'documents'        => $documents,
+                'member_id'         => $m->id,
+                'full_name'         => $m->full_name,
+                'is_primary_holder' => $isPrimaryHolder,
+                'is_self'           => $m->id === $member->id,
+                'documents'         => $documents,
             ];
         });
 
-        return response()->json([
-            'success' => true,
-            'data'    => $data,
-        ]);
+        return $this->ok($data);
     }
 }
