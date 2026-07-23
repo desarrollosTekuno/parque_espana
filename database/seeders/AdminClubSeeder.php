@@ -47,6 +47,8 @@ class AdminClubSeeder extends Seeder
             'members.age-transitions.dismiss',
             'billing.index',
             'billing.store',
+            'collections.index',
+            'collections.store',
             'blockedPeriods.index',
             'blockedPeriods.store',
             'blockedPeriods.update',

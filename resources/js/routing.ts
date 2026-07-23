@@ -127,6 +127,7 @@ const routes: Routing[] = [
 
     {
         name: [
+            "collections.index",
             "billing.index",
             "billing.charges.index",
             "billing-concepts.index",
@@ -141,6 +142,12 @@ const routes: Routing[] = [
         value: "cobranzaMenu",
         group: "Cobranza",
         groupItems: [
+            {
+                name: "collections.index",
+                title: "Registro de cobros",
+                icon: "mdi-cash-register",
+                value: "cobro-directo",
+            },
             {
                 name: "billing-concepts.index",
                 title: "Conceptos de cobro",

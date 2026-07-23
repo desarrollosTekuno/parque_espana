@@ -42,7 +42,6 @@ Route::get('/prueba-excel', function () {
     $cashCut = CashCut::with([
         'club',
         'cashier',
-        'manager',
         'denominations',
     ])->latest()->first();
 
