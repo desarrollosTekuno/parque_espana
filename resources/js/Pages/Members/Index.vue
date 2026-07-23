@@ -16,6 +16,7 @@ interface MemberItem {
     email: string | null;
     phone: string | null;
     monthly_fee: number;
+    spans_multiple_clubs: boolean;
     status: string;
     can_change_membership: boolean;
     can_change_primary_holder: boolean;
@@ -123,6 +124,7 @@ const currencyFormatter = new Intl.NumberFormat("es-MX", {
     currency: "MXN",
     maximumFractionDigits: 2,
 });
+
 
 const statusLabel = (status: string) => {
     const map: Record<string, string> = {
@@ -363,19 +365,11 @@ const formatDateTime = (value: string | null) => {
                                         </div>
                                     </div>
 
-                                    <div class="text-caption text-medium-emphasis mt-2">
-                                        {{
-                                            membership.is_billable
-                                                ? `Cuota a cobrar: ${currencyFormatter.format(membership.monthly_fee_share)}`
-                                                : `Monto referencial: ${currencyFormatter.format(membership.monthly_fee_share)}`
-                                        }}
-                                    </div>
                                     <div
-                                        v-if="membership.monthly_fee_total !== membership.monthly_fee_share"
-                                        class="text-caption text-medium-emphasis"
+                                        v-if="membership.is_billable"
+                                        class="text-caption text-medium-emphasis mt-2"
                                     >
-                                        Cuota total del esquema:
-                                        {{ currencyFormatter.format(membership.monthly_fee_total) }}
+                                        Cuota a cobrar: {{ currencyFormatter.format(membership.monthly_fee_share) }}
                                     </div>
                                 </div>
                             </div>
@@ -385,8 +379,11 @@ const formatDateTime = (value: string | null) => {
                             <div class="font-weight-bold">
                                 {{ currencyFormatter.format(item.monthly_fee) }}
                             </div>
-                            <div class="text-caption text-medium-emphasis">
-                                Total actual a cobrar
+                            <div class="d-flex align-center flex-wrap ga-1 mt-1">
+                                <span class="text-caption text-medium-emphasis">Total actual a cobrar</span>
+                                <v-chip v-if="item.spans_multiple_clubs" size="x-small" color="info" variant="tonal">
+                                    Ambos parques
+                                </v-chip>
                             </div>
                         </template>
 

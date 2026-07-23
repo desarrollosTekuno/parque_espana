@@ -16,8 +16,6 @@ class InterclubPackageRule extends Model {
     protected $casts = [
         'min_years_in_source_club' => 'integer',
         'requires_active_source_membership' => 'boolean',
-        'inscription_fee' => 'float',
-        'monthly_fee' => 'float',
         'priority' => 'integer',
         'is_active' => 'boolean',
         'metadata' => 'array',
@@ -41,5 +39,38 @@ class InterclubPackageRule extends Model {
     public function targetMembershipType()
     {
         return $this->belongsTo(MembershipType::class, 'target_membership_type_id');
+    }
+
+    public function feeHistory()
+    {
+        return $this->hasMany(InterclubPackageRuleFeeHistory::class, 'interclub_package_rule_id');
+    }
+
+    /**
+     * Ver PricingRule::resolveMonthlyFee() / resolveInscriptionFee() — misma
+     * lógica de carry-forward por año.
+     */
+    public function resolveMonthlyFee(?int $year = null): ?float
+    {
+        $history = $this->resolveFeeHistory($year);
+
+        return $history ? (float) $history->monthly_fee : null;
+    }
+
+    public function resolveInscriptionFee(?int $year = null): ?float
+    {
+        $history = $this->resolveFeeHistory($year);
+
+        return $history?->inscription_fee !== null ? (float) $history->inscription_fee : null;
+    }
+
+    protected function resolveFeeHistory(?int $year = null): ?InterclubPackageRuleFeeHistory
+    {
+        $year ??= now()->year;
+
+        return $this->feeHistory()
+            ->where('year', '<=', $year)
+            ->orderByDesc('year')
+            ->first();
     }
 }

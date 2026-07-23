@@ -60,6 +60,13 @@ class RecalculateMembershipFees extends Command
                 'club',
                 fn (Builder $q) => $q->where('code', $clubCode)
             ))
+            // Dentro de un mismo grupo interclub, la membresía facturable debe
+            // procesarse primero: es la que realmente genera cargos y de la que
+            // debe tomarse la regla de precio vigente. Si la no facturable
+            // "reclamara" el grupo primero (por orden de club_id/id), la
+            // facturable quedaría saltada por el control de deduplicación de
+            // abajo y nunca se recalcularía.
+            ->orderByDesc('is_billable')
             ->orderBy('club_id')
             ->orderBy('id')
             ->get();
@@ -134,7 +141,20 @@ class RecalculateMembershipFees extends Command
             return;
         }
 
-        $newFee     = round((float) $rule->monthly_fee, 2);
+        $resolvedFee = $rule->resolveMonthlyFee();
+
+        if ($resolvedFee === null) {
+            $this->warn(sprintf(
+                '  Regla sin cuota capturada: %s | %s | %s',
+                $membership->account?->membership_number ?? 'S/N',
+                $membership->club?->code              ?? 'N/D',
+                $membershipType->code
+            ));
+            $this->skipped++;
+            return;
+        }
+
+        $newFee     = round($resolvedFee, 2);
         $currentFee = round((float) $membership->monthly_fee, 2);
 
         $this->line(sprintf(
@@ -157,7 +177,9 @@ class RecalculateMembershipFees extends Command
             $this->chargeService->synchronizeMembershipFees(
                 membership:      $membership,
                 groupTotalMonthlyFee: $newFee,
-                historyReason:   'Recálculo de cuota por ajuste de precios en catálogo'
+                historyReason:   'Recálculo de cuota por ajuste de precios en catálogo',
+                pricingRuleId:   $rule->id,
+                interclubPackageRuleId: $membership->interclub_package_rule_id
             );
         }
 

@@ -432,16 +432,20 @@ class AgeTransitionController extends Controller
         // fue promovido en otro parque entre la detección y la aprobación.
         $existingAccountGroup      = $this->findExistingAccountGroup($member->id, $familyMembership->club_id);
         $currentlyHasMultipleClubs = $existingAccountGroup !== null;
-        $billingSplitMode          = $currentlyHasMultipleClubs ? 'equal_split' : 'single';
+        // Por ahora el split 50/50 entre parques queda deshabilitado (ver
+        // MemberController::resolveBillingSplitMode) — siempre 'single'.
+        $billingSplitMode          = 'single';
 
         // Recalcular la cuota si el estado multiclub cambió respecto a lo detectado originalmente
-        $monthlyFeeTotal = $this->resolveCurrentMonthlyFee(
+        $resolvedFee = $this->resolveCurrentMonthlyFee(
             transition:                $transition,
             fromMembershipTypeId:      $familyMembership->membership_type_id,
             targetMembershipTypeId:    $targetType->id,
             member:                    $member,
             currentlyHasMultipleClubs: $currentlyHasMultipleClubs,
         );
+        $monthlyFeeTotal = $resolvedFee['fee'];
+        $pricingRuleId   = $resolvedFee['pricing_rule_id'];
 
         $group = $existingAccountGroup ?? MembershipAccountGroup::create(['status' => 'active']);
 
@@ -473,6 +477,7 @@ class AgeTransitionController extends Controller
             'monthly_fee_total'         => $monthlyFeeTotal,
             'monthly_fee_share'         => $monthlyFeeTotal,
             'billing_split_mode'        => $billingSplitMode,
+            'pricing_rule_id'           => $pricingRuleId,
             'start_date'                => now()->toDateString(),
             'end_date'                  => $targetType->validity_months
                 ? now()->addMonthsNoOverflow($targetType->validity_months)->toDateString()
@@ -486,7 +491,7 @@ class AgeTransitionController extends Controller
         $newMembership->load('account');
 
         $newMembership = $this->chargeService
-            ->synchronizeMembershipFees($newMembership, $monthlyFeeTotal, null, $billingSplitMode, 'Promoción por edad — ' . $targetType->name)
+            ->synchronizeMembershipFees($newMembership, $monthlyFeeTotal, null, $billingSplitMode, 'Promoción por edad — ' . $targetType->name, $pricingRuleId)
             ->firstWhere('id', $newMembership->id)
             ?? $newMembership->fresh(['membershipType', 'account.primaryHolder']);
 
@@ -545,7 +550,9 @@ class AgeTransitionController extends Controller
         // Re-evaluar en tiempo real si ya tiene membresía propia activa en otro parque
         $existingAccountGroup      = $this->findExistingAccountGroup($member->id, $solidariaMembership->club_id);
         $currentlyHasMultipleClubs = $existingAccountGroup !== null;
-        $billingSplitMode          = $currentlyHasMultipleClubs ? 'equal_split' : 'single';
+        // Por ahora el split 50/50 entre parques queda deshabilitado (ver
+        // MemberController::resolveBillingSplitMode) — siempre 'single'.
+        $billingSplitMode          = 'single';
 
         // Si ahora tiene múltiples parques pero la cuenta aún no está enlazada al grupo,
         // enlazarla para que synchronizeMembershipFees distribuya correctamente los cargos
@@ -556,13 +563,15 @@ class AgeTransitionController extends Controller
         }
 
         // Recalcular la cuota si el estado multiclub cambió respecto a lo detectado originalmente
-        $monthlyFeeTotal = $this->resolveCurrentMonthlyFee(
+        $resolvedFee = $this->resolveCurrentMonthlyFee(
             transition:                $transition,
             fromMembershipTypeId:      $previousTypeId,
             targetMembershipTypeId:    $targetType->id,
             member:                    $member,
             currentlyHasMultipleClubs: $currentlyHasMultipleClubs,
         );
+        $monthlyFeeTotal = $resolvedFee['fee'];
+        $pricingRuleId   = $resolvedFee['pricing_rule_id'];
 
         $solidariaMembership->update([
             'membership_type_id'        => $targetType->id,
@@ -571,6 +580,7 @@ class AgeTransitionController extends Controller
             'monthly_fee_total'         => $monthlyFeeTotal,
             'monthly_fee_share'         => $monthlyFeeTotal,
             'billing_split_mode'        => $billingSplitMode,
+            'pricing_rule_id'           => $pricingRuleId,
             'start_date'                => now()->toDateString(),
             'end_date'                  => $targetType->validity_months
                 ? now()->addMonthsNoOverflow($targetType->validity_months)->toDateString()
@@ -598,7 +608,7 @@ class AgeTransitionController extends Controller
         ]);
 
         $solidariaMembership = $this->chargeService
-            ->synchronizeMembershipFees($solidariaMembership, $monthlyFeeTotal, null, $billingSplitMode, 'Promoción por edad — ' . $targetType->name)
+            ->synchronizeMembershipFees($solidariaMembership, $monthlyFeeTotal, null, $billingSplitMode, 'Promoción por edad — ' . $targetType->name, $pricingRuleId)
             ->firstWhere('id', $solidariaMembership->id)
             ?? $solidariaMembership->fresh(['membershipType', 'account.primaryHolder']);
 
@@ -639,24 +649,23 @@ class AgeTransitionController extends Controller
      *  - Parque 1 promovido primero → precio single correcto
      *  - Parque 2 promovido después → precio multiclub + split 50/50
      */
+    /**
+     * @return array{fee: float, pricing_rule_id: ?int}
+     */
     private function resolveCurrentMonthlyFee(
         PendingAgeTransition $transition,
         int $fromMembershipTypeId,
         int $targetMembershipTypeId,
         \App\Models\Members\Member $member,
         bool $currentlyHasMultipleClubs,
-    ): float {
-        // Si el estado no cambió, usamos la cuota guardada (evita una query extra)
-        if ((bool) $transition->has_multiple_clubs === $currentlyHasMultipleClubs) {
-            return (float) $transition->monthly_fee;
-        }
-
+    ): array {
         $age = $member->birthdate
             ? (int) \Carbon\Carbon::parse($member->birthdate)->diffInYears(now())
             : null;
 
-        // Delegar al servicio de pricing: aplica is_active, valid_from, valid_until
-        // y el orden de fallback correcto: [fromId, multiclub] → [null, multiclub] → [fromId, false] → [null, false]
+        // Siempre se resuelve la regla (incluso si el estado multiclub no cambió)
+        // porque necesitamos su id para enlazarla a la nueva membresía y que las
+        // futuras subidas de precio se apliquen automáticamente sin re-tramitar.
         $rule = $this->pricingService->resolvePricingRule(
             membershipTypeId:     $targetMembershipTypeId,
             fromMembershipTypeId: $fromMembershipTypeId,
@@ -665,16 +674,22 @@ class AgeTransitionController extends Controller
         );
 
         if ($rule) {
-            Log::info('Age transition: fee recalculated due to multiclub state change', [
-                'transition_id'              => $transition->id,
-                'stored_has_multiple_clubs'  => $transition->has_multiple_clubs,
-                'current_has_multiple_clubs' => $currentlyHasMultipleClubs,
-                'stored_monthly_fee'         => $transition->monthly_fee,
-                'resolved_monthly_fee'       => $rule->monthly_fee,
-                'pricing_rule_id'            => $rule->id,
-            ]);
+            $resolvedFee = $rule->resolveMonthlyFee();
 
-            return (float) $rule->monthly_fee;
+            if ($resolvedFee !== null) {
+                if ((bool) $transition->has_multiple_clubs !== $currentlyHasMultipleClubs) {
+                    Log::info('Age transition: fee recalculated due to multiclub state change', [
+                        'transition_id'              => $transition->id,
+                        'stored_has_multiple_clubs'  => $transition->has_multiple_clubs,
+                        'current_has_multiple_clubs' => $currentlyHasMultipleClubs,
+                        'stored_monthly_fee'         => $transition->monthly_fee,
+                        'resolved_monthly_fee'       => $resolvedFee,
+                        'pricing_rule_id'            => $rule->id,
+                    ]);
+                }
+
+                return ['fee' => $resolvedFee, 'pricing_rule_id' => $rule->id];
+            }
         }
 
         // Fallback: usar la cuota guardada y loggear la advertencia
@@ -687,7 +702,7 @@ class AgeTransitionController extends Controller
             'fallback_fee'               => $transition->monthly_fee,
         ]);
 
-        return (float) $transition->monthly_fee;
+        return ['fee' => (float) $transition->monthly_fee, 'pricing_rule_id' => $rule?->id];
     }
 
     private function findExistingAccountGroup(int $memberId, int $currentClubId): ?MembershipAccountGroup
