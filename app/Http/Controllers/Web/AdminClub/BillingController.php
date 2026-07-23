@@ -635,7 +635,7 @@ class BillingController extends Controller
         }
 
         // Cuota mensual de la membresía (independiente de qué cargos ya existan)
-        $monthlyFee = round((float) ($membership->monthly_fee_share ?? $membership->monthly_fee ?? 0), 2);
+        $monthlyFee = $membership->resolved_monthly_fee_share;
 
         // Cargos ya existentes para el año, para saber cuáles meses ya tienen cargo
         $existingCharges = Charge::query()
@@ -748,7 +748,7 @@ class BillingController extends Controller
                 ]);
             }
 
-            $monthlyFee     = round((float) ($membership->monthly_fee_share ?? $membership->monthly_fee ?? 0), 2);
+            $monthlyFee     = $membership->resolved_monthly_fee_share;
             $paymentMonth   = Carbon::parse($validated['paid_at'])->month;
             $rule           = AnnualDiscountRule::findApplicable($year, $paymentMonth);
             $discountAmount = $rule ? round($monthlyFee * (float) $rule->discount_months, 2) : 0.0;

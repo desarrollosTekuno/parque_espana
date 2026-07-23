@@ -80,7 +80,9 @@ class MembershipPricingService
                 groupTotalMonthlyFee: $standaloneFee,
                 effectiveDate: null,
                 billingSplitMode: 'single',
-                historyReason: 'Recálculo de cuota: baja de cuenta en grupo'
+                historyReason: 'Recálculo de cuota: baja de cuenta en grupo',
+                pricingRuleId: $pricingRule->id,
+                interclubPackageRuleId: null
             );
         }
     }
@@ -99,7 +101,9 @@ class MembershipPricingService
         // and re-applies the split mode stored on the reactivated membership.
         $chargeService->synchronizeMembershipFees(
             membership: $reactivatedMembership,
-            historyReason: 'Recálculo de cuota: reactivación de cuenta en grupo'
+            historyReason: 'Recálculo de cuota: reactivación de cuenta en grupo',
+            pricingRuleId: $reactivatedMembership->pricing_rule_id,
+            interclubPackageRuleId: $reactivatedMembership->interclub_package_rule_id
         );
     }
 

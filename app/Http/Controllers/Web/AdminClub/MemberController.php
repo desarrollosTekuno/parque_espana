@@ -1549,6 +1549,8 @@ class MemberController extends Controller
                     'monthly_fee_total' => $selectedTargetOption['monthly_fee'],
                     'monthly_fee_share' => $selectedTargetOption['monthly_fee'],
                     'billing_split_mode' => $selectedTargetOption['billing_split_mode'] ?? 'single',
+                    'pricing_rule_id' => $selectedTargetOption['pricing_rule_id'] ?? null,
+                    'interclub_package_rule_id' => $selectedTargetOption['interclub_package_rule_id'] ?? null,
                     'start_date' => now()->toDateString(),
                     'end_date' => $targetMembershipType->validity_months
                         ? now()->addMonthsNoOverflow($targetMembershipType->validity_months)->toDateString()
@@ -1561,7 +1563,10 @@ class MemberController extends Controller
                         $newMembership,
                         (float) $selectedTargetOption['monthly_fee'],
                         null,
-                        $selectedTargetOption['billing_split_mode'] ?? 'single'
+                        $selectedTargetOption['billing_split_mode'] ?? 'single',
+                        null,
+                        $selectedTargetOption['pricing_rule_id'] ?? null,
+                        $selectedTargetOption['interclub_package_rule_id'] ?? null
                     )
                     ->firstWhere('id', $newMembership->id) ?? $newMembership->fresh(['membershipType', 'account.primaryHolder']);
 
@@ -2078,6 +2083,8 @@ class MemberController extends Controller
                         'monthly_fee_total' => $pricing['monthly_fee'],
                         'monthly_fee_share' => $pricing['monthly_fee'],
                         'billing_split_mode' => $pricing['billing_split_mode'] ?? 'single',
+                        'pricing_rule_id' => $pricing['pricing_rule_id'] ?? null,
+                        'interclub_package_rule_id' => $pricing['interclub_package_rule_id'] ?? null,
                         'start_date' => now()->toDateString(),
                         'end_date' => $membershipType->validity_months
                             ? now()->addMonthsNoOverflow($membershipType->validity_months)->toDateString()
@@ -2108,7 +2115,10 @@ class MemberController extends Controller
                             $sourceMembership,
                             (float) $pricing['monthly_fee'],
                             null,
-                            $pricing['billing_split_mode'] ?? 'single'
+                            $pricing['billing_split_mode'] ?? 'single',
+                            null,
+                            $pricing['pricing_rule_id'] ?? null,
+                            $pricing['interclub_package_rule_id'] ?? null
                         )
                         ->firstWhere('id', $sourceMembership->id) ?? $sourceMembership->fresh(['membershipType', 'account.primaryHolder']);
 
@@ -2141,6 +2151,8 @@ class MemberController extends Controller
                     'monthly_fee_total' => $pricing['monthly_fee'],
                     'monthly_fee_share' => $pricing['monthly_fee'],
                     'billing_split_mode' => $pricing['billing_split_mode'] ?? 'single',
+                    'pricing_rule_id' => $pricing['pricing_rule_id'] ?? null,
+                    'interclub_package_rule_id' => $pricing['interclub_package_rule_id'] ?? null,
                     'start_date' => now()->toDateString(),
                     'end_date' => $membershipType->validity_months
                         ? now()->addMonthsNoOverflow($membershipType->validity_months)->toDateString()
@@ -2176,7 +2188,10 @@ class MemberController extends Controller
                         $newMembership,
                         (float) $pricing['monthly_fee'],
                         null,
-                        $pricing['billing_split_mode'] ?? 'single'
+                        $pricing['billing_split_mode'] ?? 'single',
+                        null,
+                        $pricing['pricing_rule_id'] ?? null,
+                        $pricing['interclub_package_rule_id'] ?? null
                     )
                     ->firstWhere('id', $newMembership->id) ?? $newMembership->fresh(['membershipType', 'account.primaryHolder']);
 
@@ -3419,6 +3434,8 @@ class MemberController extends Controller
                         'monthly_fee' => (float) $pricing['monthly_fee'],
                         'inscription_fee' => 0.0, // separations are internal transfers, not new enrollments
                         'billing_split_mode' => $pricing['billing_split_mode'] ?? 'single',
+                        'pricing_rule_id' => $pricing['pricing_rule_id'] ?? null,
+                        'interclub_package_rule_id' => $pricing['interclub_package_rule_id'] ?? null,
                     ];
                 } catch (ValidationException $e) {
                     return null;
@@ -3505,6 +3522,8 @@ class MemberController extends Controller
                 // Por ahora el split 50/50 entre parques queda deshabilitado
                 // (ver resolveBillingSplitMode) — siempre 'single'.
                 'billing_split_mode' => 'single',
+                'pricing_rule_id' => null,
+                'interclub_package_rule_id' => $interclubRule->id,
             ];
         }
 
@@ -3550,6 +3569,8 @@ class MemberController extends Controller
                 membershipType: $membershipType,
                 sourceMembershipBecomesNonBillable: $sourceMembershipBecomesNonBillable
             ),
+            'pricing_rule_id' => $pricingRule->id,
+            'interclub_package_rule_id' => null,
         ];
     }
 

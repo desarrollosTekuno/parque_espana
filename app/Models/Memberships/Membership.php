@@ -54,13 +54,46 @@ class Membership extends Model
         return $this->hasMany(Charge::class, 'membership_id');
     }
 
+    public function pricingRule()
+    {
+        return $this->belongsTo(PricingRule::class, 'pricing_rule_id');
+    }
+
+    public function interclubPackageRule()
+    {
+        return $this->belongsTo(InterclubPackageRule::class, 'interclub_package_rule_id');
+    }
+
+    /**
+     * Cuota vigente según la regla que originó esta membresía (si hay una
+     * enlazada), para que un cambio de precio a mitad de año se refleje sin
+     * necesidad de re-tramitar la membresía. Null si no hay regla enlazada
+     * o la regla no tiene historial de montos.
+     */
+    public function resolveLiveMonthlyFee(?int $year = null): ?float
+    {
+        if ($this->interclub_package_rule_id && $this->interclubPackageRule) {
+            return $this->interclubPackageRule->resolveMonthlyFee($year);
+        }
+
+        if ($this->pricing_rule_id && $this->pricingRule) {
+            return $this->pricingRule->resolveMonthlyFee($year);
+        }
+
+        return null;
+    }
+
     public function getResolvedMonthlyFeeTotalAttribute(): float
     {
-        return round((float) ($this->monthly_fee_total ?? $this->monthly_fee ?? 0), 2);
+        $live = $this->resolveLiveMonthlyFee();
+
+        return round((float) ($live ?? $this->monthly_fee_total ?? $this->monthly_fee ?? 0), 2);
     }
 
     public function getResolvedMonthlyFeeShareAttribute(): float
     {
-        return round((float) ($this->monthly_fee_share ?? $this->monthly_fee ?? 0), 2);
+        $live = $this->resolveLiveMonthlyFee();
+
+        return round((float) ($live ?? $this->monthly_fee_share ?? $this->monthly_fee ?? 0), 2);
     }
 }
