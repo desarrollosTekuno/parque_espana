@@ -20,7 +20,7 @@ import { Head, useForm, usePage } from "@inertiajs/vue3";
 import { computed, ref, watch } from "vue";
 
 const page = usePage<any>();
-
+const can = page.props.auth.permissions;
 interface Props {
     membershipTypes?: MembershipType[];
     originMembershipTypes?: MembershipType[];
@@ -421,7 +421,6 @@ const steps = computed(() => [
     form.membershipType?.allows_multiple_members
         ? "Datos y familia"
         : "Datos del titular",
-    "Documentos",
     "Confirmación",
 ]);
 
@@ -1209,11 +1208,11 @@ const handleNext = async (next: () => void) => {
             return;
             
         }
-        // next();
-        // return;
+         next();
+         return;
     }
 
-    if (step.value === 3) {
+    /*if (step.value === 3) {
         const { valid } = await documentsStepRef.value?.validate();
         if (!valid) {
             // Show an error toast if validation fails
@@ -1227,13 +1226,13 @@ const handleNext = async (next: () => void) => {
     //     return;
     }
 
-    next();
+    next();*/
 };
 
 const handlePrev = (prev: () => void) => {
-    if (step.value === 3) {
+   /* if (step.value === 3) {
         documentsStepRef.value?.resetValidation();
-    }
+    }*/
 
     if (step.value === 2) {
         familyStepRef.value?.resetValidation();
@@ -2024,7 +2023,7 @@ watch(applyInscriptionDiscount, (val) => {
                                                         v-model="
                                                             member.first_name
                                                         "
-                                                        label="Nombre(s)"
+                                                        label="Nombre(s) *"
                                                         :rules="[required,minLength(2), maxLength(75)]"
                                                         :disabled="
                                                             isIdentityLocked(
@@ -2039,7 +2038,7 @@ watch(applyInscriptionDiscount, (val) => {
                                                         v-model="
                                                             member.last_name
                                                         "
-                                                        label="Apellido paterno"
+                                                        label="Apellido paterno *"
                                                         :rules="[required,minLength(2), maxLength(50)]"
                                                         :disabled="
                                                             isIdentityLocked(
@@ -2054,7 +2053,7 @@ watch(applyInscriptionDiscount, (val) => {
                                                         v-model="
                                                             member.second_last_name
                                                         "
-                                                        label="Apellido materno"
+                                                        label="Apellido materno *"
                                                         :disabled="
                                                             isIdentityLocked(
                                                                 member,
@@ -2071,7 +2070,7 @@ watch(applyInscriptionDiscount, (val) => {
                                                             member.birthdate
                                                         "
                                                         type="date"
-                                                        label="Fecha de nacimiento"
+                                                        label="Fecha de nacimiento *"
                                                         :rules="[
                                                             required,
                                                             birthdateRule(
@@ -2100,7 +2099,7 @@ watch(applyInscriptionDiscount, (val) => {
                                                         :model-value="
                                                             member.age
                                                         "
-                                                        label="Edad"
+                                                        label="Edad *"
                                                         readonly
                                                     />
                                                 </v-col>
@@ -2122,7 +2121,7 @@ watch(applyInscriptionDiscount, (val) => {
                                                         :items="countryOptions"
                                                         item-title="title"
                                                         item-value="id"
-                                                        label="País de nacimiento"
+                                                        label="País de nacimiento *"
                                                         :error-messages="
                                                             memberFieldError(
                                                                 index,
@@ -2162,7 +2161,7 @@ watch(applyInscriptionDiscount, (val) => {
                                                         "
                                                         item-title="name"
                                                         item-value="id"
-                                                        label="Estado de nacimiento"
+                                                        label="Estado de nacimiento *"
                                                         :error-messages="
                                                             memberFieldError(
                                                                 index,
@@ -2202,12 +2201,12 @@ watch(applyInscriptionDiscount, (val) => {
                                                         "
                                                         :items="
                                                             getCityOptions(
-                                                                member.birth_state_id,
+                                                                member.birth_state_id, 
                                                             )
                                                         "
                                                         item-title="name"
                                                         item-value="id"
-                                                        label="Ciudad de nacimiento"
+                                                        label="Ciudad de nacimiento *"
                                                         :error-messages="
                                                             memberFieldError(
                                                                 index,
@@ -2247,7 +2246,7 @@ watch(applyInscriptionDiscount, (val) => {
                                                         "
                                                         item-title="title"
                                                         item-value="id"
-                                                        label="Nacionalidad"
+                                                        label="Nacionalidad *"
                                                         
                                                         clearable
                                                         auto-select-first
@@ -2276,7 +2275,7 @@ watch(applyInscriptionDiscount, (val) => {
                                                         "
                                                         item-title="title"
                                                         item-value="id"
-                                                        label="Estado civil"
+                                                        label="Estado civil *"
                                                         :disabled="
                                                             isSpouseRelationship(
                                                                 member,
@@ -2307,7 +2306,7 @@ watch(applyInscriptionDiscount, (val) => {
                                                 >
                                                     <v-text-field
                                                         v-model="member.phone"
-                                                        label="Teléfono"
+                                                        label="Teléfono *"
                                                         :rules="
                                                             member.is_primary_holder
                                                                 ? [
@@ -2324,7 +2323,7 @@ watch(applyInscriptionDiscount, (val) => {
                                                 <v-col cols="12" md="4">
                                                     <v-text-field
                                                         v-model="member.email"
-                                                        label="Correo"
+                                                        label="Correo *"
                                                         :rules="
                                                             member.is_primary_holder
                                                                 ? [
@@ -2348,7 +2347,7 @@ watch(applyInscriptionDiscount, (val) => {
                                                         v-model="
                                                             member.occupation
                                                         "
-                                                        label="Ocupación"
+                                                        label="Ocupación *"
                                                         :rules="[required, minLength(2), maxLength(100)]"
                                                     />
                                                 </v-col>
@@ -2366,7 +2365,7 @@ watch(applyInscriptionDiscount, (val) => {
                                                         v-model="
                                                             member.school_name
                                                         "
-                                                        label="Colegio"
+                                                        label="Colegio *"
                                                         :rules="[required, minLength(3), maxLength(150)]"
                                                     />
                                                 </v-col>
@@ -2391,7 +2390,7 @@ watch(applyInscriptionDiscount, (val) => {
                                                             member.address
                                                                 .street
                                                         "
-                                                        label="Calle"
+                                                        label="Calle *"
                                                         :rules="[required, minLength(3), maxLength(150)]"
                                                     />
                                                 </v-col>
@@ -2402,7 +2401,7 @@ watch(applyInscriptionDiscount, (val) => {
                                                             member.address
                                                                 .neighborhood
                                                         "
-                                                        label="Colonia"
+                                                        label="Colonia *"
                                                         :rules="[required, minLength(3), maxLength(150)]"
                                                     />
                                                 </v-col>
@@ -2413,7 +2412,7 @@ watch(applyInscriptionDiscount, (val) => {
                                                             member.address
                                                                 .postal_code
                                                         "
-                                                        label="Código postal"
+                                                        label="Código postal *"
                                                         :rules="[postalCode]"
                                                     />
                                                 </v-col>
@@ -2427,7 +2426,7 @@ watch(applyInscriptionDiscount, (val) => {
                                                         :items="countryOptions"
                                                         item-title="title"
                                                         item-value="id"
-                                                        label="País"
+                                                        label="País *"
                                                         :error-messages="
                                                             memberAddressFieldError(
                                                                 index,
@@ -2459,7 +2458,7 @@ watch(applyInscriptionDiscount, (val) => {
                                                         "
                                                         item-title="name"
                                                         item-value="id"
-                                                        label="Estado del domicilio"
+                                                        label="Estado del domicilio *"
                                                         :error-messages="
                                                             memberAddressFieldError(
                                                                 index,
@@ -2497,7 +2496,7 @@ watch(applyInscriptionDiscount, (val) => {
                                                         "
                                                         item-title="name"
                                                         item-value="id"
-                                                        label="Ciudad del domicilio"
+                                                        label="Ciudad del domicilio *"
                                                         :error-messages="
                                                             memberAddressFieldError(
                                                                 index,
@@ -2524,7 +2523,7 @@ watch(applyInscriptionDiscount, (val) => {
                                                             member.address
                                                                 .years_in_city
                                                         "
-                                                        label="Años radicando en la ciudad"
+                                                        label="Años radicando en la ciudad *"
                                                         :rules="[required]"
                                                     />
                                                 </v-col>
@@ -2550,7 +2549,7 @@ watch(applyInscriptionDiscount, (val) => {
                                                                 .company_name
                                                         "
                                                         label="Empresa"
-                                                        :rules="[required, minLength(2), maxLength(150)]"
+                                                        :rules="[minLength(2), maxLength(150)]"
                                                     />
                                                 </v-col>
 
@@ -2561,7 +2560,7 @@ watch(applyInscriptionDiscount, (val) => {
                                                                 .company_address
                                                         "
                                                         label="Dirección de la empresa"
-                                                            :rules="[required, minLength(5), maxLength(255)]"
+                                                            :rules="[minLength(5), maxLength(255)]"
                                                     />
                                                 </v-col>
 
@@ -2572,7 +2571,7 @@ watch(applyInscriptionDiscount, (val) => {
                                                                 .company_phone
                                                         "
                                                         label="Teléfono de la empresa"
-                                                        :rules="[required, validatePhone]"
+                                                        :rules="[validatePhone]"
                                                     />
                                                 </v-col>
                                             </v-row>
@@ -2594,7 +2593,7 @@ watch(applyInscriptionDiscount, (val) => {
                         </template>
 
                         <!-- STEP 3 -->
-                        <template #item.3>
+                        <!--<template #item.3>
                             <v-form ref="documentsStepRef">
                                 <v-container class="h-[500px] overflow-auto">
                                     <div class="mb-4">
@@ -2661,7 +2660,6 @@ watch(applyInscriptionDiscount, (val) => {
                                                         </v-chip>
                                                     </div>
 
-                                                    <!-- Documento ya cargado — modo lectura -->
                                                     <div
                                                         v-if="doc.already_uploaded && !doc.update_mode"
                                                         class="d-flex align-center ga-2"
@@ -2686,7 +2684,6 @@ watch(applyInscriptionDiscount, (val) => {
                                                         </v-btn>
                                                     </div>
 
-                                                    <!-- Upload field: nuevo o en modo actualización -->
                                                     <template v-else>
                                                         <v-btn
                                                             v-if="doc.already_uploaded && doc.update_mode"
@@ -2722,10 +2719,10 @@ watch(applyInscriptionDiscount, (val) => {
                                     </div>
                                 </v-container>
                             </v-form>
-                        </template>
+                        </template> -->
 
                         <!-- STEP 4 -->
-                        <template #item.4>
+                        <template #item.3>
                             <v-container class="h-[500px] overflow-auto">
                                 <h3 class="text-title-large mb-4">
                                     Confirmación
@@ -2755,7 +2752,7 @@ watch(applyInscriptionDiscount, (val) => {
 
                                 <!-- Descuento en inscripción -->
                                 <v-card
-                                    v-if="pricingPreview && pricingPreview.inscription_fee > 0"
+                                    v-if="pricingPreview && pricingPreview.inscription_fee > 0 && can.includes('memberships.view-inscription-fee')"
                                     class="pa-4 mb-4"
                                 >
                                     <div class="d-flex align-center justify-space-between mb-1">
