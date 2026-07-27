@@ -107,8 +107,8 @@ class BusinessAdController extends Controller
             }
 
             if ($request->hasFile('image')) {
-                $path              = $request->file('image')->store('business_ads', 'public');
-                $validated['image'] = Storage::url($path);
+                $path = $request->file('image')->storePublicly('business_ads', 'spaces');
+                $validated['image'] = Storage::disk('spaces')->url($path);
             }
 
             $ad = BusinessAd::create([
