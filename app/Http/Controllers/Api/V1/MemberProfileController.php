@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Members\Member;
-use App\Models\Memberships\MembershipAccountMember;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -13,11 +12,6 @@ class MemberProfileController extends Controller
 {
     /**
      * GET /api/v1/my-profile
-     * GET /api/v1/my-profile?club_id=1
-     *
-     * Retorna la información personal del socio autenticado.
-     * Si se envía `club_id`, incluye además los datos de membresía
-     * correspondientes a ese parque.
      */
     public function show(Request $request): JsonResponse
     {
@@ -30,10 +24,7 @@ class MemberProfileController extends Controller
             ->first();
 
         if (!$member) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No se encontró un perfil de socio asociado a este usuario.',
-            ], 404);
+            return $this->notFound('No se encontró un perfil de socio asociado a este usuario.');
         }
 
         $data = $this->formatMember($member);
@@ -42,43 +33,32 @@ class MemberProfileController extends Controller
             $data['club_membership'] = $this->getMembershipForClub($member, (int) $request->club_id);
         }
 
-        return response()->json([
-            'success' => true,
-            'data'    => $data,
-        ]);
+        return $this->ok($data);
     }
 
-    /**
-     * Obtiene los datos de membresía del socio para un parque específico.
-     * Retorna null si el socio no tiene membresía activa/suspendida en ese club.
-     */
     private function getMembershipForClub(Member $member, int $clubId): ?array
     {
         $accountMember = $member->accountMemberships()
             ->with([
-                'membershipAccount.memberships' => fn($q) => $q
+                'membershipAccount.memberships' => fn ($q) => $q
                     ->where('club_id', $clubId)
                     ->where('is_primary', true)
                     ->whereIn('status', ['active', 'suspended'])
                     ->with('club', 'membershipType'),
             ])
-            ->whereHas('membershipAccount.memberships', fn($q) => $q
+            ->whereHas('membershipAccount.memberships', fn ($q) => $q
                 ->where('club_id', $clubId)
                 ->where('is_primary', true)
                 ->whereIn('status', ['active', 'suspended'])
             )
             ->first();
 
-        if (!$accountMember) {
-            return null;
-        }
+        if (!$accountMember) return null;
 
         $account    = $accountMember->membershipAccount;
         $membership = $account->memberships->first();
 
-        if (!$membership) {
-            return null;
-        }
+        if (!$membership) return null;
 
         return [
             'club_id'               => $membership->club_id,
@@ -124,9 +104,7 @@ class MemberProfileController extends Controller
 
     private function resolvePhotoUrl(Member $member): ?string
     {
-        if (!$member->photo_path) {
-            return null;
-        }
+        if (!$member->photo_path) return null;
 
         return Storage::disk('spaces')->temporaryUrl(
             $member->photo_path,

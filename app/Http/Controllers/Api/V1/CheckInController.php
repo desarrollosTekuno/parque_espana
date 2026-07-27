@@ -31,20 +31,13 @@ class CheckInController extends Controller
                 ->first();
 
             if (!$reservation) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'No se encontró una reservación activa para hoy en este recurso.',
-                ], 404);
+                return $this->notFound('No se encontró una reservación activa para hoy en este recurso.');
             }
 
-            // Verificar que el usuario esté dentro del radio de al menos una ubicación activa
             $activeLocations = $resource->locations()->where('active', true)->get();
 
             if ($activeLocations->isEmpty()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Este recurso no tiene ubicaciones activas configuradas.',
-                ], 422);
+                return $this->unprocessable('Este recurso no tiene ubicaciones activas configuradas.');
             }
 
             $userLat = (float) $request->input('latitude');
@@ -56,7 +49,6 @@ class CheckInController extends Controller
 
             if ($minDistance > self::MAX_DISTANCE_METERS) {
                 return response()->json([
-                    'success'  => false,
                     'message'  => 'No estás dentro del área del recurso. Acércate e intenta de nuevo.',
                     'distance' => round($minDistance),
                 ], 422);
@@ -68,21 +60,12 @@ class CheckInController extends Controller
 
             $resource->load('amenity');
 
-            return response()->json([
-                'success'        => true,
-                'message'        => '¡Asistencia registrada correctamente!',
+            return $this->success('¡Asistencia registrada correctamente!', [
                 'checked_in_at'  => now()->toIso8601String(),
                 'resource'       => $resource->name,
                 'amenity'        => $resource->amenity->name,
                 'reservation_id' => $reservation->id,
             ]);
-
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Datos inválidos.',
-                'errors'  => $e->errors(),
-            ], 422);
         } catch (\Throwable $e) {
             Log::error('CheckIn store error', [
                 'resource_id'  => $resource->id,
@@ -90,27 +73,17 @@ class CheckInController extends Controller
                 'messageError' => $e->getMessage(),
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'No se pudo registrar la asistencia.',
-            ], 500);
+            return $this->serverError('No se pudo registrar la asistencia.');
         }
     }
 
-    /**
-     * Calcula la distancia en metros entre dos coordenadas geográficas
-     * usando la fórmula de Haversine.
-     */
     private function haversine(float $lat1, float $lon1, float $lat2, float $lon2): float
     {
-        $earthRadius = 6371000; // metros
-
+        $earthRadius = 6371000;
         $dLat = deg2rad($lat2 - $lat1);
         $dLon = deg2rad($lon2 - $lon1);
-
         $a = sin($dLat / 2) ** 2
             + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLon / 2) ** 2;
-
         return $earthRadius * 2 * atan2(sqrt($a), sqrt(1 - $a));
     }
 }

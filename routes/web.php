@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\Web\DashboardController;
-use App\Http\Controllers\Web\Survey\SurveyPublicController;
 use App\Services\Auth\PermissionLandingRouteResolver;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;

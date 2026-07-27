@@ -13,36 +13,27 @@ class PaymentSourceController extends Controller
 {
     public function __construct(private ConektaService $conekta) {}
 
-    // ──────────────────────────────────────────────────────────────
-    // GET /api/v1/clubs/{club}/payment-sources
-    // Lista las tarjetas guardadas del miembro autenticado para este club
-    // (cada club es una cuenta Conekta independiente)
-    // ──────────────────────────────────────────────────────────────
+    /**
+     * GET /api/v1/clubs/{club}/payment-sources
+     */
     public function index(Request $request, int $club): JsonResponse
     {
         $member = $this->resolveAuthMember($request);
-        if (!$member) return $this->memberNotFound();
+        if (!$member) return $this->notFound('No se encontró un perfil de socio asociado a este usuario.');
 
         $sources = $this->conekta->listPaymentSources($member, $club)
             ->map(fn (MemberPaymentSource $s) => $this->formatSource($s));
 
-        return response()->json([
-            'success' => true,
-            'data'    => $sources,
-        ]);
+        return $this->ok($sources);
     }
 
-    // ──────────────────────────────────────────────────────────────
-    // POST /api/v1/clubs/{club}/payment-sources
-    // Agrega una tarjeta tokenizada desde Flutter, bajo la cuenta Conekta
-    // de este club
-    //
-    // Body: { "token_id": "tok_xxx", "set_default": true }
-    // ──────────────────────────────────────────────────────────────
+    /**
+     * POST /api/v1/clubs/{club}/payment-sources
+     */
     public function store(Request $request, int $club): JsonResponse
     {
         $member = $this->resolveAuthMember($request);
-        if (!$member) return $this->memberNotFound();
+        if (!$member) return $this->notFound('No se encontró un perfil de socio asociado a este usuario.');
 
         $validated = $request->validate([
             'token_id'    => ['required', 'string'],
@@ -57,102 +48,68 @@ class PaymentSourceController extends Controller
                 setDefault: $validated['set_default'] ?? false,
             );
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Tarjeta agregada correctamente.',
-                'data'    => $this->formatSource($source),
-            ], 201);
+            return $this->created('Tarjeta agregada correctamente.', $this->formatSource($source));
         } catch (\Throwable $e) {
             report($e);
-            return response()->json([
-                'success' => false,
-                'message' => 'No se pudo agregar la tarjeta. Verifica los datos e intenta de nuevo.',
-                'error'   => $e->getMessage(),
-            ], 422);
+            return $this->unprocessable('No se pudo agregar la tarjeta. Verifica los datos e intenta de nuevo.');
         }
     }
 
-    // ──────────────────────────────────────────────────────────────
-    // DELETE /api/v1/clubs/{club}/payment-sources/{source}
-    // Elimina una tarjeta guardada
-    // ──────────────────────────────────────────────────────────────
+    /**
+     * DELETE /api/v1/clubs/{club}/payment-sources/{source}
+     */
     public function destroy(Request $request, int $club, MemberPaymentSource $source): JsonResponse
     {
         $member = $this->resolveAuthMember($request);
-        if (!$member) return $this->memberNotFound();
+        if (!$member) return $this->notFound('No se encontró un perfil de socio asociado a este usuario.');
 
-        // Solo puede eliminar sus propias tarjetas de este club
         if ($source->member_id !== $member->id || (int) $source->club_id !== $club) {
-            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+            return $this->forbidden('No autorizado.');
         }
 
         try {
             $this->conekta->deletePaymentSource($member, $club, $source);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Tarjeta eliminada correctamente.',
-            ]);
+            return $this->success('Tarjeta eliminada correctamente.');
         } catch (\Throwable $e) {
             report($e);
-            return response()->json([
-                'success' => false,
-                'message' => 'No se pudo eliminar la tarjeta.',
-                'error'   => $e->getMessage(),
-            ], 422);
+            return $this->unprocessable('No se pudo eliminar la tarjeta.');
         }
     }
 
-    // ──────────────────────────────────────────────────────────────
-    // PATCH /api/v1/clubs/{club}/payment-sources/{source}/set-default
-    // Marca una tarjeta como predeterminada dentro de este club
-    // ──────────────────────────────────────────────────────────────
+    /**
+     * PATCH /api/v1/clubs/{club}/payment-sources/{source}/set-default
+     */
     public function setDefault(Request $request, int $club, MemberPaymentSource $source): JsonResponse
     {
         $member = $this->resolveAuthMember($request);
-        if (!$member) return $this->memberNotFound();
+        if (!$member) return $this->notFound('No se encontró un perfil de socio asociado a este usuario.');
 
         if ($source->member_id !== $member->id || (int) $source->club_id !== $club) {
-            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+            return $this->forbidden('No autorizado.');
         }
 
         $this->conekta->setDefaultPaymentSource($member, $club, $source);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Tarjeta predeterminada actualizada.',
-            'data'    => $this->formatSource($source->fresh()),
-        ]);
+        return $this->success('Tarjeta predeterminada actualizada.', $this->formatSource($source->fresh()));
     }
-
-    // ──────────────────────────────────────────────────────────────
-    // Helpers
-    // ──────────────────────────────────────────────────────────────
 
     private function resolveAuthMember(Request $request): ?Member
     {
         return Member::where('user_id', $request->user()->id)->first();
     }
 
-    private function memberNotFound(): JsonResponse
-    {
-        return response()->json([
-            'success' => false,
-            'message' => 'No se encontró un perfil de socio asociado a este usuario.',
-        ], 404);
-    }
-
     private function formatSource(MemberPaymentSource $source): array
     {
         return [
-            'id'             => $source->id,
-            'brand'          => $source->card_brand,
-            'last4'          => $source->card_last4,
-            'exp_month'      => $source->card_exp_month,
-            'exp_year'       => $source->card_exp_year,
-            'cardholder'     => $source->cardholder_name,
-            'is_default'     => $source->is_default,
-            'created_at'     => $source->created_at?->toDateString(),
+            'id'         => $source->id,
+            'brand'      => $source->card_brand,
+            'last4'      => $source->card_last4,
+            'exp_month'  => $source->card_exp_month,
+            'exp_year'   => $source->card_exp_year,
+            'cardholder' => $source->cardholder_name,
+            'is_default' => $source->is_default,
+            'created_at' => $source->created_at?->toDateString(),
         ];
     }
 }
