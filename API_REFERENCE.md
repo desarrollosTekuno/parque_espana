@@ -377,19 +377,32 @@ La mensualidad dividida 50/50 entre parques **no es un solo cargo combinado** �
 ## 7. Casilleros (Lockers)
 
 ### GET /lockers/index
-- Auth: sí. Query: `account_id`, `category`, `club_id` (todos required).
-- Éxito (200): `{"data": [...casilleros disponibles...]}`.
+- Auth: sí. Query: `account_id`, `category`, `club_id` (todos required), `page` (opcional, default 1).
+- Éxito (200): `{"data": {"items": [...casilleros disponibles...], "meta": {"current_page":1,"per_page":20,"has_more_pages":false}}}`.
+- Paginado con `simplePaginate(20)` — sin `total`/`last_page`, diseñar la UI para scroll infinito.
 - Errores: `422` validación; `403` `{"message": "No perteneces a este club"}`.
 
 ### GET /lockers/members
 - Auth: sí. Query: `account_id`, `club_id` (ambos required).
 - Éxito (200): `{"data": [{"label":"nombre apellido","value":1}]}` — solo integrantes sin casillero asignado este año.
 
+### GET /lockers/pricing
+- Auth: sí. Query: `club_id` (required).
+- Éxito (200): `{"data": {"annual_amount": 1100.0, "prorated_amount": 0.0, "months_remaining": 0}}`.
+- El monto anual se resuelve desde `billing.concepts` (código `LOCKERS`), con posible override por club en `billing.concept_club_amounts` (`ChargeConcept::resolveAmountForClub()`). `prorated_amount` es el mismo cálculo que aplica `POST /lockers/assign` — pensado para mostrar un preview antes de confirmar la solicitud.
+
+### GET /lockers/mine
+- Auth: sí. Query: `account_id`, `club_id` (ambos required).
+- Éxito (200): `{"data": [{"id":1,"year":2026,"start_date":"datetime","end_date":"datetime","amount_paid":0.0,"locker":{"id":1,"number":12,"category":"caballeros"},"member":{"id":1,"label":"nombre apellido"}}]}`.
+- Incluye **todos los años** (histórico), ordenado por `year` descendente — no solo la asignación vigente. El cliente puede considerar "vigente" la que tenga `year` igual al año actual.
+- Error `403` `{"message": "No perteneces a este club"}`.
+
 ### POST /lockers/assign
 - Auth: sí. Body: `locker_id`, `member_id`, `membership_account_id`, `club_id`, `category` (todos required).
 - Éxito (200): `{"message": "Casillero asignado correctamente.", "data": {"amount": 0.0}}`.
 - Error `409` `{"message": "El casillero ya no está disponible"}`.
-- **⚠️ Validación de "un socio, un casillero por año" está deshabilitada en el código** — un integrante puede terminar con más de un casillero.
+- El monto se resuelve igual que `GET /lockers/pricing` y ahora **sí genera un `Charge`** (`concept_id` del concepto `LOCKERS`, `status: pending`, vence a 7 días) — aparecerá en `GET /clubs/{club}/payments/pending` y se puede pagar con los flujos normales de pago.
+- **La validación de "un socio, un casillero por año" está deshabilitada intencionalmente** — un integrante puede terminar con más de un casillero en el mismo año (el índice único ahora es por `locker_id + club_id + year`, no por integrante). `GET /lockers/members` ya no excluye a quien ya tiene casillero asignado este año.
 
 ---
 
@@ -472,7 +485,5 @@ La mensualidad dividida 50/50 entre parques **no es un solo cargo combinado** �
 3. **`POST /business-ads` confía en `member_id`/`club_id` del body** sin verificar contra el token autenticado.
 4. **`POST /charge-payment` sin idempotencia** — riesgo real de doble cobro en reintentos. La app debe deshabilitar el botón y/o verificar historial antes de reintentar.
 5. **Webhook de Conekta sin verificación de firma criptográfica** — la mitigación es solo a nivel de red (IP allow-list en el panel de Conekta).
-6. **Validación de casillero duplicado deshabilitada** — un integrante puede terminar con más de un casillero en el mismo año.
-7. **Bug de validación en `POST /lockers/assign`**: mensajes personalizados usan `account_id.*` pero el campo real es `membership_account_id` — errores de ese campo salen en inglés.
-8. **`GET /amenities/available-slots`**: errores de `date` inválida se reportan como `500` en vez de `422` — validar el formato del lado del cliente.
-9. **Reglas de reservación leídas de variables globales**, no por club — los números en `rules` del `GET /amenities` pueden no coincidir con lo realmente aplicado.
+6. **`GET /amenities/available-slots`**: errores de `date` inválida se reportan como `500` en vez de `422` — validar el formato del lado del cliente.
+7. **Reglas de reservación leídas de variables globales**, no por club — los números en `rules` del `GET /amenities` pueden no coincidir con lo realmente aplicado.

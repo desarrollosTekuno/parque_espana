@@ -121,6 +121,8 @@ Route::prefix('v1')->name('api.')->group(function () {
     // Lockers
     Route::get('/lockers/index', [LockerApiController::class, 'index'])->middleware('auth:sanctum');
     Route::get('/lockers/members', [LockerApiController::class, 'membersAvailable'])->middleware('auth:sanctum');
+    Route::get('/lockers/pricing', [LockerApiController::class, 'pricing'])->middleware('auth:sanctum');
+    Route::get('/lockers/mine', [LockerApiController::class, 'mine'])->middleware('auth:sanctum');
     Route::post('/lockers/assign', [LockerApiController::class, 'assign'])->middleware('auth:sanctum');
 
     // Email test

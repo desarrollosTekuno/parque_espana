@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Web\AdminClub;
 
-use App\Http\Controllers\Controller;
+use Illuminate\Routing\Controller;
 use App\Models\Administrator\Club;
 use App\Models\Catalogs\City;
 use App\Models\Catalogs\Country;
@@ -42,7 +42,7 @@ class MemberController extends Controller
 {
     public function __construct(
         protected MembershipChargeService $membershipChargeService,
-        protected \App\Services\Billing\MembershipPricingService $membershipPricingService
+        protected \App\Services\Billing\MembershipPricingService $membershipPricingService 
     ) {
     }
 
@@ -50,7 +50,7 @@ class MemberController extends Controller
     {
         try {
             $clubId = $request->club_id ?? session('club_id');
-            $prefix = 'members';
+            $prefix = 'members'; 
             $driver = DB::getDriverName();
             $like = $driver === 'pgsql' ? 'ilike' : 'like';
 
