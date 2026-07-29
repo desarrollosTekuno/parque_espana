@@ -10,21 +10,19 @@ use App\Models\Notifications\EmailConfig;
 use App\Services\Email\MailService;
 use Throwable;
 
-class EmailTestController extends Controller   {
-
-    public function send(SendTestEmailRequest $request, MailService $mailService) {
+class EmailTestController extends Controller
+{
+    public function send(SendTestEmailRequest $request, MailService $mailService)
+    {
         try {
             $data = $request->validated();
 
-            if (! Club::query()->whereKey($data['entity_id'])->exists()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'La entidad indicada no existe',
-                ], 422);
+            if (!Club::query()->whereKey($data['entity_id'])->exists()) {
+                return $this->unprocessable('La entidad indicada no existe.');
             }
 
-            $subject = $data['subject'] ?? 'Correo de prueba SMTP';
-            $message = $data['message'] ?? 'Si llegue!!!! Este es un correo de prueba enviado con configuracion SMTP dinamica .';
+            $subject      = $data['subject'] ?? 'Correo de prueba SMTP';
+            $message      = $data['message'] ?? 'Si llegué! Este es un correo de prueba enviado con configuración SMTP dinámica.';
             $templateName = EmailConfig::query()
                 ->where('entity_id', (int) $data['entity_id'])
                 ->where('is_active', true)
@@ -32,22 +30,14 @@ class EmailTestController extends Controller   {
 
             $mailService->send(
                 entityId: (int) $data['entity_id'],
-                to: $data['to'],
-                mailable: new TestEmailMailable($subject, $message, (int) $data['entity_id'], $templateName)
+                to:       $data['to'],
+                mailable: new TestEmailMailable($subject, $message, (int) $data['entity_id'], $templateName),
             );
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Correo de prueba enviado correctamente',
-            ]);
+            return $this->success('Correo de prueba enviado correctamente.');
         } catch (Throwable $e) {
             report($e);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'No se pudo enviar el correo de prueba',
-                'error' => $e->getMessage(),
-            ], 500);
+            return $this->serverError('No se pudo enviar el correo de prueba.');
         }
     }
 }

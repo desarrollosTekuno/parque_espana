@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\Web\DashboardController;
-use App\Http\Controllers\Web\Survey\SurveyPublicController;
 use App\Services\Auth\PermissionLandingRouteResolver;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -32,61 +31,6 @@ Route::middleware(['auth', 'verified'])
     ->prefix('admin')
     ->group(__DIR__ . '/adminclubs.php');
 
-// Encuestas públicas (sin autenticación, acceso por token de usuario)
-Route::get('/encuesta/{slug}', [SurveyPublicController::class, 'show'])->name('survey.show');
-Route::post('/encuesta/{slug}', [SurveyPublicController::class, 'submit'])->name('survey.submit');
-
-
-Route::get('/prueba-excel', function () {
-
-    $cashCut = CashCut::with([
-        'club',
-        'cashier',
-        'denominations',
-    ])->latest()->first();
-
-    if (!$cashCut) {
-        abort(404, 'No existe ningún corte de caja.');
-    }
-
-    $tz = config('app.timezone');
-
-    $start = $cashCut->date
-        ->copy()
-        ->startOfDay()
-        ->setTimezone($tz)
-        ->utc();
-
-    $end = $cashCut->date
-        ->copy()
-        ->endOfDay()
-        ->setTimezone($tz)
-        ->utc();
-
-    $payments = \App\Models\Billing\Payment::with([
-            'paymentMethod',
-            'membershipAccount'
-        ])
-        ->where('club_id', $cashCut->club_id)
-        ->where('received_by', $cashCut->user_id)
-        ->whereBetween('paid_at', [$start, $end])
-        ->whereJsonContains('metadata->settlement_channel', 'cashier')
-        ->get();
-
-    $paymentSummary = $payments
-        ->groupBy(fn ($payment) => $payment->paymentMethod?->name ?? 'Sin método')
-        ->map(function ($group) {
-            return [
-                'quantity' => $group->count(),
-                'total' => $group->sum('amount'),
-            ];
-        });
-
-    return view('exports.cash-cut', [
-        'cashCut' => $cashCut,
-        'payments' => $payments,
-        'paymentSummary' => $paymentSummary,
-        'denominations' => $cashCut->denominations,
-    ]);
-
-});
+// Las rutas públicas de encuesta por token (/encuesta/{slug}) fueron eliminadas.
+// La tabla survey_tokens fue removida en la migración 2026_04_23_000002.
+// Las encuestas ahora se responden exclusivamente desde la app móvil (autenticado via Sanctum).
