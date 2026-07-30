@@ -4,6 +4,7 @@ use App\Http\Controllers\Web\DashboardController;
 use App\Services\Auth\PermissionLandingRouteResolver;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use App\Models\Billing\CashCut;
 
 Route::middleware(['auth', 'verified'])->get('/', function (PermissionLandingRouteResolver $permissionLandingRouteResolver) {
     $routeName = $permissionLandingRouteResolver->resolve(auth()->user());

@@ -36,6 +36,7 @@ use App\Http\Controllers\Web\AdminClub\MemberDocumentController;
 use App\Http\Controllers\Web\AdminClub\LockerAssignmentController;
 use App\Http\Controllers\Web\AdminClub\LockerController;
 use App\Http\Controllers\Web\AdminClub\CashCutController;
+use App\Http\Controllers\Web\AdminClub\CollectionController;
 use App\Http\Controllers\Web\AdminClub\GlobalCashCutController;
 use App\Http\Controllers\Web\AdminClub\DocumentTypeController;
 use App\Http\Controllers\Web\Administrator\EmailConfigController;
@@ -91,10 +92,17 @@ Route::post('/cafeteria-visits', [CafeteriaVisitController::class, 'store'])->na
 Route::post('/cafeteria-visits/{cafeteriaVisit}/checkout', [CafeteriaVisitController::class, 'checkout'])->name('cafeteria-visits.checkout');
 
 Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
+Route::get('/billing/charges/export', [BillingController::class, 'exportChargesReport'])->name('billing.charges.export');
 Route::get('/billing/charges', [BillingController::class, 'chargesList'])->name('billing.charges.index');
 Route::post('/billing/payments', [BillingController::class, 'storePayment'])->name('billing.payments.store');
 Route::get('/billing/annual-payment/preview', [BillingController::class, 'annualPaymentPreview'])->name('billing.annual-payment.preview');
 Route::post('/billing/annual-payment', [BillingController::class, 'storeAnnualPayment'])->name('billing.annual-payment.store');
+
+// collections desk (módulo de cobranza tipo caja)
+Route::get('/collections', [CollectionController::class, 'index'])->name('collections.index');
+Route::get('/collections/search', [CollectionController::class, 'search'])->name('collections.search');
+Route::post('/collections/payment', [CollectionController::class, 'storePayment'])->name('collections.payment.store');
+Route::post('/collections/notes', [CollectionController::class, 'storeNote'])->name('collections.notes.store');
 
 // cash cuts
 Route::get('/cash-cuts', [CashCutController::class, 'index'])->name('cash-cuts.index');

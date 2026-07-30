@@ -124,10 +124,10 @@ const assign = async () => {
     }
 
     const result = await Swal.fire({
-        title: '¿Reservar casillero?',
+        title: '¿Asignar casillero?',
         icon: 'question',
         showCancelButton: true,
-        confirmButtonText: 'Sí, reservar',
+        confirmButtonText: 'Sí, asignar',
         cancelButtonText: 'Cancelar',
         reverseButtons: true
     });
@@ -181,7 +181,7 @@ const memberOptions = computed(() =>
         title: `${m.first_name} ${m.last_name} ${m.second_last_name}`,
         value: m.id,
         props: {
-            disabled: props.clubId !== 2 && !!m.locker_assignment,
+            disabled: props.clubId !== 2 && props.clubId !== 1 && !!m.locker_assignment,
             subtitle: m.locker_assignment
                 ? (props.clubId === 2
                     ? 'Puede tener más casilleros'
