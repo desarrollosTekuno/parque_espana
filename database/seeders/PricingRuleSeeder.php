@@ -82,8 +82,8 @@ class PricingRuleSeeder extends Seeder
                     $this->rule(null, 1850, 45000, 5, null, null, false, true),
                     $this->rule('PE1_SOL', 1500, 0, 4),
                     $this->rule('PE1_SOL', 1850, 0, 3, null, null, false, true),
-                    $this->rule('PE1_FAM', 1500, 0, 2),
-                    $this->rule('PE1_FAM', 1850, 0, 1, null, null, false, true),
+                    $this->rule('PE1_FAM', 1500, 0, 2, 27),
+                    $this->rule('PE1_FAM', 1850, 0, 1, 27, null, false, true),
                 ],
             ],
             [
@@ -115,8 +115,8 @@ class PricingRuleSeeder extends Seeder
                     $this->rule(null, 1850, 21250, 5, null, null, false, true),
                     $this->rule('PE1_SOL_BEN', 1500, 0, 4),
                     $this->rule('PE1_SOL_BEN', 1850, 0, 3, null, null, false, true),
-                    $this->rule('PE1_FAM_BEN', 1500, 0, 2),
-                    $this->rule('PE1_FAM_BEN', 1850, 0, 1, null, null, false, true),
+                    $this->rule('PE1_FAM_BEN', 1500, 0, 2, 27),
+                    $this->rule('PE1_FAM_BEN', 1850, 0, 1, 27, null, false, true),
                 ],
             ],
             [
@@ -189,8 +189,8 @@ class PricingRuleSeeder extends Seeder
                     $this->rule(null, 1850, $category['individual_inscription_fee'], 5, null, null, false, true),
                     $this->rule($category['solidaria_code'], 1800, 0, 4),
                     $this->rule($category['solidaria_code'], 1850, 0, 3, null, null, false, true),
-                    $this->rule($category['family_code'], 1800, 0, 2),
-                    $this->rule($category['family_code'], 1850, 0, 1, null, null, false, true),
+                    $this->rule($category['family_code'], 1800, 0, 2, 27),
+                    $this->rule($category['family_code'], 1850, 0, 1, 27, null, false, true),
                 ],
             ];
 
