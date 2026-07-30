@@ -44,9 +44,9 @@ return new class extends Migration
             $table->dropForeign(['member_id']);
             $table->dropColumn('member_id');
 
-            $table->foreignId('token_id')
-                  ->constrained('surveys.survey_tokens')
-                  ->cascadeOnDelete();
+            // $table->foreignId('token_id')
+            //       ->constrained('surveys.survey_tokens')
+            //       ->cascadeOnDelete();
         });
     }
 };
