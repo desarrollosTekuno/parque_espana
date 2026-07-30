@@ -23,6 +23,15 @@ class ProcessMembershipAgeTransitions extends Command
     protected int $alreadyPending = 0;
     protected int $skipped    = 0;
 
+    /**
+     * @var array<string, array{omitidos: string[], pendientes: string[]}>
+     */
+    protected array $ageGroups = [
+        '< 24 años'    => ['omitidos' => [], 'pendientes' => []],
+        '24 a 26 años' => ['omitidos' => [], 'pendientes' => []],
+        '> 26 años'    => ['omitidos' => [], 'pendientes' => []],
+    ];
+
     public function handle(): int
     {
         $asOfDate = $this->option('date')
@@ -39,6 +48,23 @@ class ProcessMembershipAgeTransitions extends Command
         $this->detectFamilyToSolidaria($asOfDate, $dryRun);
         $this->detectSolidariaToIndividual($asOfDate, $dryRun);
 
+        foreach ($this->ageGroups as $label => $entries) {
+            if (empty($entries['omitidos']) && empty($entries['pendientes'])) {
+                continue;
+            }
+
+            $this->newLine();
+            $this->info("Rango de edad: {$label}");
+
+            foreach ($entries['omitidos'] as $message) {
+                $this->warn("  {$message}");
+            }
+
+            foreach ($entries['pendientes'] as $message) {
+                $this->line("  {$message}");
+            }
+        }
+
         $this->newLine();
         $this->table(
             ['Estado', 'Cantidad'],
@@ -49,7 +75,27 @@ class ProcessMembershipAgeTransitions extends Command
             ]
         );
 
+        $this->table(
+            ['Rango de edad', 'Omitidos', 'Pendientes'],
+            collect($this->ageGroups)->map(fn (array $entries, string $label) => [
+                $label,
+                count($entries['omitidos']),
+                count($entries['pendientes']),
+            ])->values()->all()
+        );
+
         return self::SUCCESS;
+    }
+
+    protected function recordAgeGroupEntry(int $age, string $category, string $message): void
+    {
+        $label = match (true) {
+            $age < 24 => '< 24 años',
+            $age <= 26 => '24 a 26 años',
+            default => '> 26 años',
+        };
+
+        $this->ageGroups[$label][$category][] = $message;
     }
 
     protected function detectFamilyToSolidaria(Carbon $asOfDate, bool $dryRun): void
@@ -86,9 +132,11 @@ class ProcessMembershipAgeTransitions extends Command
                 }
 
                 if ($this->memberHasActivePrimaryMembershipInClub($member->id, $familyMembership->club_id)) {
-                    $this->warn(sprintf(
-                        'Omitido Familiar→Solidaria para %s en %s: ya tiene membresía propia activa.',
+                    $this->recordAgeGroupEntry($age, 'omitidos', sprintf(
+                        'Omitido Familiar→Solidaria para %s (%d años, cuenta %s) en %s: ya tiene membresía propia activa.',
                         $this->memberDisplayName($member),
+                        $age,
+                        $familyMembership->account?->membership_number ?? 'S/N',
                         $familyMembership->club?->code ?? 'N/D'
                     ));
                     $this->skipped++;
@@ -104,9 +152,11 @@ class ProcessMembershipAgeTransitions extends Command
                 );
 
                 if (!$pricingRule) {
-                    $this->warn(sprintf(
-                        'Omitido Familiar→Solidaria para %s en %s: sin regla aplicable.',
+                    $this->recordAgeGroupEntry($age, 'omitidos', sprintf(
+                        'Omitido Familiar→Solidaria para %s (%d años, cuenta %s) en %s: sin regla aplicable.',
                         $this->memberDisplayName($member),
+                        $age,
+                        $familyMembership->account?->membership_number ?? 'S/N',
                         $familyMembership->club?->code ?? 'N/D'
                     ));
                     $this->skipped++;
@@ -115,24 +165,35 @@ class ProcessMembershipAgeTransitions extends Command
 
                 $targetType = MembershipType::find($pricingRule->membership_type_id);
                 if (!$targetType) {
-                    $this->skipped++;
-                    continue;
-                }
-
-                $monthlyFee = $pricingRule->resolveMonthlyFee();
-                if ($monthlyFee === null) {
-                    $this->warn(sprintf(
-                        'Omitido Familiar→Solidaria para %s en %s: la regla encontrada no tiene cuota capturada.',
+                    $this->recordAgeGroupEntry($age, 'omitidos', sprintf(
+                        'Omitido Familiar→Solidaria para %s (%d años, cuenta %s) en %s: tipo de membresía destino no encontrado.',
                         $this->memberDisplayName($member),
+                        $age,
+                        $familyMembership->account?->membership_number ?? 'S/N',
                         $familyMembership->club?->code ?? 'N/D'
                     ));
                     $this->skipped++;
                     continue;
                 }
 
-                $this->line(sprintf(
-                    'Pendiente Familiar→Solidaria: %s | %s | %s | $%s',
+                $monthlyFee = $pricingRule->resolveMonthlyFee();
+                if ($monthlyFee === null) {
+                    $this->recordAgeGroupEntry($age, 'omitidos', sprintf(
+                        'Omitido Familiar→Solidaria para %s (%d años, cuenta %s) en %s: la regla encontrada no tiene cuota capturada.',
+                        $this->memberDisplayName($member),
+                        $age,
+                        $familyMembership->account?->membership_number ?? 'S/N',
+                        $familyMembership->club?->code ?? 'N/D'
+                    ));
+                    $this->skipped++;
+                    continue;
+                }
+
+                $this->recordAgeGroupEntry($age, 'pendientes', sprintf(
+                    'Pendiente Familiar→Solidaria: %s | %d años | cuenta %s | %s | %s | $%s',
                     $this->memberDisplayName($member),
+                    $age,
+                    $familyMembership->account?->membership_number ?? 'S/N',
                     $familyMembership->club?->code ?? 'N/D',
                     $targetType->code,
                     number_format($monthlyFee, 2)
@@ -210,9 +271,11 @@ class ProcessMembershipAgeTransitions extends Command
             );
 
             if (!$pricingRule) {
-                $this->warn(sprintf(
-                    'Omitido Solidaria→Individual para %s en %s: sin regla aplicable.',
+                $this->recordAgeGroupEntry($age, 'omitidos', sprintf(
+                    'Omitido Solidaria→Individual para %s (%d años, cuenta %s) en %s: sin regla aplicable.',
                     $this->memberDisplayName($primaryHolder),
+                    $age,
+                    $solidariaMembership->account?->membership_number ?? 'S/N',
                     $solidariaMembership->club?->code ?? 'N/D'
                 ));
                 $this->skipped++;
@@ -221,24 +284,35 @@ class ProcessMembershipAgeTransitions extends Command
 
             $targetType = MembershipType::find($pricingRule->membership_type_id);
             if (!$targetType) {
-                $this->skipped++;
-                continue;
-            }
-
-            $monthlyFee = $pricingRule->resolveMonthlyFee();
-            if ($monthlyFee === null) {
-                $this->warn(sprintf(
-                    'Omitido Solidaria→Individual para %s en %s: la regla encontrada no tiene cuota capturada.',
+                $this->recordAgeGroupEntry($age, 'omitidos', sprintf(
+                    'Omitido Solidaria→Individual para %s (%d años, cuenta %s) en %s: tipo de membresía destino no encontrado.',
                     $this->memberDisplayName($primaryHolder),
+                    $age,
+                    $solidariaMembership->account?->membership_number ?? 'S/N',
                     $solidariaMembership->club?->code ?? 'N/D'
                 ));
                 $this->skipped++;
                 continue;
             }
 
-            $this->line(sprintf(
-                'Pendiente Solidaria→Individual: %s | %s | %s | $%s',
+            $monthlyFee = $pricingRule->resolveMonthlyFee();
+            if ($monthlyFee === null) {
+                $this->recordAgeGroupEntry($age, 'omitidos', sprintf(
+                    'Omitido Solidaria→Individual para %s (%d años, cuenta %s) en %s: la regla encontrada no tiene cuota capturada.',
+                    $this->memberDisplayName($primaryHolder),
+                    $age,
+                    $solidariaMembership->account?->membership_number ?? 'S/N',
+                    $solidariaMembership->club?->code ?? 'N/D'
+                ));
+                $this->skipped++;
+                continue;
+            }
+
+            $this->recordAgeGroupEntry($age, 'pendientes', sprintf(
+                'Pendiente Solidaria→Individual: %s | %d años | cuenta %s | %s | %s | $%s',
                 $this->memberDisplayName($primaryHolder),
+                $age,
+                $solidariaMembership->account?->membership_number ?? 'S/N',
                 $solidariaMembership->club?->code ?? 'N/D',
                 $targetType->code,
                 number_format($monthlyFee, 2)
