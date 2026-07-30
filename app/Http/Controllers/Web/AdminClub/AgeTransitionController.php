@@ -342,7 +342,8 @@ class AgeTransitionController extends Controller
 
                 // 5. Execute transition
                 match ($ageTransition->transition_type) {
-                    'family_to_solidaria'    => $this->executeFamilyToSolidaria($ageTransition),
+                    'family_to_solidaria'     => $this->executeFamilyToSolidaria($ageTransition),
+                    'family_to_individual'    => $this->executeFamilyToIndividual($ageTransition),
                     'solidaria_to_individual' => $this->executeSolidariaToIndividual($ageTransition),
                     default => throw new \RuntimeException('Tipo de transición desconocido.'),
                 };
@@ -407,6 +408,24 @@ class AgeTransitionController extends Controller
     // ─── Transition execution (called inside a DB::transaction) ─────────────
 
     private function executeFamilyToSolidaria(PendingAgeTransition $transition): void
+    {
+        $this->executeFamilySeparation(
+            transition: $transition,
+            historyReason: 'Promoción por edad desde cuenta familiar',
+            transitionKind: 'age_transition_family_to_solidaria'
+        );
+    }
+
+    private function executeFamilyToIndividual(PendingAgeTransition $transition): void
+    {
+        $this->executeFamilySeparation(
+            transition: $transition,
+            historyReason: 'Promoción por edad desde cuenta familiar (directo a individual)',
+            transitionKind: 'age_transition_family_to_individual'
+        );
+    }
+
+    private function executeFamilySeparation(PendingAgeTransition $transition, string $historyReason, string $transitionKind): void
     {
         $familyMembership = $transition->membership;
         $member           = $transition->member;
@@ -517,11 +536,11 @@ class AgeTransitionController extends Controller
             'new_membership_type_id' => $targetType->id,
             'changed_by'             => auth()->id(),
             'effective_date'         => now()->toDateString(),
-            'reason'                 => 'Promoción por edad desde cuenta familiar',
+            'reason'                 => $historyReason,
             'previous_monthly_fee'   => null,
             'new_monthly_fee'        => $monthlyFeeTotal,
             'metadata'               => json_encode([
-                'transition_kind'              => 'age_transition_family_to_solidaria',
+                'transition_kind'              => $transitionKind,
                 'source_membership_id'         => $familyMembership->id,
                 'pending_age_transition_id'    => $transition->id,
                 'has_multiple_clubs'           => $currentlyHasMultipleClubs,

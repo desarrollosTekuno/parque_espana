@@ -9,7 +9,7 @@ class ImportMigrationData extends Command
 {
     /* 
     Ejemplo de uso:
-    php artisan migrate:data "C:\Users\Usuario\Downloads\Plantilla_Migracion_Datos_Actualizada.xlsx" --only=usuarios,membresias,integrantes,domicilios,empleo,"historial por periodo",casilleros --dry-run
+    php artisan migrate:data "C:\Users\Usuario\Downloads\Plantilla_Migracion_DatosDP_230626.xlsx" --only=usuarios,membresias,integrantes,domicilios,empleo,"historial por periodo",casilleros --dry-run
     */
     protected $signature = 'migrate:data
         {file : Ruta al archivo .xlsx de migración}

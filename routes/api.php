@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\LockerApiController;
 use App\Http\Controllers\Api\V1\MemberDocumentController;
 use App\Http\Controllers\Api\V1\ChargePaymentController;
+use App\Http\Controllers\Api\V1\ConektaConfigController;
 use App\Http\Controllers\Api\V1\PaymentSourceController;
 use App\Http\Controllers\Api\V1\ReservationController;
 use App\Http\Controllers\Api\V1\BusinessAdController;
@@ -91,6 +92,9 @@ Route::prefix('v1')->name('api.')->group(function () {
         // SPEI — generar CLABE y consultar estado de orden
         Route::post('/spei-payment', [SpeiPaymentController::class, 'store']);
         Route::get('/spei-payment/{speiOrder}', [SpeiPaymentController::class, 'show']);
+
+        // Llave pública de Conekta de este club (para tokenizar del lado del cliente)
+        Route::get('/conekta-public-key', [ConektaConfigController::class, 'publicKey']);
 
         // Tarjetas guardadas (domiciliación) — cada club es una cuenta Conekta
         // independiente, por eso las tarjetas están scoped por club
