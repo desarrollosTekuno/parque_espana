@@ -46,6 +46,7 @@ class ProcessMembershipAgeTransitions extends Command
         ));
 
         $this->detectFamilyToSolidaria($asOfDate, $dryRun);
+        $this->detectFamilyToIndividual($asOfDate, $dryRun);
         $this->detectSolidariaToIndividual($asOfDate, $dryRun);
 
         foreach ($this->ageGroups as $label => $entries) {
@@ -100,6 +101,24 @@ class ProcessMembershipAgeTransitions extends Command
 
     protected function detectFamilyToSolidaria(Carbon $asOfDate, bool $dryRun): void
     {
+        $this->detectFamilyDependentTransition($asOfDate, $dryRun, 'family_to_solidaria', 'Familiar→Solidaria');
+    }
+
+    protected function detectFamilyToIndividual(Carbon $asOfDate, bool $dryRun): void
+    {
+        $this->detectFamilyDependentTransition($asOfDate, $dryRun, 'family_to_individual', 'Familiar→Individual');
+    }
+
+    /**
+     * Comparte la lógica de detección para los dos caminos que parten de un
+     * hijo(a) dentro de una cuenta familiar: Familiar→Solidaria (24-26 años,
+     * ver PricingRule con requires_origin_family) y Familiar→Individual directo
+     * (27+ años, sin pasar por Solidaria). Cuál de las dos aplica lo decide
+     * únicamente el rango de edad capturado en la PricingRule correspondiente
+     * — este método no necesita saberlo de antemano.
+     */
+    protected function detectFamilyDependentTransition(Carbon $asOfDate, bool $dryRun, string $transitionType, string $label): void
+    {
         $familyMemberships = Membership::query()
             ->with([
                 'club',
@@ -133,7 +152,8 @@ class ProcessMembershipAgeTransitions extends Command
 
                 if ($this->memberHasActivePrimaryMembershipInClub($member->id, $familyMembership->club_id)) {
                     $this->recordAgeGroupEntry($age, 'omitidos', sprintf(
-                        'Omitido Familiar→Solidaria para %s (%d años, cuenta %s) en %s: ya tiene membresía propia activa.',
+                        'Omitido %s para %s (%d años, cuenta %s) en %s: ya tiene membresía propia activa.',
+                        $label,
                         $this->memberDisplayName($member),
                         $age,
                         $familyMembership->account?->membership_number ?? 'S/N',
@@ -146,14 +166,15 @@ class ProcessMembershipAgeTransitions extends Command
                 $hasMultipleClubs = $this->memberHasOtherActiveClubMembership($member->id, $familyMembership->club_id);
                 $pricingRule      = $this->resolveTransitionPricingRule(
                     fromMembershipType: $familyMembership->membershipType,
-                    transitionType: 'family_to_solidaria',
+                    transitionType: $transitionType,
                     age: $age,
                     hasMultipleClubs: $hasMultipleClubs
                 );
 
                 if (!$pricingRule) {
                     $this->recordAgeGroupEntry($age, 'omitidos', sprintf(
-                        'Omitido Familiar→Solidaria para %s (%d años, cuenta %s) en %s: sin regla aplicable.',
+                        'Omitido %s para %s (%d años, cuenta %s) en %s: sin regla aplicable.',
+                        $label,
                         $this->memberDisplayName($member),
                         $age,
                         $familyMembership->account?->membership_number ?? 'S/N',
@@ -166,7 +187,8 @@ class ProcessMembershipAgeTransitions extends Command
                 $targetType = MembershipType::find($pricingRule->membership_type_id);
                 if (!$targetType) {
                     $this->recordAgeGroupEntry($age, 'omitidos', sprintf(
-                        'Omitido Familiar→Solidaria para %s (%d años, cuenta %s) en %s: tipo de membresía destino no encontrado.',
+                        'Omitido %s para %s (%d años, cuenta %s) en %s: tipo de membresía destino no encontrado.',
+                        $label,
                         $this->memberDisplayName($member),
                         $age,
                         $familyMembership->account?->membership_number ?? 'S/N',
@@ -179,7 +201,8 @@ class ProcessMembershipAgeTransitions extends Command
                 $monthlyFee = $pricingRule->resolveMonthlyFee();
                 if ($monthlyFee === null) {
                     $this->recordAgeGroupEntry($age, 'omitidos', sprintf(
-                        'Omitido Familiar→Solidaria para %s (%d años, cuenta %s) en %s: la regla encontrada no tiene cuota capturada.',
+                        'Omitido %s para %s (%d años, cuenta %s) en %s: la regla encontrada no tiene cuota capturada.',
+                        $label,
                         $this->memberDisplayName($member),
                         $age,
                         $familyMembership->account?->membership_number ?? 'S/N',
@@ -190,7 +213,8 @@ class ProcessMembershipAgeTransitions extends Command
                 }
 
                 $this->recordAgeGroupEntry($age, 'pendientes', sprintf(
-                    'Pendiente Familiar→Solidaria: %s | %d años | cuenta %s | %s | %s | $%s',
+                    'Pendiente %s: %s | %d años | cuenta %s | %s | %s | $%s',
+                    $label,
                     $this->memberDisplayName($member),
                     $age,
                     $familyMembership->account?->membership_number ?? 'S/N',
@@ -207,7 +231,7 @@ class ProcessMembershipAgeTransitions extends Command
                 $alreadyExists = PendingAgeTransition::query()
                     ->where('membership_account_id', $familyMembership->membership_account_id)
                     ->where('member_id', $member->id)
-                    ->where('transition_type', 'family_to_solidaria')
+                    ->where('transition_type', $transitionType)
                     ->where('status', 'pending')
                     ->exists();
 
@@ -221,7 +245,7 @@ class ProcessMembershipAgeTransitions extends Command
                     'member_id'                => $member->id,
                     'membership_account_id'    => $familyMembership->membership_account_id,
                     'target_membership_type_id' => $targetType->id,
-                    'transition_type'          => 'family_to_solidaria',
+                    'transition_type'          => $transitionType,
                     'monthly_fee'              => $monthlyFee,
                     'has_multiple_clubs'       => $hasMultipleClubs,
                     'status'                   => 'pending',
@@ -364,7 +388,7 @@ class ProcessMembershipAgeTransitions extends Command
                 fn (Builder $q) => $q->where('requires_origin_family', true)->where('allows_multiple_members', false)
             )
             ->when(
-                $transitionType === 'solidaria_to_individual',
+                in_array($transitionType, ['solidaria_to_individual', 'family_to_individual'], true),
                 fn (Builder $q) => $q->where('requires_origin_family', false)
                     ->where('allows_multiple_members', false)
                     ->where('show_in_listing', true)
