@@ -42,9 +42,23 @@ interface CurrentClub {
     code: string;
 }
 
+interface FamilySlot {
+    membership_type_name: string;
+    single_rule_ids: number[];
+    multiclub_rule_ids: number[];
+}
+
+interface FamilyGroup {
+    label: string;
+    familiar: FamilySlot;
+    individual: FamilySlot | null;
+    solidaria: FamilySlot | null;
+}
+
 interface Props {
     pricingRules?: PricingRuleRow[];
     interclubRules?: InterclubRuleRow[];
+    familyGroups?: FamilyGroup[];
     year?: number;
     currentClub?: CurrentClub | null;
 }
@@ -52,6 +66,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
     pricingRules: () => [],
     interclubRules: () => [],
+    familyGroups: () => [],
     year: () => new Date().getFullYear(),
     currentClub: null,
 });
@@ -68,7 +83,25 @@ const yearOptions = Array.from({ length: currentYear + 1 - 2010 + 1 }, (_, i) =>
 
 const pricingRows = ref<PricingRuleRow[]>(props.pricingRules.map((row) => ({ ...row })));
 const interclubRows = ref<InterclubRuleRow[]>(props.interclubRules.map((row) => ({ ...row })));
+const familyGroups = ref<FamilyGroup[]>(props.familyGroups.map((g) => ({ ...g })));
 const currentClub = ref<CurrentClub | null>(props.currentClub);
+
+// ── Captura rápida por familia (Familiar/Individual/Solidaria de una misma
+// categoría) — lee y escribe directo sobre pricingRows, así que el flujo de
+// guardado no cambia y la tabla de abajo siempre refleja lo mismo.
+const quickFillValue = (ruleIds: number[]): number | null => {
+    if (!ruleIds.length) return null;
+    const row = pricingRows.value.find((r) => ruleIds.includes(r.id));
+    return row ? row.monthly_fee : null;
+};
+
+const applyQuickFill = (ruleIds: number[], value: number | null) => {
+    pricingRows.value.forEach((row) => {
+        if (ruleIds.includes(row.id)) {
+            row.monthly_fee = value;
+        }
+    });
+};
 
 const singleClubLabel = (): string => currentClub.value?.name ?? "Club único";
 
@@ -142,6 +175,7 @@ const fetchItems = () => {
             onSuccess: (pageResponse) => {
                 pricingRows.value = (pageResponse.props.pricingRules as PricingRuleRow[]).map((row) => ({ ...row }));
                 interclubRows.value = (pageResponse.props.interclubRules as InterclubRuleRow[]).map((row) => ({ ...row }));
+                familyGroups.value = (pageResponse.props.familyGroups as FamilyGroup[]).map((g) => ({ ...g }));
                 currentClub.value = (pageResponse.props.currentClub as CurrentClub | null) ?? null;
                 loading.value = false;
             },
@@ -305,6 +339,126 @@ const save = () => {
                         :loading="saving"
                         @click="save"
                     />
+                </v-col>
+            </v-row>
+
+            <h3 class="text-h6 mb-2">Captura rápida</h3>
+            <p class="text-body-2 text-medium-emphasis mb-3">
+                Cada tarjeta agrupa Familiar, Individual y Solidaria de una misma categoría.
+                Al escribir aquí se actualiza directo la tabla de "Reglas de precio" de abajo
+                (incluyendo las reglas de transición que llegan al mismo destino) — sigue
+                siendo necesario dar clic en "Guardar cuotas" para confirmar.
+            </p>
+            <v-row class="mb-6" dense>
+                <v-col
+                    v-for="group in familyGroups"
+                    :key="group.label"
+                    cols="12"
+                    md="6"
+                    lg="4"
+                >
+                    <v-card variant="outlined" class="pa-3 h-100">
+                        <div class="text-subtitle-2 font-weight-bold mb-2">{{ group.label }}</div>
+
+                        <v-row dense>
+                            <v-col cols="6">
+                                <div class="text-caption text-medium-emphasis">Familiar — este parque</div>
+                                <v-text-field
+                                    :model-value="quickFillValue(group.familiar.single_rule_ids)"
+                                    @update:model-value="(v) => applyQuickFill(group.familiar.single_rule_ids, v === '' ? null : Number(v))"
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    density="compact"
+                                    variant="outlined"
+                                    hide-details
+                                    prefix="$"
+                                />
+                            </v-col>
+                            <v-col cols="6">
+                                <div class="text-caption text-medium-emphasis">Familiar — ambos parques</div>
+                                <v-text-field
+                                    :model-value="quickFillValue(group.familiar.multiclub_rule_ids)"
+                                    @update:model-value="(v) => applyQuickFill(group.familiar.multiclub_rule_ids, v === '' ? null : Number(v))"
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    density="compact"
+                                    variant="outlined"
+                                    hide-details
+                                    prefix="$"
+                                />
+                            </v-col>
+
+                            <template v-if="group.individual">
+                                <v-col cols="6">
+                                    <div class="text-caption text-medium-emphasis">Individual — este parque</div>
+                                    <v-text-field
+                                        :model-value="quickFillValue(group.individual.single_rule_ids)"
+                                        @update:model-value="(v) => applyQuickFill(group.individual!.single_rule_ids, v === '' ? null : Number(v))"
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        density="compact"
+                                        variant="outlined"
+                                        hide-details
+                                        prefix="$"
+                                    />
+                                </v-col>
+                                <v-col cols="6">
+                                    <div class="text-caption text-medium-emphasis">Individual — ambos parques</div>
+                                    <v-text-field
+                                        :model-value="quickFillValue(group.individual.multiclub_rule_ids)"
+                                        @update:model-value="(v) => applyQuickFill(group.individual!.multiclub_rule_ids, v === '' ? null : Number(v))"
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        density="compact"
+                                        variant="outlined"
+                                        hide-details
+                                        prefix="$"
+                                    />
+                                </v-col>
+                            </template>
+
+                            <template v-if="group.solidaria">
+                                <v-col cols="6">
+                                    <div class="text-caption text-medium-emphasis">Solidaria — este parque</div>
+                                    <v-text-field
+                                        :model-value="quickFillValue(group.solidaria.single_rule_ids)"
+                                        @update:model-value="(v) => applyQuickFill(group.solidaria!.single_rule_ids, v === '' ? null : Number(v))"
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        density="compact"
+                                        variant="outlined"
+                                        hide-details
+                                        prefix="$"
+                                    />
+                                </v-col>
+                                <v-col cols="6">
+                                    <div class="text-caption text-medium-emphasis">Solidaria — ambos parques</div>
+                                    <v-text-field
+                                        :model-value="quickFillValue(group.solidaria.multiclub_rule_ids)"
+                                        @update:model-value="(v) => applyQuickFill(group.solidaria!.multiclub_rule_ids, v === '' ? null : Number(v))"
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        density="compact"
+                                        variant="outlined"
+                                        hide-details
+                                        prefix="$"
+                                    />
+                                </v-col>
+                            </template>
+                        </v-row>
+                    </v-card>
+                </v-col>
+
+                <v-col v-if="!familyGroups.length" cols="12">
+                    <p class="text-medium-emphasis text-center py-2">
+                        No hay familias de membresías detectadas para este club.
+                    </p>
                 </v-col>
             </v-row>
 

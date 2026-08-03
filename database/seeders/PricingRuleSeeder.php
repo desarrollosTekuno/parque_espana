@@ -222,13 +222,17 @@ class PricingRuleSeeder extends Seeder
             [
                 'membership_code' => 'PE2_PM_IND',
                 'rules' => [
-                    $this->rule(null, 3600, 0, 1),
+                    $this->rule(null, 3600, 0, 2),
+                    // Familiar -> Individual: a partir de los 24 años.
+                    $this->rule('PE2_PM_FAM', 3600, 0, 1, 24),
                 ],
             ],
             [
                 'membership_code' => 'PE2_PM_FAM',
                 'rules' => [
-                    $this->rule(null, 7200, 0, 1),
+                    $this->rule(null, 7200, 0, 2),
+                    // Individual -> Familiar: solo se cobra la mensualidad, sin restricción de edad.
+                    $this->rule('PE2_PM_IND', 7200, 0, 1),
                 ],
             ],
         ];
@@ -240,13 +244,32 @@ class PricingRuleSeeder extends Seeder
             [
                 'membership_code' => 'PE2_IND_PE1',
                 'rules' => [
-                    $this->rule(null, 1850, 25000, 1),
+                    // Regla histórica (single) — no se toca para no afectar el cobro de
+                    // socios activos ya ligados a ella. La regla multiclub de abajo es la
+                    // que aplica normalmente para este paquete (requiere 5+ años en PE1).
+                    $this->rule(null, 1800, 25000, 1),
+                    $this->rule(null, 1850, 25000, 2, null, null, false, true),
+                    $this->rule('PE2_SOL_PE1', 1800, 0, 6),
+                    $this->rule('PE2_SOL_PE1', 1850, 0, 5, null, null, false, true),
+                    $this->rule('PE2_FAM_PE1', 1800, 0, 4, 27),
+                    $this->rule('PE2_FAM_PE1', 1850, 0, 3, 27, null, false, true),
                 ],
             ],
             [
                 'membership_code' => 'PE2_FAM_PE1',
                 'rules' => [
-                    $this->rule(null, 3700, 50000, 1),
+                    // Regla histórica (single) — no se toca, mismo motivo que arriba.
+                    $this->rule(null, 3600, 50000, 1),
+                    $this->rule(null, 3700, 50000, 2, null, null, false, true),
+                    $this->rule('PE2_IND_PE1', 3600, 4800, 4),
+                    $this->rule('PE2_IND_PE1', 3700, 4800, 3, null, null, false, true),
+                ],
+            ],
+            [
+                'membership_code' => 'PE2_SOL_PE1',
+                'rules' => [
+                    $this->rule('PE2_FAM_PE1', 900, 0, 2, 24, 26, true),
+                    $this->rule('PE2_FAM_PE1', 925, 0, 1, 24, 26, true, true),
                 ],
             ],
         ];
