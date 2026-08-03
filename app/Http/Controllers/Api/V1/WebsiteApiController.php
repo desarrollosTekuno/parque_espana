@@ -5,22 +5,21 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\Administrator\Club;
 use App\Models\Memberships\MembershipType;
+use App\Models\Memberships\PricingRule;
 use App\Models\Website\CarouselImage;
 use App\Models\Website\HomeCard;
 use App\Models\Website\VirtualTourCategory;
 use App\Models\Website\WebsiteEvent;
 use Illuminate\Http\Request;
 
-class WebsiteContentController extends Controller
-{
+class WebsiteApiController extends Controller {
     private const EVENT_TYPES = [
         'activity' => ['label' => 'Actividad', 'color' => '#0097A7'],
         'celebration' => ['label' => 'Celebración', 'color' => '#EC659C'],
         'holiday' => ['label' => 'Día festivo', 'color' => '#F4B400'],
     ];
 
-    public function carousel(Club $club)
-    {
+    public function carousel(Club $club) {
         try {
             $images = CarouselImage::where('club_id', $club->id)
                 ->orderBy('id')
@@ -39,8 +38,7 @@ class WebsiteContentController extends Controller
         }
     }
 
-    public function homeCards(Club $club)
-    {
+    public function homeCards(Club $club) {
         try {
             $cards = HomeCard::where('club_id', $club->id)
                 ->orderBy('category')
@@ -60,41 +58,84 @@ class WebsiteContentController extends Controller
         }
     }
 
-    public function membershipPrices(Club $club)
-    {
+    public function membershipPrices(Club $club) {
         try {
             $year = now()->year;
+            $prices = [];
 
-            $prices = MembershipType::where('club_id', $club->id)
-                ->where('show_in_listing', true)
-                ->with(['pricingRules' => function ($query) {
-                    $query->where('is_active', true)
-                        ->where(function ($dateQuery) {
-                            $dateQuery->whereNull('valid_from')
-                                ->orWhereDate('valid_from', '<=', today());
-                        })
-                        ->where(function ($dateQuery) {
-                            $dateQuery->whereNull('valid_until')
-                                ->orWhereDate('valid_until', '>=', today());
-                        })
-                        ->orderBy('priority')
-                        ->orderBy('id');
-                }])
-                ->orderBy('name')
-                ->get()
-                ->map(function ($membershipType) use ($year) {
-                    $rule = $membershipType->pricingRules->first();
+            $familyType = MembershipType::where('club_id', $club->id)
+                ->where('allows_multiple_members', true)
+                ->orderBy('id')
+                ->first();
 
-                    return [
-                        'id' => $membershipType->id,
-                        'code' => $membershipType->code,
-                        'name' => $membershipType->name,
-                        'monthly_fee' => $rule?->resolveMonthlyFee($year),
-                        'inscription_fee' => $rule?->resolveInscriptionFee($year),
-                        'currency' => 'MXN',
+            $familyRule = PricingRule::where('membership_type_id', $familyType->id)
+                ->where('requires_multiple_clubs', false)
+                ->where('is_active', true)
+                ->orderBy('id')
+                ->first();
+
+            if ($familyRule) {
+                $prices[] = [
+                    'id' => $familyType->id,
+                    'code' => $familyType->code,
+                    'name' => 'Familiar',
+                    'monthly_payment' => $familyRule->resolveMonthlyFee($year),
+                    'inscription_payment' => $familyRule->resolveInscriptionFee($year),
+                    'year' => $year,
+                ];
+            }
+
+            $individualTransition = PricingRule::where('from_membership_type_id', $familyType->id)
+                ->where('requires_origin_family', false)
+                ->where('is_active', true)
+                ->orderBy('id')
+                ->first();
+
+            if ($individualTransition) {
+                $individualType = MembershipType::find($individualTransition->membership_type_id);
+                $individualRule = PricingRule::where('membership_type_id', $individualType->id)
+                    ->where('requires_multiple_clubs', false)
+                    ->where('is_active', true)
+                    ->orderBy('id')
+                    ->first();
+
+                if ($individualRule) {
+                    $prices[] = [
+                        'id' => $individualType->id,
+                        'code' => $individualType->code,
+                        'name' => 'Individual',
+                        'monthly_payment' => $individualRule->resolveMonthlyFee($year),
+                        'inscription_payment' => $individualRule->resolveInscriptionFee($year),
                         'year' => $year,
                     ];
-                });
+                }
+            }
+
+            $solidariaTransition = PricingRule::where('from_membership_type_id', $familyType->id)
+                ->where('requires_origin_family', true)
+                ->where('is_active', true)
+                ->orderBy('id')
+                ->first();
+
+            if ($solidariaTransition) {
+                $solidariaType = MembershipType::find($solidariaTransition->membership_type_id);
+                $solidariaRule = PricingRule::where('membership_type_id', $solidariaType->id)
+                    ->where('requires_multiple_clubs', false)
+                    ->where('is_active', true)
+                    ->orderBy('id')
+                    ->first();
+
+                if ($solidariaRule) {
+                    $prices[] = [
+                        'id' => $solidariaType->id,
+                        'code' => $solidariaType->code,
+                        'name' => 'Solidaria',
+                        'monthly_payment' => $solidariaRule->resolveMonthlyFee($year),
+                        'inscription_payment' => $solidariaRule->resolveInscriptionFee($year),
+                        'year' => $year,
+                    ];
+                }
+            }
 
             return $this->ok($prices);
         } catch (\Exception $e) {
@@ -104,8 +145,7 @@ class WebsiteContentController extends Controller
         }
     }
 
-    public function virtualTour(Club $club)
-    {
+    public function virtualTour(Club $club) {
         try {
             $categories = VirtualTourCategory::where('club_id', $club->id)
                 ->with('images')
@@ -129,8 +169,7 @@ class WebsiteContentController extends Controller
         }
     }
 
-    public function events(Request $request, Club $club)
-    {
+    public function events(Request $request, Club $club) {
         try {
             $query = WebsiteEvent::where('club_id', $club->id);
 
