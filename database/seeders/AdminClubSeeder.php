@@ -297,6 +297,11 @@ class AdminClubSeeder extends Seeder
             'day-passes.store',
             'day-passes.incidents.index',
             'day-passes.incidents.store',
+
+            // página web
+            'website-content.index',
+            'website-content.store',
+            'website-content.destroy',
         );
         $adminClubRole = Role::updateOrCreate([
             'name' => 'admin_club',

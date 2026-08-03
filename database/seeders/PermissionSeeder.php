@@ -301,6 +301,11 @@ class PermissionSeeder extends Seeder
             ['module' => 'Pases por Día', 'name' => 'day-passes.incidents.index', 'description' => 'Ver incidentes de visitantes', 'contexts' => ['web']],
             ['module' => 'Pases por Día', 'name' => 'day-passes.incidents.store', 'description' => 'Registrar incidente a visitante', 'contexts' => ['web']],
 
+            // Página web
+            ['module' => 'Página web', 'name' => 'website-content.index', 'description' => 'Ver módulo de página web', 'contexts' => ['web']],
+            ['module' => 'Página web', 'name' => 'website-content.store', 'description' => 'Subir imágenes del carrusel', 'contexts' => ['web']],
+            ['module' => 'Página web', 'name' => 'website-content.destroy', 'description' => 'Eliminar imágenes del carrusel', 'contexts' => ['web']],
+
             // Files
             ['module' => 'Archivos', 'name' => 'files.index', 'description' => 'Ver archivos', 'contexts' => ['Web']],
             ['module' => 'Archivos', 'name' => 'files.store', 'description' => 'Crear formato de archivo', 'contexts' => ['Web']],

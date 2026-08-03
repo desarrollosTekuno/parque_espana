@@ -37,6 +37,13 @@ const routes: Routing[] = [
         group: null,
     },
     {
+        name: ["website-content.index"],
+        title: "Página web",
+        icon: "mdi-web",
+        value: "pagina-web",
+        group: null,
+    },
+    {
         name: [
             "membership-types.index",
             "document-types.index",

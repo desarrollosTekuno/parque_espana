@@ -54,6 +54,7 @@ use App\Http\Controllers\Web\AdminClub\ClubSettingsController;
 use App\Http\Controllers\Web\AdminClub\CoachController;
 use App\Http\Controllers\Web\AdminClub\SpecialtyController;
 use App\Http\Controllers\Web\AdminClub\ClassScheduleController;
+use App\Http\Controllers\Web\AdminClub\WebsiteContentController;
 use Illuminate\Support\Facades\Route;
 
 // amenities
@@ -334,6 +335,11 @@ Route::post('/club-settings', [ClubSettingsController::class, 'update'])->name('
 Route::resource('/specialties', SpecialtyController::class)->only(['index', 'store', 'update', 'destroy'])->names('specialties');
 Route::resource('/coaches', CoachController::class)->only(['index', 'store', 'update', 'destroy'])->names('coaches');
 Route::resource('/class-schedules', ClassScheduleController::class)->only(['index', 'store', 'update', 'destroy'])->names('classSchedules');
+
+// Página web
+Route::resource('/website-content', WebsiteContentController::class)
+    ->only(['index', 'store', 'destroy'])
+    ->names('website-content');
 
 // Acts
 Route::prefix('acts')->group(function () {
