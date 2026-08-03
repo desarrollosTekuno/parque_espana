@@ -24,11 +24,7 @@ use App\Http\Controllers\Api\V1\BusinessAdController;
 use App\Http\Controllers\Api\V1\BusinessCategoryController;
 use App\Http\Controllers\Api\V1\ReservationGuestController;
 use App\Http\Controllers\Api\V1\SurveyController;
-use App\Http\Controllers\Api\V1\WebsiteHomeCardController;
-use App\Http\Controllers\Api\V1\WebsiteEventController;
-use App\Http\Controllers\Api\V1\WebsiteCarouselController;
-use App\Http\Controllers\Api\V1\WebsiteMembershipPriceController;
-use App\Http\Controllers\Api\V1\WebsiteVirtualTourController;
+use App\Http\Controllers\Api\V1\WebsiteContentController;
 use App\Http\Controllers\Api\V1\ClinicalHistoryController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -54,11 +50,11 @@ Route::prefix('v1')->name('api.')->group(function () {
     Route::get('/clubs/{club}/amenities', [AmenityController::class, 'amenitiesByClub'])->middleware('auth:sanctum');
 
     // =================================== Pagina web Test ================================
-    Route::get('/clubs/{club}/website/carousel', [WebsiteCarouselController::class, 'index']);
-    Route::get('/clubs/{club}/website/home-cards', [WebsiteHomeCardController::class, 'index']);
-    Route::get('/clubs/{club}/website/membership-prices', [WebsiteMembershipPriceController::class, 'index']);
-    Route::get('/clubs/{club}/website/virtual-tour', [WebsiteVirtualTourController::class, 'index']);
-    Route::get('/clubs/{club}/website/events', [WebsiteEventController::class, 'index']);
+    Route::get('/clubs/{club}/website/carousel', [WebsiteContentController::class, 'carousel']);
+    Route::get('/clubs/{club}/website/home-cards', [WebsiteContentController::class, 'homeCards']);
+    Route::get('/clubs/{club}/website/membership-prices', [WebsiteContentController::class, 'membershipPrices']);
+    Route::get('/clubs/{club}/website/virtual-tour', [WebsiteContentController::class, 'virtualTour']);
+    Route::get('/clubs/{club}/website/events', [WebsiteContentController::class, 'events']);
 
     // Business Ads
     // Enviar solicitud de promoción desde la app
