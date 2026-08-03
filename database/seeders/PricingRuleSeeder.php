@@ -247,7 +247,7 @@ class PricingRuleSeeder extends Seeder
                     // Regla histórica (single) — no se toca para no afectar el cobro de
                     // socios activos ya ligados a ella. La regla multiclub de abajo es la
                     // que aplica normalmente para este paquete (requiere 5+ años en PE1).
-                    $this->rule(null, 1850, 25000, 1),
+                    $this->rule(null, 1800, 25000, 1),
                     $this->rule(null, 1850, 25000, 2, null, null, false, true),
                     $this->rule('PE2_SOL_PE1', 1800, 0, 6),
                     $this->rule('PE2_SOL_PE1', 1850, 0, 5, null, null, false, true),
