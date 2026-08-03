@@ -344,6 +344,14 @@ Route::post('/website-content/home-cards', [WebsiteContentController::class, 'st
     ->name('website-content.cards.store');
 Route::delete('/website-content/home-cards/{id}', [WebsiteContentController::class, 'destroyCard'])
     ->name('website-content.cards.destroy');
+Route::post('/website-content/virtual-tour/categories', [WebsiteContentController::class, 'storeVirtualTourCategory'])
+    ->name('website-content.virtual-tour.categories.store');
+Route::delete('/website-content/virtual-tour/categories/{id}', [WebsiteContentController::class, 'destroyVirtualTourCategory'])
+    ->name('website-content.virtual-tour.categories.destroy');
+Route::post('/website-content/virtual-tour/images', [WebsiteContentController::class, 'storeVirtualTourImages'])
+    ->name('website-content.virtual-tour.images.store');
+Route::delete('/website-content/virtual-tour/images/{id}', [WebsiteContentController::class, 'destroyVirtualTourImage'])
+    ->name('website-content.virtual-tour.images.destroy');
 
 // Acts
 Route::prefix('acts')->group(function () {
