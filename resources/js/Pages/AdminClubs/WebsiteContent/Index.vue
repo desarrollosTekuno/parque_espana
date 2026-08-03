@@ -11,6 +11,8 @@ interface Props {
     homeCards: any[];
     cardCategories: string[];
     virtualTourCategories: any[];
+    events: any[];
+    eventTypes: any[];
 }
 
 const props = defineProps<Props>();
@@ -50,6 +52,12 @@ const virtualTourForm = useForm<{ category_id: number | null; images: File[]; ti
     category_id: props.virtualTourCategories[0]?.id ?? null,
     images: [],
     titles: [],
+});
+const eventForm = useForm<{ id: number | null; title: string; event_date: string; type: string }>({
+    id: null,
+    title: "",
+    event_date: "",
+    type: "activity",
 });
 
 /* ====================== Computed ====================== */
@@ -340,6 +348,59 @@ const destroyVirtualTourCategory = (category: any) => {
     });
 };
 
+const getEventType = (type: string) => {
+    return props.eventTypes.find((item) => item.value === type);
+};
+
+const resetEventForm = () => {
+    eventForm.reset();
+    eventForm.clearErrors();
+};
+
+const editEvent = (event: any) => {
+    eventForm.id = event.id;
+    eventForm.title = event.title;
+    eventForm.event_date = event.event_date;
+    eventForm.type = event.type;
+};
+
+const saveEvent = () => {
+    eventForm.post(route("website-content.events.save"), {
+        preserveScroll: true,
+        onSuccess: () => {
+            customToastSwal({
+                title: page.props.flash.success || "Evento guardado correctamente",
+                icon: "success",
+            });
+            resetEventForm();
+        },
+        onError: (errors) => {
+            customToastSwal({
+                title: Object.values(errors)[0] || "No se pudo guardar el evento",
+                icon: "error",
+            });
+        },
+    });
+};
+
+const destroyEvent = (event: any) => {
+    customConfirmSwal({
+        title: `¿Eliminar el evento ${event.title}?`,
+    }).then((result) => {
+        if (result.isConfirmed) {
+            router.delete(route("website-content.events.destroy", event.id), {
+                preserveScroll: true,
+                onSuccess: () => {
+                    customToastSwal({
+                        title: page.props.flash.success || "Evento eliminado correctamente",
+                        icon: "success",
+                    });
+                },
+            });
+        }
+    });
+};
+
 const clearPreviews = () => {
     previews.value.forEach((preview) => URL.revokeObjectURL(preview));
 };
@@ -412,6 +473,9 @@ onUnmounted(() => {
                 </v-tab>
                 <v-tab value="virtual-tour" prepend-icon="mdi-panorama-variant-outline">
                     Vista virtual
+                </v-tab>
+                <v-tab value="events" prepend-icon="mdi-calendar-month-outline">
+                    Eventos
                 </v-tab>
             </v-tabs>
         </v-card>
@@ -840,6 +904,138 @@ onUnmounted(() => {
                 </div>
             </v-card-text>
         </v-card>
+
+        <v-card v-show="activeSection === 'events'">
+            <v-card-title class="d-flex align-center ga-2">
+                <v-icon icon="mdi-calendar-month-outline" />
+                Eventos del calendario
+            </v-card-title>
+            <v-card-subtitle>
+                Captura una fecha, un título y el tipo de evento. El color se asigna automáticamente.
+            </v-card-subtitle>
+
+            <v-card-text>
+                <v-card
+                    v-if="can.includes('website-content.store')"
+                    variant="tonal"
+                    class="mb-6"
+                >
+                    <v-card-text>
+                        <div class="mb-3 text-subtitle-1 font-weight-bold">
+                            {{ eventForm.id ? "Editar evento" : "Nuevo evento" }}
+                        </div>
+                        <v-row align="start">
+                            <v-col cols="12" md="5">
+                                <v-text-field
+                                    v-model="eventForm.title"
+                                    label="Título"
+                                    placeholder="Ej. Curso de verano"
+                                    maxlength="100"
+                                    hide-details="auto"
+                                    :error-messages="eventForm.errors.title"
+                                />
+                            </v-col>
+                            <v-col cols="12" sm="6" md="3">
+                                <v-text-field
+                                    v-model="eventForm.event_date"
+                                    label="Fecha"
+                                    type="date"
+                                    hide-details="auto"
+                                    :error-messages="eventForm.errors.event_date"
+                                />
+                            </v-col>
+                            <v-col cols="12" sm="6" md="4">
+                                <v-select
+                                    v-model="eventForm.type"
+                                    :items="eventTypes"
+                                    item-title="title"
+                                    item-value="value"
+                                    label="Tipo"
+                                    hide-details="auto"
+                                    :error-messages="eventForm.errors.type"
+                                >
+                                    <template #item="{ props: itemProps, item }">
+                                        <v-list-item v-bind="itemProps">
+                                            <template #prepend>
+                                                <span
+                                                    class="event-color-dot"
+                                                    :style="{ backgroundColor: item.raw.color }"
+                                                />
+                                            </template>
+                                        </v-list-item>
+                                    </template>
+                                </v-select>
+                            </v-col>
+                        </v-row>
+
+                        <div class="d-flex justify-end ga-2 mt-4">
+                            <v-btn
+                                v-if="eventForm.id"
+                                variant="text"
+                                @click="resetEventForm"
+                            >
+                                Cancelar edición
+                            </v-btn>
+                            <v-btn
+                                color="primary"
+                                prepend-icon="mdi-content-save-outline"
+                                :loading="eventForm.processing"
+                                @click="saveEvent"
+                            >
+                                {{ eventForm.id ? "Actualizar evento" : "Guardar evento" }}
+                            </v-btn>
+                        </div>
+                    </v-card-text>
+                </v-card>
+
+                <div class="mb-3 d-flex align-center ga-2">
+                    <div class="text-h6">Eventos registrados</div>
+                    <v-chip size="small" color="primary" variant="tonal">{{ events.length }}</v-chip>
+                </div>
+
+                <v-table v-if="events.length" hover>
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Título</th>
+                            <th>Tipo</th>
+                            <th class="text-right">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="event in events" :key="event.id">
+                            <td class="text-no-wrap">{{ event.event_date }}</td>
+                            <td>{{ event.title }}</td>
+                            <td>
+                                <v-chip
+                                    size="small"
+                                    :color="getEventType(event.type)?.color"
+                                    variant="tonal"
+                                >
+                                    {{ getEventType(event.type)?.title }}
+                                </v-chip>
+                            </td>
+                            <td class="text-right text-no-wrap">
+                                <BaseButton
+                                    v-if="can.includes('website-content.store')"
+                                    action="edit"
+                                    @click="editEvent(event)"
+                                />
+                                <BaseButton
+                                    v-if="can.includes('website-content.destroy')"
+                                    action="delete"
+                                    @click="destroyEvent(event)"
+                                />
+                            </td>
+                        </tr>
+                    </tbody>
+                </v-table>
+
+                <v-alert v-else type="info" variant="tonal">
+                    Todavía no hay eventos para mostrar en el calendario.
+                </v-alert>
+            </v-card-text>
+        </v-card>
     </AppLayout>
 </template>
 
@@ -903,6 +1099,13 @@ onUnmounted(() => {
     border-radius: 50%;
     background: rgba(255, 255, 255, 0.92);
     box-shadow: 0 2px 7px rgba(0, 0, 0, 0.2);
+}
+
+.event-color-dot {
+    width: 12px;
+    height: 12px;
+    display: inline-block;
+    border-radius: 50%;
 }
 
 .saved-image-label,

@@ -352,6 +352,10 @@ Route::post('/website-content/virtual-tour/images', [WebsiteContentController::c
     ->name('website-content.virtual-tour.images.store');
 Route::delete('/website-content/virtual-tour/images/{id}', [WebsiteContentController::class, 'destroyVirtualTourImage'])
     ->name('website-content.virtual-tour.images.destroy');
+Route::post('/website-content/events', [WebsiteContentController::class, 'saveEvent'])
+    ->name('website-content.events.save');
+Route::delete('/website-content/events/{id}', [WebsiteContentController::class, 'destroyEvent'])
+    ->name('website-content.events.destroy');
 
 // Acts
 Route::prefix('acts')->group(function () {

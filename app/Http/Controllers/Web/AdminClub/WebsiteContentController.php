@@ -7,6 +7,7 @@ use App\Models\Website\CarouselImage;
 use App\Models\Website\HomeCard;
 use App\Models\Website\VirtualTourCategory;
 use App\Models\Website\VirtualTourImage;
+use App\Models\Website\WebsiteEvent;
 use Illuminate\Http\File;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -33,6 +34,12 @@ class WebsiteContentController extends Controller
         'Estacionamiento',
     ];
 
+    private const EVENT_TYPES = [
+        ['value' => 'activity', 'title' => 'Actividad', 'color' => '#0097A7'],
+        ['value' => 'celebration', 'title' => 'Celebración', 'color' => '#EC659C'],
+        ['value' => 'holiday', 'title' => 'Día festivo', 'color' => '#F4B400'],
+    ];
+
     public function __construct()
     {
         $this->middleware('permission:website-content.index')->only('index');
@@ -41,12 +48,14 @@ class WebsiteContentController extends Controller
             'storeCard',
             'storeVirtualTourCategory',
             'storeVirtualTourImages',
+            'saveEvent',
         ]);
         $this->middleware('permission:website-content.destroy')->only([
             'destroy',
             'destroyCard',
             'destroyVirtualTourCategory',
             'destroyVirtualTourImage',
+            'destroyEvent',
         ]);
     }
 
@@ -75,11 +84,18 @@ class WebsiteContentController extends Controller
             ->orderBy('id')
             ->get();
 
+        $events = WebsiteEvent::where('club_id', $clubId)
+            ->orderByDesc('event_date')
+            ->orderByDesc('id')
+            ->get();
+
         return Inertia::render('AdminClubs/WebsiteContent/Index', [
             'carouselImages' => $images,
             'homeCards' => $homeCards,
             'cardCategories' => self::CARD_CATEGORIES,
             'virtualTourCategories' => $virtualTourCategories,
+            'events' => $events,
+            'eventTypes' => self::EVENT_TYPES,
         ]);
     }
 
@@ -375,6 +391,60 @@ class WebsiteContentController extends Controller
 
             return back()->withErrors([
                 'messageError' => 'No se pudo eliminar la categoría.',
+                'exception' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public function saveEvent(Request $request)
+    {
+        $validated = $request->validate([
+            'id' => ['nullable', 'integer'],
+            'title' => ['required', 'string', 'max:100'],
+            'event_date' => ['required', 'date'],
+            'type' => ['required', 'in:activity,celebration,holiday'],
+        ], [
+            'title.required' => 'Escribe el título del evento.',
+            'title.max' => 'El título debe tener máximo 100 caracteres.',
+            'event_date.required' => 'Selecciona la fecha del evento.',
+            'type.required' => 'Selecciona el tipo de evento.',
+        ]);
+
+        $clubId = (int) session('club_id');
+
+        if (! empty($validated['id'])) {
+            $event = WebsiteEvent::where('club_id', $clubId)->findOrFail($validated['id']);
+            $event->update([
+                'title' => $validated['title'],
+                'event_date' => $validated['event_date'],
+                'type' => $validated['type'],
+            ]);
+
+            return back()->with('success', 'Evento actualizado correctamente.');
+        }
+
+        WebsiteEvent::create([
+            'club_id' => $clubId,
+            'title' => $validated['title'],
+            'event_date' => $validated['event_date'],
+            'type' => $validated['type'],
+        ]);
+
+        return back()->with('success', 'Evento guardado correctamente.');
+    }
+
+    public function destroyEvent(int $id)
+    {
+        try {
+            $event = WebsiteEvent::where('club_id', session('club_id'))->findOrFail($id);
+            $event->delete();
+
+            return back()->with('success', 'Evento eliminado correctamente.');
+        } catch (\Exception $e) {
+            report($e);
+
+            return back()->withErrors([
+                'messageError' => 'No se pudo eliminar el evento.',
                 'exception' => $e->getMessage(),
             ]);
         }

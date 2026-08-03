@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\V1\BusinessCategoryController;
 use App\Http\Controllers\Api\V1\ReservationGuestController;
 use App\Http\Controllers\Api\V1\SurveyController;
 use App\Http\Controllers\Api\V1\WebsiteHomeCardController;
+use App\Http\Controllers\Api\V1\WebsiteEventController;
 use App\Http\Controllers\Api\V1\WebsiteVirtualTourController;
 use App\Http\Controllers\Api\V1\ClinicalHistoryController;
 use Illuminate\Http\Request;
@@ -52,6 +53,7 @@ Route::prefix('v1')->name('api.')->group(function () {
     // Cards públicas de la página web
     Route::get('/clubs/{club}/website/home-cards', [WebsiteHomeCardController::class, 'index']);
     Route::get('/clubs/{club}/website/virtual-tour', [WebsiteVirtualTourController::class, 'index']);
+    Route::get('/clubs/{club}/website/events', [WebsiteEventController::class, 'index']);
 
     // Business Ads
     // Enviar solicitud de promoción desde la app
