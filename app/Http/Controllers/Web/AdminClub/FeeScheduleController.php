@@ -6,11 +6,13 @@ use Illuminate\Routing\Controller;
 use App\Models\Administrator\Club;
 use App\Models\Memberships\InterclubPackageRule;
 use App\Models\Memberships\InterclubPackageRuleFeeHistory;
+use App\Models\Memberships\MembershipType;
 use App\Models\Memberships\PricingRule;
 use App\Models\Memberships\PricingRuleFeeHistory;
 use App\Rules\ExistsInSchema;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
@@ -43,6 +45,7 @@ class FeeScheduleController extends Controller
             return Inertia::render('AdminClubs/FeeSchedules/Index', [
                 'pricingRules' => $rules['pricingRules'],
                 'interclubRules' => $rules['interclubRules'],
+                'familyGroups' => $rules['familyGroups'],
                 'year' => $year,
                 'currentClub' => $currentClub ? [
                     'id' => $currentClub->id,
@@ -77,10 +80,12 @@ class FeeScheduleController extends Controller
 
     protected function resolveRules(int $clubId, int $year): array
     {
-        $pricingRules = PricingRule::query()
+        $pricingRuleModels = PricingRule::query()
             ->with(['membershipType', 'fromMembershipType', 'feeHistory'])
             ->whereHas('membershipType', fn ($q) => $q->where('club_id', $clubId))
-            ->get()
+            ->get();
+
+        $pricingRules = $pricingRuleModels
             ->map(fn (PricingRule $rule) => $this->mapPricingRule($rule, $year))
             ->sortBy('membership_type_name')
             ->values();
@@ -96,7 +101,132 @@ class FeeScheduleController extends Controller
         return [
             'pricingRules' => $pricingRules,
             'interclubRules' => $interclubRules,
+            'familyGroups' => $this->buildFamilyGroups($pricingRuleModels),
         ];
+    }
+
+    /**
+     * Arma la captura rápida del módulo: un solo grupo "General" que junta los
+     * ids de Familiar/Individual/Solidaria de TODAS las categorías del club
+     * (Externos, Ascendencia, Beneficencia, etc.) — en la práctica esas
+     * categorías siempre cobran la misma mensualidad entre sí (solo cambia la
+     * inscripción, que no se toca aquí), así que se editan como una sola cosa.
+     * "Pase Mensual" es la única excepción real (cobra distinto) y se aísla en
+     * su propio grupo, detectado por nombre ya que no hay una bandera en BD
+     * para eso.
+     */
+    protected function buildFamilyGroups(Collection $pricingRuleModels): array
+    {
+        $familiarTypes = $pricingRuleModels
+            ->map(fn (PricingRule $r) => $r->membershipType)
+            ->filter(fn (?MembershipType $t) => $t && $t->allows_multiple_members)
+            ->unique('id')
+            ->values();
+
+        [$monthlyPassTypes, $normalTypes] = $familiarTypes->partition(
+            fn (MembershipType $t) => $this->isMonthlyPass($t->name)
+        );
+
+        $groups = [];
+
+        if ($normalTypes->isNotEmpty()) {
+            $groups[] = $this->buildCombinedGroup($pricingRuleModels, $normalTypes, 'Mensualidad estándar');
+        }
+
+        if ($monthlyPassTypes->isNotEmpty()) {
+            $groups[] = $this->buildCombinedGroup($pricingRuleModels, $monthlyPassTypes, 'Pase mensual');
+        }
+
+        return $groups;
+    }
+
+    /**
+     * Junta, para un conjunto de tipos Familiar, los ids de todas las reglas
+     * (de todas sus categorías) que caen en cada uno de los 6 "cajones":
+     * Familiar/Individual/Solidaria × este parque/ambos parques.
+     */
+    protected function buildCombinedGroup(Collection $pricingRuleModels, Collection $familiarTypes, string $label): array
+    {
+        $familiarSingle = collect();
+        $familiarMulti = collect();
+        $individualSingle = collect();
+        $individualMulti = collect();
+        $solidariaSingle = collect();
+        $solidariaMulti = collect();
+        $hasIndividual = false;
+        $hasSolidaria = false;
+
+        foreach ($familiarTypes as $familiarType) {
+            $familiarSlot = $this->buildSlot($pricingRuleModels, $familiarType);
+            $familiarSingle = $familiarSingle->merge($familiarSlot['single_rule_ids']);
+            $familiarMulti = $familiarMulti->merge($familiarSlot['multiclub_rule_ids']);
+
+            $fromFamiliar = $pricingRuleModels->filter(
+                fn (PricingRule $r) => $r->from_membership_type_id === $familiarType->id
+            );
+
+            $individualType = $fromFamiliar
+                ->first(fn (PricingRule $r) => !$r->requires_origin_family)
+                ?->membershipType;
+
+            $solidariaType = $fromFamiliar
+                ->first(fn (PricingRule $r) => $r->requires_origin_family)
+                ?->membershipType;
+
+            if ($individualType) {
+                $hasIndividual = true;
+                $slot = $this->buildSlot($pricingRuleModels, $individualType);
+                $individualSingle = $individualSingle->merge($slot['single_rule_ids']);
+                $individualMulti = $individualMulti->merge($slot['multiclub_rule_ids']);
+            }
+
+            if ($solidariaType) {
+                $hasSolidaria = true;
+                $slot = $this->buildSlot($pricingRuleModels, $solidariaType);
+                $solidariaSingle = $solidariaSingle->merge($slot['single_rule_ids']);
+                $solidariaMulti = $solidariaMulti->merge($slot['multiclub_rule_ids']);
+            }
+        }
+
+        return [
+            'label' => $label,
+            'familiar' => [
+                'membership_type_name' => 'Familiar',
+                'single_rule_ids' => $familiarSingle->unique()->values(),
+                'multiclub_rule_ids' => $familiarMulti->unique()->values(),
+            ],
+            'individual' => $hasIndividual ? [
+                'membership_type_name' => 'Individual',
+                'single_rule_ids' => $individualSingle->unique()->values(),
+                'multiclub_rule_ids' => $individualMulti->unique()->values(),
+            ] : null,
+            'solidaria' => $hasSolidaria ? [
+                'membership_type_name' => 'Solidaria',
+                'single_rule_ids' => $solidariaSingle->unique()->values(),
+                'multiclub_rule_ids' => $solidariaMulti->unique()->values(),
+            ] : null,
+        ];
+    }
+
+    protected function buildSlot(Collection $pricingRuleModels, MembershipType $targetType): array
+    {
+        $rulesForType = $pricingRuleModels->where('membership_type_id', $targetType->id);
+
+        return [
+            'membership_type_name' => $targetType->name,
+            'single_rule_ids' => $rulesForType->where('requires_multiple_clubs', false)->pluck('id')->values(),
+            'multiclub_rule_ids' => $rulesForType->where('requires_multiple_clubs', true)->pluck('id')->values(),
+        ];
+    }
+
+    /**
+     * El nombre dice "mensual" pero en realidad se cobra igual que cualquier
+     * otra membresía (misma cadencia mensual) — la diferencia real es que su
+     * tarifa es distinta a las demás categorías, por eso se aísla aquí.
+     */
+    protected function isMonthlyPass(string $membershipTypeName): bool
+    {
+        return str_contains(mb_strtolower($membershipTypeName), 'pase mensual');
     }
 
     public function store(Request $request)

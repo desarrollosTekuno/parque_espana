@@ -182,8 +182,16 @@ interface FormData {
     documents: DocumentFormItem[];
 }
 
+interface SiblingTransition {
+    id: number;
+    club_code: string | null;
+    club_name: string | null;
+    target_membership_type: string | null;
+}
+
 interface Props {
     transition: Transition;
+    sibling_transition: SiblingTransition | null;
     prefillMember: PrefillMember;
     countries: CountryCatalog[];
     nationalities: CountryCatalog[];
@@ -576,6 +584,19 @@ const submit = () => {
         <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
             <v-row>
                 <v-col cols="12">
+                    <v-alert
+                        v-if="props.sibling_transition"
+                        type="info"
+                        variant="tonal"
+                        class="ma-4 mb-0"
+                    >
+                        Este integrante también tiene una transición pendiente en
+                        <strong>{{ props.sibling_transition.club_code }} – {{ props.sibling_transition.club_name }}</strong>
+                        (hacia {{ props.sibling_transition.target_membership_type ?? "N/D" }}).
+                        Al confirmar este formulario, <strong>se promoverán las dos juntas</strong> y la cuota
+                        se calculará como de ambos parques.
+                    </v-alert>
+
                     <v-stepper v-model="step" :items="steps" show-actions>
 
                         <!-- ══════════════════════════════════════════════════
@@ -1047,7 +1068,7 @@ const submit = () => {
                                             color="info"
                                             class="ml-1"
                                         >
-                                            Multiclub
+                                            Ambos parques
                                         </v-chip>
                                     </p>
                                 </v-card>

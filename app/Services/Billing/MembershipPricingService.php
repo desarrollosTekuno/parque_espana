@@ -99,12 +99,29 @@ class MembershipPricingService
         // synchronizeMembershipFees already resolves the full group context:
         // it finds all active memberships in the group, picks the max total fee,
         // and re-applies the split mode stored on the reactivated membership.
-        $chargeService->synchronizeMembershipFees(
+        $groupMemberships = $chargeService->synchronizeMembershipFees(
             membership: $reactivatedMembership,
             historyReason: 'Recálculo de cuota: reactivación de cuenta en grupo',
             pricingRuleId: $reactivatedMembership->pricing_rule_id,
             interclubPackageRuleId: $reactivatedMembership->interclub_package_rule_id
         );
+
+        // synchronizeMembershipFees nunca apaga la facturación de las demás
+        // membresías del grupo (a propósito, ver su comentario interno) — solo
+        // prende la de la membresía reactivada. Si esta retoma una tarifa de
+        // grupo (interclub), las demás deben volver a quedar no facturables,
+        // igual que al dar de alta (MemberController::shouldSourceMembershipBecomeNonBillable).
+        // Sin esto, tras reactivar quedan dos membresías cobrando a la vez.
+        $reactivatedRepresentsGroupRate = (bool) $reactivatedMembership->interclub_package_rule_id
+            || (bool) ($reactivatedMembership->pricingRule?->requires_multiple_clubs ?? false);
+
+        if ($reactivatedRepresentsGroupRate) {
+            foreach ($groupMemberships as $groupMembership) {
+                if (!$groupMembership->is($reactivatedMembership) && $groupMembership->is_billable) {
+                    $groupMembership->update(['is_billable' => false]);
+                }
+            }
+        }
     }
 
     public function resolvePricingRule(

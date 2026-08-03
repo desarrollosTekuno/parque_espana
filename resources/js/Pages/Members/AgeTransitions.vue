@@ -11,6 +11,10 @@ interface AgeTransitionItem {
     age: number | null;
     membership_id: number;
     membership_account_id: number;
+    membership_number: string | null;
+    club_code: string | null;
+    from_membership_type: string | null;
+    target_membership_type: string | null;
     status: "pending" | "promoted" | "dismissed";
     identified_at: string | null;
     promoted_at: string | null;
@@ -22,6 +26,7 @@ interface AgeTransitionItem {
 
 interface Filters {
     search?: string;
+    account_number?: string;
     status?: string;
 }
 
@@ -41,6 +46,7 @@ const props = defineProps<Props>();
 const prefix = "age_transitions";
 
 const search = ref(props.filters.search ?? "");
+const accountSearch = ref(props.filters.account_number ?? "");
 const statusFilter = ref(props.filters.status ?? "pending");
 
 const items = ref<AgeTransitionItem[]>(props.transitions.data);
@@ -59,7 +65,9 @@ const options = ref({
 
 const headers = [
     { title: "Integrante", key: "member_name", sortable: false },
+    { title: "Cuenta", key: "membership_number", sortable: false },
     { title: "Edad", key: "age", sortable: false },
+    { title: "Transición", key: "transition", sortable: false },
     { title: "Estado", key: "status", sortable: false },
     { title: "Identificado", key: "identified_at", sortable: false },
     { title: "Acciones", key: "actions", sortable: false, align: "end" as const },
@@ -107,6 +115,7 @@ function fetchItems() {
                 [`${prefix}_page`]: options.value.page,
                 [`${prefix}_per_page`]: options.value.itemsPerPage,
                 [`${prefix}_search`]: search.value || undefined,
+                [`${prefix}_account_number`]: accountSearch.value || undefined,
                 [`${prefix}_status`]: statusFilter.value || undefined,
             },
             {
@@ -125,7 +134,7 @@ function fetchItems() {
     }, 400);
 }
 
-watch([options, search, statusFilter], fetchItems, { deep: true });
+watch([options, search, accountSearch, statusFilter], fetchItems, { deep: true });
 
 function promoteTransition(item: AgeTransitionItem) {
     router.visit(route("members.age-transitions.promote.create", item.id));
@@ -185,11 +194,23 @@ function confirmDismiss() {
                 <v-card variant="outlined" class="pa-4 mb-4">
                     <div class="text-subtitle-2 font-weight-bold mb-3">Filtros</div>
                     <v-row dense>
-                        <v-col cols="12" md="5">
+                        <v-col cols="12" md="4">
                             <v-text-field
                                 v-model="search"
                                 label="Buscar por nombre"
                                 prepend-inner-icon="mdi-magnify"
+                                variant="outlined"
+                                density="compact"
+                                clearable
+                                hide-details
+                            />
+                        </v-col>
+
+                        <v-col cols="12" md="3">
+                            <v-text-field
+                                v-model="accountSearch"
+                                label="Buscar por cuenta"
+                                prepend-inner-icon="mdi-card-account-details-outline"
                                 variant="outlined"
                                 density="compact"
                                 clearable
@@ -222,8 +243,21 @@ function confirmDismiss() {
                     item-value="id"
                     density="compact"
                 >
+                    <template #item.membership_number="{ item }">
+                        <div>{{ item.membership_number ?? 'S/N' }}</div>
+                        <v-chip v-if="item.club_code" size="x-small" variant="tonal" class="mt-1">
+                            {{ item.club_code }}
+                        </v-chip>
+                    </template>
+
                     <template #item.age="{ item }">
                         {{ item.age !== null ? item.age + ' años' : '—' }}
+                    </template>
+
+                    <template #item.transition="{ item }">
+                        <span class="text-caption">
+                            {{ item.from_membership_type ?? 'N/D' }} → {{ item.target_membership_type ?? 'N/D' }}
+                        </span>
                     </template>
 
                     <template #item.status="{ item }">

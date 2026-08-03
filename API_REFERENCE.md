@@ -233,13 +233,21 @@ Patrón común: el socio debe ser **titular** (`is_primary_holder`) de una cuent
   {"data": {"payment_id": 1, "receipt_available": false, "url": null, "message": "El comprobante descargable aún no está disponible."}}
   ```
 
+### GET /clubs/{club}/conekta-public-key
+- Auth: sí.
+- Éxito (200): `{"data": {"public_key": "key_xxx"}}` — llave pública de Conekta de la cuenta comercial de **ese** club, para tokenizar tarjetas del lado del cliente antes de llamar a `POST /clubs/{club}/payment-sources`.
+- Error `422` `{"message": "El pago con tarjeta no está configurado para este club."}` si el club no tiene el método Conekta activo ni hay llave global de respaldo.
+- **Importante**: cada parque es una cuenta Conekta independiente (llaves distintas de verdad, confirmado en producción) — un token generado con la llave pública de un club **no se puede usar** para tokenizar en el otro. Pedir esta llave siempre justo antes de tokenizar (no cachearla más allá de la sesión de captura de tarjeta): como el token de sesión no expira, si la llave rota en Conekta un valor guardado de más tiempo atrás podría quedar obsoleto.
+- **Flujo recomendado para socios titulares en ambos parques**: al agregar una tarjeta, pedir esta llave para cada club donde el socio sea titular activo, tokenizar la misma tarjeta una vez por cada llave (antes de descartar los datos de la tarjeta), y llamar `POST /clubs/{club}/payment-sources` una vez por club con su propio token. Son dos llamadas independientes — si una falla, la otra puede seguir adelante sin revertirse.
+- **Caso sin solución automática**: si el socio agrega su tarjeta siendo titular de un solo parque y **después** se inscribe al segundo, no hay forma de recuperar el número de tarjeta para tokenizarlo en el nuevo club — el dato nunca se guarda en ningún lado (ni debe guardarse). No hay aviso automático del backend para este caso; la app debe ofrecerle al socio, en algún punto de su flujo (ej. al ver que `GET .../payment-sources` viene vacío para ese club), la opción de agregar su tarjeta ahí también.
+
 ### GET /clubs/{club}/payment-sources
 - Auth: sí.
 - Éxito (200): `{"data": [{"id":1,"brand":"...","last4":"...","exp_month":0,"exp_year":0,"cardholder":"...","is_default":true,"created_at":"YYYY-MM-DD"}]}`.
 - Las tarjetas están scoped por club — una tarjeta de un club no sirve para cobrar en otro.
 
 ### POST /clubs/{club}/payment-sources
-- Auth: sí. Body: `token_id` (string, required — token Conekta `tok_xxx`), `set_default` (boolean, opcional).
+- Auth: sí. Body: `token_id` (string, required — token Conekta `tok_xxx`, tokenizado con la llave pública de **este mismo club**), `set_default` (boolean, opcional).
 - Éxito (201): `{"message": "Tarjeta agregada correctamente.", "data": { ...mismo shape que index... }}`.
 - Error `422` si Conekta rechaza el token.
 
@@ -275,7 +283,32 @@ Patrón común: el socio debe ser **titular** (`is_primary_holder`) de una cuent
 
 ---
 
-## 5. Reservaciones y amenidades
+## 5. Flujo típico: socio titular en ambos parques
+
+Un socio puede ser titular activo en Parque España I **y** Parque España II a la vez (membresía interclub). Como cada parque es una cuenta de comercio Conekta independiente, todo lo relacionado a tarjetas y cobros pasa **por duplicado, una vez por club**, aunque para el socio se sienta como una sola tarjeta y una sola mensualidad. Esto no es evidente leyendo cada endpoint por separado, así que se documenta aparte.
+
+### A) Agregar una tarjeta (una sola vez, flujo de alta)
+
+1. Al hacer login (o `GET /my-profile`), la app ya sabe en qué clubes el socio es titular activo — es el arreglo `clubs[]` de la respuesta de `POST /login`, filtrado a `is_primary_holder: true` y `status: "active"`.
+2. El socio llena el formulario de tarjeta (número, vigencia, CVV) **una sola vez**, en una sola pantalla.
+3. Al confirmar, la app hace lo siguiente en segundo plano, sin pantallas adicionales para el usuario:
+   - Por cada club de esa lista, pide `GET /clubs/{club}/conekta-public-key`.
+   - Tokeniza los mismos datos de la tarjeta una vez por cada llave pública obtenida (ej. si es titular en PE1 y PE2, se generan dos tokens: `tok_AAA` con la llave de PE1, `tok_BBB` con la llave de PE2). Esto debe pasar **antes** de que la app descarte los datos de la tarjeta de memoria — el número de tarjeta nunca se envía a nuestro backend.
+   - Llama `POST /clubs/{club}/payment-sources` una vez por club, con el token que le corresponde a ese club.
+4. Resultado: una fuente de pago guardada por cada club (misma tarjeta física, registros independientes). Las dos llamadas son independientes — si una falla (ej. el banco la rechaza en una de las dos cuentas), la otra puede seguir adelante; no hay rollback conjunto.
+5. **Caso sin solución automática**: si el socio agrega su tarjeta siendo titular de un solo parque y *después* se inscribe al segundo, no existe forma de recuperar el número de tarjeta para tokenizarlo en el club nuevo — ese dato nunca se guarda en ningún lado (ni debe guardarse), y el backend no manda ningún aviso automático para este caso. La app debe ofrecerle al socio, en algún punto de su flujo (por ejemplo, al notar que `GET /clubs/{club}/payment-sources` viene vacío para un club donde sí es titular), la opción de agregar su tarjeta también ahí.
+
+### B) Pagar una mensualidad que involucra ambos parques
+
+La mensualidad dividida 50/50 entre parques **no es un solo cargo combinado** — son dos cargos independientes, uno en `billing.charges` de cada club (cada uno ligado a la membresía de ese club en particular). Para cobrarla:
+
+1. Traer los cargos pendientes de cada club por separado: `GET /clubs/{club_1}/payments/pending` y `GET /clubs/{club_2}/payments/pending` (se puede combinar en una sola pantalla de "tu mensualidad" del lado de la UI, pero son dos llamadas).
+2. Llamar `POST /charge-payment` **dos veces**: una con `club_id` del primer parque, el `payment_source_id` de la tarjeta guardada ahí, y los `charge_id` de ese parque; y otra igual con los datos del segundo parque.
+3. Cada llamada golpea una cuenta de Conekta distinta — son dos resultados independientes (una puede aprobarse y la otra no). La app debe manejarlos como dos operaciones separadas, no como una sola transacción.
+
+---
+
+## 6. Reservaciones y amenidades
 
 ### POST /reservations
 - Auth: sí. Body: `start_datetime`/`end_datetime` (`Y-m-d H:i`), `club_id`, `amenity_resource_id`.
@@ -341,26 +374,39 @@ Patrón común: el socio debe ser **titular** (`is_primary_holder`) de una cuent
 
 ---
 
-## 6. Casilleros (Lockers)
+## 7. Casilleros (Lockers)
 
 ### GET /lockers/index
-- Auth: sí. Query: `account_id`, `category`, `club_id` (todos required).
-- Éxito (200): `{"data": [...casilleros disponibles...]}`.
+- Auth: sí. Query: `account_id`, `category`, `club_id` (todos required), `page` (opcional, default 1).
+- Éxito (200): `{"data": {"items": [...casilleros disponibles...], "meta": {"current_page":1,"per_page":20,"has_more_pages":false}}}`.
+- Paginado con `simplePaginate(20)` — sin `total`/`last_page`, diseñar la UI para scroll infinito.
 - Errores: `422` validación; `403` `{"message": "No perteneces a este club"}`.
 
 ### GET /lockers/members
 - Auth: sí. Query: `account_id`, `club_id` (ambos required).
 - Éxito (200): `{"data": [{"label":"nombre apellido","value":1}]}` — solo integrantes sin casillero asignado este año.
 
+### GET /lockers/pricing
+- Auth: sí. Query: `club_id` (required).
+- Éxito (200): `{"data": {"annual_amount": 1100.0, "prorated_amount": 0.0, "months_remaining": 0}}`.
+- El monto anual se resuelve desde `billing.concepts` (código `LOCKERS`), con posible override por club en `billing.concept_club_amounts` (`ChargeConcept::resolveAmountForClub()`). `prorated_amount` es el mismo cálculo que aplica `POST /lockers/assign` — pensado para mostrar un preview antes de confirmar la solicitud.
+
+### GET /lockers/mine
+- Auth: sí. Query: `account_id`, `club_id` (ambos required).
+- Éxito (200): `{"data": [{"id":1,"year":2026,"start_date":"datetime","end_date":"datetime","amount_paid":0.0,"locker":{"id":1,"number":12,"category":"caballeros"},"member":{"id":1,"label":"nombre apellido"}}]}`.
+- Incluye **todos los años** (histórico), ordenado por `year` descendente — no solo la asignación vigente. El cliente puede considerar "vigente" la que tenga `year` igual al año actual.
+- Error `403` `{"message": "No perteneces a este club"}`.
+
 ### POST /lockers/assign
 - Auth: sí. Body: `locker_id`, `member_id`, `membership_account_id`, `club_id`, `category` (todos required).
 - Éxito (200): `{"message": "Casillero asignado correctamente.", "data": {"amount": 0.0}}`.
 - Error `409` `{"message": "El casillero ya no está disponible"}`.
-- **⚠️ Validación de "un socio, un casillero por año" está deshabilitada en el código** — un integrante puede terminar con más de un casillero.
+- El monto se resuelve igual que `GET /lockers/pricing` y ahora **sí genera un `Charge`** (`concept_id` del concepto `LOCKERS`, `status: pending`, vence a 7 días) — aparecerá en `GET /clubs/{club}/payments/pending` y se puede pagar con los flujos normales de pago.
+- **La validación de "un socio, un casillero por año" está deshabilitada intencionalmente** — un integrante puede terminar con más de un casillero en el mismo año (el índice único ahora es por `locker_id + club_id + year`, no por integrante). `GET /lockers/members` ya no excluye a quien ya tiene casillero asignado este año.
 
 ---
 
-## 7. Publicidad de negocios
+## 8. Publicidad de negocios
 
 ### POST /business-ads
 - Auth: sí, pero **`member_id` y `club_id` se toman del body sin verificar contra el token**. La app solo debe enviar el `member_id` del usuario logueado.
@@ -383,7 +429,7 @@ Patrón común: el socio debe ser **titular** (`is_primary_holder`) de una cuent
 
 ---
 
-## 8. Encuestas
+## 9. Encuestas
 
 ### GET /clubs/{club}/surveys
 - Auth: sí (requiere `Member` vinculado al club).
@@ -403,7 +449,7 @@ Patrón común: el socio debe ser **titular** (`is_primary_holder`) de una cuent
 
 ---
 
-## 9. Quejas y sugerencias (Feedback)
+## 10. Quejas y sugerencias (Feedback)
 
 ### GET /clubs/{club}/feedback/tickets
 - Auth: sí. Query: `type`, `status` (códigos: `SUBMITTED`, `UNDER_REVIEW`, `IN_PROGRESS`, `RESOLVED`, `REJECTED`, `CLOSED`, `CANCELLED`).
@@ -424,7 +470,7 @@ Patrón común: el socio debe ser **titular** (`is_primary_holder`) de una cuent
 
 ---
 
-## 10. Utilidades de desarrollo (no usar en producción)
+## 11. Utilidades de desarrollo (no usar en producción)
 
 - `POST /email/test` — envía un correo de prueba.
 - `POST /firebase/test` — envía un push de prueba a un token FCM.
@@ -432,14 +478,12 @@ Patrón común: el socio debe ser **titular** (`is_primary_holder`) de una cuent
 
 ---
 
-## 11. Notas de seguridad y pendientes conocidos
+## 12. Notas de seguridad y pendientes conocidos
 
 1. **Historia clínica sin verificación de propiedad** — cualquier token puede leer/sobrescribir la historia de cualquier `member_id`. La app debe autolimitarse a `member_id` de la propia familia.
 2. **Cancelar/eliminar reservación sin verificar dueño** — cualquiera con el `id` puede cancelar o borrar la reservación de otro socio. `DELETE` además es borrado físico sin reglas.
 3. **`POST /business-ads` confía en `member_id`/`club_id` del body** sin verificar contra el token autenticado.
 4. **`POST /charge-payment` sin idempotencia** — riesgo real de doble cobro en reintentos. La app debe deshabilitar el botón y/o verificar historial antes de reintentar.
 5. **Webhook de Conekta sin verificación de firma criptográfica** — la mitigación es solo a nivel de red (IP allow-list en el panel de Conekta).
-6. **Validación de casillero duplicado deshabilitada** — un integrante puede terminar con más de un casillero en el mismo año.
-7. **Bug de validación en `POST /lockers/assign`**: mensajes personalizados usan `account_id.*` pero el campo real es `membership_account_id` — errores de ese campo salen en inglés.
-8. **`GET /amenities/available-slots`**: errores de `date` inválida se reportan como `500` en vez de `422` — validar el formato del lado del cliente.
-9. **Reglas de reservación leídas de variables globales**, no por club — los números en `rules` del `GET /amenities` pueden no coincidir con lo realmente aplicado.
+6. **`GET /amenities/available-slots`**: errores de `date` inválida se reportan como `500` en vez de `422` — validar el formato del lado del cliente.
+7. **Reglas de reservación leídas de variables globales**, no por club — los números en `rules` del `GET /amenities` pueden no coincidir con lo realmente aplicado.
