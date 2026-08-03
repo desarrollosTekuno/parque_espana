@@ -426,117 +426,26 @@ onUnmounted(() => {
             </v-card-subtitle>
 
             <v-card-text>
-                <div v-if="can.includes('website-content.store')">
-                    <input
-                        ref="fileInput"
-                        type="file"
-                        multiple
-                        accept="image/jpeg,image/png,image/webp"
-                        class="d-none"
-                        @change="selectFiles"
-                    />
-
-                    <div
-                        class="upload-zone"
-                        :class="{ 'upload-zone--active': isDragging }"
-                        role="button"
-                        tabindex="0"
-                        @click="openFilePicker"
-                        @keydown.enter="openFilePicker"
-                        @dragenter.prevent="isDragging = true"
-                        @dragover.prevent="isDragging = true"
-                        @dragleave.prevent="isDragging = false"
-                        @drop.prevent="dropFiles"
-                    >
-                        <v-icon icon="mdi-cloud-upload-outline" size="54" color="primary" />
-                        <div class="mt-2 text-h6">Arrastra tus imágenes aquí</div>
-                        <div class="my-1 text-body-2 text-medium-emphasis">o haz clic para seleccionarlas</div>
-                        <v-chip size="small" variant="tonal" color="primary">
-                            JPG, PNG o WebP · mínimo 1200 × 800 px · máximo 20 MB
-                        </v-chip>
-                    </div>
-
-                    <v-alert
-                        v-if="form.errors.images"
-                        type="error"
-                        variant="tonal"
-                        class="mt-3"
-                    >
-                        {{ form.errors.images }}
-                    </v-alert>
-
-                    <template v-if="selectedCount">
-                        <div class="mt-6 mb-3 d-flex align-center justify-space-between">
-                            <div class="text-subtitle-1 font-weight-bold">
-                                {{ selectedCount }} imagen(es) seleccionada(s)
-                            </div>
-                            <v-btn variant="text" color="error" size="small" @click="clearSelection">
-                                Limpiar selección
-                            </v-btn>
-                        </div>
-
-                        <v-row>
-                            <v-col
-                                v-for="(image, index) in form.images"
-                                :key="`${image.name}-${image.lastModified}`"
-                                cols="12"
-                                sm="6"
-                                lg="4"
-                            >
-                                <v-card variant="outlined" class="h-100">
-                                    <div class="position-relative">
-                                        <v-img :src="previews[index]" height="190" cover />
-                                        <v-btn
-                                            class="remove-image-button"
-                                            icon="mdi-close"
-                                            size="x-small"
-                                            color="error"
-                                            @click="removeSelected(index)"
-                                        />
-                                    </div>
-                                    <v-card-text>
-                                        <div class="mb-2 text-caption text-truncate" :title="image.name">
-                                            {{ image.name }}
-                                        </div>
-                                        <v-text-field
-                                            v-model="form.descriptions[index]"
-                                            label="Descripción corta"
-                                            placeholder="Ej. Natación"
-                                            maxlength="100"
-                                            counter="100"
-                                            density="compact"
-                                            hide-details="auto"
-                                            :error-messages="(form.errors as any)[`descriptions.${index}`]"
-                                        />
-                                    </v-card-text>
-                                </v-card>
-                            </v-col>
-                        </v-row>
-
-                        <div class="justify-end mt-4 d-flex">
-                            <v-btn
-                                color="primary"
-                                size="large"
-                                prepend-icon="mdi-upload"
-                                :loading="form.processing"
-                                @click="save"
-                            >
-                                Subir {{ selectedCount }} imagen(es)
-                            </v-btn>
-                        </div>
-                    </template>
-                </div>
-
-                <v-divider class="my-7" />
-
                 <div class="mb-4 d-flex align-center ga-2">
                     <div class="text-h6">Imágenes guardadas</div>
                     <v-chip size="small" color="primary" variant="tonal">
                         {{ carouselImages.length }}
                     </v-chip>
+                    <v-chip v-if="selectedCount" size="small" color="warning" variant="tonal">
+                        {{ selectedCount }} pendiente(s)
+                    </v-chip>
                 </div>
 
-                <v-row v-if="carouselImages.length">
+                <input
+                    ref="fileInput"
+                    type="file"
+                    multiple
+                    accept="image/jpeg,image/png,image/webp"
+                    class="d-none"
+                    @change="selectFiles"
+                />
+
+                <v-row>
                     <v-col
                         v-for="image in carouselImages"
                         :key="image.id"
@@ -544,23 +453,95 @@ onUnmounted(() => {
                         sm="6"
                         lg="4"
                     >
-                        <v-card variant="outlined" class="h-100">
-                            <v-img :src="image.image_url" height="220" cover />
-                            <v-card-text v-if="image.description" class="text-subtitle-1">
-                                {{ image.description }}
-                                <BaseButton
-                                    v-if="can.includes('website-content.destroy')"
-                                    action="delete"
-                                    @click="destroy(image)"
+                        <v-card variant="outlined" class="h-100 position-relative">
+                            <v-img :src="image.image_url" aspect-ratio="1.5" cover />
+                            <v-card-text class="text-subtitle-1">
+                                {{ image.description || "Sin descripción" }}
+                            </v-card-text>
+                            <div
+                                v-if="can.includes('website-content.destroy')"
+                                class="saved-delete-button"
+                            >
+                                <BaseButton action="delete" @click="destroy(image)" />
+                            </div>
+                        </v-card>
+                    </v-col>
+
+                    <v-col
+                        v-for="(image, index) in form.images"
+                        :key="`${image.name}-${image.lastModified}`"
+                        cols="12"
+                        sm="6"
+                        lg="4"
+                    >
+                        <v-card variant="outlined" class="h-100 position-relative">
+                            <v-img :src="previews[index]" aspect-ratio="1.5" cover />
+                            <v-btn
+                                class="remove-image-button"
+                                icon="mdi-close"
+                                size="x-small"
+                                color="error"
+                                @click="removeSelected(index)"
+                            />
+                            <v-card-text>
+                                <v-text-field
+                                    v-model="form.descriptions[index]"
+                                    label="Descripción corta"
+                                    placeholder="Ej. Natación"
+                                    maxlength="100"
+                                    counter="100"
+                                    density="compact"
+                                    hide-details="auto"
+                                    :error-messages="(form.errors as any)[`descriptions.${index}`]"
                                 />
                             </v-card-text>
                         </v-card>
                     </v-col>
+
+                    <v-col
+                        v-if="can.includes('website-content.store') && selectedCount < 20"
+                        cols="12"
+                        sm="6"
+                        lg="4"
+                    >
+                        <div
+                            class="upload-zone carousel-upload-zone"
+                            :class="{ 'upload-zone--active': isDragging }"
+                            role="button"
+                            tabindex="0"
+                            @click="openFilePicker"
+                            @keydown.enter="openFilePicker"
+                            @dragenter.prevent="isDragging = true"
+                            @dragover.prevent="isDragging = true"
+                            @dragleave.prevent="isDragging = false"
+                            @drop.prevent="dropFiles"
+                        >
+                            <v-icon icon="mdi-image-plus-outline" size="46" color="primary" />
+                            <div class="text-subtitle-1 font-weight-bold mt-2">Agregar imágenes</div>
+                            <div class="text-caption text-medium-emphasis mt-1">
+                                1200 × 800 px · máximo 20 MB
+                            </div>
+                        </div>
+                    </v-col>
                 </v-row>
 
-                <v-alert v-else type="info" variant="tonal">
-                    Todavía no hay imágenes en el carrusel.
+                <v-alert v-if="form.errors.images" type="error" variant="tonal" class="mt-4">
+                    {{ form.errors.images }}
                 </v-alert>
+
+                <div v-if="selectedCount" class="d-flex align-center justify-end ga-2 mt-4">
+                    <v-btn variant="text" color="error" @click="clearSelection">
+                        Limpiar selección
+                    </v-btn>
+                    <v-btn
+                        color="primary"
+                        prepend-icon="mdi-upload"
+                        :loading="form.processing"
+                        @click="save"
+                    >
+                        Guardar {{ selectedCount }} imagen(es)
+                    </v-btn>
+                </div>
             </v-card-text>
         </v-card>
 
@@ -602,17 +583,17 @@ onUnmounted(() => {
                     >
                         <v-card variant="outlined" class="position-relative">
                             <v-img :src="card.image_url" aspect-ratio="1" cover />
-                            <v-row class="justify-end d-flex">
+                            <div
+                                v-if="can.includes('website-content.destroy')"
+                                class="saved-delete-button"
+                            >
                                 <BaseButton
-                                    v-if="can.includes('website-content.destroy')"
-                                    class="remove-image-button"
                                     action="delete"
                                     @click="destroyCard(card)"
                                     color="error"
                                     tooltip="Eliminar"
-                                    size="large"
                                 />
-                            </v-row>
+                            </div>
                         </v-card>
                     </v-col>
 
@@ -772,12 +753,15 @@ onUnmounted(() => {
                                 <v-card-text class="text-subtitle-1 font-weight-bold">
                                     {{ image.title }}
                                 </v-card-text>
-                                <BaseButton
+                                <div
                                     v-if="can.includes('website-content.destroy')"
-                                    class="remove-image-button"
-                                    action="delete"
-                                    @click="destroyVirtualTourImage(image)"
-                                />
+                                    class="saved-delete-button"
+                                >
+                                    <BaseButton
+                                        action="delete"
+                                        @click="destroyVirtualTourImage(image)"
+                                    />
+                                </div>
                             </v-card>
                         </v-col>
 
@@ -890,6 +874,7 @@ onUnmounted(() => {
     justify-content: center;
 }
 
+.carousel-upload-zone,
 .virtual-tour-upload-zone {
     aspect-ratio: 1.5;
     padding: 20px;
@@ -908,6 +893,16 @@ onUnmounted(() => {
     position: absolute;
     top: 8px;
     right: 8px;
+}
+
+.saved-delete-button {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 2;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 2px 7px rgba(0, 0, 0, 0.2);
 }
 
 .saved-image-label,
