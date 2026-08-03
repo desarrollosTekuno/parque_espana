@@ -8,6 +8,8 @@ import { computed, onUnmounted, ref, watch } from "vue";
 /* ====================== Props ====================== */
 interface Props {
     carouselImages: any[];
+    homeCards: any[];
+    cardCategories: string[];
 }
 
 const props = defineProps<Props>();
@@ -15,18 +17,30 @@ const props = defineProps<Props>();
 /* ====================== Variables ====================== */
 const page = usePage<any>();
 const fileInput = ref<HTMLInputElement | null>(null);
+const cardFileInput = ref<HTMLInputElement | null>(null);
+const activeSection = ref("carousel");
 const isDragging = ref(false);
 const previews = ref<string[]>([]);
+const cardPreviews = ref<string[]>([]);
 
 /* ====================== useForm ====================== */
 const form = useForm<{ images: File[]; descriptions: string[] }>({
     images: [],
     descriptions: [],
 });
+const cardForm = useForm<{ category: string; images: File[] }>({
+    category: props.cardCategories[0] ?? "Gimnasio",
+    images: [],
+});
 
 /* ====================== Computed ====================== */
 const can = computed<string[]>(() => page.props.auth.permissions ?? []);
 const selectedCount = computed(() => form.images.length);
+const selectedCategoryCount = computed(() => {
+    return props.homeCards.filter((card) => card.category === cardForm.category).length;
+});
+const availableCardSpaces = computed(() => 2 - selectedCategoryCount.value);
+const cardSelectionSpaces = computed(() => availableCardSpaces.value - cardForm.images.length);
 
 /* ====================== Funciones ====================== */
 const openFilePicker = () => {
@@ -106,6 +120,84 @@ const destroy = (image: any) => {
     });
 };
 
+const openCardFilePicker = () => {
+    if (!cardForm.category) {
+        customToastSwal({
+            title: "Primero selecciona una categoría",
+            icon: "warning",
+        });
+        return;
+    }
+
+    if (!cardSelectionSpaces.value) {
+        customToastSwal({
+            title: "Esta categoría ya tiene sus 2 imágenes",
+            icon: "warning",
+        });
+        return;
+    }
+
+    cardFileInput.value?.click();
+};
+
+const selectCardFiles = (event: Event) => {
+    const input = event.target as HTMLInputElement;
+    const files = Array.from(input.files ?? []).filter((file) => file.type.startsWith("image/"));
+
+    if (files.length > cardSelectionSpaces.value) {
+        customToastSwal({
+            title: `Solo quedan ${cardSelectionSpaces.value} espacio(s) en esta categoría`,
+            icon: "warning",
+        });
+    }
+
+    cardForm.images = [...cardForm.images, ...files.slice(0, cardSelectionSpaces.value)];
+    input.value = "";
+};
+
+const removeSelectedCard = (index: number) => {
+    cardForm.images = cardForm.images.filter((_, imageIndex) => imageIndex !== index);
+};
+
+const saveCards = () => {
+    cardForm.post(route("website-content.cards.store"), {
+        forceFormData: true,
+        preserveScroll: true,
+        onSuccess: () => {
+            customToastSwal({
+                title: page.props.flash.success || "Cards guardadas correctamente",
+                icon: "success",
+            });
+            cardForm.images = [];
+            cardForm.clearErrors();
+        },
+        onError: (errors) => {
+            customToastSwal({
+                title: Object.values(errors)[0] || "No se pudieron guardar las cards",
+                icon: "error",
+            });
+        },
+    });
+};
+
+const destroyCard = (card: any) => {
+    customConfirmSwal({
+        title: "¿Eliminar esta card de inicio?",
+    }).then((result) => {
+        if (result.isConfirmed) {
+            router.delete(route("website-content.cards.destroy", card.id), {
+                preserveScroll: true,
+                onSuccess: () => {
+                    customToastSwal({
+                        title: page.props.flash.success || "Card eliminada correctamente",
+                        icon: "success",
+                    });
+                },
+            });
+        }
+    });
+};
+
 const clearPreviews = () => {
     previews.value.forEach((preview) => URL.revokeObjectURL(preview));
 };
@@ -120,8 +212,27 @@ watch(
     },
 );
 
+watch(
+    () => cardForm.images,
+    (images) => {
+        cardPreviews.value.forEach((preview) => URL.revokeObjectURL(preview));
+        cardPreviews.value = images.map((image) => URL.createObjectURL(image));
+    },
+);
+
+watch(
+    () => cardForm.category,
+    () => {
+        cardForm.images = [];
+        cardForm.clearErrors();
+    },
+);
+
 /* ====================== Lifecycle ====================== */
-onUnmounted(clearPreviews);
+onUnmounted(() => {
+    clearPreviews();
+    cardPreviews.value.forEach((preview) => URL.revokeObjectURL(preview));
+});
 </script>
 
 <template>
@@ -130,7 +241,18 @@ onUnmounted(clearPreviews);
     <AppLayout>
         <template #header>Página web</template>
 
-        <v-card>
+        <v-card class="mb-4">
+            <v-tabs v-model="activeSection" color="primary" grow>
+                <v-tab value="carousel" prepend-icon="mdi-view-carousel-outline">
+                    Carrusel
+                </v-tab>
+                <v-tab value="cards" prepend-icon="mdi-view-grid-outline">
+                    Cards de inicio
+                </v-tab>
+            </v-tabs>
+        </v-card>
+
+        <v-card v-show="activeSection === 'carousel'">
             <v-card-title class="d-flex align-center ga-2">
                 <v-icon icon="mdi-view-carousel-outline" />
                 Carrusel de inicio
@@ -280,6 +402,118 @@ onUnmounted(clearPreviews);
                 </v-alert>
             </v-card-text>
         </v-card>
+
+        <v-card v-show="activeSection === 'cards'">
+            <v-card-title class="d-flex align-center ga-2">
+                <v-icon icon="mdi-view-grid-outline" />
+                Cards de inicio
+            </v-card-title>
+            <v-card-subtitle>
+                Gimnasio, Alberca, Tenis, Jardines y Cafetería. Máximo 2 imágenes por categoría.
+            </v-card-subtitle>
+
+            <v-card-text>
+                <v-tabs
+                    v-model="cardForm.category"
+                    color="primary"
+                    show-arrows
+                    class="mb-5"
+                >
+                    <v-tab v-for="category in cardCategories" :key="category" :value="category">
+                        {{ category }}
+                        <v-chip size="x-small" class="ml-2">
+                            {{ homeCards.filter((card) => card.category === category).length }}/2
+                        </v-chip>
+                    </v-tab>
+                </v-tabs>
+
+                <input
+                    ref="cardFileInput"
+                    type="file"
+                    multiple
+                    accept="image/jpeg,image/png,image/webp"
+                    class="d-none"
+                    @change="selectCardFiles"
+                />
+
+                <v-row>
+                    <v-col
+                        v-for="card in homeCards.filter((item) => item.category === cardForm.category)"
+                        :key="card.id"
+                        cols="12"
+                        sm="6"
+                        md="4"
+                    >
+                        <v-card variant="outlined" class="position-relative">
+                            <v-img :src="card.image_url" aspect-ratio="1" cover />
+                            <div class="saved-image-label">Imagen guardada</div>
+                            <BaseButton
+                                v-if="can.includes('website-content.destroy')"
+                                class="remove-image-button"
+                                action="delete"
+                                @click="destroyCard(card)"
+                            />
+                        </v-card>
+                    </v-col>
+
+                    <v-col
+                        v-for="(image, index) in cardForm.images"
+                        :key="`${image.name}-${image.lastModified}`"
+                        cols="12"
+                        sm="6"
+                        md="4"
+                    >
+                        <v-card variant="outlined" class="position-relative">
+                            <v-img :src="cardPreviews[index]" aspect-ratio="1" cover />
+                            <div class="pending-image-label">Pendiente por subir</div>
+                            <v-btn
+                                class="remove-image-button"
+                                icon="mdi-close"
+                                size="x-small"
+                                color="error"
+                                @click="removeSelectedCard(index)"
+                            />
+                        </v-card>
+                    </v-col>
+
+                    <v-col
+                        v-if="can.includes('website-content.store') && cardSelectionSpaces > 0"
+                        cols="12"
+                        sm="6"
+                        md="4"
+                    >
+                        <div
+                            class="upload-zone card-upload-zone"
+                            role="button"
+                            tabindex="0"
+                            @click="openCardFilePicker"
+                            @keydown.enter="openCardFilePicker"
+                        >
+                            <v-icon icon="mdi-image-plus-outline" size="46" color="primary" />
+                            <div class="text-subtitle-1 font-weight-bold mt-2">Agregar imagen</div>
+                            <div class="text-caption text-medium-emphasis mt-1">
+                                1000 × 1000 px · máximo 20 MB
+                            </div>
+                        </div>
+                    </v-col>
+                </v-row>
+
+                <v-alert v-if="cardForm.errors.images" type="error" variant="tonal" class="mt-4">
+                    {{ cardForm.errors.images }}
+                </v-alert>
+
+                <div v-if="cardForm.images.length" class="d-flex justify-end mt-4">
+                    <v-btn
+                        color="primary"
+                        prepend-icon="mdi-upload"
+                        :loading="cardForm.processing"
+                        @click="saveCards"
+                    >
+                        Guardar {{ cardForm.images.length }} imagen(es) en {{ cardForm.category }}
+                    </v-btn>
+                </div>
+            </v-card-text>
+        </v-card>
     </AppLayout>
 </template>
 
@@ -300,9 +534,39 @@ onUnmounted(clearPreviews);
     background: rgba(var(--v-theme-primary), 0.06);
 }
 
+.upload-zone--disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.card-upload-zone {
+    aspect-ratio: 1;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
 .remove-image-button {
     position: absolute;
     top: 8px;
     right: 8px;
+}
+
+.saved-image-label,
+.pending-image-label {
+    position: absolute;
+    left: 8px;
+    bottom: 8px;
+    padding: 4px 9px;
+    border-radius: 12px;
+    color: white;
+    font-size: 12px;
+    background: rgba(0, 0, 0, 0.65);
+}
+
+.pending-image-label {
+    background: rgb(var(--v-theme-primary));
 }
 </style>

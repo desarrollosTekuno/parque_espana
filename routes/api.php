@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\V1\BusinessAdController;
 use App\Http\Controllers\Api\V1\BusinessCategoryController;
 use App\Http\Controllers\Api\V1\ReservationGuestController;
 use App\Http\Controllers\Api\V1\SurveyController;
+use App\Http\Controllers\Api\V1\WebsiteHomeCardController;
 use App\Http\Controllers\Api\V1\ClinicalHistoryController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -46,6 +47,9 @@ Route::prefix('v1')->name('api.')->group(function () {
     // Amenities
     Route::get('/amenities/{amenityResource}/available-slots', [AmenityController::class, 'availableSlots'])->middleware('auth:sanctum');
     Route::get('/clubs/{club}/amenities', [AmenityController::class, 'amenitiesByClub'])->middleware('auth:sanctum');
+
+    // Cards públicas de la página web
+    Route::get('/clubs/{club}/website/home-cards', [WebsiteHomeCardController::class, 'index']);
 
     // Business Ads
     // Enviar solicitud de promoción desde la app

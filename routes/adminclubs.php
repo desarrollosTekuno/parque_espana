@@ -340,6 +340,10 @@ Route::resource('/class-schedules', ClassScheduleController::class)->only(['inde
 Route::resource('/website-content', WebsiteContentController::class)
     ->only(['index', 'store', 'destroy'])
     ->names('website-content');
+Route::post('/website-content/home-cards', [WebsiteContentController::class, 'storeCard'])
+    ->name('website-content.cards.store');
+Route::delete('/website-content/home-cards/{id}', [WebsiteContentController::class, 'destroyCard'])
+    ->name('website-content.cards.destroy');
 
 // Acts
 Route::prefix('acts')->group(function () {

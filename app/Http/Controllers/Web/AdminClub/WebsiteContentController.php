@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\AdminClub;
 
 use App\Models\Administrator\Club;
 use App\Models\Website\CarouselImage;
+use App\Models\Website\HomeCard;
 use Illuminate\Http\File;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -14,11 +15,19 @@ use Inertia\Inertia;
 
 class WebsiteContentController extends Controller
 {
+    private const CARD_CATEGORIES = [
+        'Gimnasio',
+        'Alberca',
+        'Tenis',
+        'Jardines',
+        'Cafetería',
+    ];
+
     public function __construct()
     {
         $this->middleware('permission:website-content.index')->only('index');
-        $this->middleware('permission:website-content.store')->only('store');
-        $this->middleware('permission:website-content.destroy')->only('destroy');
+        $this->middleware('permission:website-content.store')->only(['store', 'storeCard']);
+        $this->middleware('permission:website-content.destroy')->only(['destroy', 'destroyCard']);
     }
 
     public function index()
@@ -27,8 +36,15 @@ class WebsiteContentController extends Controller
             ->orderBy('id')
             ->get();
 
+        $homeCards = HomeCard::where('club_id', session('club_id'))
+            ->orderBy('category')
+            ->orderBy('id')
+            ->get();
+
         return Inertia::render('AdminClubs/WebsiteContent/Index', [
             'carouselImages' => $images,
+            'homeCards' => $homeCards,
+            'cardCategories' => self::CARD_CATEGORIES,
         ]);
     }
 
@@ -63,7 +79,7 @@ class WebsiteContentController extends Controller
 
         try {
             foreach ($request->file('images') as $index => $image) {
-                $path = $this->uploadImage($image, $club->code);
+                $path = $this->uploadImage($image, $club->code, 'carousel');
                 $uploadedPaths[] = $path;
 
                 CarouselImage::create([
@@ -92,6 +108,98 @@ class WebsiteContentController extends Controller
         }
     }
 
+    public function storeCard(Request $request)
+    {
+        $validated = $request->validate([
+            'category' => ['required', 'string', 'in:'.implode(',', self::CARD_CATEGORIES)],
+            'images' => ['required', 'array', 'min:1', 'max:2'],
+            'images.*' => [
+                'required',
+                'image',
+                'mimes:jpg,jpeg,png,webp',
+                'max:20480',
+                'dimensions:min_width=1000,min_height=1000',
+            ],
+        ], [
+            'category.required' => 'Selecciona una categoría.',
+            'category.in' => 'La categoría seleccionada no es válida.',
+            'images.required' => 'Selecciona al menos una imagen.',
+            'images.max' => 'Cada categoría permite máximo 2 imágenes.',
+            'images.*.image' => 'Uno de los archivos no es una imagen válida.',
+            'images.*.mimes' => 'Las imágenes deben ser JPG, PNG o WebP.',
+            'images.*.max' => 'Cada imagen debe pesar máximo 20 MB.',
+            'images.*.dimensions' => 'Cada imagen debe medir al menos 1000 × 1000 px.',
+        ]);
+
+        $clubId = (int) session('club_id');
+        $currentCount = HomeCard::where('club_id', $clubId)
+            ->where('category', $validated['category'])
+            ->count();
+
+        if ($currentCount + count($request->file('images')) > 2) {
+            return back()->withErrors([
+                'images' => 'Esta categoría permite máximo 2 imágenes.',
+            ]);
+        }
+
+        $club = Club::findOrFail($clubId);
+        $uploadedPaths = [];
+
+        DB::beginTransaction();
+
+        try {
+            foreach ($request->file('images') as $image) {
+                $path = $this->uploadImage($image, $club->code, 'home-cards', 1000, 1000);
+                $uploadedPaths[] = $path;
+
+                HomeCard::create([
+                    'club_id' => $clubId,
+                    'category' => $validated['category'],
+                    'image_path' => $path,
+                ]);
+            }
+
+            DB::commit();
+
+            return back()->with('success', 'Cards guardadas correctamente.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            foreach ($uploadedPaths as $path) {
+                Storage::disk('spaces')->delete($path);
+            }
+
+            report($e);
+
+            return back()->withErrors([
+                'messageError' => 'No se pudieron guardar las cards.',
+                'exception' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public function destroyCard(int $id)
+    {
+        try {
+            $card = HomeCard::where('club_id', session('club_id'))->findOrFail($id);
+
+            if (Storage::disk('spaces')->exists($card->image_path)) {
+                Storage::disk('spaces')->delete($card->image_path);
+            }
+
+            $card->delete();
+
+            return back()->with('success', 'Card eliminada correctamente.');
+        } catch (\Exception $e) {
+            report($e);
+
+            return back()->withErrors([
+                'messageError' => 'No se pudo eliminar la card.',
+                'exception' => $e->getMessage(),
+            ]);
+        }
+    }
+
     public function destroy(int $id)
     {
         try {
@@ -114,8 +222,13 @@ class WebsiteContentController extends Controller
         }
     }
 
-    private function uploadImage($file, string $clubCode): string
-    {
+    private function uploadImage(
+        $file,
+        string $clubCode,
+        string $folder,
+        int $targetWidth = 1200,
+        int $targetHeight = 800
+    ): string {
         $source = match ($file->getMimeType()) {
             'image/jpeg' => imagecreatefromjpeg($file->getRealPath()),
             'image/png' => imagecreatefrompng($file->getRealPath()),
@@ -129,8 +242,6 @@ class WebsiteContentController extends Controller
 
         $sourceWidth = imagesx($source);
         $sourceHeight = imagesy($source);
-        $targetWidth = 1200;
-        $targetHeight = 800;
         $targetRatio = $targetWidth / $targetHeight;
         $sourceRatio = $sourceWidth / $sourceHeight;
 
@@ -169,7 +280,7 @@ class WebsiteContentController extends Controller
             throw new \Exception('No se pudo convertir la imagen a WebP.');
         }
 
-        $directory = "clubs/{$clubCode}/website/carousel";
+        $directory = "clubs/{$clubCode}/website/{$folder}";
         $filename = Str::uuid().'.webp';
 
         $stored = Storage::disk('spaces')->putFileAs(
