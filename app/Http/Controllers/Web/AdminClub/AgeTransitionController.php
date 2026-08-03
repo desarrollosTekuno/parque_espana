@@ -48,6 +48,7 @@ class AgeTransitionController extends Controller
                     'targetMembershipType',
                     'membership.club',
                     'membership.membershipType',
+                    'membership.account',
                     'promotedBy',
                     'dismissedBy',
                 ])
@@ -64,6 +65,13 @@ class AgeTransitionController extends Controller
                     $q->where('first_name', $like, "%{$search}%")
                       ->orWhere('last_name', $like, "%{$search}%")
                       ->orWhere('second_last_name', $like, "%{$search}%")
+                );
+            }
+
+            if ($accountSearch = $request->input("{$prefix}_account_number")) {
+                $like = $driver === 'pgsql' ? 'ilike' : 'like';
+                $query->whereHas('membership.account', fn (Builder $q) =>
+                    $q->where('membership_number', $like, "%{$accountSearch}%")
                 );
             }
 
@@ -87,6 +95,7 @@ class AgeTransitionController extends Controller
                 'transitions' => $transitions,
                 'filters' => [
                     'search'          => $request->input("{$prefix}_search"),
+                    'account_number'  => $request->input("{$prefix}_account_number"),
                     'status'          => $statusFilter,
                     'transition_type' => $request->input("{$prefix}_transition_type"),
                 ],
@@ -825,6 +834,7 @@ class AgeTransitionController extends Controller
             'age'                       => $age,
             'membership_id'             => $t->membership_id,
             'membership_account_id'     => $t->membership_account_id,
+            'membership_number'         => $t->membership?->account?->membership_number,
             'club_code'                 => $t->membership?->club?->code,
             'from_membership_type'      => $t->membership?->membershipType?->name,
             'target_membership_type'    => $t->targetMembershipType?->name,
