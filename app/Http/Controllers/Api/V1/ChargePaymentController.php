@@ -67,7 +67,17 @@ class ChargePaymentController extends Controller
         $totalAmount = collect($validated['applications'])->sum('amount');
         $amountCents = (int) round($totalAmount * 100);
         $chargeIds   = collect($validated['applications'])->pluck('charge_id');
-        $description = $this->buildDescription($account, $chargeIds->toArray());
+        $charges     = Charge::whereIn('id', $chargeIds)->with('concept')->get();
+
+        $nonPayableCharge = $charges->first(fn (Charge $c) => $c->concept && !$c->concept->is_mobile_payable);
+
+        if ($nonPayableCharge) {
+            return $this->unprocessable(
+                "El concepto \"{$nonPayableCharge->concept->name}\" no está disponible para pago desde la app. Acude a la administración del club."
+            );
+        }
+
+        $description = $this->buildDescription($account, $charges);
 
         try {
             $conektaResult = $this->conekta->charge(
@@ -128,14 +138,12 @@ class ChargePaymentController extends Controller
             ->first();
     }
 
-    private function buildDescription(MembershipAccount $account, array $chargeIds): string
+    private function buildDescription(MembershipAccount $account, \Illuminate\Support\Collection $charges): string
     {
-        $charges = Charge::whereIn('id', $chargeIds)
-            ->with('concept')
-            ->get()
-            ->map(fn ($c) => $c->concept?->name ?? "Cargo #{$c->id}")
+        $conceptNames = $charges
+            ->map(fn (Charge $c) => $c->concept?->name ?? "Cargo #{$c->id}")
             ->join(', ');
 
-        return "Cuenta #{$account->membership_number}: {$charges}";
+        return "Cuenta #{$account->membership_number}: {$conceptNames}";
     }
 }
