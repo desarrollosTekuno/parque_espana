@@ -581,8 +581,8 @@ onUnmounted(() => {
                             @drop.prevent="dropFiles"
                         >
                             <v-icon icon="mdi-image-plus-outline" size="46" color="primary" />
-                            <div class="text-subtitle-1 font-weight-bold mt-2">Agregar imágenes</div>
-                            <div class="text-caption text-medium-emphasis mt-1">
+                            <div class="mt-2 text-subtitle-1 font-weight-bold">Agregar imágenes</div>
+                            <div class="mt-1 text-caption text-medium-emphasis">
                                 1200 × 800 px · máximo 20 MB
                             </div>
                         </div>
@@ -593,7 +593,7 @@ onUnmounted(() => {
                     {{ form.errors.images }}
                 </v-alert>
 
-                <div v-if="selectedCount" class="d-flex align-center justify-end ga-2 mt-4">
+                <div v-if="selectedCount" class="justify-end mt-4 d-flex align-center ga-2">
                     <v-btn variant="text" color="error" @click="clearSelection">
                         Limpiar selección
                     </v-btn>
@@ -911,7 +911,7 @@ onUnmounted(() => {
                 Eventos del calendario
             </v-card-title>
             <v-card-subtitle>
-                Captura una fecha, un título y el tipo de evento. El color se asigna automáticamente.
+                Captura una fecha, un título y el tipo de evento.
             </v-card-subtitle>
 
             <v-card-text>
@@ -968,7 +968,7 @@ onUnmounted(() => {
                             </v-col>
                         </v-row>
 
-                        <div class="d-flex justify-end ga-2 mt-4">
+                        <div class="justify-end mt-4 d-flex ga-2">
                             <v-btn
                                 v-if="eventForm.id"
                                 variant="text"
@@ -990,7 +990,6 @@ onUnmounted(() => {
 
                 <div class="mb-3 d-flex align-center ga-2">
                     <div class="text-h6">Eventos registrados</div>
-                    <v-chip size="small" color="primary" variant="tonal">{{ events.length }}</v-chip>
                 </div>
 
                 <v-table v-if="events.length" hover>

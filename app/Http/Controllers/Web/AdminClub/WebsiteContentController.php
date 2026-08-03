@@ -16,8 +16,8 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 
-class WebsiteContentController extends Controller
-{
+class WebsiteContentController extends Controller {
+
     private const CARD_CATEGORIES = [
         'Gimnasio',
         'Alberca',
@@ -40,8 +40,7 @@ class WebsiteContentController extends Controller
         ['value' => 'holiday', 'title' => 'Día festivo', 'color' => '#F4B400'],
     ];
 
-    public function __construct()
-    {
+    public function __construct() {
         $this->middleware('permission:website-content.index')->only('index');
         $this->middleware('permission:website-content.store')->only([
             'store',
@@ -59,8 +58,7 @@ class WebsiteContentController extends Controller
         ]);
     }
 
-    public function index()
-    {
+    public function index() {
         $clubId = (int) session('club_id');
 
         foreach (self::VIRTUAL_TOUR_CATEGORIES as $category) {
@@ -99,8 +97,7 @@ class WebsiteContentController extends Controller
         ]);
     }
 
-    public function store(Request $request)
-    {
+    public function store(Request $request) {
         $validated = $request->validate([
             'images' => ['required', 'array', 'min:1', 'max:20'],
             'images.*' => [
@@ -159,8 +156,7 @@ class WebsiteContentController extends Controller
         }
     }
 
-    public function storeCard(Request $request)
-    {
+    public function storeCard(Request $request) {
         $validated = $request->validate([
             'category' => ['required', 'string', 'in:'.implode(',', self::CARD_CATEGORIES)],
             'images' => ['required', 'array', 'min:1', 'max:2'],
@@ -229,8 +225,7 @@ class WebsiteContentController extends Controller
         }
     }
 
-    public function destroyCard(int $id)
-    {
+    public function destroyCard(int $id) {
         try {
             $card = HomeCard::where('club_id', session('club_id'))->findOrFail($id);
 
@@ -251,8 +246,7 @@ class WebsiteContentController extends Controller
         }
     }
 
-    public function storeVirtualTourCategory(Request $request)
-    {
+    public function storeVirtualTourCategory(Request $request) {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:60'],
         ], [
@@ -268,8 +262,7 @@ class WebsiteContentController extends Controller
         return back()->with('success', 'Categoría guardada correctamente.');
     }
 
-    public function storeVirtualTourImages(Request $request)
-    {
+    public function storeVirtualTourImages(Request $request) {
         $validated = $request->validate([
             'category_id' => ['required', 'integer'],
             'images' => ['required', 'array', 'min:1', 'max:6'],
@@ -340,8 +333,7 @@ class WebsiteContentController extends Controller
         }
     }
 
-    public function destroyVirtualTourImage(int $id)
-    {
+    public function destroyVirtualTourImage(int $id) {
         try {
             $image = VirtualTourImage::whereHas('category', function ($query) {
                 $query->where('club_id', session('club_id'));
@@ -364,8 +356,7 @@ class WebsiteContentController extends Controller
         }
     }
 
-    public function destroyVirtualTourCategory(int $id)
-    {
+    public function destroyVirtualTourCategory(int $id) {
         try {
             $category = VirtualTourCategory::where('club_id', session('club_id'))
                 ->with('images')
@@ -396,8 +387,7 @@ class WebsiteContentController extends Controller
         }
     }
 
-    public function saveEvent(Request $request)
-    {
+    public function saveEvent(Request $request) {
         $validated = $request->validate([
             'id' => ['nullable', 'integer'],
             'title' => ['required', 'string', 'max:100'],
