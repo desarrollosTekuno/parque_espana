@@ -25,6 +25,8 @@ use App\Http\Controllers\Api\V1\ReservationGuestController;
 use App\Http\Controllers\Api\V1\SurveyController;
 use App\Http\Controllers\Api\V1\WebsiteHomeCardController;
 use App\Http\Controllers\Api\V1\WebsiteEventController;
+use App\Http\Controllers\Api\V1\WebsiteCarouselController;
+use App\Http\Controllers\Api\V1\WebsiteMembershipPriceController;
 use App\Http\Controllers\Api\V1\WebsiteVirtualTourController;
 use App\Http\Controllers\Api\V1\ClinicalHistoryController;
 use Illuminate\Http\Request;
@@ -50,8 +52,10 @@ Route::prefix('v1')->name('api.')->group(function () {
     Route::get('/amenities/{amenityResource}/available-slots', [AmenityController::class, 'availableSlots'])->middleware('auth:sanctum');
     Route::get('/clubs/{club}/amenities', [AmenityController::class, 'amenitiesByClub'])->middleware('auth:sanctum');
 
-    // Cards públicas de la página web
+    // =================================== Pagina web Test ================================
+    Route::get('/clubs/{club}/website/carousel', [WebsiteCarouselController::class, 'index']);
     Route::get('/clubs/{club}/website/home-cards', [WebsiteHomeCardController::class, 'index']);
+    Route::get('/clubs/{club}/website/membership-prices', [WebsiteMembershipPriceController::class, 'index']);
     Route::get('/clubs/{club}/website/virtual-tour', [WebsiteVirtualTourController::class, 'index']);
     Route::get('/clubs/{club}/website/events', [WebsiteEventController::class, 'index']);
 
