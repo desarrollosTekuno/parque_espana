@@ -41,6 +41,7 @@ class PaymentTicketServiceTest extends TestCase
             'code' => 'PE1',
             'name' => 'Parque España I',
             'legal_name' => 'FUNDACIÓN DEPORTIVO PARQUE ESPAÑA',
+            'rfc' => 'FDP990423J51',
             'applies_iva' => true,
         ]);
         $club->id = 1;
@@ -103,9 +104,13 @@ class PaymentTicketServiceTest extends TestCase
         $data = (new PaymentTicketService())->data($payment);
 
         $this->assertSame('PE1-AUTO-260804-001', $data['folio']);
+        $this->assertSame('/assets/images/LogoP1.png', $data['club_logo_url']);
+        $this->assertSame('FUNDACIÓN DEPORTIVO PARQUE ESPAÑA I', $data['club_nombre_institucion']);
+        $this->assertSame('FUNDACIÓN DEPORTIVO PARQUE ESPAÑA', $data['club_razon_social']);
+        $this->assertSame('FDP990423J51', $data['club_rfc']);
         $this->assertSame('AUTO', $data['cajero_codigo']);
         $this->assertSame('Ana Pérez López', $data['titular']);
-        $this->assertSame(['25 Oriente #1001', 'Puebla, Puebla', 'C.P. 72500', 'México'], $data['club_direccion_lineas']);
+        $this->assertSame(['25 Oriente #1001', 'CP 72500', 'Puebla Puebla México'], $data['club_direccion_lineas']);
         $this->assertSame(100.0, $data['subtotal']);
         $this->assertSame(16.0, $data['iva']);
         $this->assertSame('Mensualidad agosto', $data['conceptos'][0]['descripcion']);

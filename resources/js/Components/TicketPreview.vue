@@ -21,19 +21,27 @@ const dateTime = (value: string | null) => {
 
 <template>
     <div class="ticket-preview">
-        <img
-            v-if="props.ticket.club_logo_url"
-            :src="props.ticket.club_logo_url"
-            class="ticket-logo"
-            alt="Logo"
-        />
+        <div class="ticket-brand">
+            <img
+                v-if="props.ticket.club_logo_url"
+                :src="props.ticket.club_logo_url"
+                class="ticket-logo"
+                alt="Logo de la institución"
+            />
+            <div class="institution-name">
+                {{ props.ticket.club_nombre_institucion }}
+            </div>
+        </div>
 
-        <div class="text-center">
-            <h3>{{ props.ticket.club_razon_social || props.ticket.club_nombre || "Parque" }}</h3>
+        <div class="issuer-data">
+            <div v-if="props.ticket.club_razon_social">{{ props.ticket.club_razon_social }}</div>
+            <div v-if="props.ticket.club_rfc">{{ props.ticket.club_rfc }}</div>
             <div v-for="line in props.ticket.club_direccion_lineas" :key="line">
                 {{ line }}
             </div>
-            <div v-if="props.ticket.club_rfc">RFC: {{ props.ticket.club_rfc }}</div>
+        </div>
+
+        <div class="text-center">
             <h4>{{ props.ticket.folio || `Pago #${props.ticket.payment_id}` }}</h4>
             <strong v-if="!props.ticket.folio" class="ticket-warning">PRUEBA SIN FOLIO</strong>
             <strong v-if="props.ticket.estatus === 'cancelled'" class="ticket-warning">CANCELADO</strong>
@@ -85,14 +93,34 @@ const dateTime = (value: string | null) => {
     font-size: 12px;
 }
 
-.ticket-logo {
-    display: block;
-    max-width: 42mm;
-    max-height: 20mm;
-    margin: 0 auto 6px;
+.ticket-brand {
+    width: 100%;
+    text-align: center;
 }
 
-.ticket-preview h3,
+.ticket-logo {
+    display: block;
+    width: 16mm;
+    height: 18mm;
+    object-fit: contain;
+    margin: 0 0 2mm 0;
+    filter: grayscale(1) contrast(1.35);
+}
+
+.institution-name {
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.25;
+    text-align: center;
+    text-transform: uppercase;
+}
+
+.issuer-data {
+    margin-top: 4mm;
+    line-height: 1.3;
+    text-align: left;
+}
+
 .ticket-preview h4 {
     margin: 5px 0;
 }

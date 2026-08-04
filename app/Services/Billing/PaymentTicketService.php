@@ -38,11 +38,12 @@ class PaymentTicketService
             'club_id' => $payment->club_id,
             'club_codigo' => $club?->code,
             'club_nombre' => $club?->name,
+            'club_nombre_institucion' => $this->institutionName($club?->code, $club?->name),
             'club_razon_social' => $club?->legal_name,
             'club_direccion_lineas' => $addressLines,
             'club_rfc' => $club?->rfc,
             'club_url_facturacion' => $club?->billing_url,
-            'club_logo_url' => $club?->logo_url,
+            'club_logo_url' => $this->logoUrl($club?->code, $club?->logo_url),
             'cajero_nombre' => $payment->receiver?->name,
             'cajero_codigo' => $payment->receiver?->code ?? $this->folioSeries($payment->folio),
             'cuenta_numero' => $account?->membership_number,
@@ -97,25 +98,29 @@ class PaymentTicketService
             $lines[] = $street;
         }
 
+        $neighborhoodPostalCode = '';
+
         if ($address->neighborhood) {
-            $lines[] = 'Col. ' . $address->neighborhood;
-        }
-
-        $cityState = collect([
-            $address->city?->name,
-            $address->state?->name,
-        ])->filter()->implode(', ');
-
-        if ($cityState !== '') {
-            $lines[] = $cityState;
+            $neighborhoodPostalCode = 'Col. ' . $address->neighborhood;
         }
 
         if ($address->postal_code) {
-            $lines[] = 'C.P. ' . $address->postal_code;
+            $neighborhoodPostalCode .= ($neighborhoodPostalCode !== '' ? ' ' : '')
+                . 'CP ' . $address->postal_code;
         }
 
-        if ($address->country?->name) {
-            $lines[] = $address->country->name;
+        if ($neighborhoodPostalCode !== '') {
+            $lines[] = $neighborhoodPostalCode;
+        }
+
+        $cityStateCountry = collect([
+            $address->city?->name,
+            $address->state?->name,
+            $address->country?->name,
+        ])->filter()->implode(' ');
+
+        if ($cityStateCountry !== '') {
+            $lines[] = $cityStateCountry;
         }
 
         return $lines;
@@ -130,5 +135,23 @@ class PaymentTicketService
         $parts = explode('-', $folio);
 
         return $parts[1] ?? null;
+    }
+
+    private function logoUrl(?string $clubCode, ?string $configuredLogo): ?string
+    {
+        return match (strtoupper((string) $clubCode)) {
+            'PE1' => '/assets/images/LogoP1.png',
+            'PE2' => '/assets/images/LogoP2.png',
+            default => $configuredLogo,
+        };
+    }
+
+    private function institutionName(?string $clubCode, ?string $fallback): string
+    {
+        return match (strtoupper((string) $clubCode)) {
+            'PE1' => 'FUNDACIÓN DEPORTIVO PARQUE ESPAÑA I',
+            'PE2' => 'FUNDACIÓN DEPORTIVO PARQUE ESPAÑA II',
+            default => $fallback ?? 'Parque',
+        };
     }
 }

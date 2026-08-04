@@ -15,6 +15,7 @@ export interface TicketData {
     estatus: string | null;
     club_codigo: string | null;
     club_nombre: string | null;
+    club_nombre_institucion: string;
     club_razon_social: string | null;
     club_direccion_lineas: string[];
     club_rfc: string | null;
@@ -94,8 +95,10 @@ const ticketHtml = (ticket: TicketData): string => {
         * { box-sizing: border-box; }
         body { width: 70mm; margin: 0 auto; color: #000; font: 12px Arial, sans-serif; }
         .center { text-align: center; }
-        .logo { display: block; max-width: 42mm; max-height: 20mm; margin: 0 auto 6px; }
-        h1 { margin: 4px 0; font-size: 16px; }
+        .ticket-brand { width: 100%; text-align: center; }
+        .logo { display: block; width: 16mm; height: 18mm; object-fit: contain; margin: 0 0 2mm 0; filter: grayscale(1) contrast(1.35); }
+        .institution-name { margin: 0; font-size: 12px; font-weight: 700; line-height: 1.25; text-align: center; text-transform: uppercase; }
+        .issuer-data { margin-top: 4mm; line-height: 1.3; text-align: left; }
         h2 { margin: 8px 0; font-size: 14px; }
         .muted { font-size: 10px; }
         .warning { margin: 5px 0; font-weight: bold; }
@@ -108,11 +111,16 @@ const ticketHtml = (ticket: TicketData): string => {
     </style>
 </head>
 <body>
-    ${ticket.club_logo_url ? `<img class="logo" src="${escapeHtml(ticket.club_logo_url)}" alt="Logo">` : ""}
-    <div class="center">
-        <h1>${escapeHtml(ticket.club_razon_social ?? ticket.club_nombre ?? "Parque")}</h1>
+    <div class="ticket-brand">
+        ${ticket.club_logo_url ? `<img class="logo" src="${escapeHtml(ticket.club_logo_url)}" alt="Logo de la institución">` : ""}
+        <div class="institution-name">${escapeHtml(ticket.club_nombre_institucion)}</div>
+    </div>
+    <div class="issuer-data">
+        ${ticket.club_razon_social ? `<div>${escapeHtml(ticket.club_razon_social)}</div>` : ""}
+        ${ticket.club_rfc ? `<div>${escapeHtml(ticket.club_rfc)}</div>` : ""}
         ${address}
-        ${ticket.club_rfc ? `<div>RFC: ${escapeHtml(ticket.club_rfc)}</div>` : ""}
+    </div>
+    <div class="center">
         <h2>${escapeHtml(title)}</h2>
         ${ticket.folio ? "" : '<div class="warning">PRUEBA SIN FOLIO</div>'}
         ${ticket.estatus === "cancelled" ? '<div class="warning">CANCELADO</div>' : ""}

@@ -34,7 +34,7 @@ class ClubAddressSeeder extends Seeder
             ],
             [
                 'club_code' => 'PE2',
-                'street' => 'Carril a San Martinito Km. 1.5',
+                'street' => 'Carril San Martinito Km. 1.5 s/n',
                 'exterior_number' => null,
                 'interior_number' => null,
                 'neighborhood' => 'Ampliación Emiliano Zapata',
