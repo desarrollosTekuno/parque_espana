@@ -14,18 +14,14 @@ class PaymentTicketTestSeeder extends Seeder
 {
     public function run(): void
     {
-        $clubId = env('PAYMENT_TEST_CLUB_ID');
         $requestedPayments = max(1, (int) env('PAYMENT_TEST_COUNT', 15));
         $clubs = Club::query()
-            ->when($clubId, function ($query) use ($clubId) {
-                $query->where('id', $clubId);
-            })
             ->whereIn('code', ['PE1', 'PE2'])
             ->orderBy('id')
             ->get();
 
-        if ($clubs->isEmpty()) {
-            throw new RuntimeException('No se encontraron parques para generar cuentas y pagos.');
+        if ($clubs->count() !== 2) {
+            throw new RuntimeException('Se requieren los parques PE1 y PE2 para generar las pruebas de tickets.');
         }
 
         $cashier = User::query()->updateOrCreate(
@@ -45,6 +41,7 @@ class PaymentTicketTestSeeder extends Seeder
                     MembershipAccount::factory()
                         ->forClub($club)
                         ->individual()
+                        ->withActiveMembership()
                         ->withMembers()
                         ->withFiscalData()
                         ->withLockers()
@@ -55,6 +52,7 @@ class PaymentTicketTestSeeder extends Seeder
                     MembershipAccount::factory()
                         ->forClub($club)
                         ->family()
+                        ->withActiveMembership()
                         ->withMembers(2)
                         ->withFiscalData()
                         ->withLockers()

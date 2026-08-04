@@ -8,9 +8,11 @@ use App\Models\Members\Locker;
 use App\Models\Members\LockerAssignment;
 use App\Models\Members\Member;
 use App\Models\Memberships\AccountFiscalData;
+use App\Models\Memberships\Membership;
 use App\Models\Memberships\MembershipAccount;
 use App\Models\Memberships\MembershipAccountGroup;
 use App\Models\Memberships\MembershipAccountMember;
+use App\Models\Memberships\MembershipType;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -109,6 +111,49 @@ class MembershipAccountFactory extends Factory
                     'is_primary_holder' => false,
                 ]);
             }
+        });
+    }
+
+    public function withActiveMembership(): static
+    {
+        return $this->afterCreating(function (MembershipAccount $account) {
+            $typeCode = match ($account->club?->code) {
+                'PE1' => $account->account_type === 'family' ? 'PE1_FAM' : 'PE1_IND',
+                'PE2' => $account->account_type === 'family' ? 'PE2_FAM_ASC' : 'PE2_IND_ASC',
+                default => null,
+            };
+            $membershipType = MembershipType::query()
+                ->where('club_id', $account->club_id)
+                ->where('code', $typeCode)
+                ->first();
+
+            if (!$membershipType) {
+                throw new RuntimeException("No se encontró un tipo de membresía para {$account->club?->code}.");
+            }
+
+            $pricingRule = $membershipType->pricingRules()
+                ->where('is_active', true)
+                ->orderBy('priority')
+                ->first();
+            $monthlyFee = $pricingRule?->resolveMonthlyFee()
+                ?? ($account->account_type === 'family' ? 3000 : 1500);
+
+            Membership::query()->create([
+                'membership_account_id' => $account->id,
+                'club_id' => $account->club_id,
+                'membership_type_id' => $membershipType->id,
+                'pricing_rule_id' => $pricingRule?->id,
+                'origin_membership_type_id' => null,
+                'is_primary' => true,
+                'is_billable' => true,
+                'monthly_fee' => $monthlyFee,
+                'monthly_fee_total' => $monthlyFee,
+                'monthly_fee_share' => $monthlyFee,
+                'billing_split_mode' => 'single',
+                'start_date' => now()->startOfMonth()->toDateString(),
+                'end_date' => null,
+                'status' => 'active',
+            ]);
         });
     }
 
