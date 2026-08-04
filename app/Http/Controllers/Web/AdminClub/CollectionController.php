@@ -349,6 +349,7 @@ class CollectionController extends Controller
                 'membership_number' => $account->membership_number,
                 'internal_account_number' => $account->internal_account_number,
                 'holder_name' => $holderName ?: '—',
+                'holder_member_id' => $holder?->id,
                 'email' => $holder?->email,
                 'phone' => $holder?->phone,
                 'photo' => $this->resolveHolderPhotoUrl($holder),
