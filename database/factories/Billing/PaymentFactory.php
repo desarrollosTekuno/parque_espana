@@ -51,6 +51,42 @@ class PaymentFactory extends Factory
         });
     }
 
+    public function forAccount(MembershipAccount $account): static
+    {
+        return $this->state(function () use ($account) {
+            return $this->attributesForClub((int) $account->club_id, $account);
+        });
+    }
+
+    public function usingPaymentMethod(string $code): static
+    {
+        return $this->state(function () use ($code) {
+            $paymentMethod = PaymentMethod::query()
+                ->where('code', $code)
+                ->where('is_active', true)
+                ->first();
+
+            if (!$paymentMethod) {
+                throw new RuntimeException("No se encontró el método de pago {$code}.");
+            }
+
+            $bankName = null;
+
+            if (in_array($code, ['CREDIT_CARD', 'DEBIT_CARD'], true)) {
+                $bankName = 'VISA';
+            } elseif (in_array($code, ['BANK_TRANSFER', 'CHECK'], true)) {
+                $bankName = 'Banco de prueba';
+            }
+
+            return [
+                'payment_method_id' => $paymentMethod->id,
+                'reference' => 'TEST-TICKET-' . strtoupper($this->faker->unique()->bothify('####??')),
+                'bank_name' => $bankName,
+                'check_number' => $code === 'CHECK' ? $this->faker->numerify('######') : null,
+            ];
+        });
+    }
+
     public function withTicketConcept(): static
     {
         return $this->afterCreating(function (Payment $payment) {

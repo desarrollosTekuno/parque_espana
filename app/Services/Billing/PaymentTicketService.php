@@ -115,8 +115,7 @@ class PaymentTicketService {
         ];
     }
 
-    private function addressLines(Payment $payment): array
-    {
+    private function addressLines(Payment $payment): array {
         $club = $payment->club;
         $address = $club?->clubAddress;
 
@@ -167,8 +166,7 @@ class PaymentTicketService {
         return $lines;
     }
 
-    private function logoUrl(?string $clubCode, ?string $configuredLogo): ?string
-    {
+    private function logoUrl(?string $clubCode, ?string $configuredLogo): ?string {
         return match (strtoupper((string) $clubCode)) {
             'PE1' => '/assets/images/LogoP1.png',
             'PE2' => '/assets/images/LogoP2.png',
@@ -176,8 +174,7 @@ class PaymentTicketService {
         };
     }
 
-    private function institutionName(?string $clubCode, ?string $fallback): string
-    {
+    private function institutionName(?string $clubCode, ?string $fallback): string {
         return match (strtoupper((string) $clubCode)) {
             'PE1' => 'FUNDACIÓN DEPORTIVO PARQUE ESPAÑA I',
             'PE2' => 'FUNDACIÓN DEPORTIVO PARQUE ESPAÑA II',
@@ -185,8 +182,7 @@ class PaymentTicketService {
         };
     }
 
-    private function cashierInitial(?User $cashier): ?string
-    {
+    private function cashierInitial(?User $cashier): ?string {
         $name = trim((string) $cashier?->name);
 
         if ($name === '') {
@@ -196,8 +192,7 @@ class PaymentTicketService {
         return strtoupper(Str::ascii(mb_substr($name, 0, 1)));
     }
 
-    private function cashierCode(?User $cashier): ?string
-    {
+    private function cashierCode(?User $cashier): ?string {
         $code = trim((string) $cashier?->code);
 
         if ($code !== '') {
@@ -216,8 +211,7 @@ class PaymentTicketService {
         return $initials !== '' ? $initials : null;
     }
 
-    private function accountNumbers(?MembershipAccount $account): ?string
-    {
+    private function accountNumbers(?MembershipAccount $account): ?string {
         if (!$account) {
             return null;
         }
@@ -238,8 +232,7 @@ class PaymentTicketService {
         return $numbers !== '' ? $numbers : null;
     }
 
-    private function lockerCodes(?MembershipAccount $account): array
-    {
+    private function lockerCodes(?MembershipAccount $account): array {
         if (!$account) {
             return [];
         }
@@ -268,8 +261,7 @@ class PaymentTicketService {
             ->all();
     }
 
-    private function paymentMethodTicketCode(?string $code): ?string
-    {
+    private function paymentMethodTicketCode(?string $code): ?string {
         return match ($code) {
             'CASH' => 'EF',
             'BANK_TRANSFER' => 'TR',
@@ -281,8 +273,7 @@ class PaymentTicketService {
         };
     }
 
-    private function shortFolio(?string $folio): ?string
-    {
+    private function shortFolio(?string $folio): ?string {
         if (!$folio) {
             return null;
         }
