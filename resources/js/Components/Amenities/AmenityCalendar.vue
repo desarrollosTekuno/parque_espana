@@ -32,6 +32,7 @@ const props = defineProps<{
 const calendarApp = createCalendar({
   defaultView: 'week',
   locale: 'es-ES',
+  timezone: 'America/Mexico_City',
   views: [
     createViewWeek(),
     createViewMonthGrid(),
@@ -39,8 +40,8 @@ const calendarApp = createCalendar({
   ],
   translations: translations['es-ES'],
   dayBoundaries: {
-    start: '07:00',
-    end: '22:00',
+    start: '06:00',
+    end: '21:00',
   },
   calendars: {
   'status-1': {

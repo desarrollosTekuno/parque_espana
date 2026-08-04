@@ -8,6 +8,7 @@ use App\Models\Billing\Payment;
 use App\Models\Billing\PaymentApplication;
 use App\Models\Billing\PaymentMethod;
 use App\Models\Memberships\MembershipAccount;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -99,7 +100,9 @@ class PaymentRegistrationService
      * parque, las demás cuentas de su mismo account_group_id (ver
      * CollectionController::resolveGroupAccountIds). Solo los cargos de
      * MONTHLY_FEE pueden venir de una cuenta distinta a la que cobra (ver
-     * ensureChargesBelongToClub).
+     * ensureChargesBelongToClub). Los de CAFETERIA_PASS no tienen cuenta
+     * (son de un visitante anónimo, ver CafeteriaVisitController::checkout),
+     * así que se incluyen aparte por id.
      */
     protected function resolveCharges(array $accountIds, array $applications): Collection
     {
@@ -112,8 +115,14 @@ class PaymentRegistrationService
 
         $charges = Charge::query()
             ->with(['membership.club', 'concept'])
-            ->whereIn('membership_account_id', $accountIds)
             ->whereIn('id', $chargeIds)
+            ->where(function (Builder $scope) use ($accountIds) {
+                $scope->whereIn('membership_account_id', $accountIds)
+                    ->orWhere(function (Builder $anonymous) {
+                        $anonymous->whereNull('membership_account_id')
+                            ->whereHas('concept', fn (Builder $c) => $c->where('code', 'CAFETERIA_PASS'));
+                    });
+            })
             ->whereIn('status', ['pending', 'partial'])
             ->lockForUpdate()
             ->get()
@@ -129,15 +138,22 @@ class PaymentRegistrationService
     }
 
     /**
-     * Todos los cargos deben pertenecer al parque que está cobrando, salvo
-     * los de mensualidad (MONTHLY_FEE): esos pueden venir de cualquier otro
+     * Todos los cargos deben pertenecer al parque que está cobrando, salvo:
+     * los de mensualidad (MONTHLY_FEE), que pueden venir de cualquier otro
      * parque donde el socio tenga membresía (ver $accountClubIds, que el
      * controlador arma a partir de las membresías reales del socio, nunca
-     * de un club arbitrario) para poder cobrarse juntos en un solo pago.
+     * de un club arbitrario) para poder cobrarse juntos en un solo pago; y
+     * los de CAFETERIA_PASS, que no tienen membresía/club ligado (son de un
+     * visitante anónimo) y siempre se cobran en el parque donde se registró
+     * la salida.
      */
     protected function ensureChargesBelongToClub(Collection $charges, int $clubId, array $accountClubIds = []): void
     {
         $invalidCharge = $charges->first(function (Charge $charge) use ($clubId, $accountClubIds) {
+            if ($charge->membership_account_id === null && $charge->concept?->code === 'CAFETERIA_PASS') {
+                return false;
+            }
+
             $chargeClubId = (int) ($charge->membership?->club_id ?? 0);
 
             if ($chargeClubId === $clubId) {
