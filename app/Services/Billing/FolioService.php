@@ -11,10 +11,9 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
-class FolioService
-{
-    public function generate(Payment $payment): string
-    {
+class FolioService {
+
+    public function generate(Payment $payment): string {
         $club = Club::findOrFail($payment->club_id);
         $paidAt = Carbon::parse($payment->paid_at ?? now());
         $userId = null;
@@ -65,8 +64,7 @@ class FolioService
         });
     }
 
-    private function normalizeCode(string $code): string
-    {
+    private function normalizeCode(string $code): string {
         $normalized = strtoupper(Str::ascii($code));
         $normalized = preg_replace('/[^A-Z0-9]/', '', $normalized) ?? '';
 

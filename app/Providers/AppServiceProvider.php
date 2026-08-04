@@ -8,15 +8,12 @@ use App\Observers\MembershipAccountMemberObserver;
 use App\Observers\PaymentObserver;
 use Illuminate\Support\ServiceProvider;
 
-class AppServiceProvider extends ServiceProvider
-{
-    public function register(): void
-    {
+class AppServiceProvider extends ServiceProvider {
+    public function register(): void {
         //
     }
 
-    public function boot(): void
-    {
+    public function boot(): void {
         MembershipAccountMember::observe(MembershipAccountMemberObserver::class);
         Payment::observe(PaymentObserver::class);
     }
