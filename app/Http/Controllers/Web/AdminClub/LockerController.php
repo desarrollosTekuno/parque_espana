@@ -7,6 +7,7 @@ use App\Models\Members\LockerAssignment;
 use App\Models\Members\Locker;
 use Illuminate\Http\Request;
 use App\Models\Billing\Charge;
+use App\Models\Billing\ChargeConcept;
 use App\Models\Memberships\Membership;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -19,6 +20,36 @@ class LockerController extends Controller {
         $this->middleware('permission:lockers.available')->only('available');
         $this->middleware('permission:lockers.assigned.by.account')->only('assignedByAccount');
         $this->middleware('permission:lockers.available.for.change')->only('availableForChange');
+        $this->middleware('permission:members.lockers.reserve')->only('quote');
+    }
+
+    /**
+     * Cuota prorrateada de un casillero (LOCKERS) para el club dado, del mes
+     * en curso a diciembre. Solo consulta, no reserva ni cobra nada — se usa
+     * para mostrar el importe antes de elegir un casillero (ver
+     * LockerAssignmentController::reserve() para el cálculo real al asignar).
+     */
+    public function quote(Request $request)
+    {
+        $clubId = (int) ($request->integer('club_id') ?: session('club_id'));
+
+        $concept = ChargeConcept::query()
+            ->with('clubAmounts')
+            ->where('code', 'LOCKERS')
+            ->where('is_active', true)
+            ->first();
+
+        if (!$concept) {
+            return response()->json([
+                'message' => 'El concepto LOCKERS no está configurado.',
+            ], 404);
+        }
+
+        return response()->json([
+            'concept_id' => $concept->id,
+            'club_id' => $clubId,
+            'amount' => $concept->resolveProratedAnnualAmountForClub($clubId),
+        ]);
     }
 
     public function available(Request $request)

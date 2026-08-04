@@ -25,14 +25,17 @@ class PaymentRegistrationService
         ?string $checkNumber,
         ?string $notes,
         ?int $receivedBy,
-        ?int $sessionClubId = null
+        ?int $sessionClubId = null,
+        array $accountClubIds = [],
+        array $groupAccountIds = []
     ): Payment {
-        $charges = $this->resolveCharges($account->id, $applications);
+        $charges = $this->resolveCharges($groupAccountIds ?: [$account->id], $applications);
 
-        $this->ensureChargesBelongToClub($charges, $clubId);
+        $this->ensureChargesBelongToClub($charges, $clubId, $accountClubIds);
         $this->ensurePaymentMethodAllowedForClub($paymentMethod->id, $clubId);
         $this->validateMethodRequirements($paymentMethod, $reference, $bankName, $checkNumber);
         $normalizedApplications = $this->normalizeApplications($charges, $applications);
+        $parkSplit = $this->resolveParkSplit($normalizedApplications);
 
         return DB::transaction(function () use (
             $account,
@@ -45,7 +48,8 @@ class PaymentRegistrationService
             $checkNumber,
             $notes,
             $receivedBy,
-            $sessionClubId
+            $sessionClubId,
+            $parkSplit
         ) {
             $totalAmount = round($normalizedApplications->sum('amount'), 2);
 
@@ -65,6 +69,7 @@ class PaymentRegistrationService
                     'session_club_id' => $sessionClubId,
                     'settlement_channel' => $paymentMethod->affects_cash_cut ? 'cashier' : 'services',
                     'affects_cash_cut' => (bool) $paymentMethod->affects_cash_cut,
+                    'park_split' => $parkSplit,
                 ],
             ]);
 
@@ -89,7 +94,14 @@ class PaymentRegistrationService
         });
     }
 
-    protected function resolveCharges(int $accountId, array $applications): Collection
+    /**
+     * $accountIds: la cuenta que cobra y, si el socio pertenece a más de un
+     * parque, las demás cuentas de su mismo account_group_id (ver
+     * CollectionController::resolveGroupAccountIds). Solo los cargos de
+     * MONTHLY_FEE pueden venir de una cuenta distinta a la que cobra (ver
+     * ensureChargesBelongToClub).
+     */
+    protected function resolveCharges(array $accountIds, array $applications): Collection
     {
         $chargeIds = collect($applications)
             ->pluck('charge_id')
@@ -99,8 +111,8 @@ class PaymentRegistrationService
             ->values();
 
         $charges = Charge::query()
-            ->with('membership.club')
-            ->where('membership_account_id', $accountId)
+            ->with(['membership.club', 'concept'])
+            ->whereIn('membership_account_id', $accountIds)
             ->whereIn('id', $chargeIds)
             ->whereIn('status', ['pending', 'partial'])
             ->lockForUpdate()
@@ -116,10 +128,26 @@ class PaymentRegistrationService
         return $charges;
     }
 
-    protected function ensureChargesBelongToClub(Collection $charges, int $clubId): void
+    /**
+     * Todos los cargos deben pertenecer al parque que está cobrando, salvo
+     * los de mensualidad (MONTHLY_FEE): esos pueden venir de cualquier otro
+     * parque donde el socio tenga membresía (ver $accountClubIds, que el
+     * controlador arma a partir de las membresías reales del socio, nunca
+     * de un club arbitrario) para poder cobrarse juntos en un solo pago.
+     */
+    protected function ensureChargesBelongToClub(Collection $charges, int $clubId, array $accountClubIds = []): void
     {
-        $invalidCharge = $charges->first(function (Charge $charge) use ($clubId) {
-            return (int) ($charge->membership?->club_id ?? 0) !== $clubId;
+        $invalidCharge = $charges->first(function (Charge $charge) use ($clubId, $accountClubIds) {
+            $chargeClubId = (int) ($charge->membership?->club_id ?? 0);
+
+            if ($chargeClubId === $clubId) {
+                return false;
+            }
+
+            $isMonthlySplit = $charge->concept?->code === 'MONTHLY_FEE'
+                && in_array($chargeClubId, $accountClubIds, true);
+
+            return !$isMonthlySplit;
         });
 
         if ($invalidCharge) {
@@ -127,6 +155,33 @@ class PaymentRegistrationService
                 'club_id' => 'Todos los cargos seleccionados deben pertenecer al mismo parque.',
             ]);
         }
+    }
+
+    /**
+     * Desglose del pago por parque cuando los cargos aplicados abarcan más
+     * de un club (mensualidad dividida entre Parque España 1 y 2). Null si
+     * todos los cargos son del mismo parque.
+     */
+    protected function resolveParkSplit(Collection $normalizedApplications): ?array
+    {
+        $byClub = $normalizedApplications->groupBy(
+            fn (array $application) => (int) ($application['charge']->membership?->club_id ?? 0)
+        );
+
+        if ($byClub->count() < 2) {
+            return null;
+        }
+
+        return $byClub->map(function (Collection $apps, $clubId) {
+            $club = $apps->first()['charge']->membership?->club;
+
+            return [
+                'club_id' => $clubId ?: null,
+                'club_code' => $club?->code,
+                'club_name' => $club?->name,
+                'amount' => round($apps->sum('amount'), 2),
+            ];
+        })->values()->all();
     }
 
     protected function ensurePaymentMethodAllowedForClub(int $paymentMethodId, int $clubId): void

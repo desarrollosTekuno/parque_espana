@@ -214,8 +214,6 @@ const selectedPaymentClubId = ref<number | null>(null);
 const paymentDrafts = ref<PaymentDraftItem[]>([]);
 const paymentFormRef = ref();
 
-console.log(selectedPaymentAccount.value, "selectedPaymentAccount.value");
-
 // ── Anualidad ──────────────────────────────────────────────────────────────
 const showAnnualModal = ref(false);
 const annualAccount = ref<BillingAccountItem | null>(null);

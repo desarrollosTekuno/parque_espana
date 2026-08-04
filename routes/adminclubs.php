@@ -297,6 +297,8 @@ Route::get('/lockers/assigned-by-account', [LockerController::class, 'assignedBy
     ->name('lockers.assigned.by.account');
 Route::get('/lockers/available', [LockerController::class, 'available'])
     ->name('lockers.available');
+Route::get('/lockers/quote', [LockerController::class, 'quote'])
+    ->name('lockers.quote');
 Route::delete('/members/lockers/{id}/cancel',[LockerController::class, 'cancel'])
         ->name('members.lockers.cancel');
 Route::get('lockers/available-for-change',[LockerController::class, 'availableForChange'])

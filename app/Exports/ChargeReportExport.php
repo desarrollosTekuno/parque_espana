@@ -40,8 +40,6 @@ class ChargeReportExport implements FromView, ShouldAutoSize, WithEvents
             })
             ->get();
 
-        // Total aplicado por pago, para repartir el descuento de anualidad
-        // proporcionalmente entre los cargos que ese pago liquidó.
         $totalsByPayment = $applications
             ->groupBy('payment_id')
             ->map(fn ($group) => (float) $group->sum('applied_amount'));

@@ -270,7 +270,6 @@ watch(
     { deep:true }
 
 );
-console.log('BlockedPeriods:', props.blockedPeriods)
 </script>
 <template>
     <Head title="Bloqueos" />
