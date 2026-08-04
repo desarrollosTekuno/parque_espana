@@ -14,8 +14,16 @@ const money = (value: number | null) => {
     }).format(Number(value ?? 0));
 };
 
-const dateTime = (value: string | null) => {
-    return value ? new Date(value).toLocaleString("es-MX") : "-";
+const ticketDate = (value: string | null) => {
+    if (!value) {
+        return "-";
+    }
+
+    return new Date(value).toLocaleDateString("es-MX", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "2-digit",
+    });
 };
 </script>
 
@@ -41,19 +49,22 @@ const dateTime = (value: string | null) => {
             </div>
         </div>
 
-        <div class="text-center">
-            <h4>
+        <div class="ticket-identification">
+            <span>
                 <template v-if="props.ticket.ticket_folio">
                     Ticket: {{ [props.ticket.ticket_serie, props.ticket.ticket_folio].filter(Boolean).join(" ") }}
                 </template>
                 <template v-else>Pago #{{ props.ticket.payment_id }}</template>
-            </h4>
+            </span>
+            <span>{{ ticketDate(props.ticket.fecha) }}</span>
+        </div>
+
+        <div class="text-center">
             <strong v-if="!props.ticket.folio" class="ticket-warning">PRUEBA SIN FOLIO</strong>
             <strong v-if="props.ticket.estatus === 'cancelled'" class="ticket-warning">CANCELADO</strong>
         </div>
 
         <div class="ticket-divider"></div>
-        <div class="ticket-row"><span>Fecha</span><strong>{{ dateTime(props.ticket.fecha) }}</strong></div>
         <div class="ticket-row"><span>Cuenta</span><strong>{{ props.ticket.cuenta_numero || props.ticket.cuenta_interna || "-" }}</strong></div>
         <div class="ticket-row"><span>Titular</span><strong>{{ props.ticket.titular || "-" }}</strong></div>
         <div class="ticket-row"><span>Cajero</span><strong>{{ props.ticket.cajero_nombre || "-" }}<template v-if="props.ticket.cajero_codigo"> ({{ props.ticket.cajero_codigo }})</template></strong></div>
@@ -126,8 +137,12 @@ const dateTime = (value: string | null) => {
     text-align: left;
 }
 
-.ticket-preview h4 {
-    margin: 5px 0;
+.ticket-identification {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 8px 0;
+    font-size: 12px;
 }
 
 .ticket-warning {

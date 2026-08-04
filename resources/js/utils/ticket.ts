@@ -57,8 +57,16 @@ const money = (value: number | null): string => {
     }).format(Number(value ?? 0));
 };
 
-const dateTime = (value: string | null): string => {
-    return value ? new Date(value).toLocaleString("es-MX") : "";
+const ticketDate = (value: string | null): string => {
+    if (!value) {
+        return "";
+    }
+
+    return new Date(value).toLocaleDateString("es-MX", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "2-digit",
+    });
 };
 
 const row = (label: string, value: unknown): string => {
@@ -102,7 +110,7 @@ const ticketHtml = (ticket: TicketData): string => {
         .logo { display: block; width: 16mm; height: 18mm; object-fit: contain; margin: 0 0 2mm 0; filter: grayscale(1) contrast(1.35); }
         .institution-name { margin: 0; font-size: 12px; font-weight: 700; line-height: 1.25; text-align: center; text-transform: uppercase; }
         .issuer-data { margin-top: 4mm; line-height: 1.3; text-align: left; }
-        h2 { margin: 8px 0; font-size: 14px; }
+        .ticket-identification { display: flex; justify-content: space-between; gap: 8px; margin: 8px 0; font-size: 12px; }
         .muted { font-size: 10px; }
         .warning { margin: 5px 0; font-weight: bold; }
         .divider { border-top: 1px dashed #000; margin: 7px 0; }
@@ -123,13 +131,15 @@ const ticketHtml = (ticket: TicketData): string => {
         ${ticket.club_rfc ? `<div>${escapeHtml(ticket.club_rfc)}</div>` : ""}
         ${address}
     </div>
+    <div class="ticket-identification">
+        <span>${escapeHtml(title)}</span>
+        <span>${escapeHtml(ticketDate(ticket.fecha))}</span>
+    </div>
     <div class="center">
-        <h2>${escapeHtml(title)}</h2>
         ${ticket.folio ? "" : '<div class="warning">PRUEBA SIN FOLIO</div>'}
         ${ticket.estatus === "cancelled" ? '<div class="warning">CANCELADO</div>' : ""}
     </div>
     <div class="divider"></div>
-    ${row("Fecha", dateTime(ticket.fecha))}
     ${row("Cuenta", ticket.cuenta_numero ?? ticket.cuenta_interna)}
     ${row("Titular", ticket.titular)}
     ${row("Cajero", ticket.cajero_codigo ? `${ticket.cajero_nombre ?? ""} (${ticket.cajero_codigo})` : ticket.cajero_nombre)}
