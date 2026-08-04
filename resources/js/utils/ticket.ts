@@ -83,7 +83,7 @@ export const getTicketData = async (paymentId: number): Promise<TicketData> => {
     return response.data;
 };
 
-const ticketHtml = (ticket: TicketData): string => {
+const ticketHtml = (ticket: TicketData, duplicate: boolean): string => {
     const ticketNumber = [ticket.ticket_serie, ticket.ticket_folio].filter(Boolean).join(" ");
     const title = ticketNumber ? `Ticket: ${ticketNumber}` : `Pago #${ticket.payment_id}`;
     const concepts = ticket.conceptos.map((concept) => `
@@ -111,6 +111,7 @@ const ticketHtml = (ticket: TicketData): string => {
         .institution-name { margin: 0; font-size: 12px; font-weight: 700; line-height: 1.25; text-align: center; text-transform: uppercase; }
         .issuer-data { margin-top: 4mm; line-height: 1.3; text-align: left; }
         .ticket-identification { display: flex; justify-content: space-between; gap: 8px; margin: 8px 0; font-size: 12px; }
+        .reprint-label { margin: 3px 0; }
         .muted { font-size: 10px; }
         .warning { margin: 5px 0; font-weight: bold; }
         .divider { border-top: 1px dashed #000; margin: 7px 0; }
@@ -135,6 +136,7 @@ const ticketHtml = (ticket: TicketData): string => {
         <span>${escapeHtml(title)}</span>
         <span>${escapeHtml(ticketDate(ticket.fecha))}</span>
     </div>
+    ${duplicate ? '<div class="reprint-label">Duplicado</div>' : ""}
     <div class="center">
         ${ticket.folio ? "" : '<div class="warning">PRUEBA SIN FOLIO</div>'}
         ${ticket.estatus === "cancelled" ? '<div class="warning">CANCELADO</div>' : ""}
@@ -163,7 +165,7 @@ const ticketHtml = (ticket: TicketData): string => {
 </html>`;
 };
 
-export const printTicket = async (paymentId: number): Promise<void> => {
+export const printTicket = async (paymentId: number, duplicate = false): Promise<void> => {
     const printWindow = window.open("", "_blank", "width=420,height=700");
 
     if (!printWindow) {
@@ -175,7 +177,7 @@ export const printTicket = async (paymentId: number): Promise<void> => {
     try {
         const ticket = await getTicketData(paymentId);
         printWindow.document.open();
-        printWindow.document.write(ticketHtml(ticket));
+        printWindow.document.write(ticketHtml(ticket, duplicate));
         printWindow.document.close();
 
         await new Promise<void>((resolve) => {

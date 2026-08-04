@@ -94,7 +94,7 @@ const openPreview = async (item: TicketListItem) => {
     }
 };
 
-const sendToPrint = async (item: TicketListItem | null = null) => {
+const sendToPrint = async (item: TicketListItem | null = null, duplicate = false) => {
     const paymentId = item?.id ?? selectedTicket.value?.payment_id;
 
     if (!paymentId) {
@@ -102,7 +102,7 @@ const sendToPrint = async (item: TicketListItem | null = null) => {
     }
 
     try {
-        await printTicket(paymentId);
+        await printTicket(paymentId, duplicate);
     } catch (error) {
         const message = error instanceof Error ? error.message : "No fue posible imprimir el ticket.";
         customToastSwal({ title: message, icon: "error" });
@@ -203,7 +203,7 @@ watch(() => page.props.auth.currentClub, () => {
                     </template>
                     <template #item.actions="{ item }">
                         <BaseButton action="view" tooltip="Vista previa" @click="openPreview(item)" />
-                        <BaseButton icon="mdi-printer-outline" color="primary" tooltip="Imprimir o reimprimir" @click="sendToPrint(item)" />
+                        <BaseButton icon="mdi-printer-outline" color="primary" tooltip="Reimprimir" @click="sendToPrint(item, true)" />
                     </template>
                 </v-data-table-server>
             </v-card-text>
