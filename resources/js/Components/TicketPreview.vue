@@ -78,6 +78,10 @@ const ticketDate = (value: string | null) => {
                 {{ [props.ticket.receptor_uso_cfdi, props.ticket.receptor_regimen_fiscal, props.ticket.receptor_codigo_postal].filter(Boolean).join(" ") }}
             </div>
         </div>
+        <div v-if="props.ticket.casilleros.length" class="locker-data">
+            <div>Casilleros:</div>
+            <div>{{ props.ticket.casilleros.join(" ") }}</div>
+        </div>
 
         <div class="ticket-divider"></div>
         <div v-if="props.ticket.conceptos.length">
@@ -189,6 +193,10 @@ const ticketDate = (value: string | null) => {
 .receiver-tax-data {
     margin: 3px 0;
     text-transform: uppercase;
+}
+
+.locker-data {
+    margin: 6px 0;
 }
 
 .ticket-total {

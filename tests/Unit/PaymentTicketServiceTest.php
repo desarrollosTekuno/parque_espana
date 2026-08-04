@@ -13,6 +13,8 @@ use App\Models\Catalogs\City;
 use App\Models\Catalogs\Country;
 use App\Models\Catalogs\State;
 use App\Models\Members\Member;
+use App\Models\Members\Locker;
+use App\Models\Members\LockerAssignment;
 use App\Models\Memberships\AccountFiscalData;
 use App\Models\Memberships\MembershipAccount;
 use App\Models\Memberships\MembershipAccountMember;
@@ -83,6 +85,29 @@ class PaymentTicketServiceTest extends TestCase
         ]);
         $secondAccount->id = 2;
 
+        $menLocker = (new Locker())->forceFill([
+            'number' => 4,
+            'category' => 'caballeros',
+        ]);
+        $womenLocker = (new Locker())->forceFill([
+            'number' => 862,
+            'category' => 'damas',
+        ]);
+        $menAssignment = (new LockerAssignment())->forceFill([
+            'club_id' => 1,
+            'locker_id' => 1,
+        ]);
+        $menAssignment->id = 1;
+        $menAssignment->setRelation('locker', $menLocker);
+        $womenAssignment = (new LockerAssignment())->forceFill([
+            'club_id' => 2,
+            'locker_id' => 2,
+        ]);
+        $womenAssignment->id = 2;
+        $womenAssignment->setRelation('locker', $womenLocker);
+        $account->setRelation('currentLockerAssignments', new Collection([$menAssignment]));
+        $secondAccount->setRelation('currentLockerAssignments', new Collection([$womenAssignment]));
+
         $accountGroup = new MembershipAccountGroup();
         $accountGroup->id = 1;
         $accountGroup->setRelation('accounts', new Collection([$account, $secondAccount]));
@@ -148,6 +173,7 @@ class PaymentTicketServiceTest extends TestCase
         $this->assertSame('G03', $data['receptor_uso_cfdi']);
         $this->assertSame('612', $data['receptor_regimen_fiscal']);
         $this->assertSame('72500', $data['receptor_codigo_postal']);
+        $this->assertSame(['CA00004', 'DA00862'], $data['casilleros']);
         $this->assertSame('Ana Pérez López', $data['titular']);
         $this->assertSame(['25 Oriente #1001', 'CP 72500', 'Puebla Puebla México'], $data['club_direccion_lineas']);
         $this->assertSame(100.0, $data['subtotal']);

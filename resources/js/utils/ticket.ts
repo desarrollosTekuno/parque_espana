@@ -33,6 +33,7 @@ export interface TicketData {
     receptor_uso_cfdi: string | null;
     receptor_regimen_fiscal: string | null;
     receptor_codigo_postal: string | null;
+    casilleros: string[];
     conceptos: TicketConcept[];
     forma_pago: string | null;
     forma_pago_codigo: string | null;
@@ -129,6 +130,7 @@ const ticketHtml = (ticket: TicketData, duplicate: boolean): string => {
         .row strong, .concept strong { text-align: right; }
         .account-name { margin: 3px 0; text-transform: uppercase; }
         .receiver-tax-data { margin: 3px 0; text-transform: uppercase; }
+        .locker-data { margin: 6px 0; }
         .total { font-size: 15px; }
         .footer { margin-top: 10px; font-size: 10px; text-align: center; }
         @media print { body { width: 70mm; } }
@@ -164,6 +166,12 @@ const ticketHtml = (ticket: TicketData, duplicate: boolean): string => {
         ${ticket.receptor_rfc ? `<div>${escapeHtml(ticket.receptor_rfc)}</div>` : ""}
         ${receiverFiscalLine ? `<div>${escapeHtml(receiverFiscalLine)}</div>` : ""}
     </div>
+    ${ticket.casilleros.length ? `
+        <div class="locker-data">
+            <div>Casilleros:</div>
+            <div>${escapeHtml(ticket.casilleros.join(" "))}</div>
+        </div>
+    ` : ""}
     <div class="divider"></div>
     ${concepts || '<div class="center muted">Sin desglose de conceptos</div>'}
     <div class="divider"></div>

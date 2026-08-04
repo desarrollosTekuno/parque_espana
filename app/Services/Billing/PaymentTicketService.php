@@ -7,10 +7,9 @@ use App\Models\Memberships\MembershipAccount;
 use App\Models\User;
 use Illuminate\Support\Str;
 
-class PaymentTicketService
-{
-    public function data(Payment $payment): array
-    {
+class PaymentTicketService {
+
+    public function data(Payment $payment): array {
         $payment->loadMissing([
             'club.clubAddress.city',
             'club.clubAddress.state',
@@ -19,6 +18,8 @@ class PaymentTicketService
             'receiver',
             'membershipAccount.primaryHolder.member',
             'membershipAccount.accountGroup.accounts',
+            'membershipAccount.accountGroup.accounts.currentLockerAssignments.locker',
+            'membershipAccount.currentLockerAssignments.locker',
             'membershipAccount.fiscalData',
             'applications.charge.concept',
         ]);
@@ -61,6 +62,7 @@ class PaymentTicketService
             'receptor_uso_cfdi' => $account?->fiscalData?->cfdi_use,
             'receptor_regimen_fiscal' => $account?->fiscalData?->fiscal_regime,
             'receptor_codigo_postal' => $account?->fiscalData?->postal_code,
+            'casilleros' => $this->lockerCodes($account),
             'conceptos' => $payment->applications->map(function ($application) {
                 $charge = $application->charge;
 
@@ -207,6 +209,36 @@ class PaymentTicketService
             ->implode(' / ');
 
         return $numbers !== '' ? $numbers : null;
+    }
+
+    private function lockerCodes(?MembershipAccount $account): array
+    {
+        if (!$account) {
+            return [];
+        }
+
+        $accounts = collect([$account]);
+
+        if ($account->account_group_id && $account->accountGroup) {
+            $accounts = $account->accountGroup->accounts;
+        }
+
+        return $accounts
+            ->flatMap(fn (MembershipAccount $item) => $item->currentLockerAssignments)
+            ->unique('id')
+            ->sortBy([
+                ['club_id', 'asc'],
+                ['locker_id', 'asc'],
+            ])
+            ->map(function ($assignment) {
+                $category = strtoupper(substr(Str::ascii((string) $assignment->locker?->category), 0, 2));
+                $number = str_pad((string) $assignment->locker?->number, 5, '0', STR_PAD_LEFT);
+
+                return $category . $number;
+            })
+            ->filter()
+            ->values()
+            ->all();
     }
 
     private function shortFolio(?string $folio): ?string
