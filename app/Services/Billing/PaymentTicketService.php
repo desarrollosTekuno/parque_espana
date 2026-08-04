@@ -31,6 +31,8 @@ class PaymentTicketService {
         $total = round((float) $payment->amount, 2);
         $subtotal = $total;
         $iva = null;
+        $ticketSeries = $this->cashierInitial($payment->receiver);
+        $ticketFolio = $this->shortFolio($payment->folio);
 
         if ($club?->applies_iva) {
             $subtotal = round($total / 1.16, 2);
@@ -40,8 +42,9 @@ class PaymentTicketService {
         return [
             'payment_id' => $payment->id,
             'folio' => $payment->folio,
-            'ticket_serie' => $this->cashierInitial($payment->receiver),
-            'ticket_folio' => $this->shortFolio($payment->folio),
+            'ticket_serie' => $ticketSeries,
+            'ticket_folio' => $ticketFolio,
+            'identificacion_archivo' => $this->fileIdentifier($payment, $account, $ticketSeries, $ticketFolio),
             'fecha' => $payment->paid_at,
             'estatus' => $payment->status,
             'club_id' => $payment->club_id,
@@ -293,5 +296,43 @@ class PaymentTicketService {
         }
 
         return $folio;
+    }
+
+    private function fileIdentifier(
+        Payment $payment,
+        ?MembershipAccount $account,
+        ?string $ticketSeries,
+        ?string $ticketFolio
+    ): ?string {
+        if ($payment->ticket_file_identifier) {
+            return $payment->ticket_file_identifier;
+        }
+
+        if (!$account || !$ticketSeries || !$ticketFolio) {
+            return null;
+        }
+
+        $accountNumber = $account->membership_number ?: $account->internal_account_number;
+        $accountDigits = preg_replace('/\D/', '', (string) $accountNumber);
+
+        if ($accountDigits === '') {
+            return null;
+        }
+
+        $accountPart = str_pad($accountDigits, 10, '0', STR_PAD_LEFT);
+        $identifier = $accountPart
+            . 'DP'
+            . $ticketSeries
+            . $ticketSeries
+            . $ticketFolio
+            . strtoupper(Str::random(9));
+
+        $payment->ticket_file_identifier = $identifier;
+
+        if ($payment->exists) {
+            $payment->saveQuietly();
+        }
+
+        return $identifier;
     }
 }

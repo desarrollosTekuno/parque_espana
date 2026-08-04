@@ -164,6 +164,7 @@ class PaymentTicketServiceTest extends TestCase
         $this->assertSame('PE1-AUTO-260804-001', $data['folio']);
         $this->assertSame('A', $data['ticket_serie']);
         $this->assertSame('04001', $data['ticket_folio']);
+        $this->assertMatchesRegularExpression('/^0000000100DPAA04001[A-Z0-9]{9}$/', $data['identificacion_archivo']);
         $this->assertSame('/assets/images/LogoP1.png', $data['club_logo_url']);
         $this->assertSame('FUNDACIÓN DEPORTIVO PARQUE ESPAÑA I', $data['club_nombre_institucion']);
         $this->assertSame('FUNDACIÓN DEPORTIVO PARQUE ESPAÑA', $data['club_razon_social']);
@@ -197,6 +198,7 @@ class PaymentTicketServiceTest extends TestCase
         $naturalData = (new PaymentTicketService())->data($payment);
 
         $this->assertSame(116.0, $naturalData['subtotal']);
+        $this->assertSame($data['identificacion_archivo'], $naturalData['identificacion_archivo']);
         $this->assertNull($naturalData['iva']);
         $this->assertNull($naturalData['iva_porcentaje']);
         $this->assertSame(116.0, $naturalData['total']);

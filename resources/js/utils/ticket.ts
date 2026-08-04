@@ -17,6 +17,7 @@ export interface TicketData {
     folio: string | null;
     ticket_serie: string | null;
     ticket_folio: string | null;
+    identificacion_archivo: string | null;
     fecha: string | null;
     estatus: string | null;
     club_codigo: string | null;
@@ -167,6 +168,8 @@ const ticketHtml = (ticket: TicketData, duplicate: boolean): string => {
         .copy-separator { margin: 12mm 0 5mm; border-top: 1px dashed #000; }
         .institution-copy-label { margin: 8px 0; font-weight: bold; text-align: center; }
         .institution-copy-label:empty { display: none; }
+        .file-identification { margin-top: 10px; font-size: 10px; text-align: left; }
+        .file-identifier { overflow-wrap: anywhere; }
         .account-name { margin: 3px 0; text-transform: uppercase; }
         .receiver-tax-data { margin: 3px 0; text-transform: uppercase; }
         .locker-data { margin: 6px 0; }
@@ -230,8 +233,14 @@ const ticketHtml = (ticket: TicketData, duplicate: boolean): string => {
     <div class="footer">
         <div>${escapeHtml(ticket.leyenda_no_fiscal)}</div>
         <div class="institution-copy-label"></div>
-        ${ticket.club_url_facturacion ? `<div>Facturación: ${escapeHtml(ticket.club_url_facturacion)}</div>` : ""}
     </div>
+    ${ticket.identificacion_archivo ? `
+        <div class="file-identification">
+            <div>Identificación de Archivo:</div>
+            <div class="file-identifier">${escapeHtml(ticket.identificacion_archivo)}</div>
+        </div>
+    ` : ""}
+    ${ticket.club_url_facturacion ? `<div class="footer">Facturación: ${escapeHtml(ticket.club_url_facturacion)}</div>` : ""}
     </section>
 </body>
 </html>`;
