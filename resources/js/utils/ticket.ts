@@ -47,6 +47,8 @@ export interface TicketData {
     banco: string | null;
     numero_cheque: string | null;
     notas: string | null;
+    leyenda_institucion: string;
+    leyenda_no_fiscal: string;
     subtotal: number | null;
     iva: number | null;
     iva_porcentaje: number | null;
@@ -160,6 +162,11 @@ const ticketHtml = (ticket: TicketData, duplicate: boolean): string => {
         .concept-description { margin-bottom: 2px; }
         .concept-discount { text-align: right; }
         .payment-detail { margin: 6px 0; }
+        .institution-legend { margin: 6px 0; text-transform: uppercase; }
+        .ticket-copy { width: 70mm; }
+        .copy-separator { margin: 12mm 0 5mm; border-top: 1px dashed #000; }
+        .institution-copy-label { margin: 8px 0; font-weight: bold; text-align: center; }
+        .institution-copy-label:empty { display: none; }
         .account-name { margin: 3px 0; text-transform: uppercase; }
         .receiver-tax-data { margin: 3px 0; text-transform: uppercase; }
         .locker-data { margin: 6px 0; }
@@ -169,6 +176,7 @@ const ticketHtml = (ticket: TicketData, duplicate: boolean): string => {
     </style>
 </head>
 <body>
+    <section class="ticket-copy">
     <div class="ticket-brand">
         ${ticket.club_logo_url ? `<img class="logo" src="${escapeHtml(ticket.club_logo_url)}" alt="Logo de la institución">` : ""}
         <div class="institution-name">${escapeHtml(ticket.club_nombre_institucion)}</div>
@@ -217,11 +225,14 @@ const ticketHtml = (ticket: TicketData, duplicate: boolean): string => {
     ${ticket.iva !== null ? row(`IVA ${ticket.iva_porcentaje ?? 16}%`, money(ticket.iva)) : ""}
     <div class="row total"><span>Total</span><strong>${escapeHtml(money(ticket.total))}</strong></div>
     <div class="payment-detail">${paymentDetail}</div>
+    <div class="institution-legend">${escapeHtml(ticket.leyenda_institucion)}</div>
     ${ticket.notas ? `<div><strong>Notas:</strong> ${escapeHtml(ticket.notas)}</div>` : ""}
     <div class="footer">
-        <div>Este comprobante no tiene validez fiscal.</div>
+        <div>${escapeHtml(ticket.leyenda_no_fiscal)}</div>
+        <div class="institution-copy-label"></div>
         ${ticket.club_url_facturacion ? `<div>Facturación: ${escapeHtml(ticket.club_url_facturacion)}</div>` : ""}
     </div>
+    </section>
 </body>
 </html>`;
 };
@@ -248,6 +259,22 @@ export const printTicket = async (paymentId: number, duplicate = false): Promise
                 printWindow.onload = () => resolve();
             }
         });
+
+        const originalCopy = printWindow.document.querySelector(".ticket-copy");
+
+        if (originalCopy) {
+            const separator = printWindow.document.createElement("div");
+            separator.className = "copy-separator";
+
+            const institutionCopy = originalCopy.cloneNode(true) as HTMLElement;
+            const institutionLabel = institutionCopy.querySelector(".institution-copy-label");
+
+            if (institutionLabel) {
+                institutionLabel.textContent = "DUPLICADO";
+            }
+
+            printWindow.document.body.append(separator, institutionCopy);
+        }
 
         printWindow.focus();
         printWindow.print();

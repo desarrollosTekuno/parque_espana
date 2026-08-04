@@ -184,6 +184,8 @@ class PaymentTicketServiceTest extends TestCase
         $this->assertSame('TD', $data['forma_pago_ticket_codigo']);
         $this->assertSame('1215121412', $data['pago_identificacion']);
         $this->assertSame('VISA', $data['banco']);
+        $this->assertSame('DOS MESES SIN APORTACIÓN GENERAN SUSPENSIÓN', $data['leyenda_institucion']);
+        $this->assertSame('Este comprobante no tiene validez fiscal.', $data['leyenda_no_fiscal']);
         $this->assertSame('Mensualidad agosto', $data['conceptos'][0]['descripcion']);
         $this->assertSame(1, $data['conceptos'][0]['cantidad']);
         $this->assertSame(100.0, $data['conceptos'][0]['importe_unitario']);

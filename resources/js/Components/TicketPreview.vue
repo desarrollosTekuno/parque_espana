@@ -121,10 +121,11 @@ const paymentDetail = (ticket: TicketData) => {
         <div class="ticket-row ticket-total"><span>Total</span><strong>{{ money(props.ticket.total) }}</strong></div>
 
         <div class="payment-detail">{{ paymentDetail(props.ticket) }}</div>
+        <div class="institution-legend">{{ props.ticket.leyenda_institucion }}</div>
         <div v-if="props.ticket.notas" class="mt-2"><strong>Notas:</strong> {{ props.ticket.notas }}</div>
 
         <div class="ticket-footer">
-            <div>Este comprobante no tiene validez fiscal.</div>
+            <div>{{ props.ticket.leyenda_no_fiscal }}</div>
             <div v-if="props.ticket.club_url_facturacion">Facturación: {{ props.ticket.club_url_facturacion }}</div>
         </div>
     </div>
@@ -259,6 +260,11 @@ const paymentDetail = (ticket: TicketData) => {
 
 .payment-detail {
     margin: 6px 0;
+}
+
+.institution-legend {
+    margin: 6px 0;
+    text-transform: uppercase;
 }
 
 .ticket-footer {

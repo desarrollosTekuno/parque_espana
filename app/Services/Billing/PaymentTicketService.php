@@ -102,6 +102,8 @@ class PaymentTicketService {
             'banco' => $payment->bank_name,
             'numero_cheque' => $payment->check_number,
             'notas' => $payment->notes,
+            'leyenda_institucion' => 'DOS MESES SIN APORTACIÓN GENERAN SUSPENSIÓN',
+            'leyenda_no_fiscal' => 'Este comprobante no tiene validez fiscal.',
             'subtotal' => $subtotal,
             'iva' => $iva,
             'iva_porcentaje' => $club?->applies_iva ? 16 : null,
