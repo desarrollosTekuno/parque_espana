@@ -3,6 +3,7 @@
 namespace App\Services\Billing;
 
 use App\Models\Billing\Payment;
+use App\Models\Memberships\MembershipAccount;
 use App\Models\User;
 use Illuminate\Support\Str;
 
@@ -17,6 +18,7 @@ class PaymentTicketService
             'paymentMethod',
             'receiver',
             'membershipAccount.primaryHolder.member',
+            'membershipAccount.accountGroup.accounts',
             'applications.charge.concept',
         ]);
 
@@ -50,7 +52,7 @@ class PaymentTicketService
             'club_logo_url' => $this->logoUrl($club?->code, $club?->logo_url),
             'cajero_nombre' => $payment->receiver?->name,
             'cajero_codigo' => $this->cashierCode($payment->receiver),
-            'cuenta_numero' => $account?->membership_number,
+            'cuenta_numero' => $this->accountNumbers($account),
             'cuenta_interna' => $account?->internal_account_number,
             'titular' => $holder?->full_name,
             'conceptos' => $payment->applications->map(function ($application) {
@@ -177,6 +179,28 @@ class PaymentTicketService
         }
 
         return $initials !== '' ? $initials : null;
+    }
+
+    private function accountNumbers(?MembershipAccount $account): ?string
+    {
+        if (!$account) {
+            return null;
+        }
+
+        $accounts = collect([$account]);
+
+        if ($account->account_group_id && $account->accountGroup) {
+            $accounts = $account->accountGroup->accounts;
+        }
+
+        $numbers = $accounts
+            ->sortBy('club_id')
+            ->map(fn (MembershipAccount $item) => $item->membership_number ?: $item->internal_account_number)
+            ->filter()
+            ->unique()
+            ->implode(' / ');
+
+        return $numbers !== '' ? $numbers : null;
     }
 
     private function shortFolio(?string $folio): ?string

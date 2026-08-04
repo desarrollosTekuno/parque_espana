@@ -69,7 +69,7 @@ const ticketDate = (value: string | null) => {
         </div>
 
         <div class="ticket-divider"></div>
-        <div class="ticket-row"><span>Cuenta</span><strong>{{ props.ticket.cuenta_numero || props.ticket.cuenta_interna || "-" }}</strong></div>
+        <div class="ticket-row"><span>Cuenta:</span><strong>{{ props.ticket.cuenta_numero || props.ticket.cuenta_interna || "-" }}</strong></div>
         <div class="ticket-row"><span>Titular</span><strong>{{ props.ticket.titular || "-" }}</strong></div>
 
         <div class="ticket-divider"></div>

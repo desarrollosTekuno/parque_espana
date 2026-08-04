@@ -145,7 +145,7 @@ const ticketHtml = (ticket: TicketData, duplicate: boolean): string => {
         ${ticket.estatus === "cancelled" ? '<div class="warning">CANCELADO</div>' : ""}
     </div>
     <div class="divider"></div>
-    ${row("Cuenta", ticket.cuenta_numero ?? ticket.cuenta_interna)}
+    ${row("Cuenta:", ticket.cuenta_numero ?? ticket.cuenta_interna)}
     ${row("Titular", ticket.titular)}
     <div class="divider"></div>
     ${concepts || '<div class="center muted">Sin desglose de conceptos</div>'}

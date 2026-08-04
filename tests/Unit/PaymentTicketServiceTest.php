@@ -15,6 +15,7 @@ use App\Models\Catalogs\State;
 use App\Models\Members\Member;
 use App\Models\Memberships\MembershipAccount;
 use App\Models\Memberships\MembershipAccountMember;
+use App\Models\Memberships\MembershipAccountGroup;
 use App\Services\Billing\PaymentTicketService;
 use App\Models\User;
 use Carbon\Carbon;
@@ -58,10 +59,26 @@ class PaymentTicketServiceTest extends TestCase
         $holder->setRelation('member', $member);
 
         $account = (new MembershipAccount())->forceFill([
+            'account_group_id' => 1,
+            'club_id' => 1,
             'membership_number' => 'M-100',
             'internal_account_number' => 'I-100',
         ]);
+        $account->id = 1;
         $account->setRelation('primaryHolder', $holder);
+
+        $secondAccount = (new MembershipAccount())->forceFill([
+            'account_group_id' => 1,
+            'club_id' => 2,
+            'membership_number' => 'M-200',
+            'internal_account_number' => 'I-200',
+        ]);
+        $secondAccount->id = 2;
+
+        $accountGroup = new MembershipAccountGroup();
+        $accountGroup->id = 1;
+        $accountGroup->setRelation('accounts', new Collection([$account, $secondAccount]));
+        $account->setRelation('accountGroup', $accountGroup);
 
         $concept = (new ChargeConcept())->forceFill([
             'code' => 'MONTHLY_FEE',
@@ -117,6 +134,7 @@ class PaymentTicketServiceTest extends TestCase
         $this->assertSame('FUNDACIÓN DEPORTIVO PARQUE ESPAÑA', $data['club_razon_social']);
         $this->assertSame('FDP990423J51', $data['club_rfc']);
         $this->assertSame('CNF', $data['cajero_codigo']);
+        $this->assertSame('M-100 / M-200', $data['cuenta_numero']);
         $this->assertSame('Ana Pérez López', $data['titular']);
         $this->assertSame(['25 Oriente #1001', 'CP 72500', 'Puebla Puebla México'], $data['club_direccion_lineas']);
         $this->assertSame(100.0, $data['subtotal']);
