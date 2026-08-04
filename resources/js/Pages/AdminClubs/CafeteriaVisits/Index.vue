@@ -80,8 +80,11 @@ const documentTypeOptions = [
 ]
 
 const timeInfo = (expiresAt: string) => {
-    const expiration = new Date(expiresAt.replace('Z', ''));
+    const expiration = new Date(expiresAt);
     const diff = expiration.getTime() - now.value.getTime();
+    console.log('expiresAt:', expiresAt);
+    console.log('now local:', now.value.toString());
+    console.log('expiration local:', expiration.toString());
 
     if (diff <= 0) {
         const overMin = Math.floor(-diff / 60000);
