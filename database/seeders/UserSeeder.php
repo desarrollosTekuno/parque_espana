@@ -36,11 +36,3 @@ class UserSeeder extends Seeder
     }
 }
 
-// Segun yo seria asi
-// Inicio: Carousel Subir de 1 a 5 imagenes
-// Inicio: Cards de Gimnasio, Alberca, Tenis, Jardines, Cafetería (Maximo 10, 2 para cada categoria)
-// Membresias: Solo precios
-// Instalaciones: Vista virtual - En grid crear modulo para cargar categorías e imágenes (Interios, Exterior, Serivioc, Actividad fisica, Estacionamiento por default)
-// Instalaciones: Api para eventos, (se van a visualizar en un calendario)
-
-// Todas deben tener un tamaño minimo y se van a redimencionar de momento tu dales un tamaño que consideres que se va a ver bien en la pagina, tambien se van a convertir a .web las imagenes que suban
