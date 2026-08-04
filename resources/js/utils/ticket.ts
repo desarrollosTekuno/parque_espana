@@ -41,6 +41,8 @@ export interface TicketData {
     conceptos: TicketConcept[];
     forma_pago: string | null;
     forma_pago_codigo: string | null;
+    forma_pago_ticket_codigo: string | null;
+    pago_identificacion: string | null;
     referencia: string | null;
     banco: string | null;
     numero_cheque: string | null;
@@ -77,6 +79,10 @@ const ticketDate = (value: string | null): string => {
         month: "2-digit",
         year: "2-digit",
     });
+};
+
+const paymentAmount = (value: number): string => {
+    return Number(value).toFixed(2);
 };
 
 const row = (label: string, value: unknown): string => {
@@ -118,6 +124,12 @@ const ticketHtml = (ticket: TicketData, duplicate: boolean): string => {
         ticket.receptor_regimen_fiscal,
         ticket.receptor_codigo_postal,
     ].filter(Boolean).join(" ");
+    const paymentDetail = [
+        ticket.forma_pago_ticket_codigo,
+        paymentAmount(ticket.total),
+        ticket.pago_identificacion,
+        ticket.banco,
+    ].filter(Boolean).map(escapeHtml).join(" ");
 
     return `<!doctype html>
 <html lang="es">
@@ -147,6 +159,7 @@ const ticketHtml = (ticket: TicketData, duplicate: boolean): string => {
         .concept-item { margin: 5px 0; }
         .concept-description { margin-bottom: 2px; }
         .concept-discount { text-align: right; }
+        .payment-detail { margin: 6px 0; }
         .account-name { margin: 3px 0; text-transform: uppercase; }
         .receiver-tax-data { margin: 3px 0; text-transform: uppercase; }
         .locker-data { margin: 6px 0; }
@@ -203,11 +216,7 @@ const ticketHtml = (ticket: TicketData, duplicate: boolean): string => {
     ${ticket.subtotal !== null ? row("Subtotal", money(ticket.subtotal)) : ""}
     ${ticket.iva !== null ? row(`IVA ${ticket.iva_porcentaje ?? 16}%`, money(ticket.iva)) : ""}
     <div class="row total"><span>Total</span><strong>${escapeHtml(money(ticket.total))}</strong></div>
-    <div class="divider"></div>
-    ${row("Forma de pago", ticket.forma_pago)}
-    ${row("Referencia", ticket.referencia)}
-    ${row("Banco", ticket.banco)}
-    ${row("Cheque", ticket.numero_cheque)}
+    <div class="payment-detail">${paymentDetail}</div>
     ${ticket.notas ? `<div><strong>Notas:</strong> ${escapeHtml(ticket.notas)}</div>` : ""}
     <div class="footer">
         <div>Este comprobante no tiene validez fiscal.</div>

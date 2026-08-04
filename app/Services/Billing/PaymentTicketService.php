@@ -96,6 +96,8 @@ class PaymentTicketService {
             })->values()->all(),
             'forma_pago' => $payment->paymentMethod?->name,
             'forma_pago_codigo' => $payment->paymentMethod?->code,
+            'forma_pago_ticket_codigo' => $this->paymentMethodTicketCode($payment->paymentMethod?->code),
+            'pago_identificacion' => $payment->check_number ?: $payment->reference,
             'referencia' => $payment->reference,
             'banco' => $payment->bank_name,
             'numero_cheque' => $payment->check_number,
@@ -259,6 +261,19 @@ class PaymentTicketService {
             ->filter()
             ->values()
             ->all();
+    }
+
+    private function paymentMethodTicketCode(?string $code): ?string
+    {
+        return match ($code) {
+            'CASH' => 'EF',
+            'BANK_TRANSFER' => 'TR',
+            'APP_PAYMENT' => 'AP',
+            'CHECK' => 'CH',
+            'CREDIT_CARD' => 'TC',
+            'DEBIT_CARD' => 'TD',
+            default => $code,
+        };
     }
 
     private function shortFolio(?string $folio): ?string

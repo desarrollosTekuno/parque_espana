@@ -25,6 +25,15 @@ const ticketDate = (value: string | null) => {
         year: "2-digit",
     });
 };
+
+const paymentDetail = (ticket: TicketData) => {
+    return [
+        ticket.forma_pago_ticket_codigo,
+        Number(ticket.total).toFixed(2),
+        ticket.pago_identificacion,
+        ticket.banco,
+    ].filter(Boolean).join(" ");
+};
 </script>
 
 <template>
@@ -111,11 +120,7 @@ const ticketDate = (value: string | null) => {
         <div v-if="props.ticket.iva !== null" class="ticket-row"><span>IVA {{ props.ticket.iva_porcentaje || 16 }}%</span><strong>{{ money(props.ticket.iva) }}</strong></div>
         <div class="ticket-row ticket-total"><span>Total</span><strong>{{ money(props.ticket.total) }}</strong></div>
 
-        <div class="ticket-divider"></div>
-        <div class="ticket-row"><span>Forma de pago</span><strong>{{ props.ticket.forma_pago || "-" }}</strong></div>
-        <div v-if="props.ticket.referencia" class="ticket-row"><span>Referencia</span><strong>{{ props.ticket.referencia }}</strong></div>
-        <div v-if="props.ticket.banco" class="ticket-row"><span>Banco</span><strong>{{ props.ticket.banco }}</strong></div>
-        <div v-if="props.ticket.numero_cheque" class="ticket-row"><span>Cheque</span><strong>{{ props.ticket.numero_cheque }}</strong></div>
+        <div class="payment-detail">{{ paymentDetail(props.ticket) }}</div>
         <div v-if="props.ticket.notas" class="mt-2"><strong>Notas:</strong> {{ props.ticket.notas }}</div>
 
         <div class="ticket-footer">
@@ -250,6 +255,10 @@ const ticketDate = (value: string | null) => {
 
 .ticket-total {
     font-size: 15px;
+}
+
+.payment-detail {
+    margin: 6px 0;
 }
 
 .ticket-footer {

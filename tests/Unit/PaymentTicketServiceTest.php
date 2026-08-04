@@ -126,8 +126,8 @@ class PaymentTicketServiceTest extends TestCase
         $application->setRelation('charge', $charge);
 
         $paymentMethod = (new PaymentMethod())->forceFill([
-            'code' => 'CASH',
-            'name' => 'Efectivo',
+            'code' => 'DEBIT_CARD',
+            'name' => 'Tarjeta de dÃ©bito',
         ]);
 
         $receiver = (new User())->forceFill([
@@ -149,6 +149,8 @@ class PaymentTicketServiceTest extends TestCase
             'paid_at' => Carbon::parse('2026-08-04 10:00:00'),
             'status' => 'registered',
             'metadata' => '[]',
+            'reference' => '1215121412',
+            'bank_name' => 'VISA',
         ]);
         $payment->id = 20;
         $payment->setRelation('club', $club);
@@ -179,6 +181,9 @@ class PaymentTicketServiceTest extends TestCase
         $this->assertSame(100.0, $data['subtotal']);
         $this->assertSame(16.0, $data['iva']);
         $this->assertSame(116.0, $data['total']);
+        $this->assertSame('TD', $data['forma_pago_ticket_codigo']);
+        $this->assertSame('1215121412', $data['pago_identificacion']);
+        $this->assertSame('VISA', $data['banco']);
         $this->assertSame('Mensualidad agosto', $data['conceptos'][0]['descripcion']);
         $this->assertSame(1, $data['conceptos'][0]['cantidad']);
         $this->assertSame(100.0, $data['conceptos'][0]['importe_unitario']);
