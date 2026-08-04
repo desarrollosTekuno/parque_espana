@@ -28,12 +28,13 @@ class PaymentTicketService {
         $account = $payment->membershipAccount;
         $holder = $account?->primaryHolder?->member;
         $addressLines = $this->addressLines($payment);
-        $subtotal = null;
+        $total = round((float) $payment->amount, 2);
+        $subtotal = $total;
         $iva = null;
 
         if ($club?->applies_iva) {
-            $subtotal = round((float) $payment->amount / 1.16, 2);
-            $iva = round((float) $payment->amount - $subtotal, 2);
+            $subtotal = round($total / 1.16, 2);
+            $iva = round($total - $subtotal, 2);
         }
 
         return [
@@ -102,7 +103,7 @@ class PaymentTicketService {
             'subtotal' => $subtotal,
             'iva' => $iva,
             'iva_porcentaje' => $club?->applies_iva ? 16 : null,
-            'total' => (float) $payment->amount,
+            'total' => $total,
             'desglose_parques' => $payment->metadata['park_split'] ?? null,
         ];
     }

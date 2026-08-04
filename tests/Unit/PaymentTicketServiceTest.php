@@ -178,11 +178,21 @@ class PaymentTicketServiceTest extends TestCase
         $this->assertSame(['25 Oriente #1001', 'CP 72500', 'Puebla Puebla México'], $data['club_direccion_lineas']);
         $this->assertSame(100.0, $data['subtotal']);
         $this->assertSame(16.0, $data['iva']);
+        $this->assertSame(116.0, $data['total']);
         $this->assertSame('Mensualidad agosto', $data['conceptos'][0]['descripcion']);
         $this->assertSame(1, $data['conceptos'][0]['cantidad']);
         $this->assertSame(100.0, $data['conceptos'][0]['importe_unitario']);
         $this->assertSame(100.0, $data['conceptos'][0]['total']);
         $this->assertNull($data['conceptos'][0]['descuento']);
         $this->assertSame(116.0, $data['conceptos'][0]['monto']);
+
+        $club->applies_iva = false;
+        $naturalData = (new PaymentTicketService())->data($payment);
+
+        $this->assertSame(116.0, $naturalData['subtotal']);
+        $this->assertNull($naturalData['iva']);
+        $this->assertNull($naturalData['iva_porcentaje']);
+        $this->assertSame(116.0, $naturalData['total']);
+        $this->assertSame(116.0, $naturalData['conceptos'][0]['importe_unitario']);
     }
 }
