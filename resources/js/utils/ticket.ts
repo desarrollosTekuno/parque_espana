@@ -170,6 +170,7 @@ const ticketHtml = (ticket: TicketData, duplicate: boolean): string => {
         .institution-copy-label:empty { display: none; }
         .file-identification { margin-top: 10px; font-size: 10px; text-align: left; }
         .file-identifier { overflow-wrap: anywhere; }
+        .useful-information { margin-top: 10px; font-size: 10px; text-align: left; }
         .account-name { margin: 3px 0; text-transform: uppercase; }
         .receiver-tax-data { margin: 3px 0; text-transform: uppercase; }
         .locker-data { margin: 6px 0; }
@@ -240,7 +241,12 @@ const ticketHtml = (ticket: TicketData, duplicate: boolean): string => {
             <div class="file-identifier">${escapeHtml(ticket.identificacion_archivo)}</div>
         </div>
     ` : ""}
-    ${ticket.club_url_facturacion ? `<div class="footer">Facturación: ${escapeHtml(ticket.club_url_facturacion)}</div>` : ""}
+    ${ticket.club_url_facturacion ? `
+        <div class="useful-information">
+            <div>Puede descargar sus comprobantes fiscales en la siguiente dirección:</div>
+            <div>${escapeHtml(ticket.club_url_facturacion)}</div>
+        </div>
+    ` : ""}
     </section>
 </body>
 </html>`;

@@ -131,8 +131,9 @@ const paymentDetail = (ticket: TicketData) => {
             <div>Identificación de Archivo:</div>
             <div class="file-identifier">{{ props.ticket.identificacion_archivo }}</div>
         </div>
-        <div v-if="props.ticket.club_url_facturacion" class="ticket-footer">
-            Facturación: {{ props.ticket.club_url_facturacion }}
+        <div v-if="props.ticket.club_url_facturacion" class="useful-information">
+            <div>Puede descargar sus comprobantes fiscales en la siguiente dirección:</div>
+            <div>{{ props.ticket.club_url_facturacion }}</div>
         </div>
     </div>
 </template>
@@ -287,5 +288,11 @@ const paymentDetail = (ticket: TicketData) => {
 
 .file-identifier {
     overflow-wrap: anywhere;
+}
+
+.useful-information {
+    margin-top: 12px;
+    text-align: left;
+    font-size: 10px;
 }
 </style>
