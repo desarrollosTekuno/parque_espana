@@ -29,7 +29,6 @@ class TicketController extends Controller {
 
         $query = Payment::query()
             ->where('club_id', $clubId)
-            ->whereNotNull('folio')
             ->with([
                 'receiver',
                 'paymentMethod',

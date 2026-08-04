@@ -1,0 +1,130 @@
+<script setup lang="ts">
+import type { TicketData } from "@/utils/ticket";
+
+/* ====================== Props ====================== */
+const props = defineProps<{
+    ticket: TicketData;
+}>();
+
+/* ====================== Funciones ====================== */
+const money = (value: number | null) => {
+    return new Intl.NumberFormat("es-MX", {
+        style: "currency",
+        currency: "MXN",
+    }).format(Number(value ?? 0));
+};
+
+const dateTime = (value: string | null) => {
+    return value ? new Date(value).toLocaleString("es-MX") : "-";
+};
+</script>
+
+<template>
+    <div class="ticket-preview">
+        <img
+            v-if="props.ticket.club_logo_url"
+            :src="props.ticket.club_logo_url"
+            class="ticket-logo"
+            alt="Logo"
+        />
+
+        <div class="text-center">
+            <h3>{{ props.ticket.club_razon_social || props.ticket.club_nombre || "Parque" }}</h3>
+            <div v-for="line in props.ticket.club_direccion_lineas" :key="line">
+                {{ line }}
+            </div>
+            <div v-if="props.ticket.club_rfc">RFC: {{ props.ticket.club_rfc }}</div>
+            <h4>{{ props.ticket.folio || `Pago #${props.ticket.payment_id}` }}</h4>
+            <strong v-if="!props.ticket.folio" class="ticket-warning">PRUEBA SIN FOLIO</strong>
+            <strong v-if="props.ticket.estatus === 'cancelled'" class="ticket-warning">CANCELADO</strong>
+        </div>
+
+        <div class="ticket-divider"></div>
+        <div class="ticket-row"><span>Fecha</span><strong>{{ dateTime(props.ticket.fecha) }}</strong></div>
+        <div class="ticket-row"><span>Cuenta</span><strong>{{ props.ticket.cuenta_numero || props.ticket.cuenta_interna || "-" }}</strong></div>
+        <div class="ticket-row"><span>Titular</span><strong>{{ props.ticket.titular || "-" }}</strong></div>
+        <div class="ticket-row"><span>Cajero</span><strong>{{ props.ticket.cajero_nombre || "-" }}<template v-if="props.ticket.cajero_codigo"> ({{ props.ticket.cajero_codigo }})</template></strong></div>
+
+        <div class="ticket-divider"></div>
+        <div v-if="props.ticket.conceptos.length">
+            <div v-for="concept in props.ticket.conceptos" :key="`${concept.charge_id}-${concept.monto}`" class="ticket-row">
+                <span>{{ concept.concepto || concept.descripcion || `Cargo #${concept.charge_id}` }}</span>
+                <strong>{{ money(concept.monto) }}</strong>
+            </div>
+        </div>
+        <div v-else class="text-center text-caption">Sin desglose de conceptos</div>
+
+        <div class="ticket-divider"></div>
+        <div v-if="props.ticket.subtotal !== null" class="ticket-row"><span>Subtotal</span><strong>{{ money(props.ticket.subtotal) }}</strong></div>
+        <div v-if="props.ticket.iva !== null" class="ticket-row"><span>IVA {{ props.ticket.iva_porcentaje || 16 }}%</span><strong>{{ money(props.ticket.iva) }}</strong></div>
+        <div class="ticket-row ticket-total"><span>Total</span><strong>{{ money(props.ticket.total) }}</strong></div>
+
+        <div class="ticket-divider"></div>
+        <div class="ticket-row"><span>Forma de pago</span><strong>{{ props.ticket.forma_pago || "-" }}</strong></div>
+        <div v-if="props.ticket.referencia" class="ticket-row"><span>Referencia</span><strong>{{ props.ticket.referencia }}</strong></div>
+        <div v-if="props.ticket.banco" class="ticket-row"><span>Banco</span><strong>{{ props.ticket.banco }}</strong></div>
+        <div v-if="props.ticket.numero_cheque" class="ticket-row"><span>Cheque</span><strong>{{ props.ticket.numero_cheque }}</strong></div>
+        <div v-if="props.ticket.notas" class="mt-2"><strong>Notas:</strong> {{ props.ticket.notas }}</div>
+
+        <div class="ticket-footer">
+            <div>Este comprobante no tiene validez fiscal.</div>
+            <div v-if="props.ticket.club_url_facturacion">Facturación: {{ props.ticket.club_url_facturacion }}</div>
+        </div>
+    </div>
+</template>
+
+<style scoped>
+.ticket-preview {
+    width: 76mm;
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 12px;
+    color: #111;
+    background: #fff;
+    font-family: Arial, sans-serif;
+    font-size: 12px;
+}
+
+.ticket-logo {
+    display: block;
+    max-width: 42mm;
+    max-height: 20mm;
+    margin: 0 auto 6px;
+}
+
+.ticket-preview h3,
+.ticket-preview h4 {
+    margin: 5px 0;
+}
+
+.ticket-warning {
+    display: block;
+    margin: 5px 0;
+}
+
+.ticket-divider {
+    margin: 8px 0;
+    border-top: 1px dashed #111;
+}
+
+.ticket-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 3px 0;
+}
+
+.ticket-row strong {
+    text-align: right;
+}
+
+.ticket-total {
+    font-size: 15px;
+}
+
+.ticket-footer {
+    margin-top: 12px;
+    text-align: center;
+    font-size: 10px;
+}
+</style>
