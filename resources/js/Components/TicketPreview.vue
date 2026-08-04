@@ -71,6 +71,13 @@ const ticketDate = (value: string | null) => {
         <div class="ticket-divider"></div>
         <div class="ticket-row"><span>Cuenta:</span><strong>{{ props.ticket.cuenta_numero || props.ticket.cuenta_interna || "-" }}</strong></div>
         <div class="account-name">{{ props.ticket.titular || "-" }}</div>
+        <div class="receiver-tax-data">
+            <div v-if="props.ticket.receptor_nombre">{{ props.ticket.receptor_nombre }}</div>
+            <div v-if="props.ticket.receptor_rfc">{{ props.ticket.receptor_rfc }}</div>
+            <div v-if="props.ticket.receptor_uso_cfdi || props.ticket.receptor_regimen_fiscal || props.ticket.receptor_codigo_postal">
+                {{ [props.ticket.receptor_uso_cfdi, props.ticket.receptor_regimen_fiscal, props.ticket.receptor_codigo_postal].filter(Boolean).join(" ") }}
+            </div>
+        </div>
 
         <div class="ticket-divider"></div>
         <div v-if="props.ticket.conceptos.length">
@@ -175,6 +182,11 @@ const ticketDate = (value: string | null) => {
 }
 
 .account-name {
+    margin: 3px 0;
+    text-transform: uppercase;
+}
+
+.receiver-tax-data {
     margin: 3px 0;
     text-transform: uppercase;
 }

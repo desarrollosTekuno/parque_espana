@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\Administrator\Club;
 use App\Models\Billing\Payment;
 use App\Models\Members\Member;
+use App\Models\Memberships\AccountFiscalData;
 use App\Models\Memberships\MembershipAccount;
 use App\Models\Memberships\MembershipAccountGroup;
 use App\Models\Memberships\MembershipAccountMember;
@@ -86,6 +87,17 @@ class PaymentTicketTestSeeder extends Seeder
             [
                 'relationship_id' => null,
                 'is_primary_holder' => true,
+            ]
+        );
+
+        AccountFiscalData::query()->updateOrCreate(
+            ['membership_account_id' => $account->id],
+            [
+                'fiscal_name' => 'SOCIO PRUEBA TICKETS',
+                'rfc' => 'XAXX010101000',
+                'cfdi_use' => 'G03',
+                'fiscal_regime' => '612',
+                'postal_code' => '72500',
             ]
         );
     }

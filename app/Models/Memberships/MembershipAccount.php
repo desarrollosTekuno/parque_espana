@@ -43,6 +43,11 @@ class MembershipAccount extends Model
         return $this->belongsTo(MembershipAccountGroup::class, 'account_group_id');
     }
 
+    public function fiscalData()
+    {
+        return $this->hasOne(AccountFiscalData::class, 'membership_account_id');
+    }
+
     public function club()
     {
         return $this->belongsTo(Club::class, 'club_id');

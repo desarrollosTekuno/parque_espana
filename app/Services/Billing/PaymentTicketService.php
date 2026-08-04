@@ -19,6 +19,7 @@ class PaymentTicketService
             'receiver',
             'membershipAccount.primaryHolder.member',
             'membershipAccount.accountGroup.accounts',
+            'membershipAccount.fiscalData',
             'applications.charge.concept',
         ]);
 
@@ -55,6 +56,11 @@ class PaymentTicketService
             'cuenta_numero' => $this->accountNumbers($account),
             'cuenta_interna' => $account?->internal_account_number,
             'titular' => $holder?->full_name,
+            'receptor_nombre' => $account?->fiscalData?->fiscal_name,
+            'receptor_rfc' => $account?->fiscalData?->rfc,
+            'receptor_uso_cfdi' => $account?->fiscalData?->cfdi_use,
+            'receptor_regimen_fiscal' => $account?->fiscalData?->fiscal_regime,
+            'receptor_codigo_postal' => $account?->fiscalData?->postal_code,
             'conceptos' => $payment->applications->map(function ($application) {
                 $charge = $application->charge;
 

@@ -13,6 +13,7 @@ use App\Models\Catalogs\City;
 use App\Models\Catalogs\Country;
 use App\Models\Catalogs\State;
 use App\Models\Members\Member;
+use App\Models\Memberships\AccountFiscalData;
 use App\Models\Memberships\MembershipAccount;
 use App\Models\Memberships\MembershipAccountMember;
 use App\Models\Memberships\MembershipAccountGroup;
@@ -66,6 +67,13 @@ class PaymentTicketServiceTest extends TestCase
         ]);
         $account->id = 1;
         $account->setRelation('primaryHolder', $holder);
+        $account->setRelation('fiscalData', (new AccountFiscalData())->forceFill([
+            'fiscal_name' => 'ANA PEREZ LOPEZ',
+            'rfc' => 'PELJ900101ABC',
+            'cfdi_use' => 'G03',
+            'fiscal_regime' => '612',
+            'postal_code' => '72500',
+        ]));
 
         $secondAccount = (new MembershipAccount())->forceFill([
             'account_group_id' => 1,
@@ -135,6 +143,11 @@ class PaymentTicketServiceTest extends TestCase
         $this->assertSame('FDP990423J51', $data['club_rfc']);
         $this->assertSame('CNF', $data['cajero_codigo']);
         $this->assertSame('M-100 / M-200', $data['cuenta_numero']);
+        $this->assertSame('ANA PEREZ LOPEZ', $data['receptor_nombre']);
+        $this->assertSame('PELJ900101ABC', $data['receptor_rfc']);
+        $this->assertSame('G03', $data['receptor_uso_cfdi']);
+        $this->assertSame('612', $data['receptor_regimen_fiscal']);
+        $this->assertSame('72500', $data['receptor_codigo_postal']);
         $this->assertSame('Ana Pérez López', $data['titular']);
         $this->assertSame(['25 Oriente #1001', 'CP 72500', 'Puebla Puebla México'], $data['club_direccion_lineas']);
         $this->assertSame(100.0, $data['subtotal']);
