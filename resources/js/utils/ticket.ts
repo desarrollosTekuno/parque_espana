@@ -5,6 +5,10 @@ export interface TicketConcept {
     codigo: string | null;
     concepto: string | null;
     descripcion: string | null;
+    cantidad: number;
+    importe_unitario: number;
+    total: number;
+    descuento: number | null;
     monto: number;
 }
 
@@ -93,9 +97,17 @@ const ticketHtml = (ticket: TicketData, duplicate: boolean): string => {
     const ticketNumber = [ticket.ticket_serie, ticket.ticket_folio].filter(Boolean).join(" ");
     const title = ticketNumber ? `Ticket: ${ticketNumber}` : `Pago #${ticket.payment_id}`;
     const concepts = ticket.conceptos.map((concept) => `
-        <div class="concept">
-            <div>${escapeHtml(concept.concepto ?? concept.descripcion ?? `Cargo #${concept.charge_id}`)}</div>
-            <strong>${escapeHtml(money(concept.monto))}</strong>
+        <div class="concept-item">
+            <div class="concept-description">
+                ${concept.codigo ? `<strong>${escapeHtml(concept.codigo)}</strong> ` : ""}
+                ${escapeHtml(concept.descripcion ?? concept.concepto ?? `Cargo #${concept.charge_id}`)}
+            </div>
+            <div class="concept-values">
+                <span>${escapeHtml(concept.cantidad)}</span>
+                <span>${escapeHtml(money(concept.importe_unitario))}</span>
+                <strong>${escapeHtml(money(concept.total))}</strong>
+            </div>
+            ${concept.descuento ? `<div class="concept-discount">Descuento: ${escapeHtml(money(concept.descuento))}</div>` : ""}
         </div>
     `).join("");
     const address = ticket.club_direccion_lineas
@@ -126,8 +138,15 @@ const ticketHtml = (ticket: TicketData, duplicate: boolean): string => {
         .muted { font-size: 10px; }
         .warning { margin: 5px 0; font-weight: bold; }
         .divider { border-top: 1px dashed #000; margin: 7px 0; }
-        .row, .concept { display: flex; justify-content: space-between; gap: 8px; margin: 3px 0; }
-        .row strong, .concept strong { text-align: right; }
+        .row { display: flex; justify-content: space-between; gap: 8px; margin: 3px 0; }
+        .row strong { text-align: right; }
+        .concept-title { margin-top: 7px; font-weight: bold; }
+        .concept-header, .concept-values { display: grid; grid-template-columns: 12mm 28mm 1fr; gap: 2mm; }
+        .concept-header { margin: 3px 0; font-weight: bold; }
+        .concept-header span:nth-child(n+2), .concept-values span:nth-child(n+2), .concept-values strong { text-align: right; }
+        .concept-item { margin: 5px 0; }
+        .concept-description { margin-bottom: 2px; }
+        .concept-discount { text-align: right; }
         .account-name { margin: 3px 0; text-transform: uppercase; }
         .receiver-tax-data { margin: 3px 0; text-transform: uppercase; }
         .locker-data { margin: 6px 0; }
@@ -173,6 +192,12 @@ const ticketHtml = (ticket: TicketData, duplicate: boolean): string => {
         </div>
     ` : ""}
     <div class="divider"></div>
+    <div class="concept-title">Concepto</div>
+    <div class="concept-header">
+        <span>Can</span>
+        <span>Importe U.</span>
+        <span>Total</span>
+    </div>
     ${concepts || '<div class="center muted">Sin desglose de conceptos</div>'}
     <div class="divider"></div>
     ${ticket.subtotal !== null ? row("Subtotal", money(ticket.subtotal)) : ""}

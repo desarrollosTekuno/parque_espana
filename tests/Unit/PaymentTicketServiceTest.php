@@ -179,6 +179,10 @@ class PaymentTicketServiceTest extends TestCase
         $this->assertSame(100.0, $data['subtotal']);
         $this->assertSame(16.0, $data['iva']);
         $this->assertSame('Mensualidad agosto', $data['conceptos'][0]['descripcion']);
+        $this->assertSame(1, $data['conceptos'][0]['cantidad']);
+        $this->assertSame(100.0, $data['conceptos'][0]['importe_unitario']);
+        $this->assertSame(100.0, $data['conceptos'][0]['total']);
+        $this->assertNull($data['conceptos'][0]['descuento']);
         $this->assertSame(116.0, $data['conceptos'][0]['monto']);
     }
 }

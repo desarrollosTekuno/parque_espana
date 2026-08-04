@@ -63,16 +63,35 @@ class PaymentTicketService {
             'receptor_regimen_fiscal' => $account?->fiscalData?->fiscal_regime,
             'receptor_codigo_postal' => $account?->fiscalData?->postal_code,
             'casilleros' => $this->lockerCodes($account),
-            'conceptos' => $payment->applications->map(function ($application) {
+            'conceptos' => $payment->applications->map(function ($application) use ($club) {
                 $charge = $application->charge;
+                $amount = (float) $application->applied_amount;
+                $unitPrice = $club?->applies_iva ? round($amount / 1.16, 2) : $amount;
 
                 return [
                     'charge_id' => $charge?->id,
                     'codigo' => $charge?->concept?->code,
                     'concepto' => $charge?->concept?->name,
                     'descripcion' => $charge?->description,
-                    'monto' => (float) $application->applied_amount,
+                    'cantidad' => 1,
+                    'importe_unitario' => $unitPrice,
+                    'total' => $unitPrice,
+                    'descuento' => null,
+                    'monto' => $amount,
                 ];
+            })->groupBy(function (array $item) {
+                return ($item['codigo'] ?? $item['charge_id']) . '|' . number_format($item['importe_unitario'], 2, '.', '');
+            })->map(function ($items) {
+                $concept = $items->first();
+                $concept['cantidad'] = $items->count();
+                $concept['total'] = round($items->sum('total'), 2);
+                $concept['monto'] = round($items->sum('monto'), 2);
+
+                if ($items->count() > 1) {
+                    $concept['descripcion'] = $concept['concepto'];
+                }
+
+                return $concept;
             })->values()->all(),
             'forma_pago' => $payment->paymentMethod?->name,
             'forma_pago_codigo' => $payment->paymentMethod?->code,

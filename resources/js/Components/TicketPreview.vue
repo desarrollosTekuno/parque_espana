@@ -84,10 +84,24 @@ const ticketDate = (value: string | null) => {
         </div>
 
         <div class="ticket-divider"></div>
+        <div class="concept-title">Concepto</div>
+        <div class="concept-header">
+            <span>Can</span>
+            <span>Importe U.</span>
+            <span>Total</span>
+        </div>
         <div v-if="props.ticket.conceptos.length">
-            <div v-for="concept in props.ticket.conceptos" :key="`${concept.charge_id}-${concept.monto}`" class="ticket-row">
-                <span>{{ concept.concepto || concept.descripcion || `Cargo #${concept.charge_id}` }}</span>
-                <strong>{{ money(concept.monto) }}</strong>
+            <div v-for="concept in props.ticket.conceptos" :key="`${concept.charge_id}-${concept.monto}`" class="concept-item">
+                <div class="concept-description">
+                    <strong v-if="concept.codigo">{{ concept.codigo }}</strong>
+                    {{ concept.descripcion || concept.concepto || `Cargo #${concept.charge_id}` }}
+                </div>
+                <div class="concept-values">
+                    <span>{{ concept.cantidad }}</span>
+                    <span>{{ money(concept.importe_unitario) }}</span>
+                    <strong>{{ money(concept.total) }}</strong>
+                </div>
+                <div v-if="concept.descuento" class="concept-discount">Descuento: {{ money(concept.descuento) }}</div>
             </div>
         </div>
         <div v-else class="text-center text-caption">Sin desglose de conceptos</div>
@@ -182,6 +196,41 @@ const ticketDate = (value: string | null) => {
 }
 
 .ticket-row strong {
+    text-align: right;
+}
+
+.concept-title {
+    margin-top: 7px;
+    font-weight: bold;
+}
+
+.concept-header,
+.concept-values {
+    display: grid;
+    grid-template-columns: 12mm 28mm 1fr;
+    gap: 2mm;
+}
+
+.concept-header {
+    margin: 3px 0;
+    font-weight: bold;
+}
+
+.concept-header span:nth-child(n + 2),
+.concept-values span:nth-child(n + 2),
+.concept-values strong {
+    text-align: right;
+}
+
+.concept-item {
+    margin: 5px 0;
+}
+
+.concept-description {
+    margin-bottom: 2px;
+}
+
+.concept-discount {
     text-align: right;
 }
 
