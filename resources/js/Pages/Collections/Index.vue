@@ -72,6 +72,7 @@ interface AccountInfo {
     membership_number: string;
     internal_account_number: string | null;
     holder_name: string;
+    holder_member_id: number | null;
     email: string | null;
     phone: string | null;
     photo: string | null;
@@ -517,6 +518,267 @@ const assignLocker = async () => {
         });
     } finally {
         lockerAssigning.value = false;
+    }
+};
+
+// ── Pase por día desde "Agregar concepto de cobro" ──
+// Al capturar el concepto GUEST_LIST se arma el mismo flujo que
+// AdminClubs/DayPasses/Index.vue (fecha + lista de visitantes), pero el
+// socio responsable ya no se pregunta: se usa el titular de la cuenta que se
+// está cobrando.
+const isDayPassConcept = computed(
+    () => selectedConcept.value?.code?.toUpperCase() === "GUEST_LIST",
+);
+
+interface DayPassVisitorForm {
+    first_name: string;
+    last_name: string;
+    age: number | null;
+    email: string;
+}
+const emptyDayPassVisitor = (): DayPassVisitorForm => ({
+    first_name: "",
+    last_name: "",
+    age: null,
+    email: "",
+});
+
+const dayPassDate = ref("");
+const dayPassVisitors = ref<DayPassVisitorForm[]>([emptyDayPassVisitor()]);
+const dayPassSubmitting = ref(false);
+
+const resetDayPassForm = () => {
+    dayPassDate.value = new Date().toISOString().slice(0, 10);
+    dayPassVisitors.value = [emptyDayPassVisitor()];
+};
+
+const addDayPassVisitor = () => {
+    dayPassVisitors.value.push(emptyDayPassVisitor());
+};
+const removeDayPassVisitor = (index: number) => {
+    if (dayPassVisitors.value.length <= 1) return;
+    dayPassVisitors.value.splice(index, 1);
+};
+
+const canSubmitDayPass = computed(
+    () =>
+        !!account.value?.holder_member_id &&
+        !!dayPassDate.value &&
+        dayPassVisitors.value.length > 0 &&
+        dayPassVisitors.value.every(
+            (v) => v.first_name.trim() && v.last_name.trim() && v.age !== null && v.age >= 0,
+        ),
+);
+
+const submitDayPass = async () => {
+    if (!account.value?.holder_member_id || !canSubmitDayPass.value) {
+        customToastSwal({
+            title: "Completa la fecha y los datos de todos los visitantes.",
+            icon: "warning",
+        });
+        return;
+    }
+
+    dayPassSubmitting.value = true;
+    try {
+        const { data } = await window.axios.post(route("day-passes.store"), {
+            member_id: account.value.holder_member_id,
+            date: dayPassDate.value,
+            visitors: dayPassVisitors.value.map((v) => ({
+                first_name: v.first_name,
+                last_name: v.last_name,
+                age: v.age,
+                email: v.email || null,
+            })),
+            as_json: 1,
+        });
+
+        cobros.value.push({
+            key: `daypass-${data.charge.id}-${Date.now()}`,
+            type: "existing",
+            concept_id: selectedConcept.value?.id,
+            concept_label: `${selectedConcept.value?.code ?? "GUEST_LIST"} ${selectedConcept.value?.name ?? "Pase por día"}`,
+            detail: `${data.charge.total_visitors} visitante(s) — ${dayPassDate.value}`,
+            amount: data.charge.amount,
+            charges: [{ charge_id: data.charge.id, amount: data.charge.amount }],
+        });
+
+        customToastSwal({ title: "Pase por día registrado.", icon: "success" });
+        resetNewItem();
+        resetDayPassForm();
+    } catch (e: any) {
+        customToastSwal({
+            title: e?.response?.data?.message || "No se pudo registrar el pase por día.",
+            icon: "error",
+        });
+    } finally {
+        dayPassSubmitting.value = false;
+    }
+};
+
+watch(isDayPassConcept, (isDayPass) => {
+    if (isDayPass) resetDayPassForm();
+});
+
+// ── Cafetería desde "Agregar concepto de cobro" ──
+// Al capturar el concepto CAFETERIA_PASS se arma el mismo flujo de dos pasos
+// que AdminClubs/CafeteriaVisits/Index.vue: entrada (se retiene una
+// identificación, no genera cobro) y salida (se captura el consumo; si no
+// alcanzó el mínimo, se agrega el cobro de acceso a la lista de cobros).
+const isCafeteriaConcept = computed(
+    () => selectedConcept.value?.code?.toUpperCase() === "CAFETERIA_PASS",
+);
+const cafeteriaMode = ref<"entrada" | "salida">("entrada");
+const cafeteriaDocumentTypes = [
+    { title: "INE", value: "INE" },
+    { title: "Pasaporte", value: "pasaporte" },
+    { title: "Licencia", value: "licencia" },
+    { title: "Credencial de trabajo", value: "credencial_trabajo" },
+    { title: "Otro", value: "otro" },
+];
+
+const cafeteriaVisitorName = ref("");
+const cafeteriaDocumentType = ref<string | null>(null);
+const cafeteriaDocumentNumber = ref("");
+const cafeteriaNotes = ref("");
+const cafeteriaCheckingIn = ref(false);
+
+const cafeteriaOpenVisits = ref<
+    { id: number; visitor_name: string; expires_at: string; min_consumption: number }[]
+>([]);
+const cafeteriaLoadingOpenVisits = ref(false);
+const cafeteriaSelectedVisitId = ref<number | null>(null);
+const cafeteriaConsumption = ref<number | null>(null);
+const cafeteriaCheckingOut = ref(false);
+
+const resetCafeteriaForm = () => {
+    cafeteriaMode.value = "entrada";
+    cafeteriaVisitorName.value = "";
+    cafeteriaDocumentType.value = null;
+    cafeteriaDocumentNumber.value = "";
+    cafeteriaNotes.value = "";
+    cafeteriaOpenVisits.value = [];
+    cafeteriaSelectedVisitId.value = null;
+    cafeteriaConsumption.value = null;
+};
+
+const loadOpenCafeteriaVisits = async () => {
+    if (!cobroClub.value) return;
+    cafeteriaLoadingOpenVisits.value = true;
+    try {
+        const { data } = await window.axios.get(route("cafeteria-visits.open"), {
+            params: { club_id: cobroClub.value.id },
+        });
+        cafeteriaOpenVisits.value = data;
+    } catch (e: any) {
+        customToastSwal({
+            title: "No se pudieron cargar las visitas de cafetería abiertas.",
+            icon: "error",
+        });
+    } finally {
+        cafeteriaLoadingOpenVisits.value = false;
+    }
+};
+
+watch(isCafeteriaConcept, (isCafeteria) => {
+    resetCafeteriaForm();
+    if (isCafeteria) loadOpenCafeteriaVisits();
+});
+watch(cafeteriaMode, (mode) => {
+    if (mode === "salida") loadOpenCafeteriaVisits();
+});
+
+const selectedCafeteriaVisit = computed(() =>
+    cafeteriaOpenVisits.value.find((v) => v.id === cafeteriaSelectedVisitId.value) ?? null,
+);
+
+const canCheckInCafeteria = computed(
+    () =>
+        !!cafeteriaVisitorName.value.trim() &&
+        !!cafeteriaDocumentType.value &&
+        !!cafeteriaDocumentNumber.value.trim(),
+);
+const canCheckOutCafeteria = computed(
+    () => !!cafeteriaSelectedVisitId.value && cafeteriaConsumption.value !== null && cafeteriaConsumption.value >= 0,
+);
+
+const checkInCafeteria = async () => {
+    if (!canCheckInCafeteria.value) {
+        customToastSwal({
+            title: "Completa el nombre y el documento del visitante.",
+            icon: "warning",
+        });
+        return;
+    }
+
+    cafeteriaCheckingIn.value = true;
+    try {
+        await window.axios.post(route("cafeteria-visits.store"), {
+            visitor_name: cafeteriaVisitorName.value,
+            document_type: cafeteriaDocumentType.value,
+            document_number: cafeteriaDocumentNumber.value,
+            notes: cafeteriaNotes.value || null,
+            as_json: 1,
+        });
+
+        customToastSwal({ title: "Entrada de cafetería registrada.", icon: "success" });
+        cafeteriaVisitorName.value = "";
+        cafeteriaDocumentType.value = null;
+        cafeteriaDocumentNumber.value = "";
+        cafeteriaNotes.value = "";
+    } catch (e: any) {
+        customToastSwal({
+            title: e?.response?.data?.message || "No se pudo registrar la entrada.",
+            icon: "error",
+        });
+    } finally {
+        cafeteriaCheckingIn.value = false;
+    }
+};
+
+const checkOutCafeteria = async () => {
+    if (!canCheckOutCafeteria.value) {
+        customToastSwal({
+            title: "Selecciona la visita y captura el consumo.",
+            icon: "warning",
+        });
+        return;
+    }
+
+    cafeteriaCheckingOut.value = true;
+    try {
+        const { data } = await window.axios.post(
+            route("cafeteria-visits.checkout", { cafeteriaVisit: cafeteriaSelectedVisitId.value }),
+            {
+                consumption_amount: cafeteriaConsumption.value,
+                as_json: 1,
+            },
+        );
+
+        if (data.charge) {
+            cobros.value.push({
+                key: `cafeteria-${data.charge.id}-${Date.now()}`,
+                type: "existing",
+                concept_id: selectedConcept.value?.id,
+                concept_label: `${selectedConcept.value?.code ?? "CAFETERIA_PASS"} ${selectedConcept.value?.name ?? "Cafetería"}`,
+                detail: `Acceso — ${selectedCafeteriaVisit.value?.visitor_name ?? "visitante"}`,
+                amount: data.charge.amount,
+                charges: [{ charge_id: data.charge.id, amount: data.charge.amount }],
+            });
+        }
+
+        customToastSwal({ title: data.message, icon: "success" });
+        resetNewItem();
+        cafeteriaSelectedVisitId.value = null;
+        cafeteriaConsumption.value = null;
+        loadOpenCafeteriaVisits();
+    } catch (e: any) {
+        customToastSwal({
+            title: e?.response?.data?.message || "No se pudo registrar la salida.",
+            icon: "error",
+        });
+    } finally {
+        cafeteriaCheckingOut.value = false;
     }
 };
 
@@ -1008,7 +1270,7 @@ const saveNote = async () => {
                                     hide-details="auto"
                                 />
                             </v-col>
-                            <template v-if="!isLockerConcept">
+                            <template v-if="!isLockerConcept && !isDayPassConcept && !isCafeteriaConcept">
                                 <v-col cols="6" style="flex-basis: 150px; max-width: 120px;">
                                     <v-text-field
                                         v-model.number="newItem.importe"
@@ -1087,7 +1349,7 @@ const saveNote = async () => {
                                  concepto LOCKERS se reemplaza la captura
                                  genérica por el mismo flujo de
                                  Members/Lockers/Create.vue, embebido aquí. -->
-                            <template v-else>
+                            <template v-else-if="isLockerConcept">
                                 <v-col cols="6" md="2">
                                     <v-text-field
                                         :model-value="formatCurrency(newItem.importe)"
@@ -1197,6 +1459,214 @@ const saveNote = async () => {
                                         @click="assignLocker"
                                     />
                                 </v-col>
+                            </template>
+
+                            <!-- Pase por día: al capturar el concepto
+                                 GUEST_LIST se reemplaza la captura genérica
+                                 por fecha + lista de visitantes, igual que
+                                 AdminClubs/DayPasses/Index.vue, sin pedir
+                                 socio responsable (se usa el titular). -->
+                            <template v-else-if="isDayPassConcept">
+                                <v-col cols="12" md="5">
+                                    <v-alert type="info" variant="tonal" density="compact">
+                                        Responsable: <strong>{{ account?.holder_name }}</strong>
+                                    </v-alert>
+                                </v-col>
+                                <v-col cols="12" md="3">
+                                    <v-text-field
+                                        v-model="dayPassDate"
+                                        label="Fecha"
+                                        type="date"
+                                        hide-details="auto"
+                                    />
+                                </v-col>
+                                <v-col cols="12" md="6" class="d-flex align-center">
+                                    <BaseButton
+                                        :icon-only="false"
+                                        action="add"
+                                        icon="mdi-account-plus"
+                                        text="Agregar visitante"
+                                        variant="tonal"
+                                        @click="addDayPassVisitor"
+                                    />
+                                </v-col>
+
+                                <v-col cols="12" v-for="(visitor, idx) in dayPassVisitors" :key="idx">
+                                    <v-row no-gutters class="ga-2 align-center">
+                                        <v-col cols="6" md="3">
+                                            <v-text-field
+                                                v-model="visitor.first_name"
+                                                label="Nombre"
+                                                hide-details="auto"
+                                            />
+                                        </v-col>
+                                        <v-col cols="6" md="3">
+                                            <v-text-field
+                                                v-model="visitor.last_name"
+                                                label="Apellido"
+                                                hide-details="auto"
+                                            />
+                                        </v-col>
+                                        <v-col cols="6" md="2">
+                                            <v-text-field
+                                                v-model.number="visitor.age"
+                                                label="Edad"
+                                                type="number"
+                                                min="0"
+                                                hide-details="auto"
+                                            />
+                                        </v-col>
+                                        <v-col cols="6" md="3">
+                                            <v-text-field
+                                                v-model="visitor.email"
+                                                label="Correo (opcional)"
+                                                hide-details="auto"
+                                            />
+                                        </v-col>
+                                        <v-col cols="12" md="1">
+                                            <BaseButton
+                                                action="delete"
+                                                icon="mdi-close"
+                                                color="error"
+                                                variant="text"
+                                                size="small"
+                                                :disabled="dayPassVisitors.length <= 1"
+                                                tooltip="Quitar visitante"
+                                                @click="removeDayPassVisitor(idx)"
+                                            />
+                                        </v-col>
+                                    </v-row>
+                                </v-col>
+
+                                <v-col cols="12" class="d-flex justify-end">
+                                    <BaseButton
+                                        :icon-only="false"
+                                        action="save"
+                                        icon="mdi-ticket-confirmation"
+                                        text="Registrar pase"
+                                        variant="tonal"
+                                        :loading="dayPassSubmitting"
+                                        :disabled="!canSubmitDayPass"
+                                        @click="submitDayPass"
+                                    />
+                                </v-col>
+                            </template>
+
+                            <!-- Cafetería: al capturar el concepto
+                                 CAFETERIA_PASS se replica el flujo de dos
+                                 pasos de AdminClubs/CafeteriaVisits/Index.vue
+                                 (entrada / salida) embebido aquí. -->
+                            <template v-else-if="isCafeteriaConcept">
+                                <v-col cols="12" class="mt-6 mb-4">
+                                    <v-btn-toggle v-model="cafeteriaMode" color="primary" density="comfortable" mandatory>
+                                        <v-btn value="entrada">Entrada</v-btn>
+                                        <v-btn value="salida">Salida</v-btn>
+                                    </v-btn-toggle>
+                                </v-col>
+
+                                <template v-if="cafeteriaMode === 'entrada'">
+                                    <v-row>
+                                        <v-col cols="12" md="3">
+                                            <v-text-field
+                                                v-model="cafeteriaVisitorName"
+                                                label="Nombre del visitante"
+                                                hide-details="auto"
+                                            />
+                                        </v-col>
+                                        <v-col cols="12" md="3">
+                                            <v-select
+                                                v-model="cafeteriaDocumentType"
+                                                :items="cafeteriaDocumentTypes"
+                                                label="Tipo de documento"
+                                                hide-details="auto"
+                                            />
+                                        </v-col>
+                                        <v-col cols="12" md="3">
+                                            <v-text-field
+                                                v-model="cafeteriaDocumentNumber"
+                                                label="Número de documento"
+                                                hide-details="auto"
+                                            />
+                                        </v-col>
+                                        <v-col cols="12" md="3">
+                                            <v-text-field
+                                                v-model="cafeteriaNotes"
+                                                label="Notas (opcional)"
+                                                hide-details="auto"
+                                            />
+                                        </v-col>
+                                        <v-col cols="12" class="d-flex justify-end">
+                                            <BaseButton
+                                                :icon-only="false"
+                                                action="save"
+                                                icon="mdi-food"
+                                                text="Registrar entrada"
+                                                variant="tonal"
+                                                :loading="cafeteriaCheckingIn"
+                                                :disabled="!canCheckInCafeteria"
+                                                @click="checkInCafeteria"
+                                            />
+                                        </v-col>
+                                    </v-row>
+                                </template>
+
+                                <template v-else>
+                                    <v-col cols="12" md="6">
+                                        <v-progress-linear
+                                            v-if="cafeteriaLoadingOpenVisits"
+                                            indeterminate
+                                            color="primary"
+                                            class="mb-2"
+                                        />
+                                        <v-alert
+                                            v-else-if="!cafeteriaOpenVisits.length"
+                                            type="info"
+                                            variant="tonal"
+                                            density="compact"
+                                        >
+                                            No hay visitas de cafetería abiertas en este parque.
+                                        </v-alert>
+                                        <v-select
+                                            v-else
+                                            v-model="cafeteriaSelectedVisitId"
+                                            :items="cafeteriaOpenVisits"
+                                            item-title="visitor_name"
+                                            item-value="id"
+                                            label="Visita a cerrar"
+                                            hide-details="auto"
+                                        />
+                                    </v-col>
+                                    <v-col cols="12" md="3">
+                                        <v-text-field
+                                            v-model.number="cafeteriaConsumption"
+                                            label="Consumo ($)"
+                                            type="number"
+                                            min="0"
+                                            prefix="$"
+                                            hide-details="auto"
+                                        />
+                                    </v-col>
+                                    <v-col cols="12" md="3" v-if="selectedCafeteriaVisit">
+                                        <div class="text-caption text-medium-emphasis">
+                                            Mínimo de consumo para exentar el acceso
+                                        </div>
+                                        <div class="text-subtitle-1 font-weight-bold">
+                                            {{ formatCurrency(selectedCafeteriaVisit.min_consumption) }}
+                                        </div>
+                                    </v-col>
+                                    <v-col cols="12" class="d-flex justify-end">
+                                        <BaseButton
+                                            :icon-only="false"
+                                            action="save"
+                                            icon="mdi-food-off"
+                                            text="Registrar salida"
+                                            variant="tonal"
+                                            :loading="cafeteriaCheckingOut"
+                                            :disabled="!canCheckOutCafeteria"
+                                            @click="checkOutCafeteria"
+                                        />
+                                    </v-col>
+                                </template>
                             </template>
                         </v-row>
                          <v-row>

@@ -89,6 +89,7 @@ Route::resource('/day-passes', DayPassController::class)->only(['index', 'store'
 
 // cafeteria visits
 Route::get('/cafeteria-visits', [CafeteriaVisitController::class, 'index'])->name('cafeteria-visits.index');
+Route::get('/cafeteria-visits/open', [CafeteriaVisitController::class, 'open'])->name('cafeteria-visits.open');
 Route::post('/cafeteria-visits', [CafeteriaVisitController::class, 'store'])->name('cafeteria-visits.store');
 Route::post('/cafeteria-visits/{cafeteriaVisit}/checkout', [CafeteriaVisitController::class, 'checkout'])->name('cafeteria-visits.checkout');
 
