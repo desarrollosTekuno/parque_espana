@@ -3,6 +3,8 @@
 namespace App\Services\Billing;
 
 use App\Models\Billing\Payment;
+use App\Models\User;
+use Illuminate\Support\Str;
 
 class PaymentTicketService
 {
@@ -33,6 +35,8 @@ class PaymentTicketService
         return [
             'payment_id' => $payment->id,
             'folio' => $payment->folio,
+            'ticket_serie' => $this->cashierInitial($payment->receiver),
+            'ticket_folio' => $this->shortFolio($payment->folio),
             'fecha' => $payment->paid_at,
             'estatus' => $payment->status,
             'club_id' => $payment->club_id,
@@ -153,5 +157,33 @@ class PaymentTicketService
             'PE2' => 'FUNDACIÓN DEPORTIVO PARQUE ESPAÑA II',
             default => $fallback ?? 'Parque',
         };
+    }
+
+    private function cashierInitial(?User $cashier): ?string
+    {
+        $name = trim((string) $cashier?->name);
+
+        if ($name === '') {
+            return null;
+        }
+
+        return strtoupper(Str::ascii(mb_substr($name, 0, 1)));
+    }
+
+    private function shortFolio(?string $folio): ?string
+    {
+        if (!$folio) {
+            return null;
+        }
+
+        $parts = explode('-', $folio);
+        $date = $parts[count($parts) - 2] ?? null;
+        $consecutive = $parts[count($parts) - 1] ?? null;
+
+        if ($date && $consecutive && preg_match('/^\d{6}$/', $date) && preg_match('/^\d+$/', $consecutive)) {
+            return substr($date, -2) . str_pad($consecutive, 3, '0', STR_PAD_LEFT);
+        }
+
+        return $folio;
     }
 }

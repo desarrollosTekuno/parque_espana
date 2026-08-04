@@ -11,6 +11,8 @@ export interface TicketConcept {
 export interface TicketData {
     payment_id: number;
     folio: string | null;
+    ticket_serie: string | null;
+    ticket_folio: string | null;
     fecha: string | null;
     estatus: string | null;
     club_codigo: string | null;
@@ -74,7 +76,8 @@ export const getTicketData = async (paymentId: number): Promise<TicketData> => {
 };
 
 const ticketHtml = (ticket: TicketData): string => {
-    const title = ticket.folio ?? `Pago #${ticket.payment_id}`;
+    const ticketNumber = [ticket.ticket_serie, ticket.ticket_folio].filter(Boolean).join(" ");
+    const title = ticketNumber ? `Ticket: ${ticketNumber}` : `Pago #${ticket.payment_id}`;
     const concepts = ticket.conceptos.map((concept) => `
         <div class="concept">
             <div>${escapeHtml(concept.concepto ?? concept.descripcion ?? `Cargo #${concept.charge_id}`)}</div>

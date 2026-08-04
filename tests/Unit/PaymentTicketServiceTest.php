@@ -16,6 +16,7 @@ use App\Models\Members\Member;
 use App\Models\Memberships\MembershipAccount;
 use App\Models\Memberships\MembershipAccountMember;
 use App\Services\Billing\PaymentTicketService;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use PHPUnit\Framework\TestCase;
@@ -79,6 +80,11 @@ class PaymentTicketServiceTest extends TestCase
             'name' => 'Efectivo',
         ]);
 
+        $receiver = (new User())->forceFill([
+            'name' => 'Antonio Cajero',
+            'code' => 'CNF',
+        ]);
+
         $payment = new class extends Payment
         {
             public function loadMissing($relations)
@@ -97,18 +103,20 @@ class PaymentTicketServiceTest extends TestCase
         $payment->id = 20;
         $payment->setRelation('club', $club);
         $payment->setRelation('paymentMethod', $paymentMethod);
-        $payment->setRelation('receiver', null);
+        $payment->setRelation('receiver', $receiver);
         $payment->setRelation('membershipAccount', $account);
         $payment->setRelation('applications', new Collection([$application]));
 
         $data = (new PaymentTicketService())->data($payment);
 
         $this->assertSame('PE1-AUTO-260804-001', $data['folio']);
+        $this->assertSame('A', $data['ticket_serie']);
+        $this->assertSame('04001', $data['ticket_folio']);
         $this->assertSame('/assets/images/LogoP1.png', $data['club_logo_url']);
         $this->assertSame('FUNDACIÓN DEPORTIVO PARQUE ESPAÑA I', $data['club_nombre_institucion']);
         $this->assertSame('FUNDACIÓN DEPORTIVO PARQUE ESPAÑA', $data['club_razon_social']);
         $this->assertSame('FDP990423J51', $data['club_rfc']);
-        $this->assertSame('AUTO', $data['cajero_codigo']);
+        $this->assertSame('CNF', $data['cajero_codigo']);
         $this->assertSame('Ana Pérez López', $data['titular']);
         $this->assertSame(['25 Oriente #1001', 'CP 72500', 'Puebla Puebla México'], $data['club_direccion_lineas']);
         $this->assertSame(100.0, $data['subtotal']);

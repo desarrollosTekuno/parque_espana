@@ -38,6 +38,7 @@ class PaymentTicketTestSeeder extends Seeder
                 ->count($count)
                 ->forClub($club->id)
                 ->withTicketConcept()
+                ->withTestFolio()
                 ->create();
         });
 

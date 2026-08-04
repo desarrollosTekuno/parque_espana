@@ -42,7 +42,12 @@ const dateTime = (value: string | null) => {
         </div>
 
         <div class="text-center">
-            <h4>{{ props.ticket.folio || `Pago #${props.ticket.payment_id}` }}</h4>
+            <h4>
+                <template v-if="props.ticket.ticket_folio">
+                    Ticket: {{ [props.ticket.ticket_serie, props.ticket.ticket_folio].filter(Boolean).join(" ") }}
+                </template>
+                <template v-else>Pago #{{ props.ticket.payment_id }}</template>
+            </h4>
             <strong v-if="!props.ticket.folio" class="ticket-warning">PRUEBA SIN FOLIO</strong>
             <strong v-if="props.ticket.estatus === 'cancelled'" class="ticket-warning">CANCELADO</strong>
         </div>

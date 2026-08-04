@@ -90,6 +90,20 @@ class PaymentFactory extends Factory
         });
     }
 
+    public function withTestFolio(): static
+    {
+        return $this->afterCreating(function (Payment $payment) {
+            $cashierCode = $payment->receiver?->code ?: 'TEST';
+            $clubCode = $payment->club?->code ?: 'CLUB' . $payment->club_id;
+            $date = $payment->paid_at?->format('ymd') ?? now()->format('ymd');
+            $consecutive = str_pad((string) $payment->id, 3, '0', STR_PAD_LEFT);
+
+            $payment->update([
+                'folio' => $clubCode . '-' . $cashierCode . '-' . $date . '-' . $consecutive,
+            ]);
+        });
+    }
+
     private function attributesForClub(int $clubId, MembershipAccount $account): array
     {
         $clubPaymentMethod = ClubPaymentMethod::query()
