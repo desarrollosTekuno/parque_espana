@@ -117,6 +117,7 @@ const ticketHtml = (ticket: TicketData, duplicate: boolean): string => {
         .divider { border-top: 1px dashed #000; margin: 7px 0; }
         .row, .concept { display: flex; justify-content: space-between; gap: 8px; margin: 3px 0; }
         .row strong, .concept strong { text-align: right; }
+        .account-name { margin: 3px 0; text-transform: uppercase; }
         .total { font-size: 15px; }
         .footer { margin-top: 10px; font-size: 10px; text-align: center; }
         @media print { body { width: 70mm; } }
@@ -146,7 +147,7 @@ const ticketHtml = (ticket: TicketData, duplicate: boolean): string => {
     </div>
     <div class="divider"></div>
     ${row("Cuenta:", ticket.cuenta_numero ?? ticket.cuenta_interna)}
-    ${row("Titular", ticket.titular)}
+    ${ticket.titular ? `<div class="account-name">${escapeHtml(ticket.titular)}</div>` : ""}
     <div class="divider"></div>
     ${concepts || '<div class="center muted">Sin desglose de conceptos</div>'}
     <div class="divider"></div>

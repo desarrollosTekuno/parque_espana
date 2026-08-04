@@ -70,7 +70,7 @@ const ticketDate = (value: string | null) => {
 
         <div class="ticket-divider"></div>
         <div class="ticket-row"><span>Cuenta:</span><strong>{{ props.ticket.cuenta_numero || props.ticket.cuenta_interna || "-" }}</strong></div>
-        <div class="ticket-row"><span>Titular</span><strong>{{ props.ticket.titular || "-" }}</strong></div>
+        <div class="account-name">{{ props.ticket.titular || "-" }}</div>
 
         <div class="ticket-divider"></div>
         <div v-if="props.ticket.conceptos.length">
@@ -172,6 +172,11 @@ const ticketDate = (value: string | null) => {
 
 .ticket-row strong {
     text-align: right;
+}
+
+.account-name {
+    margin: 3px 0;
+    text-transform: uppercase;
 }
 
 .ticket-total {
