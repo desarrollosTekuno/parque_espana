@@ -111,7 +111,7 @@ const ticketHtml = (ticket: TicketData, duplicate: boolean): string => {
         .institution-name { margin: 0; font-size: 12px; font-weight: 700; line-height: 1.25; text-align: center; text-transform: uppercase; }
         .issuer-data { margin-top: 4mm; line-height: 1.3; text-align: left; }
         .ticket-identification { display: flex; justify-content: space-between; gap: 8px; margin: 8px 0; font-size: 12px; }
-        .reprint-label { margin: 3px 0; }
+        .ticket-operator { display: flex; justify-content: space-between; gap: 8px; margin: 3px 0; }
         .muted { font-size: 10px; }
         .warning { margin: 5px 0; font-weight: bold; }
         .divider { border-top: 1px dashed #000; margin: 7px 0; }
@@ -136,7 +136,10 @@ const ticketHtml = (ticket: TicketData, duplicate: boolean): string => {
         <span>${escapeHtml(title)}</span>
         <span>${escapeHtml(ticketDate(ticket.fecha))}</span>
     </div>
-    ${duplicate ? '<div class="reprint-label">Duplicado</div>' : ""}
+    <div class="ticket-operator">
+        <span>${duplicate ? "Duplicado" : ""}</span>
+        <span>${escapeHtml(ticket.cajero_codigo)}</span>
+    </div>
     <div class="center">
         ${ticket.folio ? "" : '<div class="warning">PRUEBA SIN FOLIO</div>'}
         ${ticket.estatus === "cancelled" ? '<div class="warning">CANCELADO</div>' : ""}
@@ -144,7 +147,6 @@ const ticketHtml = (ticket: TicketData, duplicate: boolean): string => {
     <div class="divider"></div>
     ${row("Cuenta", ticket.cuenta_numero ?? ticket.cuenta_interna)}
     ${row("Titular", ticket.titular)}
-    ${row("Cajero", ticket.cajero_codigo ? `${ticket.cajero_nombre ?? ""} (${ticket.cajero_codigo})` : ticket.cajero_nombre)}
     <div class="divider"></div>
     ${concepts || '<div class="center muted">Sin desglose de conceptos</div>'}
     <div class="divider"></div>

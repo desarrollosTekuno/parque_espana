@@ -49,7 +49,7 @@ class PaymentTicketService
             'club_url_facturacion' => $club?->billing_url,
             'club_logo_url' => $this->logoUrl($club?->code, $club?->logo_url),
             'cajero_nombre' => $payment->receiver?->name,
-            'cajero_codigo' => $payment->receiver?->code ?? $this->folioSeries($payment->folio),
+            'cajero_codigo' => $this->cashierCode($payment->receiver),
             'cuenta_numero' => $account?->membership_number,
             'cuenta_interna' => $account?->internal_account_number,
             'titular' => $holder?->full_name,
@@ -130,17 +130,6 @@ class PaymentTicketService
         return $lines;
     }
 
-    private function folioSeries(?string $folio): ?string
-    {
-        if (!$folio) {
-            return null;
-        }
-
-        $parts = explode('-', $folio);
-
-        return $parts[1] ?? null;
-    }
-
     private function logoUrl(?string $clubCode, ?string $configuredLogo): ?string
     {
         return match (strtoupper((string) $clubCode)) {
@@ -168,6 +157,26 @@ class PaymentTicketService
         }
 
         return strtoupper(Str::ascii(mb_substr($name, 0, 1)));
+    }
+
+    private function cashierCode(?User $cashier): ?string
+    {
+        $code = trim((string) $cashier?->code);
+
+        if ($code !== '') {
+            return strtoupper($code);
+        }
+
+        $words = preg_split('/\s+/', trim(Str::ascii((string) $cashier?->name))) ?: [];
+        $initials = '';
+
+        foreach ($words as $word) {
+            if ($word !== '') {
+                $initials .= strtoupper(substr($word, 0, 1));
+            }
+        }
+
+        return $initials !== '' ? $initials : null;
     }
 
     private function shortFolio(?string $folio): ?string

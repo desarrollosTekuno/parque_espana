@@ -59,6 +59,10 @@ const ticketDate = (value: string | null) => {
             <span>{{ ticketDate(props.ticket.fecha) }}</span>
         </div>
 
+        <div v-if="props.ticket.cajero_codigo" class="cashier-code">
+            {{ props.ticket.cajero_codigo }}
+        </div>
+
         <div class="text-center">
             <strong v-if="!props.ticket.folio" class="ticket-warning">PRUEBA SIN FOLIO</strong>
             <strong v-if="props.ticket.estatus === 'cancelled'" class="ticket-warning">CANCELADO</strong>
@@ -67,7 +71,6 @@ const ticketDate = (value: string | null) => {
         <div class="ticket-divider"></div>
         <div class="ticket-row"><span>Cuenta</span><strong>{{ props.ticket.cuenta_numero || props.ticket.cuenta_interna || "-" }}</strong></div>
         <div class="ticket-row"><span>Titular</span><strong>{{ props.ticket.titular || "-" }}</strong></div>
-        <div class="ticket-row"><span>Cajero</span><strong>{{ props.ticket.cajero_nombre || "-" }}<template v-if="props.ticket.cajero_codigo"> ({{ props.ticket.cajero_codigo }})</template></strong></div>
 
         <div class="ticket-divider"></div>
         <div v-if="props.ticket.conceptos.length">
@@ -143,6 +146,11 @@ const ticketDate = (value: string | null) => {
     gap: 8px;
     margin: 8px 0;
     font-size: 12px;
+}
+
+.cashier-code {
+    margin: 3px 0;
+    text-align: right;
 }
 
 .ticket-warning {
