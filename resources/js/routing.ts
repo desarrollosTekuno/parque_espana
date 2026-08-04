@@ -49,7 +49,6 @@ const routes: Routing[] = [
             "document-types.index",
             "pricing-rules.index",
             "interclub-package-rules.index",
-            "fee-schedules.index",
         ],
         title: "Configuración de membresías",
         icon: "mdi-cog-outline",
@@ -80,12 +79,7 @@ const routes: Routing[] = [
                 icon: "mdi-swap-horizontal",
                 value: "paquetes-intermedios",
             },
-            {
-                name: "fee-schedules.index",
-                title: "Cuotas por año",
-                icon: "mdi-calendar-multiple",
-                value: "cuotas-por-anio",
-            },
+            
         ],
     },
     {
@@ -99,12 +93,19 @@ const routes: Routing[] = [
             "member-access.index",
             "members.cancellations.index",
             "members.age-transitions.index",
+            "fee-schedules.index"
         ],
         title: "Membresías",
         icon: "mdi-account-group-outline",
         value: "membresiasMenu",
         group: "Membresías",
         groupItems: [
+            {
+                name: "fee-schedules.index",
+                title: "Cuotas por año",
+                icon: "mdi-calendar-multiple",
+                value: "cuotas-por-anio",
+            },
             {
                 name: "members.index",
                 title: "Membresías",
@@ -130,12 +131,31 @@ const routes: Routing[] = [
                 value: "transiciones-edad",
                 showBadge: true,
             },
+            
+        ],
+    },
+    {
+        name: [
+            "member-access.index",
+        ],
+        title: "App móvil",
+        icon: "mdi-cellphone-key",
+        value: "appMovilMenu",
+        group: "App móvil",
+        groupItems: [
             {
                 name: "member-access.index",
-                title: "Accesos App Móvil",
+                title: "Usuarios App Móvil",
                 icon: "mdi-cellphone-key",
                 value: "accesos-app",
             },
+            // Configuración de variables de la app móvil
+            // {
+            //     name: "app-variables.index",
+            //     title: "Variables de la App",
+            //     icon: "mdi-cog-outline",
+            //     value: "variables-app",
+            // }
         ],
     },
 
