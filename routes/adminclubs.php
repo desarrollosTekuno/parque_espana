@@ -48,6 +48,7 @@ use App\Http\Controllers\Web\AdminClub\DayPassController;
 use App\Http\Controllers\Web\AdminClub\GuestListPaymentController;
 use App\Http\Controllers\Web\AdminClub\MembershipTypeController;
 use App\Http\Controllers\Web\AdminClub\PaymentMethodController;
+use App\Http\Controllers\Web\AdminClub\TicketController;
 use App\Http\Controllers\Web\AdminClub\LockerAssignmentHistoryController;
 use App\Http\Controllers\Web\AdminClub\ClinicalHistoryController;
 use App\Http\Controllers\Web\AdminClub\ClubSettingsController;
@@ -129,6 +130,8 @@ Route::post('/payment-methods/{paymentMethod}/toggle-club', [PaymentMethodContro
     ->name('payment-methods.toggle-club');
 Route::put('/payment-methods/{paymentMethod}/club-config', [PaymentMethodController::class, 'updateClubConfig'])
     ->name('payment-methods.update-club-config');
+Route::get('/tickets', [TicketController::class, 'index'])->name('tickets.index');
+Route::get('/tickets/{payment}/data', [TicketController::class, 'data'])->name('tickets.data');
 Route::resource('/pricing-rules', PricingRuleController::class)
     ->only(['index', 'store', 'update', 'destroy'])
     ->names('pricing-rules');

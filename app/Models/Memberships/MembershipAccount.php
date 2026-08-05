@@ -4,6 +4,7 @@ namespace App\Models\Memberships;
 
 use App\Models\Administrator\Club;
 use App\Models\Members\Member;
+use App\Models\Members\LockerAssignment;
 use App\Models\Billing\Charge;
 use App\Models\Billing\Payment;
 use App\Models\User;
@@ -41,6 +42,23 @@ class MembershipAccount extends Model
     public function accountGroup()
     {
         return $this->belongsTo(MembershipAccountGroup::class, 'account_group_id');
+    }
+
+    public function fiscalData()
+    {
+        return $this->hasOne(AccountFiscalData::class, 'membership_account_id');
+    }
+
+    public function currentLockerAssignments()
+    {
+        return $this->hasManyThrough(
+            LockerAssignment::class,
+            MembershipAccountMember::class,
+            'membership_account_id',
+            'member_id',
+            'id',
+            'member_id'
+        )->where('members.locker_assignments.year', now()->year);
     }
 
     public function club()
