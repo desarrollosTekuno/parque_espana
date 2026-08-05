@@ -16,6 +16,8 @@ interface BillingConceptItem {
     club_amount: number | null;
     is_recurring: boolean;
     allows_partial_payments: boolean;
+    is_mobile_payable: boolean;
+    splits_between_parks: boolean;
     is_active: boolean;
 }
 
@@ -92,6 +94,8 @@ interface BillingConceptForm {
     club_amount: string | number | null;
     is_recurring: boolean;
     allows_partial_payments: boolean;
+    is_mobile_payable: boolean;
+    splits_between_parks: boolean;
     is_active: boolean;
 }
 
@@ -105,6 +109,8 @@ const form = useForm<BillingConceptForm>({
     club_amount: null,
     is_recurring: false,
     allows_partial_payments: false,
+    is_mobile_payable: true,
+    splits_between_parks: false,
     is_active: true,
 });
 
@@ -120,6 +126,8 @@ const resetForm = () => {
     form.club_amount = null;
     form.is_recurring = false;
     form.allows_partial_payments = false;
+    form.is_mobile_payable = true;
+    form.splits_between_parks = false;
     form.is_active = true;
 };
 
@@ -139,6 +147,8 @@ const openEdit = (item: BillingConceptItem) => {
     form.club_amount = item.club_amount;
     form.is_recurring = item.is_recurring;
     form.allows_partial_payments = item.allows_partial_payments;
+    form.is_mobile_payable = item.is_mobile_payable;
+    form.splits_between_parks = item.splits_between_parks;
     form.is_active = item.is_active;
     showModal.value = true;
 };
@@ -363,6 +373,21 @@ watch(
                                             : "Sin parcialidades"
                                     }}
                                 </v-chip>
+                                <v-chip
+                                    size="small"
+                                    :color="item.is_mobile_payable ? 'primary' : 'default'"
+                                    variant="tonal"
+                                >
+                                    {{ item.is_mobile_payable ? "Pagable en app" : "No pagable en app" }}
+                                </v-chip>
+                                <v-chip
+                                    v-if="item.splits_between_parks"
+                                    size="small"
+                                    color="info"
+                                    variant="tonal"
+                                >
+                                    Split 50/50
+                                </v-chip>
                             </div>
                         </template>
 
@@ -476,6 +501,26 @@ watch(
                                     v-model="form.allows_partial_payments"
                                     color="primary"
                                     label="Permite parcialidades"
+                                />
+                            </v-col>
+
+                            <v-col cols="12" md="4">
+                                <v-switch
+                                    v-model="form.is_mobile_payable"
+                                    color="primary"
+                                    label="Pagable desde la app"
+                                    hint="Si se apaga, la app no podrá cobrar cargos de este concepto."
+                                    persistent-hint
+                                />
+                            </v-col>
+
+                            <v-col cols="12" md="4">
+                                <v-switch
+                                    v-model="form.splits_between_parks"
+                                    color="info"
+                                    label="Divide 50/50 entre parques"
+                                    hint="Solo aplicaría a socios titulares en ambos parques."
+                                    persistent-hint
                                 />
                             </v-col>
 

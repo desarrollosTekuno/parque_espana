@@ -3,6 +3,11 @@
 namespace App\Http\Controllers\Api\v1;
 
 use App\Http\Controllers\Controller;
+use App\Models\Billing\PaymentMethod;
+use App\Models\Members\Member;
+use App\Models\Members\MemberPaymentSource;
+use App\Services\Billing\PaymentRegistrationService;
+use App\Services\Payments\ConektaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\Billing\Charge;
@@ -14,6 +19,11 @@ use App\Models\Memberships\MembershipAccount;
 
 class LockerApiController extends Controller
 {
+    public function __construct(
+        private ConektaService $conekta,
+        private PaymentRegistrationService $paymentService,
+    ) {}
+
     public function index(Request $request)
     {
         $request->validate([
@@ -87,6 +97,7 @@ class LockerApiController extends Controller
             'membership_account_id' => 'required|integer',
             'club_id'               => 'required|integer',
             'category'              => 'required|string',
+            'payment_source_id'     => 'nullable|integer',
         ], [
             'locker_id.required'             => 'Debes seleccionar un casillero',
             'member_id.required'             => 'Debes seleccionar un integrante',
@@ -99,9 +110,37 @@ class LockerApiController extends Controller
             'category.string'                => 'La categoría no es válida',
         ]);
 
-        $clubId = $request->club_id;
+        $clubId = (int) $request->club_id;
 
-        return DB::transaction(function () use ($request, $clubId) {
+        // Validar tarjeta antes de entrar a la transacción
+        $source = null;
+        $paymentMethod = null;
+        if ($request->filled('payment_source_id')) {
+            $authMember = Member::where('user_id', $request->user()->id)->first();
+            if (!$authMember) {
+                return $this->notFound('No se encontró un perfil de socio.');
+            }
+            $source = MemberPaymentSource::where('id', $request->payment_source_id)
+                ->where('member_id', $authMember->id)
+                ->where('club_id', $clubId)
+                ->first();
+            if (!$source) {
+                return $this->notFound('La tarjeta seleccionada no está disponible.');
+            }
+            $paymentMethod = PaymentMethod::query()
+                ->where('provider', PaymentMethod::PROVIDER_CONEKTA)
+                ->where('is_active', true)
+                ->whereHas('clubPaymentMethods', fn ($q) =>
+                    $q->where('club_id', $clubId)->where('is_active', true)
+                )
+                ->first();
+            if (!$paymentMethod) {
+                return $this->unprocessable('El pago con tarjeta no está habilitado para este club.');
+            }
+        }
+
+        try {
+        return DB::transaction(function () use ($request, $clubId, $source, $paymentMethod) {
             $membership = Membership::where('membership_account_id', $request->membership_account_id)
                 ->where('club_id', $clubId)
                 ->first();
@@ -128,10 +167,10 @@ class LockerApiController extends Controller
                 'club_id' => $clubId,
             ]);
 
-            Charge::create([
+            $charge = Charge::create([
                 'membership_account_id' => $request->membership_account_id,
-                'membership_id' => $request->membership_id ?? null,
-                'member_id' => $request->member_id ?? null,
+                'membership_id' => $membership->id,
+                'member_id' => $request->member_id,
                 'concept_id' => $concept->id,
                 'description' => $concept->description,
                 'amount' => $amount,
@@ -151,8 +190,59 @@ class LockerApiController extends Controller
 
             $locker->update(['status' => 'ocupado']);
 
-            return $this->success('Casillero asignado correctamente.', ['amount' => $amount]);
+            // Cobrar de inmediato si se proporcionó tarjeta y hay monto
+            if ($source && $paymentMethod && $amount > 0) {
+                $account = MembershipAccount::find($request->membership_account_id);
+                $amountCents = (int) round($amount * 100);
+
+                $conektaResult = $this->conekta->charge(
+                    member:      $source->member,
+                    source:      $source,
+                    clubId:      $clubId,
+                    amountCents: $amountCents,
+                    description: "Casillero #{$locker->number} - {$charge->description}",
+                    metadata: [
+                        'membership_account_id' => $request->membership_account_id,
+                        'club_id'               => $clubId,
+                        'charge_ids'            => (string) $charge->id,
+                    ],
+                );
+
+                if ($conektaResult['status'] !== 'paid') {
+                    // Lanzar excepción para forzar rollback de toda la transacción
+                    throw new \RuntimeException('El pago fue rechazado por el procesador. Verifica los datos de tu tarjeta.');
+                }
+
+                $this->paymentService->register(
+                    account:       $account,
+                    clubId:        $clubId,
+                    paymentMethod: $paymentMethod,
+                    applications:  [['charge_id' => $charge->id, 'amount' => $amount]],
+                    paidAt:        now()->toDateString(),
+                    reference:     $conektaResult['order_id'],
+                    bankName:      null,
+                    checkNumber:   null,
+                    notes:         "Pago procesado vía Conekta al asignar casillero. Cargo: {$conektaResult['charge_id']}",
+                    receivedBy:    null,
+                    sessionClubId: $clubId,
+                );
+
+                return $this->success('Casillero asignado y pago realizado correctamente.', [
+                    'amount'    => $amount,
+                    'charge_id' => $charge->id,
+                    'paid'      => true,
+                ]);
+            }
+
+            return $this->success('Casillero asignado correctamente.', [
+                'amount'    => $amount,
+                'charge_id' => $charge->id,
+                'paid'      => false,
+            ]);
         });
+        } catch (\RuntimeException $e) {
+            return $this->unprocessable($e->getMessage());
+        }
     }
     public function pricing(Request $request)
     {

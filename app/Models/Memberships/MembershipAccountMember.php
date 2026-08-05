@@ -15,6 +15,11 @@ class MembershipAccountMember extends Model
 
     protected $guarded = ['id', 'created_at', 'updated_at'];
 
+    protected $casts = [
+        'is_primary_holder'  => 'boolean',
+        'access_valid_until' => 'datetime',
+    ];
+
     protected $table = 'memberships.account_members';
 
     public function membershipAccount()

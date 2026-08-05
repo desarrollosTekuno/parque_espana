@@ -19,6 +19,8 @@ class ChargeConcept extends Model
         'default_amount' => 'float',
         'is_recurring' => 'boolean',
         'allows_partial_payments' => 'boolean',
+        'is_mobile_payable' => 'boolean',
+        'splits_between_parks' => 'boolean',
         'is_active' => 'boolean',
     ];
 

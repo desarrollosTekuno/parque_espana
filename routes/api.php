@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\AccountStatementController;
 use App\Http\Controllers\Api\V1\CheckInController;
 use App\Http\Controllers\Api\V1\FamilyMembersController;
+use App\Http\Controllers\Api\V1\MyMembersController;
 use App\Http\Controllers\Api\V1\AmenityController;
 use App\Http\Controllers\Api\V1\EmailTestController;
 use App\Http\Controllers\Api\V1\FirebaseTestController;
@@ -88,6 +89,9 @@ Route::prefix('v1')->name('api.')->group(function () {
 
         // Integrantes de membresía familiar (solo socio titular)
         Route::get('/family-members', [FamilyMembersController::class, 'index']);
+
+        // Credenciales de acceso — todos los integrantes de la cuenta con su access_code
+        Route::get('/my-members', [MyMembersController::class, 'index']);
 
         // SPEI — generar CLABE y consultar estado de orden
         Route::post('/spei-payment', [SpeiPaymentController::class, 'store']);
