@@ -126,8 +126,12 @@ class DayPassController extends Controller
     public function store(Request $request)
     {
         $clubId = (int) session('club_id');
+        // El módulo de Cobranza agrega el pase a la lista de cobros para
+        // pagarse junto con el resto de la cuenta, en vez de cobrarlo aquí
+        // mismo: el cargo se crea pendiente y sin datos de pago todavía.
+        $deferred = $request->wantsJson() || $request->boolean('as_json');
 
-        $request->validate([
+        $request->validate(array_merge([
             'member_id'              => ['required', 'integer'],
             'date'                   => ['required', 'date'],
             'visitors'               => ['required', 'array', 'min:1'],
@@ -135,24 +139,36 @@ class DayPassController extends Controller
             'visitors.*.last_name'   => ['required', 'string', 'max:200'],
             'visitors.*.age'         => ['required', 'integer', 'min:0', 'max:120'],
             'visitors.*.email'       => ['nullable', 'email', 'max:200'],
-            'payment_method_id'      => ['required', 'integer'],
-            'paid_at'                => ['required', 'date'],
             'reference'              => ['nullable', 'string', 'max:200'],
             'bank_name'              => ['nullable', 'string', 'max:200'],
             'check_number'           => ['nullable', 'string', 'max:100'],
             'notes'                  => ['nullable', 'string', 'max:500'],
-        ]);
+        ], $deferred ? [
+            'payment_method_id' => ['nullable', 'integer'],
+            'paid_at'           => ['nullable', 'date'],
+        ] : [
+            'payment_method_id' => ['required', 'integer'],
+            'paid_at'           => ['required', 'date'],
+        ]));
 
         $normalPrice  = GuestListVariable::where('code', 'NORMAL_PRICE')->where('club_id', $clubId)->value('value');
         $specialPrice = GuestListVariable::where('code', 'SPECIAL_PRICE')->where('club_id', $clubId)->value('value');
         $maxGuests    = GuestListVariable::where('code', 'MAX_GUESTS')->where('club_id', $clubId)->value('value');
 
         if (is_null($normalPrice) || is_null($specialPrice) || is_null($maxGuests)) {
-            return back()->withErrors(['messageError' => 'El club no tiene configuradas las variables de pases de invitados.']);
+            $message = 'El club no tiene configuradas las variables de pases de invitados.';
+
+            return $deferred
+                ? response()->json(['success' => false, 'message' => $message], 422)
+                : back()->withErrors(['messageError' => $message]);
         }
 
         if (count($request->visitors) > (int) $maxGuests) {
-            return back()->withErrors(['messageError' => "El máximo de visitantes permitido es {$maxGuests}."]);
+            $message = "El máximo de visitantes permitido es {$maxGuests}.";
+
+            return $deferred
+                ? response()->json(['success' => false, 'message' => $message], 422)
+                : back()->withErrors(['messageError' => $message]);
         }
 
         // Normalizar emails vacíos a null
@@ -176,7 +192,13 @@ class DayPassController extends Controller
             $member = Member::with(['accountMemberships.membershipAccount.memberships', 'user'])
                 ->findOrFail($request->member_id);
 
-            $accountMembership = $member->accountMemberships()->first();
+            // Un socio puede tener más de una cuenta de membresía (una por
+            // parque, ver CollectionController::resolveGroupAccountIds).
+            // Se prioriza la del parque donde se está vendiendo el pase para
+            // no colgar el cargo en la cuenta de otro parque.
+            $accountMembership = $member->accountMemberships
+                ->first(fn ($am) => $am->membershipAccount?->club_id === $clubId)
+                ?? $member->accountMemberships->first();
             if (! $accountMembership) {
                 throw new \Exception('El socio no tiene una cuenta de membresía activa.');
             }
@@ -189,11 +211,11 @@ class DayPassController extends Controller
                 'date'              => $request->date,
                 'total_visitors'    => $visitors->count(),
                 'amount'            => $totalAmount,
-                'payment_method_id' => $request->payment_method_id,
-                'paid_at'           => $request->paid_at,
+                'payment_method_id' => $deferred ? null : $request->payment_method_id,
+                'paid_at'           => $deferred ? null : $request->paid_at,
                 'reference'         => $request->reference,
                 'bank_name'         => $request->bank_name,
-                'check_number'      => $request->check_number, 
+                'check_number'      => $request->check_number,
                 'notes'             => $request->notes,
                 'created_by'        => auth()->id(),
             ]);
@@ -219,11 +241,11 @@ class DayPassController extends Controller
                 'concept_id'              => $concept->id,
                 'description'             => "Pase por día — {$request->date} — {$visitors->count()} visitante(s)",
                 'amount'                  => $totalAmount,
-                'balance'                 => 0,
+                'balance'                 => $deferred ? $totalAmount : 0,
                 'issue_date'              => now(),
                 'due_date'                => now(),
                 'allows_partial_payments' => false,
-                'status'                  => 'paid',
+                'status'                  => $deferred ? 'pending' : 'paid',
                 'metadata'                => [
                     'charge_origin' => 'day_pass',
                     'concept_code'  => $concept->code,
@@ -232,33 +254,35 @@ class DayPassController extends Controller
                 ],
             ]);
 
-            $paymentMethod = PaymentMethod::findOrFail($request->payment_method_id);
+            if (!$deferred) {
+                $paymentMethod = PaymentMethod::findOrFail($request->payment_method_id);
 
-            $payment = Payment::create([
-                'membership_account_id' => $accountMembership->membership_account_id,
-                'club_id'               => $clubId,
-                'payment_method_id'     => $paymentMethod->id,
-                'amount'                => $totalAmount,
-                'paid_at'               => $request->paid_at,
-                'reference'             => $request->reference,
-                'bank_name'             => $request->bank_name,
-                'check_number'          => $request->check_number,
-                'notes'                 => $request->notes,
-                'received_by'           => auth()->id(),
-                'status'                => 'registered',
-                'metadata'              => [
-                    'day_pass_id'        => $dayPass->id,
-                    'session_club_id'    => $clubId,
-                    'settlement_channel' => 'cashier',
-                    'affects_cash_cut'   => $paymentMethod->affects_cash_cut,
-                ],
-            ]);
+                $payment = Payment::create([
+                    'membership_account_id' => $accountMembership->membership_account_id,
+                    'club_id'               => $clubId,
+                    'payment_method_id'     => $paymentMethod->id,
+                    'amount'                => $totalAmount,
+                    'paid_at'               => $request->paid_at,
+                    'reference'             => $request->reference,
+                    'bank_name'             => $request->bank_name,
+                    'check_number'          => $request->check_number,
+                    'notes'                 => $request->notes,
+                    'received_by'           => auth()->id(),
+                    'status'                => 'registered',
+                    'metadata'              => [
+                        'day_pass_id'        => $dayPass->id,
+                        'session_club_id'    => $clubId,
+                        'settlement_channel' => 'cashier',
+                        'affects_cash_cut'   => $paymentMethod->affects_cash_cut,
+                    ],
+                ]);
 
-            PaymentApplication::create([
-                'payment_id'     => $payment->id,
-                'charge_id'      => $charge->id,
-                'applied_amount' => $totalAmount,
-            ]);
+                PaymentApplication::create([
+                    'payment_id'     => $payment->id,
+                    'charge_id'      => $charge->id,
+                    'applied_amount' => $totalAmount,
+                ]);
+            }
 
             DB::commit();
 
@@ -289,11 +313,33 @@ class DayPassController extends Controller
                 }
             }
 
+            if ($deferred) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Pase por día registrado.',
+                    'charge' => [
+                        'id' => $charge->id,
+                        'amount' => (float) $charge->amount,
+                        'balance' => (float) $charge->balance,
+                        'day_pass_id' => $dayPass->id,
+                        'total_visitors' => $visitors->count(),
+                    ],
+                ]);
+            }
+
             return back()->with('success', 'Pase por día registrado y ticket enviado al socio correctamente.');
 
         } catch (\Exception $e) {
             DB::rollBack();
             report($e);
+
+            if ($deferred) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ], 422);
+            }
+
             return back()->withErrors(['messageError' => $e->getMessage()]);
         }
     }

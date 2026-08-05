@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\V1\BusinessAdController;
 use App\Http\Controllers\Api\V1\BusinessCategoryController;
 use App\Http\Controllers\Api\V1\ReservationGuestController;
 use App\Http\Controllers\Api\V1\SurveyController;
+use App\Http\Controllers\Api\V1\WebsiteApiController;
 use App\Http\Controllers\Api\V1\ClinicalHistoryController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -48,6 +49,13 @@ Route::prefix('v1')->name('api.')->group(function () {
     // Amenities
     Route::get('/amenities/{amenityResource}/available-slots', [AmenityController::class, 'availableSlots'])->middleware('auth:sanctum');
     Route::get('/clubs/{club}/amenities', [AmenityController::class, 'amenitiesByClub'])->middleware('auth:sanctum');
+
+    // =================================== Pagina web Test ================================
+    Route::get('/clubs/{club}/website/carousel', [WebsiteApiController::class, 'carousel']);
+    Route::get('/clubs/{club}/website/home-cards', [WebsiteApiController::class, 'homeCards']);
+    Route::get('/clubs/{club}/website/membership-prices', [WebsiteApiController::class, 'membershipPrices']);
+    Route::get('/clubs/{club}/website/virtual-tour', [WebsiteApiController::class, 'virtualTour']);
+    Route::get('/clubs/{club}/website/events', [WebsiteApiController::class, 'events']);
 
     // Business Ads
     // Enviar solicitud de promoción desde la app

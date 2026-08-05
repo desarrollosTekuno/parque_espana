@@ -211,6 +211,7 @@ class AdminClubSeeder extends Seeder
             'payment-methods.store',
             'payment-methods.update',
             'payment-methods.destroy',
+            'tickets.index',
 
             // cortes de caja
             'cash-cuts.index',
@@ -297,6 +298,11 @@ class AdminClubSeeder extends Seeder
             'day-passes.store',
             'day-passes.incidents.index',
             'day-passes.incidents.store',
+
+            // página web
+            'website-content.index',
+            'website-content.store',
+            'website-content.destroy',
         );
         $adminClubRole = Role::updateOrCreate([
             'name' => 'admin_club',

@@ -193,6 +193,8 @@ const saveQuestion = () => {
                     preserveScroll: true,
                     onSuccess: () => {
                         showModal.value = false;
+                        qForm.reset();
+                        qForm.clearErrors();
                         customToastSwal({
                             title: "Pregunta actualizada",
                             icon: "success",
@@ -211,6 +213,8 @@ const saveQuestion = () => {
                 preserveScroll: true,
                 onSuccess: () => {
                     showModal.value = false;
+                    qForm.reset();
+                    qForm.clearErrors();
                     customToastSwal({
                         title: "Pregunta agregada",
                         icon: "success",

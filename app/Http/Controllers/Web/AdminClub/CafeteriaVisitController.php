@@ -21,9 +21,26 @@ class CafeteriaVisitController extends Controller
 
     public function __construct()
     {
-        $this->middleware('permission:cafeteria-visits.index')->only('index');
+        $this->middleware('permission:cafeteria-visits.index')->only('index', 'open');
         $this->middleware('permission:cafeteria-visits.store')->only('store');
         $this->middleware('permission:cafeteria-visits.checkout')->only('checkout');
+    }
+
+    /**
+     * Visitas de cafetería activas (aún no registran salida) del club dado.
+     * Solo consulta — se usa en el módulo de Cobranza para elegir a quién
+     * se le está registrando la salida (ver checkout()).
+     */
+    public function open(Request $request)
+    {
+        $clubId = (int) ($request->integer('club_id') ?: session('club_id'));
+
+        $visits = CafeteriaVisit::where('club_id', $clubId)
+            ->where('status', 'active')
+            ->orderBy('expires_at')
+            ->get(['id', 'visitor_name', 'document_type', 'document_number', 'entered_at', 'expires_at', 'min_consumption']);
+
+        return response()->json($visits);
     }
 
     public function index(Request $request)
@@ -119,7 +136,7 @@ class CafeteriaVisitController extends Controller
 
         //dd($enteredAt);
 
-        CafeteriaVisit::create([
+        $visit = CafeteriaVisit::create([
             'club_id'         => $clubId,
             'visitor_name'    => $request->visitor_name,
             'document_type'   => $request->document_type,
@@ -132,16 +149,38 @@ class CafeteriaVisitController extends Controller
             'registered_by'   => $request->user()?->id,
         ]);
 
-        return back()->with(
-            'success',
-            'Ingreso registrado. El visitante tiene hasta las ' .
-            $expiresAt->format('H:i') . ' (' . (int) $durationHours . ' hora(s)).'
-        );
+        $message = 'Ingreso registrado. El visitante tiene hasta las ' .
+            $expiresAt->format('H:i') . ' (' . (int) $durationHours . ' hora(s)).';
+
+        if ($request->wantsJson() || $request->boolean('as_json')) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'visit' => [
+                    'id' => $visit->id,
+                    'visitor_name' => $visit->visitor_name,
+                    'expires_at' => $visit->expires_at,
+                    'min_consumption' => (float) $visit->min_consumption,
+                ],
+            ]);
+        }
+
+        return back()->with('success', $message);
     }
     public function checkout(Request $request, CafeteriaVisit $cafeteriaVisit)
     {
+        // El módulo de Cobranza agrega el cobro (si aplica) a la lista de
+        // cobros para pagarse junto con el resto de la cuenta, en vez de
+        // cobrarlo aquí mismo: no se piden datos de pago, el cargo queda
+        // pendiente.
+        $deferred = $request->wantsJson() || $request->boolean('as_json');
+
         if ($cafeteriaVisit->status === 'completed') {
-            return back()->withErrors(['messageError' => 'Este ingreso ya fue procesado.']);
+            $message = 'Este ingreso ya fue procesado.';
+
+            return $deferred
+                ? response()->json(['success' => false, 'message' => $message], 422)
+                : back()->withErrors(['messageError' => $message]);
         }
 
         $request->validate([
@@ -154,7 +193,7 @@ class CafeteriaVisitController extends Controller
 
         $paymentMethod = null;
 
-        if (!$waived) {
+        if (!$waived && !$deferred) {
             $request->validate([
                 'payment_method_id' => 'required|integer',
                 'paid_at'           => 'required|date',
@@ -180,6 +219,8 @@ class CafeteriaVisitController extends Controller
             }
         }
 
+        $charge = null;
+
         DB::beginTransaction();
         try {
             if (!$waived) {
@@ -191,9 +232,9 @@ class CafeteriaVisitController extends Controller
                     'member_id'               => null,
                     'concept_id'              => $concept->id,
                     'description'             => 'Acceso a cafetería para ' . $cafeteriaVisit->visitor_name,
-                    'status'                  => 'paid',
+                    'status'                  => $deferred ? 'pending' : 'paid',
                     'amount'                  => $minConsumption,
-                    'balance'                 => 0,
+                    'balance'                 => $deferred ? $minConsumption : 0,
                     'allows_partial_payments' => false,
                     'metadata'                => [
                         'cafeteria_visit_id' => $cafeteriaVisit->id,
@@ -204,30 +245,32 @@ class CafeteriaVisitController extends Controller
                     ],
                 ]);
 
-                $payment = Payment::create([
-                    'membership_account_id' => null,
-                    'club_id'               => $cafeteriaVisit->club_id,
-                    'payment_method_id'     => $paymentMethod->id,
-                    'amount'                => $minConsumption,
-                    'paid_at'               => $request->paid_at,
-                    'reference'             => $request->reference,
-                    'bank_name'             => $request->bank_name,
-                    'check_number'          => $request->check_number,
-                    'notes'                 => 'Cobro de acceso a cafetería para ' . $cafeteriaVisit->visitor_name,
-                    'received_by'           => $request->user()?->id,
-                    'status'                => 'registered',
-                    'metadata'              => [
-                        'cafeteria_visit_id' => $cafeteriaVisit->id,
-                        'settlement_channel' => 'cashier',
-                        'affects_cash_cut'   => $paymentMethod->affects_cash_cut,
-                    ],
-                ]);
+                if (!$deferred) {
+                    $payment = Payment::create([
+                        'membership_account_id' => null,
+                        'club_id'               => $cafeteriaVisit->club_id,
+                        'payment_method_id'     => $paymentMethod->id,
+                        'amount'                => $minConsumption,
+                        'paid_at'               => $request->paid_at,
+                        'reference'             => $request->reference,
+                        'bank_name'             => $request->bank_name,
+                        'check_number'          => $request->check_number,
+                        'notes'                 => 'Cobro de acceso a cafetería para ' . $cafeteriaVisit->visitor_name,
+                        'received_by'           => $request->user()?->id,
+                        'status'                => 'registered',
+                        'metadata'              => [
+                            'cafeteria_visit_id' => $cafeteriaVisit->id,
+                            'settlement_channel' => 'cashier',
+                            'affects_cash_cut'   => $paymentMethod->affects_cash_cut,
+                        ],
+                    ]);
 
-                PaymentApplication::create([
-                    'payment_id'     => $payment->id,
-                    'charge_id'      => $charge->id,
-                    'applied_amount' => $minConsumption,
-                ]);
+                    PaymentApplication::create([
+                        'payment_id'     => $payment->id,
+                        'charge_id'      => $charge->id,
+                        'applied_amount' => $minConsumption,
+                    ]);
+                }
             }
 
             $cafeteriaVisit->update([
@@ -250,6 +293,19 @@ class CafeteriaVisitController extends Controller
         $message = $waived
             ? 'Salida registrada. Acceso exento — consumo suficiente en cafetería.'
             : 'Salida registrada. Se cobró $' . number_format($minConsumption, 2) . ' de acceso al parque. Devolver identificación.';
+
+        if ($deferred) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'waived' => $waived,
+                'charge' => $charge ? [
+                    'id' => $charge->id,
+                    'amount' => (float) $charge->amount,
+                    'balance' => (float) $charge->balance,
+                ] : null,
+            ]);
+        }
 
         return back()->with('success', $message);
     }

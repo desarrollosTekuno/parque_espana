@@ -11,8 +11,10 @@ use App\Models\Billing\PaymentMethod;
 use App\Models\Members\Act;
 use App\Models\Members\LockerAssignment;
 use App\Models\Memberships\Membership;
+use App\Models\Members\MemberDocument;
 use App\Models\Memberships\MembershipAccount;
 use App\Rules\ExistsInSchema;
+use App\Services\Billing\MembershipChargeService;
 use App\Services\Billing\PaymentRegistrationService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -21,6 +23,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Módulo de cobranza tipo caja (nuevo).
@@ -43,6 +46,7 @@ class CollectionController extends Controller
 
     public function __construct(
         protected PaymentRegistrationService $paymentRegistrationService,
+        protected MembershipChargeService $membershipChargeService,
     ) {
     }
 
@@ -98,11 +102,11 @@ class CollectionController extends Controller
             })
             ->orderByDesc('id')
             ->first();
-
+       
         if (!$account) {
             return response()->json([
                 'found' => false,
-                'message' => 'No se encontró ningún socio con esa clave o nombre.',
+                'message' => 'No se encontró ningún socio con esa clave o nombre.', 
             ]);
         }
 
@@ -111,7 +115,7 @@ class CollectionController extends Controller
         // Membresía sobre la que se factura: primaria activa/suspendida,
         // priorizando el parque de la sesión.
         $membership = Membership::query()
-            ->with('club')
+           // ->with('club')
             ->where('membership_account_id', $account->id)
             ->where('is_primary', true)
             ->whereIn('status', ['active', 'suspended'])
@@ -122,6 +126,43 @@ class CollectionController extends Controller
             ?? ($sessionClubId ? Club::find($sessionClubId) : null);
         $cobroClubId = $cobroClub?->id;
 
+        // Un socio que pertenece a más de un parque tiene una MembershipAccount
+        // distinta por parque, enlazadas por account_group_id (mismo mecanismo
+        // que usa MemberController/MembershipChargeService para repartir la
+        // cuota interclub). Se buscan aquí para poder agregar la mensualidad
+        // de todos los parques del socio en un solo concepto.
+        $groupAccountIds = $this->resolveGroupAccountIds($account);
+
+        // Todas las membresías primarias activas/suspendidas del socio en
+        // cualquiera de sus cuentas del grupo. Se usan para agregar la
+        // mensualidad de todos los parques en un solo concepto y para generar
+        // el cargo del mes siguiente en cada una si aún no existe.
+        $accountMemberships = Membership::query()
+            ->with(['club', 'account'])
+            ->whereIn('membership_account_id', $groupAccountIds)
+            ->where('is_primary', true)
+            ->whereIn('status', ['active', 'suspended'])
+            ->get();
+
+        foreach ($accountMemberships as $accountMembership) {
+            $this->membershipChargeService->ensureMonthlyChargeForNextPeriod($accountMembership);
+        }
+
+        // Un parque por cada membresía activa del socio (puede pertenecer a
+        // más de una MembershipAccount, una por parque, ver resolveGroupAccountIds),
+        // para mostrar en el encabezado la clave/cuenta que le corresponde en
+        // cada uno cuando aplica.
+        $clubMemberships = $accountMemberships
+            ->unique('club_id')
+            ->map(fn (Membership $m) => [
+                'club_id' => $m->club_id,
+                'club_code' => $m->club?->code,
+                'club_name' => $m->club?->name,
+                'membership_number' => $m->account?->membership_number,
+                'is_cobro_club' => $m->club_id === $cobroClubId,
+            ])
+            ->values();
+
         $holder = $account->primaryHolder?->member;
         $holderName = trim(collect([
             $holder?->first_name,
@@ -129,15 +170,41 @@ class CollectionController extends Controller
             $holder?->second_last_name,
         ])->filter()->implode(' '));
 
-        // ── Cargos pendientes del parque de cobro, agrupados por concepto ──
+        // ── Integrantes de la cuenta, para la asignación de casilleros ──
+        // (ver "Agregar concepto de cobro" → código LOCKERS en el frontend).
+        $pendingLockerMemberIds = Charge::where('status', 'pending')
+            ->where('period_year', now()->year)
+            ->whereNotNull('metadata->locker_id')
+            ->pluck('member_id')
+            ->unique();
+
+        $accountMembers = $account->members()
+            ->get()
+            ->load('lockerAssignment')
+            ->map(function ($member) use ($pendingLockerMemberIds) {
+                $hasLocker = $member->lockerAssignment !== null;
+                $hasPendingLocker = $pendingLockerMemberIds->contains($member->id);
+
+                return [
+                    'id' => $member->id,
+                    'name' => trim(collect([
+                        $member->first_name,
+                        $member->last_name,
+                        $member->second_last_name,
+                    ])->filter()->implode(' ')),
+                    'has_locker' => $hasLocker || $hasPendingLocker,
+                ];
+            })
+            ->values();
+
+        // ── Cargos pendientes, agrupados por concepto ──
+        // Se muestran los de todas las cuentas del grupo (todos los parques
+        // donde el socio tiene membresía), no solo los de la cuenta encontrada
+        // por la búsqueda.
         $pendingCharges = Charge::query()
-            ->with('concept')
-            ->where('membership_account_id', $account->id)
+            ->with(['concept', 'membership.club'])
             ->whereIn('status', ['pending', 'partial'])
-            ->when(
-                $cobroClubId,
-                fn (Builder $q) => $q->whereHas('membership', fn (Builder $m) => $m->where('club_id', $cobroClubId))
-            )
+            ->whereIn('membership_account_id', $groupAccountIds)
             ->orderByRaw('CASE WHEN due_date IS NULL THEN 1 ELSE 0 END')
             ->orderBy('due_date')
             ->orderBy('id')
@@ -153,6 +220,23 @@ class CollectionController extends Controller
                 $originalTotal = round((float) $group->sum('amount'), 2);
                 $isRecurring = (bool) ($concept?->is_recurring);
 
+                $clubIds = $group->map(fn (Charge $c) => $c->membership?->club_id)->filter()->unique();
+                $isMultiClub = $clubIds->count() > 1;
+                $clubBreakdown = $isMultiClub
+                    ? $group->groupBy(fn (Charge $c) => $c->membership?->club_id)
+                        ->map(function ($clubGroup) {
+                            $club = $clubGroup->first()->membership?->club;
+
+                            return [
+                                'club_id' => $club?->id,
+                                'club_code' => $club?->code,
+                                'club_name' => $club?->name,
+                                'amount' => round((float) $clubGroup->sum('balance'), 2),
+                            ];
+                        })
+                        ->values()
+                    : collect();
+
                 return [
                     'concept_id' => $concept?->id,
                     'concept_code' => $concept?->code,
@@ -166,11 +250,15 @@ class CollectionController extends Controller
                     'unit_amount' => $months > 0 ? round($balance / $months, 2) : $balance,
                     'months' => $months,
                     'balance' => $balance,
+                    'is_multi_club' => $isMultiClub,
+                    'club_breakdown' => $clubBreakdown,
                     'charges' => $group->map(fn (Charge $charge) => [
                         'id' => $charge->id,
                         'balance' => round((float) $charge->balance, 2),
                         'allows_partial_payments' => (bool) $charge->allows_partial_payments,
                         'period_label' => $this->periodLabel($charge->period_month, $charge->period_year),
+                        'club_id' => $charge->membership?->club_id,
+                        'club_code' => $charge->membership?->club?->code,
                     ])->values(),
                 ];
             })
@@ -261,14 +349,18 @@ class CollectionController extends Controller
                 'membership_number' => $account->membership_number,
                 'internal_account_number' => $account->internal_account_number,
                 'holder_name' => $holderName ?: '—',
+                'holder_member_id' => $holder?->id,
                 'email' => $holder?->email,
                 'phone' => $holder?->phone,
+                'photo' => $this->resolveHolderPhotoUrl($holder),
             ],
             'cobro_club' => $cobroClub ? [
                 'id' => $cobroClub->id,
                 'code' => $cobroClub->code,
                 'name' => $cobroClub->name,
             ] : null,
+            'club_memberships' => $clubMemberships,
+            'account_members' => $accountMembers,
             'billing_membership_id' => $membership?->id,
             'pending_concepts' => $pendingConcepts,
             'summary' => [
@@ -333,6 +425,23 @@ class CollectionController extends Controller
                 ->where('is_active', true)
                 ->firstOrFail();
 
+            // Todas las cuentas del grupo del socio (una por parque, ver
+            // resolveGroupAccountIds) y los parques donde tiene membresía
+            // activa en cualquiera de ellas: permite que la mensualidad se
+            // liquide en un solo pago aunque abarque más de un club (ver
+            // PaymentRegistrationService::ensureChargesBelongToClub).
+            $groupAccountIds = $this->resolveGroupAccountIds($account);
+
+            $accountClubIds = Membership::query()
+                ->whereIn('membership_account_id', $groupAccountIds)
+                ->where('is_primary', true)
+                ->whereIn('status', ['active', 'suspended'])
+                ->pluck('club_id')
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
             // Membresía del socio en ese parque para colgar los cargos nuevos.
             $membership = Membership::query()
                 ->where('membership_account_id', $account->id)
@@ -351,7 +460,8 @@ class CollectionController extends Controller
 
             $payment = DB::transaction(function () use (
                 $account, $clubId, $paymentMethod, $existing, $newItems,
-                $membership, $memberId, $validated, $request
+                $membership, $memberId, $validated, $request, $accountClubIds,
+                $groupAccountIds
             ) {
                 $applications = $existing
                     ->map(fn ($item) => [
@@ -405,6 +515,8 @@ class CollectionController extends Controller
                     notes: $validated['notes'] ?? null,
                     receivedBy: $request->user()?->id,
                     sessionClubId: session('club_id'),
+                    accountClubIds: $accountClubIds,
+                    groupAccountIds: $groupAccountIds,
                 );
             });
 
@@ -431,6 +543,41 @@ class CollectionController extends Controller
                 'exception' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * IDs de todas las MembershipAccount del mismo grupo que la cuenta dada
+     * (mismo account_group_id), o solo la propia si no pertenece a ningún
+     * grupo. Un socio que pertenece a más de un parque tiene una cuenta
+     * distinta por parque, enlazadas por este mismo mecanismo que ya usa
+     * MemberController/MembershipChargeService para repartir la cuota
+     * interclub.
+     */
+    protected function resolveGroupAccountIds(MembershipAccount $account): array
+    {
+        if (!$account->account_group_id) {
+            return [$account->id];
+        }
+
+        return MembershipAccount::query()
+            ->where('account_group_id', $account->account_group_id)
+            ->pluck('id')
+            ->all();
+    }
+
+    protected function resolveHolderPhotoUrl(?\App\Models\Members\Member $holder): ?string
+    {
+        $photoDocument = $holder?->documents
+            ->first(fn (MemberDocument $document) => $document->documentType?->code === 'fotografia_infantil');
+
+        if (!$photoDocument) {
+            return null;
+        }
+
+        return Storage::disk('spaces')->temporaryUrl(
+            $photoDocument->file_path,
+            now()->addMinutes(30)
+        );
     }
 
     /**
