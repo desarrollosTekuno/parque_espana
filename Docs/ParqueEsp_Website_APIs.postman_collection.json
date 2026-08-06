@@ -29,171 +29,156 @@
   ],
   "item": [
     {
-      "name": "Inicio",
-      "item": [
-        {
-          "name": "Obtener carrusel",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/clubs/{{club_id}}/website/carousel",
-              "host": ["{{base_url}}"],
-              "path": ["clubs", "{{club_id}}", "website", "carousel"]
-            },
-            "description": "Devuelve las imágenes del carrusel con descripción e image_url."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
-                  "pm.test('Data es un arreglo', () => pm.expect(pm.response.json().data).to.be.an('array'));"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
+      "name": "Obtener carrusel",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/clubs/{{club_id}}/website/carousel",
+          "host": ["{{base_url}}"],
+          "path": ["clubs", "{{club_id}}", "website", "carousel"]
         },
+        "description": "Devuelve las imágenes del carrusel con descripción e image_url."
+      },
+      "event": [
         {
-          "name": "Obtener cards",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/clubs/{{club_id}}/website/home-cards",
-              "host": ["{{base_url}}"],
-              "path": ["clubs", "{{club_id}}", "website", "home-cards"]
-            },
-            "description": "Devuelve las cards de Gimnasio, Alberca, Tenis, Jardines y Cafetería."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
-                  "pm.test('Data es un arreglo', () => pm.expect(pm.response.json().data).to.be.an('array'));"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('Data es un arreglo', () => pm.expect(pm.response.json().data).to.be.an('array'));"
+            ],
+            "type": "text/javascript"
+          }
         }
       ]
     },
     {
-      "name": "Membresías",
-      "item": [
+      "name": "Obtener cards",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/clubs/{{club_id}}/website/home-cards",
+          "host": ["{{base_url}}"],
+          "path": ["clubs", "{{club_id}}", "website", "home-cards"]
+        },
+        "description": "Devuelve las cards de Gimnasio, Alberca, Tenis, Jardines y Cafetería."
+      },
+      "event": [
         {
-          "name": "Obtener precios vigentes",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/clubs/{{club_id}}/website/membership-prices",
-              "host": ["{{base_url}}"],
-              "path": ["clubs", "{{club_id}}", "website", "membership-prices"]
-            },
-            "description": "Consulta directamente los tipos de membresía visibles y sus precios vigentes."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
-                  "pm.test('Data es un arreglo', () => pm.expect(pm.response.json().data).to.be.an('array'));"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('Data es un arreglo', () => pm.expect(pm.response.json().data).to.be.an('array'));"
+            ],
+            "type": "text/javascript"
+          }
         }
       ]
     },
     {
-      "name": "Instalaciones",
-      "item": [
+      "name": "Obtener precios vigentes",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/clubs/{{club_id}}/website/membership-prices",
+          "host": ["{{base_url}}"],
+          "path": ["clubs", "{{club_id}}", "website", "membership-prices"]
+        },
+        "description": "Consulta directamente los tipos de membresía visibles y sus precios vigentes."
+      },
+      "event": [
         {
-          "name": "Obtener vista virtual",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/clubs/{{club_id}}/website/virtual-tour",
-              "host": ["{{base_url}}"],
-              "path": ["clubs", "{{club_id}}", "website", "virtual-tour"]
-            },
-            "description": "Devuelve las categorías de instalaciones y sus imágenes con título."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
-                  "pm.test('Data es un arreglo', () => pm.expect(pm.response.json().data).to.be.an('array'));"
-                ],
-                "type": "text/javascript"
-              }
-            }
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('Data es un arreglo', () => pm.expect(pm.response.json().data).to.be.an('array'));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Obtener vista virtual",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/clubs/{{club_id}}/website/virtual-tour",
+          "host": ["{{base_url}}"],
+          "path": ["clubs", "{{club_id}}", "website", "virtual-tour"]
+        },
+        "description": "Devuelve las categorías de instalaciones y sus imágenes con título."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('Data es un arreglo', () => pm.expect(pm.response.json().data).to.be.an('array'));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Obtener todos los eventos",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/clubs/{{club_id}}/website/events",
+          "host": ["{{base_url}}"],
+          "path": ["clubs", "{{club_id}}", "website", "events"]
+        },
+        "description": "Devuelve todos los eventos del parque."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('Data es un arreglo', () => pm.expect(pm.response.json().data).to.be.an('array'));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Obtener eventos por mes",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/clubs/{{club_id}}/website/events?year={{year}}&month={{month}}",
+          "host": ["{{base_url}}"],
+          "path": ["clubs", "{{club_id}}", "website", "events"],
+          "query": [
+            { "key": "year", "value": "{{year}}" },
+            { "key": "month", "value": "{{month}}" }
           ]
         },
+        "description": "Devuelve únicamente los eventos del año y mes indicados."
+      },
+      "event": [
         {
-          "name": "Obtener todos los eventos",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/clubs/{{club_id}}/website/events",
-              "host": ["{{base_url}}"],
-              "path": ["clubs", "{{club_id}}", "website", "events"]
-            },
-            "description": "Devuelve todos los eventos del parque."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
-                  "pm.test('Data es un arreglo', () => pm.expect(pm.response.json().data).to.be.an('array'));"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
-        },
-        {
-          "name": "Obtener eventos por mes",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/clubs/{{club_id}}/website/events?year={{year}}&month={{month}}",
-              "host": ["{{base_url}}"],
-              "path": ["clubs", "{{club_id}}", "website", "events"],
-              "query": [
-                { "key": "year", "value": "{{year}}" },
-                { "key": "month", "value": "{{month}}" }
-              ]
-            },
-            "description": "Devuelve únicamente los eventos del año y mes indicados."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
-                  "pm.test('Data es un arreglo', () => pm.expect(pm.response.json().data).to.be.an('array'));"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('Data es un arreglo', () => pm.expect(pm.response.json().data).to.be.an('array'));"
+            ],
+            "type": "text/javascript"
+          }
         }
       ]
     }
