@@ -190,6 +190,7 @@ class PermissionSeeder extends Seeder
             ['module' => 'Cobranza', 'name' => 'payment-methods.store', 'description' => 'Crear métodos de pago', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'payment-methods.update', 'description' => 'Actualizar métodos de pago', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'payment-methods.destroy', 'description' => 'Eliminar métodos de pago', 'contexts' => ['web']],
+            ['module' => 'Cobranza', 'name' => 'tickets.index', 'description' => 'Ver y reimprimir tickets de pago', 'contexts' => ['web']],
 
             // Cortes de caja
             ['module' => 'Cortes de caja', 'name' => 'cash-cuts.index', 'description' => 'Ver mis cortes de caja', 'contexts' => ['web']],
@@ -300,6 +301,11 @@ class PermissionSeeder extends Seeder
             ['module' => 'Pases por Día', 'name' => 'day-passes.store', 'description' => 'Registrar pase por día', 'contexts' => ['web']],
             ['module' => 'Pases por Día', 'name' => 'day-passes.incidents.index', 'description' => 'Ver incidentes de visitantes', 'contexts' => ['web']],
             ['module' => 'Pases por Día', 'name' => 'day-passes.incidents.store', 'description' => 'Registrar incidente a visitante', 'contexts' => ['web']],
+
+            // Página web
+            ['module' => 'Página web', 'name' => 'website-content.index', 'description' => 'Ver módulo de página web', 'contexts' => ['web']],
+            ['module' => 'Página web', 'name' => 'website-content.store', 'description' => 'Subir imágenes del carrusel', 'contexts' => ['web']],
+            ['module' => 'Página web', 'name' => 'website-content.destroy', 'description' => 'Eliminar imágenes del carrusel', 'contexts' => ['web']],
 
             // Files
             ['module' => 'Archivos', 'name' => 'files.index', 'description' => 'Ver archivos', 'contexts' => ['Web']],

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\AccountStatementController;
 use App\Http\Controllers\Api\V1\CheckInController;
 use App\Http\Controllers\Api\V1\FamilyMembersController;
+use App\Http\Controllers\Api\V1\MyMembersController;
 use App\Http\Controllers\Api\V1\AmenityController;
 use App\Http\Controllers\Api\V1\EmailTestController;
 use App\Http\Controllers\Api\V1\FirebaseTestController;
@@ -22,8 +23,10 @@ use App\Http\Controllers\Api\V1\PaymentSourceController;
 use App\Http\Controllers\Api\V1\ReservationController;
 use App\Http\Controllers\Api\V1\BusinessAdController;
 use App\Http\Controllers\Api\V1\BusinessCategoryController;
+use App\Http\Controllers\Api\V1\ClubContactInfoController;
 use App\Http\Controllers\Api\V1\ReservationGuestController;
 use App\Http\Controllers\Api\V1\SurveyController;
+use App\Http\Controllers\Api\V1\WebsiteApiController;
 use App\Http\Controllers\Api\V1\ClinicalHistoryController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -48,6 +51,13 @@ Route::prefix('v1')->name('api.')->group(function () {
     Route::get('/amenities/{amenityResource}/available-slots', [AmenityController::class, 'availableSlots'])->middleware('auth:sanctum');
     Route::get('/clubs/{club}/amenities', [AmenityController::class, 'amenitiesByClub'])->middleware('auth:sanctum');
 
+    // =================================== Pagina web Test ================================
+    Route::get('/clubs/{club}/website/carousel', [WebsiteApiController::class, 'carousel']);
+    Route::get('/clubs/{club}/website/home-cards', [WebsiteApiController::class, 'homeCards']);
+    Route::get('/clubs/{club}/website/membership-prices', [WebsiteApiController::class, 'membershipPrices']);
+    Route::get('/clubs/{club}/website/virtual-tour', [WebsiteApiController::class, 'virtualTour']);
+    Route::get('/clubs/{club}/website/events', [WebsiteApiController::class, 'events']);
+
     // Business Ads
     // Enviar solicitud de promoción desde la app
     Route::post('/business-ads', [BusinessAdController::class, 'store'])->middleware('auth:sanctum');
@@ -56,6 +66,9 @@ Route::prefix('v1')->name('api.')->group(function () {
     Route::middleware('auth:sanctum')->prefix('clubs/{club}')->group(function () {
         // Mostrar categorías de negocios en la pantalla principal de la app
         Route::get('/business-categories', [BusinessCategoryController::class, 'index']);
+
+        // Información de contacto del club (pantallas "Contacto" y "Mapa" de la app)
+        Route::get('/contact-info', [ClubContactInfoController::class, 'show']);
 
         // Mostrar negocios publicados por categoría en la app
         Route::get('/business-ads', [BusinessAdController::class, 'index']);
@@ -88,6 +101,9 @@ Route::prefix('v1')->name('api.')->group(function () {
 
         // Integrantes de membresía familiar (solo socio titular)
         Route::get('/family-members', [FamilyMembersController::class, 'index']);
+
+        // Credenciales de acceso — todos los integrantes de la cuenta con su access_code
+        Route::get('/my-members', [MyMembersController::class, 'index']);
 
         // SPEI — generar CLABE y consultar estado de orden
         Route::post('/spei-payment', [SpeiPaymentController::class, 'store']);

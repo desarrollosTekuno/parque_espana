@@ -123,6 +123,28 @@ Referencia de la API consumida por la app móvil. Generada a partir del código 
 - Éxito (200): `{"message": "Token de dispositivo desactivado."}` (incluso si no había ningún registro que coincidiera)
 - Nota: desactiva (`is_active = false`) el token, scoped por `token` + `user_id`. Llamar en logout.
 
+### GET /clubs/{club}/my-members
+- Auth: sí. Sin parámetros adicionales.
+- Devuelve los integrantes con credencial (access_code) según el rol del usuario autenticado:
+  - **Titular** (`is_primary_holder = true`): todos los integrantes de la cuenta en ese club.
+  - **No titular**: únicamente su propio registro.
+- Éxito (200):
+  ```json
+  {
+    "data": [
+      {
+        "member_id": 1,
+        "full_name": "string",
+        "photo_url": "string|null",
+        "access_code": "string|null",
+        "access_valid_until": "datetime|null",
+        "access_status": "active"
+      }
+    ]
+  }
+  ```
+- Error `403` `{"message": "No tienes una membresía activa en este club."}` — si el usuario no tiene `Member` vinculado o no pertenece al club.
+
 ### GET /clubs/{club}/family-members
 - Auth: sí
 - Éxito (200):
@@ -398,11 +420,14 @@ La mensualidad dividida 50/50 entre parques **no es un solo cargo combinado** �
 - Error `403` `{"message": "No perteneces a este club"}`.
 
 ### POST /lockers/assign
-- Auth: sí. Body: `locker_id`, `member_id`, `membership_account_id`, `club_id`, `category` (todos required).
-- Éxito (200): `{"message": "Casillero asignado correctamente.", "data": {"amount": 0.0}}`.
+- Auth: sí. Body: `locker_id`, `member_id`, `membership_account_id`, `club_id`, `category` (todos required), `payment_source_id` (opcional — ID de tarjeta tokenizada en Conekta).
+- Si se envía `payment_source_id` y el monto es > 0, **el cobro se realiza en el mismo request** de forma atómica (dentro de `DB::transaction`). Si Conekta rechaza el pago, la asignación se revierte completa.
+- Éxito sin pago (200): `{"message": "Casillero asignado correctamente.", "data": {"amount": 1100.0, "charge_id": 42, "paid": false}}`.
+- Éxito con pago (200): `{"message": "Casillero asignado y pago realizado correctamente.", "data": {"amount": 1100.0, "charge_id": 42, "paid": true}}`.
 - Error `409` `{"message": "El casillero ya no está disponible"}`.
-- El monto se resuelve igual que `GET /lockers/pricing` y ahora **sí genera un `Charge`** (`concept_id` del concepto `LOCKERS`, `status: pending`, vence a 7 días) — aparecerá en `GET /clubs/{club}/payments/pending` y se puede pagar con los flujos normales de pago.
-- **La validación de "un socio, un casillero por año" está deshabilitada intencionalmente** — un integrante puede terminar con más de un casillero en el mismo año (el índice único ahora es por `locker_id + club_id + year`, no por integrante). `GET /lockers/members` ya no excluye a quien ya tiene casillero asignado este año.
+- Error `422` si el pago es rechazado por Conekta: `{"message": "El pago fue rechazado por el procesador. Verifica los datos de tu tarjeta."}`.
+- Siempre genera un `Charge` (`concept_id` del concepto `LOCKERS`, `membership_id` del membership activo del socio en el club). Si no se paga en el momento, queda `status: pending` y aparece en `GET /clubs/{club}/payments/pending`.
+- **La validación de "un socio, un casillero por año" está deshabilitada intencionalmente** — el índice único es por `locker_id + club_id + year`, no por integrante.
 
 ---
 
@@ -429,7 +454,37 @@ La mensualidad dividida 50/50 entre parques **no es un solo cargo combinado** �
 
 ---
 
-## 9. Encuestas
+## 9. Información de contacto del club
+
+### GET /clubs/{club}/contact-info
+- Auth: sí. Sin verificación de membresía — cualquier socio autenticado puede consultar los datos públicos del club.
+- Usado por las pantallas "Contacto" y "Mapa" de la app: ambas se resuelven con esta única llamada (`Mapa` solo pinta `map_image_url`).
+- Éxito (200):
+```json
+{
+  "data": {
+    "club_name": "Parque España I",
+    "email": "general@parqueespana.com.mx",
+    "phone": "+5212229175761",
+    "website": "parqueespana.com.mx",
+    "address": "Av. 25 Ote. 1001, Ladrillera de Benítez, 72500 Heroica Puebla de Zaragoza, Puebla.",
+    "logo_url": "string|null",
+    "map_image_url": "string|null",
+    "social_whatsapp": "string|null",
+    "social_instagram": "string|null",
+    "social_facebook": "string|null",
+    "social_twitter": "string|null",
+    "social_youtube": "string|null"
+  }
+}
+```
+- `address` se arma en el backend a partir de `clubs.club_addresses` (calle, número, colonia, CP, ciudad, estado) — viene `null` si el club no tiene dirección capturada.
+- `logo_url`/`map_image_url` apuntan a Digital Ocean Spaces (disco `spaces`), igual que en el resto de la API — pueden ser `null` si no se ha subido el archivo.
+- Todos los campos son editables desde el panel admin en "Configuración del club".
+
+---
+
+## 10. Encuestas
 
 ### GET /clubs/{club}/surveys
 - Auth: sí (requiere `Member` vinculado al club).
@@ -449,7 +504,7 @@ La mensualidad dividida 50/50 entre parques **no es un solo cargo combinado** �
 
 ---
 
-## 10. Quejas y sugerencias (Feedback)
+## 11. Quejas y sugerencias (Feedback)
 
 ### GET /clubs/{club}/feedback/tickets
 - Auth: sí. Query: `type`, `status` (códigos: `SUBMITTED`, `UNDER_REVIEW`, `IN_PROGRESS`, `RESOLVED`, `REJECTED`, `CLOSED`, `CANCELLED`).
@@ -470,7 +525,7 @@ La mensualidad dividida 50/50 entre parques **no es un solo cargo combinado** �
 
 ---
 
-## 11. Utilidades de desarrollo (no usar en producción)
+## 12. Utilidades de desarrollo (no usar en producción)
 
 - `POST /email/test` — envía un correo de prueba.
 - `POST /firebase/test` — envía un push de prueba a un token FCM.
@@ -478,7 +533,7 @@ La mensualidad dividida 50/50 entre parques **no es un solo cargo combinado** �
 
 ---
 
-## 12. Notas de seguridad y pendientes conocidos
+## 13. Notas de seguridad y pendientes conocidos
 
 1. **Historia clínica sin verificación de propiedad** — cualquier token puede leer/sobrescribir la historia de cualquier `member_id`. La app debe autolimitarse a `member_id` de la propia familia.
 2. **Cancelar/eliminar reservación sin verificar dueño** — cualquiera con el `id` puede cancelar o borrar la reservación de otro socio. `DELETE` además es borrado físico sin reglas.

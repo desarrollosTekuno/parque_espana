@@ -37,6 +37,13 @@ const routes: Routing[] = [
         group: null,
     },
     {
+        name: ["website-content.index"],
+        title: "Página web",
+        icon: "mdi-web",
+        value: "pagina-web",
+        group: null,
+    },
+    {
         name: [
             "membership-types.index",
             "document-types.index",
@@ -163,6 +170,7 @@ const routes: Routing[] = [
             "cash-cuts.show",
             "global-cash-cuts.index",
             "global-cash-cuts.show",
+            "tickets.index",
         ],
         title: "Cobranza",
         icon: "mdi-cash-multiple",
@@ -210,6 +218,12 @@ const routes: Routing[] = [
                 title: "Cortes globales",
                 icon: "mdi-calculator-variant-outline",
                 value: "cortes-globales",
+            },
+            {
+                name: "tickets.index",
+                title: "Tickets de pago",
+                icon: "mdi-printer-outline",
+                value: "tickets-pago",
             },
         ],
     },

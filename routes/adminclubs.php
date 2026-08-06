@@ -48,12 +48,14 @@ use App\Http\Controllers\Web\AdminClub\DayPassController;
 use App\Http\Controllers\Web\AdminClub\GuestListPaymentController;
 use App\Http\Controllers\Web\AdminClub\MembershipTypeController;
 use App\Http\Controllers\Web\AdminClub\PaymentMethodController;
+use App\Http\Controllers\Web\AdminClub\TicketController;
 use App\Http\Controllers\Web\AdminClub\LockerAssignmentHistoryController;
 use App\Http\Controllers\Web\AdminClub\ClinicalHistoryController;
 use App\Http\Controllers\Web\AdminClub\ClubSettingsController;
 use App\Http\Controllers\Web\AdminClub\CoachController;
 use App\Http\Controllers\Web\AdminClub\SpecialtyController;
 use App\Http\Controllers\Web\AdminClub\ClassScheduleController;
+use App\Http\Controllers\Web\AdminClub\WebsiteContentController;
 use Illuminate\Support\Facades\Route;
 
 // amenities
@@ -129,6 +131,8 @@ Route::post('/payment-methods/{paymentMethod}/toggle-club', [PaymentMethodContro
     ->name('payment-methods.toggle-club');
 Route::put('/payment-methods/{paymentMethod}/club-config', [PaymentMethodController::class, 'updateClubConfig'])
     ->name('payment-methods.update-club-config');
+Route::get('/tickets', [TicketController::class, 'index'])->name('tickets.index');
+Route::get('/tickets/{payment}/data', [TicketController::class, 'data'])->name('tickets.data');
 Route::resource('/pricing-rules', PricingRuleController::class)
     ->only(['index', 'store', 'update', 'destroy'])
     ->names('pricing-rules');
@@ -338,6 +342,27 @@ Route::post('/club-settings', [ClubSettingsController::class, 'update'])->name('
 Route::resource('/specialties', SpecialtyController::class)->only(['index', 'store', 'update', 'destroy'])->names('specialties');
 Route::resource('/coaches', CoachController::class)->only(['index', 'store', 'update', 'destroy'])->names('coaches');
 Route::resource('/class-schedules', ClassScheduleController::class)->only(['index', 'store', 'update', 'destroy'])->names('classSchedules');
+
+// Página web
+Route::resource('/website-content', WebsiteContentController::class)
+    ->only(['index', 'store', 'destroy'])
+    ->names('website-content');
+Route::post('/website-content/home-cards', [WebsiteContentController::class, 'storeCard'])
+    ->name('website-content.cards.store');
+Route::delete('/website-content/home-cards/{id}', [WebsiteContentController::class, 'destroyCard'])
+    ->name('website-content.cards.destroy');
+Route::post('/website-content/virtual-tour/categories', [WebsiteContentController::class, 'storeVirtualTourCategory'])
+    ->name('website-content.virtual-tour.categories.store');
+Route::delete('/website-content/virtual-tour/categories/{id}', [WebsiteContentController::class, 'destroyVirtualTourCategory'])
+    ->name('website-content.virtual-tour.categories.destroy');
+Route::post('/website-content/virtual-tour/images', [WebsiteContentController::class, 'storeVirtualTourImages'])
+    ->name('website-content.virtual-tour.images.store');
+Route::delete('/website-content/virtual-tour/images/{id}', [WebsiteContentController::class, 'destroyVirtualTourImage'])
+    ->name('website-content.virtual-tour.images.destroy');
+Route::post('/website-content/events', [WebsiteContentController::class, 'saveEvent'])
+    ->name('website-content.events.save');
+Route::delete('/website-content/events/{id}', [WebsiteContentController::class, 'destroyEvent'])
+    ->name('website-content.events.destroy');
 
 // Acts
 Route::prefix('acts')->group(function () {
