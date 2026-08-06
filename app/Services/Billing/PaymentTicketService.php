@@ -120,7 +120,7 @@ class PaymentTicketService {
         $address = $club?->clubAddress;
 
         if (!$address) {
-            return $club?->address ? [$club->address] : [];
+            return [];
         }
 
         $lines = [];

@@ -454,7 +454,37 @@ La mensualidad dividida 50/50 entre parques **no es un solo cargo combinado** �
 
 ---
 
-## 9. Encuestas
+## 9. Información de contacto del club
+
+### GET /clubs/{club}/contact-info
+- Auth: sí. Sin verificación de membresía — cualquier socio autenticado puede consultar los datos públicos del club.
+- Usado por las pantallas "Contacto" y "Mapa" de la app: ambas se resuelven con esta única llamada (`Mapa` solo pinta `map_image_url`).
+- Éxito (200):
+```json
+{
+  "data": {
+    "club_name": "Parque España I",
+    "email": "general@parqueespana.com.mx",
+    "phone": "+5212229175761",
+    "website": "parqueespana.com.mx",
+    "address": "Av. 25 Ote. 1001, Ladrillera de Benítez, 72500 Heroica Puebla de Zaragoza, Puebla.",
+    "logo_url": "string|null",
+    "map_image_url": "string|null",
+    "social_whatsapp": "string|null",
+    "social_instagram": "string|null",
+    "social_facebook": "string|null",
+    "social_twitter": "string|null",
+    "social_youtube": "string|null"
+  }
+}
+```
+- `address` se arma en el backend a partir de `clubs.club_addresses` (calle, número, colonia, CP, ciudad, estado) — viene `null` si el club no tiene dirección capturada.
+- `logo_url`/`map_image_url` apuntan a Digital Ocean Spaces (disco `spaces`), igual que en el resto de la API — pueden ser `null` si no se ha subido el archivo.
+- Todos los campos son editables desde el panel admin en "Configuración del club".
+
+---
+
+## 10. Encuestas
 
 ### GET /clubs/{club}/surveys
 - Auth: sí (requiere `Member` vinculado al club).
@@ -474,7 +504,7 @@ La mensualidad dividida 50/50 entre parques **no es un solo cargo combinado** �
 
 ---
 
-## 10. Quejas y sugerencias (Feedback)
+## 11. Quejas y sugerencias (Feedback)
 
 ### GET /clubs/{club}/feedback/tickets
 - Auth: sí. Query: `type`, `status` (códigos: `SUBMITTED`, `UNDER_REVIEW`, `IN_PROGRESS`, `RESOLVED`, `REJECTED`, `CLOSED`, `CANCELLED`).
@@ -495,7 +525,7 @@ La mensualidad dividida 50/50 entre parques **no es un solo cargo combinado** �
 
 ---
 
-## 11. Utilidades de desarrollo (no usar en producción)
+## 12. Utilidades de desarrollo (no usar en producción)
 
 - `POST /email/test` — envía un correo de prueba.
 - `POST /firebase/test` — envía un push de prueba a un token FCM.
@@ -503,7 +533,7 @@ La mensualidad dividida 50/50 entre parques **no es un solo cargo combinado** �
 
 ---
 
-## 12. Notas de seguridad y pendientes conocidos
+## 13. Notas de seguridad y pendientes conocidos
 
 1. **Historia clínica sin verificación de propiedad** — cualquier token puede leer/sobrescribir la historia de cualquier `member_id`. La app debe autolimitarse a `member_id` de la propia familia.
 2. **Cancelar/eliminar reservación sin verificar dueño** — cualquiera con el `id` puede cancelar o borrar la reservación de otro socio. `DELETE` además es borrado físico sin reglas.

@@ -27,8 +27,7 @@ class ClubController extends Controller
 
         // Filtro de búsqueda
         if ($search = $request->input("{$prefix}_search")) {
-            $query->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%")
-                ->orWhere('address', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
+            $query->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
         }
 
         // Ordenamiento
@@ -53,7 +52,6 @@ class ClubController extends Controller
     {
         $request->validate([
             'name'    => 'required|string|max:20',
-            'address' => 'required|string',
             'logo'    => 'nullable|file|mimes:jpg,jpeg,png,webp|max:2048',
         ]);
 
@@ -82,7 +80,6 @@ class ClubController extends Controller
     {
         $request->validate([
             'name'    => 'required|string|max:20',
-            'address' => 'required|string',
             'logo'    => 'nullable|file|mimes:jpg,jpeg,png,webp|max:2048',
         ]);
 

@@ -9,13 +9,13 @@ return new class extends Migration {
     {
         // Agregar access_code en account_members (por club, no por persona)
         Schema::table('memberships.account_members', function (Blueprint $table) {
-            $table->string('access_code')->nullable()->after('is_primary_holder');
+            // $table->string('access_code')->nullable()->after('is_primary_holder');
         });
 
         // Eliminar access_code de members (era incorrecto ponerlo ahí)
         Schema::table('members.members', function (Blueprint $table) {
-            $table->dropUnique(['access_code']);
-            $table->dropColumn('access_code');
+            // $table->dropUnique(['access_code']);
+            // $table->dropColumn('access_code');
         });
     }
 

@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\V1\PaymentSourceController;
 use App\Http\Controllers\Api\V1\ReservationController;
 use App\Http\Controllers\Api\V1\BusinessAdController;
 use App\Http\Controllers\Api\V1\BusinessCategoryController;
+use App\Http\Controllers\Api\V1\ClubContactInfoController;
 use App\Http\Controllers\Api\V1\ReservationGuestController;
 use App\Http\Controllers\Api\V1\SurveyController;
 use App\Http\Controllers\Api\V1\WebsiteApiController;
@@ -65,6 +66,9 @@ Route::prefix('v1')->name('api.')->group(function () {
     Route::middleware('auth:sanctum')->prefix('clubs/{club}')->group(function () {
         // Mostrar categorías de negocios en la pantalla principal de la app
         Route::get('/business-categories', [BusinessCategoryController::class, 'index']);
+
+        // Información de contacto del club (pantallas "Contacto" y "Mapa" de la app)
+        Route::get('/contact-info', [ClubContactInfoController::class, 'show']);
 
         // Mostrar negocios publicados por categoría en la app
         Route::get('/business-ads', [BusinessAdController::class, 'index']);

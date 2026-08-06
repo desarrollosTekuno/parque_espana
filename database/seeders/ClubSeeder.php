@@ -14,7 +14,6 @@ class ClubSeeder extends Seeder {
             [
                 'name' => 'Parque España I',
                 'legal_name' => 'FUNDACIÓN DEPORTIVO PARQUE ESPAÑA',
-                'address' => '25 Oriente #1001, C.P. 72500, Puebla, Pue. México',
                 'rfc' => 'FDP990423J51',
                 'billing_url' => 'http://www.parqueespana2.com.mx',
                 'is_active' => true,
@@ -24,7 +23,6 @@ class ClubSeeder extends Seeder {
             [
                 'name' => 'Parque España II',
                 'legal_name' => 'FUNDACIÓN DEPORTIVO PARQUE ESPAÑA',
-                'address' => 'Carril a San Martinito Km. 1.5, Col. Ampliación Emiliano Zapata, San Andrés Cholula, Puebla. C.P. 72810',
                 'rfc' => 'FDP990423J51',
                 'billing_url' => 'http://www.parqueespana2.com.mx',
                 'is_active' => true,
@@ -39,7 +37,6 @@ class ClubSeeder extends Seeder {
                 [
                     'name' => $club['name'],
                     'legal_name' => $club['legal_name'],
-                    'address' => $club['address'],
                     'rfc' => $club['rfc'],
                     'billing_url' => $club['billing_url'],
                     'is_active' => $club['is_active'],

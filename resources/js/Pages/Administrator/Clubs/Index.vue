@@ -17,7 +17,6 @@ interface Props {
 interface Club {
     id: number | null;
     name: string;
-    address: string;
     is_active: boolean;
     logo: File | null;
 }
@@ -35,7 +34,6 @@ const currentLogoUrl = ref<string | null>(null);
 const form = useForm<Club>({
     id: null,
     name: "",
-    address: "",
     is_active: true,
     logo: null,
 });
@@ -79,7 +77,6 @@ const save = () => {
 };
 const edit = (data: any) => {
     form.name        = data.name;
-    form.address     = data.address;
     form.is_active   = data.is_active;
     form.id          = data.id;
     form.logo        = null;
@@ -126,7 +123,6 @@ const headers = [
     { title: "ID",        key: "id" },
     { title: "Logo",      key: "logo_url",  sortable: false },
     { title: "Nombre",    key: "name" },
-    { title: "Dirección", key: "address" },
     { title: "Activo",    key: "is_active" },
     { title: "Acciones",  key: "actions",  sortable: false },
 ];
@@ -250,19 +246,6 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 label="Nombre"
                                 persistent-hint
                                 :rules="[required, maxLength(20)]"
-                            />
-                        </v-col>
-                        <v-col cols="12">
-                            <v-textarea
-                                v-model="form.address"
-                                label="Dirección"
-                                persistent-hint
-                                clearable
-                                counter
-                                rows="3"
-                                :rules="[required]"
-                                auto-grow
-                                variant="filled"
                             />
                         </v-col>
                         <v-col cols="12">
