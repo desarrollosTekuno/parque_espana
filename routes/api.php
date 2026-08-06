@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\V1\ReservationController;
 use App\Http\Controllers\Api\V1\BusinessAdController;
 use App\Http\Controllers\Api\V1\ReservationGuestController;
 use App\Http\Controllers\Api\V1\SurveyController;
+use App\Http\Controllers\Api\V1\CommandController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -107,6 +108,12 @@ Route::prefix('v1')->group(function () {
         Route::delete('/{source}', [PaymentSourceController::class, 'destroy']);
         Route::patch('/{source}/set-default', [PaymentSourceController::class, 'setDefault']);
     });
+
+
+    // Control de Access Devices
+    Route::post('device-commands', [CommandController::class, 'store']);
+    Route::get('device-commands', [CommandController::class, 'show']);
+    Route::patch('device-commands/{deviceCommand}/status', [CommandController::class, 'updateStatus']);
 
 });
 
