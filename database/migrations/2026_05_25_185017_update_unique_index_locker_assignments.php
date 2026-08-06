@@ -27,14 +27,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        DB::statement("
-            DROP INDEX IF EXISTS members.members_locker_assignments_member_club_year_unique
-        ");
-
-        DB::statement("
-            CREATE UNIQUE INDEX members_locker_assignments_member_id_year_unique
-            ON members.locker_assignments (member_id, year)
-            WHERE deleted_at IS NULL
-        ");
+        
     }
 };

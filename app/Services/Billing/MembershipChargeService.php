@@ -152,7 +152,7 @@ class MembershipChargeService
             return false;
         }
 
-        $monthlyFee = round((float) ($monthlyFeeOverride ?? $this->resolveMembershipMonthlyFeeShare($membership, null, $chargeDate->year)), 2);
+        $monthlyFee = round((float) ($monthlyFeeOverride ?? $this->resolveMembershipMonthlyFeeShare($membership, null, $chargeDate->year, $chargeDate)), 2);
         $effectiveMonthlyFee = $this->resolveAbsenceAdjustedMonthlyFee(
             membership: $membership,
             monthlyFee: $monthlyFee,
@@ -206,6 +206,86 @@ class MembershipChargeService
             ->where('period_month', (int) $chargeDate->format('m'))
             ->where('status', '!=', 'cancelled')
             ->exists();
+    }
+
+    /**
+     * Periodo (primer día del mes) que corresponde cobrar a continuación:
+     * el mes siguiente al último cargo de mensualidad pagado, o el periodo
+     * del cargo pendiente/parcial más reciente si nunca se ha pagado uno,
+     * o el mes en curso si la membresía nunca ha generado ningún cargo
+     * (evita "resucitar" décadas de mensualidades atrasadas en membresías
+     * antiguas migradas sin historial de cobros).
+     */
+    public function resolveNextChargeablePeriod(Membership $membership): Carbon
+    {
+        $monthlyConcept = $this->resolveConcept('MONTHLY_FEE');
+
+        $lastPaid = Charge::query()
+            ->where('membership_id', $membership->id)
+            ->where('concept_id', $monthlyConcept->id)
+            ->where('status', 'paid')
+            ->whereNotNull('period_year')
+            ->whereNotNull('period_month')
+            ->orderByDesc('period_year')
+            ->orderByDesc('period_month')
+            ->first();
+
+        if ($lastPaid) {
+            return Carbon::create((int) $lastPaid->period_year, (int) $lastPaid->period_month, 1)
+                ->addMonthNoOverflow();
+        }
+
+        $pendingCharge = Charge::query()
+            ->where('membership_id', $membership->id)
+            ->where('concept_id', $monthlyConcept->id)
+            ->whereIn('status', ['pending', 'partial'])
+            ->whereNotNull('period_year')
+            ->whereNotNull('period_month')
+            ->orderBy('period_year')
+            ->orderBy('period_month')
+            ->first();
+
+        if ($pendingCharge) {
+            return Carbon::create((int) $pendingCharge->period_year, (int) $pendingCharge->period_month, 1);
+        }
+
+        return now()->startOfMonth();
+    }
+
+    /**
+     * Garantiza que exista un cargo de mensualidad pendiente para el
+     * siguiente periodo a cobrar de la membresía (ver resolveNextChargeablePeriod).
+     * No duplica cargos: si ya existe uno para ese periodo, solo lo regresa.
+     */
+    public function ensureMonthlyChargeForNextPeriod(Membership $membership): ?Charge
+    {
+        $monthlyConcept = $this->resolveConcept('MONTHLY_FEE');
+        $periodDate = $this->resolveNextChargeablePeriod($membership);
+
+        $existing = Charge::query()
+            ->where('membership_id', $membership->id)
+            ->where('concept_id', $monthlyConcept->id)
+            ->where('period_year', (int) $periodDate->format('Y'))
+            ->where('period_month', (int) $periodDate->format('m'))
+            ->where('status', '!=', 'cancelled')
+            ->first();
+
+        if ($existing) {
+            return $existing;
+        }
+
+        $created = $this->createRecurringMonthlyCharge($membership, $periodDate);
+
+        if (!$created) {
+            return null;
+        }
+
+        return Charge::query()
+            ->where('membership_id', $membership->id)
+            ->where('concept_id', $monthlyConcept->id)
+            ->where('period_year', (int) $periodDate->format('Y'))
+            ->where('period_month', (int) $periodDate->format('m'))
+            ->first();
     }
 
     public function createInitialCharges(
@@ -560,11 +640,57 @@ class MembershipChargeService
         return round((float) ($live ?? $membership->monthly_fee_total ?? $membership->monthly_fee ?? $fallback ?? 0), 2);
     }
 
-    protected function resolveMembershipMonthlyFeeShare(Membership $membership, ?float $fallback = null, ?int $year = null): float
+    /**
+     * Cuota mensual a cobrar por ESTA membresía: la cuota vigente del año en
+     * curso según memberships.pricing_rule_fee_history. Si el socio pertenece
+     * a más de un parque (billing_split_mode = equal_split, ver
+     * resolveGroupPrimaryMemberships), se toma esa cuota UNA sola vez — la de
+     * la regla de precio marcada para socios de varios parques
+     * (pricing_rule.requires_multiple_clubs), que es la única fuente
+     * confiable del monto conjunto cuando cada parque tiene su propia regla —
+     * y se reparte entre los parques. Si no pertenece a más de un parque, se
+     * usa tal cual, sin ningún otro ajuste.
+     */
+    protected function resolveMembershipMonthlyFeeShare(
+        Membership $membership,
+        ?float $fallback = null,
+        ?int $year = null,
+        ?Carbon $referenceDate = null
+    ): float {
+        if ($membership->billing_split_mode === 'equal_split') {
+            $chargeDate = $referenceDate ?? ($year ? Carbon::create($year, 6, 15) : now());
+            $groupMemberships = $this->resolveGroupPrimaryMemberships($membership, $chargeDate);
+
+            if ($this->shouldSplitMonthlyChargesAcrossGroup($groupMemberships, 'equal_split')) {
+                $fee = $this->resolveInterclubMonthlyFee($groupMemberships, $year)
+                    ?? $this->resolveMembershipOwnMonthlyFee($membership, $fallback, $year);
+
+                return round($fee / $groupMemberships->count(), 2);
+            }
+        }
+
+        return $this->resolveMembershipOwnMonthlyFee($membership, $fallback, $year);
+    }
+
+    protected function resolveMembershipOwnMonthlyFee(Membership $membership, ?float $fallback, ?int $year): float
     {
         $live = $membership->resolveLiveMonthlyFee($year);
 
         return round((float) ($live ?? $membership->monthly_fee_share ?? $fallback ?? $membership->monthly_fee ?? 0), 2);
+    }
+
+    /**
+     * La cuota mensual "combinada" del grupo: la de la membresía cuya regla
+     * de precio está marcada explícitamente para socios de varios parques
+     * (pricing_rule.requires_multiple_clubs). Null si ninguna del grupo tiene
+     * esa marca (caso no esperado; el llamador cae de vuelta a la cuota
+     * propia de la membresía).
+     */
+    protected function resolveInterclubMonthlyFee(Collection $groupMemberships, ?int $year): ?float
+    {
+        $anchor = $groupMemberships->first(fn (Membership $m) => (bool) $m->pricingRule?->requires_multiple_clubs);
+
+        return $anchor?->resolveLiveMonthlyFee($year);
     }
 
     protected function resolveAbsenceAdjustedMonthlyFee(

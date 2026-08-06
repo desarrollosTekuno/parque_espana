@@ -37,12 +37,18 @@ const routes: Routing[] = [
         group: null,
     },
     {
+        name: ["website-content.index"],
+        title: "Página web",
+        icon: "mdi-web",
+        value: "pagina-web",
+        group: null,
+    },
+    {
         name: [
             "membership-types.index",
             "document-types.index",
             "pricing-rules.index",
             "interclub-package-rules.index",
-            "fee-schedules.index",
         ],
         title: "Configuración de membresías",
         icon: "mdi-cog-outline",
@@ -73,12 +79,7 @@ const routes: Routing[] = [
                 icon: "mdi-swap-horizontal",
                 value: "paquetes-intermedios",
             },
-            {
-                name: "fee-schedules.index",
-                title: "Cuotas por año",
-                icon: "mdi-calendar-multiple",
-                value: "cuotas-por-anio",
-            },
+            
         ],
     },
     {
@@ -92,12 +93,19 @@ const routes: Routing[] = [
             "member-access.index",
             "members.cancellations.index",
             "members.age-transitions.index",
+            "fee-schedules.index"
         ],
         title: "Membresías",
         icon: "mdi-account-group-outline",
         value: "membresiasMenu",
         group: "Membresías",
         groupItems: [
+            {
+                name: "fee-schedules.index",
+                title: "Cuotas por año",
+                icon: "mdi-calendar-multiple",
+                value: "cuotas-por-anio",
+            },
             {
                 name: "members.index",
                 title: "Membresías",
@@ -123,17 +131,37 @@ const routes: Routing[] = [
                 value: "transiciones-edad",
                 showBadge: true,
             },
+            
+        ],
+    },
+    {
+        name: [
+            "member-access.index",
+        ],
+        title: "App móvil",
+        icon: "mdi-cellphone-key",
+        value: "appMovilMenu",
+        group: "App móvil",
+        groupItems: [
             {
                 name: "member-access.index",
-                title: "Accesos App Móvil",
+                title: "Usuarios App Móvil",
                 icon: "mdi-cellphone-key",
                 value: "accesos-app",
             },
+            // Configuración de variables de la app móvil
+            // {
+            //     name: "app-variables.index",
+            //     title: "Variables de la App",
+            //     icon: "mdi-cog-outline",
+            //     value: "variables-app",
+            // }
         ],
     },
 
     {
         name: [
+            "collections.index",
             "billing.index",
             "billing.charges.index",
             "billing-concepts.index",
@@ -142,12 +170,19 @@ const routes: Routing[] = [
             "cash-cuts.show",
             "global-cash-cuts.index",
             "global-cash-cuts.show",
+            "tickets.index",
         ],
         title: "Cobranza",
         icon: "mdi-cash-multiple",
         value: "cobranzaMenu",
         group: "Cobranza",
         groupItems: [
+            {
+                name: "collections.index",
+                title: "Registro de cobros",
+                icon: "mdi-cash-register",
+                value: "cobro-directo",
+            },
             {
                 name: "billing-concepts.index",
                 title: "Conceptos de cobro",
@@ -183,6 +218,12 @@ const routes: Routing[] = [
                 title: "Cortes globales",
                 icon: "mdi-calculator-variant-outline",
                 value: "cortes-globales",
+            },
+            {
+                name: "tickets.index",
+                title: "Tickets de pago",
+                icon: "mdi-printer-outline",
+                value: "tickets-pago",
             },
         ],
     },

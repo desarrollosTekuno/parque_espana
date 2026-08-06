@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Web\AdminClub;
 
-use App\Http\Controllers\Controller;
+use Illuminate\Routing\Controller;
 use App\Models\Administrator\Club;
 use App\Models\Catalogs\City;
 use App\Models\Catalogs\Country;
@@ -42,7 +42,7 @@ class MemberController extends Controller
 {
     public function __construct(
         protected MembershipChargeService $membershipChargeService,
-        protected \App\Services\Billing\MembershipPricingService $membershipPricingService
+        protected \App\Services\Billing\MembershipPricingService $membershipPricingService 
     ) {
     }
 
@@ -50,7 +50,7 @@ class MemberController extends Controller
     {
         try {
             $clubId = $request->club_id ?? session('club_id');
-            $prefix = 'members';
+            $prefix = 'members'; 
             $driver = DB::getDriverName();
             $like = $driver === 'pgsql' ? 'ilike' : 'like';
 
@@ -1521,7 +1521,7 @@ class MemberController extends Controller
 
             $existingAccountGroup = $existingPrimaryMembership?->account?->accountGroup;
 
-            DB::transaction(function () use ($membership, $accountMember, $targetMembershipType, $selectedTargetOption, $titularRelationshipId, $reason, $existingAccountGroup) {
+            DB::transaction(function () use ($membership, $accountMember, $targetMembershipType, $selectedTargetOption, $titularRelationshipId, $reason, $existingAccountGroup, $existingPrimaryMembership) {
                 $newAccount = $this->createMembershipAccount(
                     club: $membership->club,
                     accountType: $targetMembershipType->allows_multiple_members ? 'family' : 'individual',
@@ -1530,6 +1530,14 @@ class MemberController extends Controller
                     originAccountId: $membership->membership_account_id,
                     separationReason: $reason
                 );
+
+                // Si la cuenta del otro parque no tenía account_group_id (p.ej. cuentas
+                // migradas), createMembershipAccount le acaba de crear un grupo nuevo a la
+                // cuenta separada — enlazar también la del otro parque para que ambas
+                // queden en el mismo grupo (ver mismo fix en el flujo de alta/adicional).
+                if ($existingPrimaryMembership && !$existingAccountGroup) {
+                    $existingPrimaryMembership->account->update(['account_group_id' => $newAccount->account_group_id]);
+                }
 
                 MembershipAccountMember::create([
                     'membership_account_id' => $newAccount->id,
@@ -1951,6 +1959,16 @@ class MemberController extends Controller
                         accountGroup: $sourceAccount?->accountGroup,
                         internalAccountNumber: $internalAccountNumber,
                     );
+
+                // Si la cuenta origen no tenía account_group_id (p.ej. cuentas migradas
+                // antes de que existiera el concepto de grupo interclub), createMembershipAccount
+                // le acaba de crear un grupo nuevo a la cuenta nueva — pero la cuenta origen
+                // se queda sin enlazar. Sin esto, el resumen de facturación y el recálculo de
+                // cuotas al cancelar/reactivar nunca encuentran la cuenta origen como parte
+                // del mismo grupo que la nueva.
+                if (!$sameClubTransition && $sourceAccount && !$sourceAccount->account_group_id) {
+                    $sourceAccount->update(['account_group_id' => $membershipAccount->account_group_id]);
+                }
 
                 $savedMembershipAccount = $membershipAccount;
 

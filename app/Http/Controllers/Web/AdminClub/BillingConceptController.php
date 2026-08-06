@@ -84,6 +84,8 @@ class BillingConceptController extends Controller
                         'club_amount' => $clubAmount?->amount !== null ? (float) $clubAmount->amount : null,
                         'is_recurring' => (bool) $concept->is_recurring,
                         'allows_partial_payments' => (bool) $concept->allows_partial_payments,
+                        'is_mobile_payable' => (bool) $concept->is_mobile_payable,
+                        'splits_between_parks' => (bool) $concept->splits_between_parks,
                         'is_active' => (bool) $concept->is_active,
                     ];
                 })
@@ -207,6 +209,8 @@ class BillingConceptController extends Controller
             'club_amount' => ['nullable', 'numeric', 'min:0'],
             'is_recurring' => ['required', 'boolean'],
             'allows_partial_payments' => ['required', 'boolean'],
+            'is_mobile_payable' => ['required', 'boolean'],
+            'splits_between_parks' => ['required', 'boolean'],
             'is_active' => ['required', 'boolean'],
         ]);
     }
@@ -221,6 +225,8 @@ class BillingConceptController extends Controller
             'default_amount' => $validated['default_amount'] !== null ? (float) $validated['default_amount'] : null,
             'is_recurring' => (bool) $validated['is_recurring'],
             'allows_partial_payments' => (bool) $validated['allows_partial_payments'],
+            'is_mobile_payable' => (bool) $validated['is_mobile_payable'],
+            'splits_between_parks' => (bool) $validated['splits_between_parks'],
             'is_active' => (bool) $validated['is_active'],
         ];
     }

@@ -45,7 +45,7 @@ class CashCutController extends Controller
                 $query->where('user_id', $user->id);
             }
 
-            $cuts = $query->paginate(20)->through(fn (CashCut $cut) => $this->buildCutListPayload($cut));
+            $cuts = $query->paginate(20)->through(fn (CashCut $cut) => $this->buildCutListPayload($cut)); 
 
             return Inertia::render('CashCuts/Index', [
                 'cuts' => $cuts,

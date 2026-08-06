@@ -136,6 +136,53 @@ class AdminClubSeeder extends Seeder
             'acts.index',
             'acts.store',
             'acts.update',
+            'billing.index',
+            'billing.store',
+            'collections.index',
+            'collections.store',
+            'blockedPeriods.index',
+            'blockedPeriods.store',
+            'blockedPeriods.update',
+            'blockedPeriods.destroy',
+            // document types
+            'document-types.index',
+            'document-types.store',
+            'document-types.update',
+            'document-types.destroy',
+
+            // membership types
+            'membership-types.index',
+            'membership-types.store',
+            'membership-types.update',
+            'membership-types.destroy',
+
+            // pricing rules
+            'pricing-rules.index',
+            'pricing-rules.store',
+            'pricing-rules.update',
+            'pricing-rules.destroy',
+            // interclub package rules
+            'interclub-package-rules.index',
+            'interclub-package-rules.store',
+            'interclub-package-rules.update',
+            'interclub-package-rules.destroy',
+            // business ads
+            'business-ads.index',
+            'business-ads.approve',
+            'business-ads.reject',
+            // 'business-ads.confirm-payment',
+            // 'business-ads.publish',
+            // 'business-ads.update',
+            // 'business-ads.destroy',
+            // business categories
+            'business-categories.index',
+            'business-categories.store',
+            'business-categories.update',
+            'business-categories.destroy',
+            // members lockers
+            'members.lockers.create',
+            'members.lockers.store',
+
             'member-access.index',
             'member-access.store',
             'member-access.destroy',
@@ -164,6 +211,7 @@ class AdminClubSeeder extends Seeder
             'payment-methods.store',
             'payment-methods.update',
             'payment-methods.destroy',
+            'tickets.index',
 
             // cortes de caja
             'cash-cuts.index',
@@ -250,6 +298,11 @@ class AdminClubSeeder extends Seeder
             'day-passes.store',
             'day-passes.incidents.index',
             'day-passes.incidents.store',
+
+            // página web
+            'website-content.index',
+            'website-content.store',
+            'website-content.destroy',
         );
         $adminClubRole = Role::updateOrCreate([
             'name' => 'admin_club',

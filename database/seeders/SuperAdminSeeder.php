@@ -52,6 +52,9 @@ class SuperAdminSeeder extends Seeder
             'specialties.store',
             'specialties.update',
             'specialties.destroy',
+            'website-content.index',
+            'website-content.store',
+            'website-content.destroy',
         );
         $superadmin->syncPermissions($superadminPermissions);
     }

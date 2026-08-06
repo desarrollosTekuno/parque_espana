@@ -8,6 +8,7 @@ use Spatie\Permission\Middleware\PermissionMiddleware;
 use Spatie\Permission\Middleware\RoleMiddleware;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -31,36 +32,31 @@ return Application::configure(basePath: dirname(__DIR__))
 
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (AuthenticationException $e, $request) {
-
             if ($request->is('api/*')) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Unauthenticated'
-                ], 401);
+                return response()->json(['message' => 'No autenticado.'], 401);
             }
-
         });
-        // Sin permisos
+
         $exceptions->render(function (AuthorizationException $e, $request) {
-
             if ($request->is('api/*')) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Forbidden'
-                ], 403);
+                return response()->json(['message' => 'No tienes permiso para realizar esta acción.'], 403);
             }
-
         });
-        // Ruta no encontrada
-        $exceptions->render(function (NotFoundHttpException $e, $request) {
 
+        $exceptions->render(function (NotFoundHttpException $e, $request) {
+            if ($request->is('api/*')) {
+                return response()->json(['message' => 'Endpoint no encontrado.'], 404);
+            }
+        });
+
+        // Errores de validación ($request->validate()) — formato estándar para la app
+        $exceptions->render(function (ValidationException $e, $request) {
             if ($request->is('api/*')) {
                 return response()->json([
-                    'success' => false,
-                    'message' => 'Endpoint not found'
-                ], 404);
+                    'message' => 'Los datos enviados no son válidos.',
+                    'errors'  => $e->errors(),
+                ], 422);
             }
-
         });
     })
     ->create();

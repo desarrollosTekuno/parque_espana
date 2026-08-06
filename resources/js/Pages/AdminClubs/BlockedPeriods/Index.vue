@@ -177,7 +177,7 @@ const destroy = (item:any) => {
         }
     });
 };
-// ── Validaciones de fechas ────────────────────────────────────────────────────
+// Validaciones de fechas 
 const nowDatetime = computed(() => {
     const now = new Date()
     const pad = (n: number) => String(n).padStart(2, '0')
@@ -270,7 +270,6 @@ watch(
     { deep:true }
 
 );
-console.log('BlockedPeriods:', props.blockedPeriods)
 </script>
 <template>
     <Head title="Bloqueos" />

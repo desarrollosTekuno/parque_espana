@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Administrator\Club;
+use App\Models\Billing\FolioSequence;
 use App\Traits\SerializesDates;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -36,6 +37,7 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     protected $fillable = [
         'name',
+        'code',
         'email',
         'password',
     ];
@@ -83,6 +85,11 @@ class User extends Authenticatable implements MustVerifyEmail
     public function member()
     {
         return $this->hasOne(Member::class, 'user_id');
+    }
+
+    public function folioSequences()
+    {
+        return $this->hasMany(FolioSequence::class, 'user_id');
     }
    
 }
