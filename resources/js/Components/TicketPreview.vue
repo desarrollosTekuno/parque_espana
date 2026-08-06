@@ -122,7 +122,6 @@ const paymentDetail = (ticket: TicketData) => {
 
         <div class="payment-detail">{{ paymentDetail(props.ticket) }}</div>
         <div class="institution-legend">{{ props.ticket.leyenda_institucion }}</div>
-        <div v-if="props.ticket.notas" class="mt-2"><strong>Notas:</strong> {{ props.ticket.notas }}</div>
 
         <div class="ticket-footer">
             <div>{{ props.ticket.leyenda_no_fiscal }}</div>

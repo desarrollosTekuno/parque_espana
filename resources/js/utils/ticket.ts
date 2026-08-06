@@ -165,9 +165,6 @@ const ticketHtml = (ticket: TicketData, duplicate: boolean): string => {
         .payment-detail { margin: 6px 0; }
         .institution-legend { margin: 6px 0; text-transform: uppercase; }
         .ticket-copy { width: 70mm; }
-        .copy-separator { margin: 12mm 0 5mm; border-top: 1px dashed #000; }
-        .institution-copy-label { margin: 8px 0; font-weight: bold; text-align: center; }
-        .institution-copy-label:empty { display: none; }
         .file-identification { margin-top: 10px; font-size: 10px; text-align: left; }
         .file-identifier { overflow-wrap: anywhere; }
         .useful-information { margin-top: 10px; font-size: 10px; text-align: left; }
@@ -230,10 +227,8 @@ const ticketHtml = (ticket: TicketData, duplicate: boolean): string => {
     <div class="row total"><span>Total</span><strong>${escapeHtml(money(ticket.total))}</strong></div>
     <div class="payment-detail">${paymentDetail}</div>
     <div class="institution-legend">${escapeHtml(ticket.leyenda_institucion)}</div>
-    ${ticket.notas ? `<div><strong>Notas:</strong> ${escapeHtml(ticket.notas)}</div>` : ""}
     <div class="footer">
         <div>${escapeHtml(ticket.leyenda_no_fiscal)}</div>
-        <div class="institution-copy-label"></div>
     </div>
     ${ticket.identificacion_archivo ? `
         <div class="file-identification">
@@ -274,22 +269,6 @@ export const printTicket = async (paymentId: number, duplicate = false): Promise
                 printWindow.onload = () => resolve();
             }
         });
-
-        const originalCopy = printWindow.document.querySelector(".ticket-copy");
-
-        if (originalCopy) {
-            const separator = printWindow.document.createElement("div");
-            separator.className = "copy-separator";
-
-            const institutionCopy = originalCopy.cloneNode(true) as HTMLElement;
-            const institutionLabel = institutionCopy.querySelector(".institution-copy-label");
-
-            if (institutionLabel) {
-                institutionLabel.textContent = "DUPLICADO";
-            }
-
-            printWindow.document.body.append(separator, institutionCopy);
-        }
 
         printWindow.focus();
         printWindow.print();
