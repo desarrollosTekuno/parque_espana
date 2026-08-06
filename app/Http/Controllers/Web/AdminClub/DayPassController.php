@@ -27,9 +27,32 @@ class DayPassController extends Controller
     public function __construct()
     {
         $this->middleware('permission:day-passes.index')->only('index');
-        $this->middleware('permission:day-passes.store')->only('store');
+        $this->middleware('permission:day-passes.store')->only('store', 'pricing');
         $this->middleware('permission:day-passes.incidents.index')->only('indexIncidents');
         $this->middleware('permission:day-passes.incidents.store')->only('storeIncident');
+    }
+
+    /**
+     * Cuotas vigentes de pase diario (por edad) para el club dado. Solo
+     * consulta — se usa en el módulo de Cobranza para mostrar el costo
+     * estimado mientras se capturan los visitantes, antes de registrar el
+     * pase (ver store(), que recalcula el monto real al guardar).
+     */
+    public function pricing(Request $request)
+    {
+        $clubId = (int) ($request->integer('club_id') ?: session('club_id'));
+
+        $variables = GuestListVariable::where('club_id', $clubId)
+            ->get()
+            ->mapWithKeys(fn ($v) => [$v->code => (float) $v->value]);
+
+        return response()->json([
+            'normal_price' => $variables->get('NORMAL_PRICE'),
+            'special_price' => $variables->get('SPECIAL_PRICE'),
+            'max_guests' => $variables->get('MAX_GUESTS'),
+            'min_age' => $variables->get('MIN_AGE'),
+            'max_age' => $variables->get('MAX_AGE'),
+        ]);
     }
 
     public function index(Request $request)
@@ -151,11 +174,17 @@ class DayPassController extends Controller
             'paid_at'           => ['required', 'date'],
         ]));
 
-        $normalPrice  = GuestListVariable::where('code', 'NORMAL_PRICE')->where('club_id', $clubId)->value('value');
-        $specialPrice = GuestListVariable::where('code', 'SPECIAL_PRICE')->where('club_id', $clubId)->value('value');
-        $maxGuests    = GuestListVariable::where('code', 'MAX_GUESTS')->where('club_id', $clubId)->value('value');
+        $variables = GuestListVariable::where('club_id', $clubId)
+            ->get()
+            ->mapWithKeys(fn ($v) => [$v->code => (float) $v->value]);
 
-        if (is_null($normalPrice) || is_null($specialPrice) || is_null($maxGuests)) {
+        $normalPrice  = $variables->get('NORMAL_PRICE');
+        $specialPrice = $variables->get('SPECIAL_PRICE');
+        $maxGuests    = $variables->get('MAX_GUESTS');
+        $minAge       = $variables->get('MIN_AGE');
+        $maxAge       = $variables->get('MAX_AGE');
+
+        if (is_null($normalPrice) || is_null($specialPrice) || is_null($maxGuests) || is_null($minAge) || is_null($maxAge)) {
             $message = 'El club no tiene configuradas las variables de pases de invitados.';
 
             return $deferred
@@ -179,9 +208,21 @@ class DayPassController extends Controller
             })->all(),
         ]);
 
+        // Cuota por edad: menor a MIN_AGE no paga, entre MIN_AGE y MAX_AGE
+        // (inclusive) paga la tarifa especial, mayor a MAX_AGE paga la
+        // tarifa normal — mismas variables de guest_lists.variables que usa
+        // la vista previa de AdminClubs/DayPasses/Index.vue.
+        $priceForAge = function (int $age) use ($minAge, $maxAge, $normalPrice, $specialPrice) {
+            if ($age < $minAge) {
+                return 0.0;
+            }
+
+            return $age <= $maxAge ? $specialPrice : $normalPrice;
+        };
+
         $totalAmount = 0;
-        $visitors = collect($request->visitors)->map(function ($v) use ($normalPrice, $specialPrice, &$totalAmount) {
-            $price = (int) $v['age'] >= 7 ? (float) $normalPrice : (float) $specialPrice;
+        $visitors = collect($request->visitors)->map(function ($v) use ($priceForAge, &$totalAmount) {
+            $price = $priceForAge((int) $v['age']);
             $totalAmount += $price;
             return array_merge($v, ['price' => $price, 'ticket_code' => (string) Str::uuid()]);
         });

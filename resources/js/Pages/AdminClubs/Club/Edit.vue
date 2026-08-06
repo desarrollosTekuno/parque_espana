@@ -43,6 +43,7 @@ interface ClubData {
     social_facebook: string | null;
     social_twitter: string | null;
     social_youtube: string | null;
+    social_threads: string | null;
     address: ClubAddressData;
 }
 
@@ -102,6 +103,7 @@ const form = useForm({
     social_facebook:  props.club.social_facebook ?? '',
     social_twitter:   props.club.social_twitter ?? '',
     social_youtube:   props.club.social_youtube ?? '',
+    social_threads:   props.club.social_threads ?? '',
     address: {
         street:           props.club.address.street ?? '',
         exterior_number:  props.club.address.exterior_number ?? '',
@@ -237,6 +239,15 @@ const socialNetworks = [
         hint:        'URL del canal de YouTube',
         rules:       [urlRule, maxRule(500)],
     },
+    {
+        key:         'social_threads' as const,
+        label:       'Threads',
+        placeholder: 'https://threads.net/@tu-club',
+        icon:        'mdi-threads',
+        color:       '#000000',
+        hint:        'URL del perfil de Threads',
+        rules:       [urlRule, maxRule(500)],
+    }
 ] as const;
 
 // Eliminar mapa y logo

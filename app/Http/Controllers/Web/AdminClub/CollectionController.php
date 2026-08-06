@@ -13,7 +13,9 @@ use App\Models\Members\LockerAssignment;
 use App\Models\Memberships\Membership;
 use App\Models\Members\MemberDocument;
 use App\Models\Memberships\MembershipAccount;
+use App\Models\AdminClub\CafeteriaVisit;
 use App\Rules\ExistsInSchema;
+use App\Services\AdminClub\CafeteriaCheckoutService;
 use App\Services\Billing\MembershipChargeService;
 use App\Services\Billing\PaymentRegistrationService;
 use Carbon\Carbon;
@@ -47,6 +49,7 @@ class CollectionController extends Controller
     public function __construct(
         protected PaymentRegistrationService $paymentRegistrationService,
         protected MembershipChargeService $membershipChargeService,
+        protected CafeteriaCheckoutService $cafeteriaCheckoutService,
     ) {
     }
 
@@ -81,7 +84,15 @@ class CollectionController extends Controller
         $search = trim($validated['query']);
         $driver = DB::getDriverName();
         $like = $driver === 'pgsql' ? 'ilike' : 'like';
+        $sessionClubId = (int) session('club_id');
 
+        // Un socio con membresía en más de un parque tiene una MembershipAccount
+        // distinta por parque (ver resolveGroupAccountIds). Cuando la búsqueda
+        // por nombre empata con varias de esas cuentas, se prioriza la del
+        // parque de la sesión: de lo contrario se elegía la de mayor id sin
+        // importar en qué parque está parado el encargado, lo que forzaba el
+        // cobro (y por tanto el "Agregar" de cargos de un solo parque, como
+        // GUEST_LIST) al parque equivocado.
         $account = MembershipAccount::query()
             ->with(['primaryHolder.member'])
             ->whereHas('primaryHolder.member')
@@ -100,17 +111,19 @@ class CollectionController extends Controller
                             );
                     });
             })
+            ->when(
+                $sessionClubId,
+                fn (Builder $q) => $q->orderByRaw('CASE WHEN club_id = ? THEN 0 ELSE 1 END', [$sessionClubId])
+            )
             ->orderByDesc('id')
             ->first();
-       
+
         if (!$account) {
             return response()->json([
                 'found' => false,
-                'message' => 'No se encontró ningún socio con esa clave o nombre.', 
+                'message' => 'No se encontró ningún socio con esa clave o nombre.',
             ]);
         }
-
-        $sessionClubId = (int) session('club_id');
 
         // Membresía sobre la que se factura: primaria activa/suspendida,
         // priorizando el parque de la sesión.
@@ -210,12 +223,35 @@ class CollectionController extends Controller
             ->orderBy('id')
             ->get();
 
+        // El reparto entre parques solo aplica a la mensualidad (MONTHLY_FEE):
+        // por eso solo esa se agrupa por concepto a través de todas las
+        // cuentas del grupo. Cualquier otro cargo (inscripción, casilleros,
+        // pase diario, cafetería, etc.) se agrupa por concepto + parque, para
+        // que cada uno quede en su propio renglón, en el parque que le
+        // corresponde, sin mezclarse ni marcarse como dividido.
+        //
+        // La mensualidad además se agrupa por periodo (año-mes): antes se
+        // juntaban todos los meses pendientes en un solo renglón; ahora cada
+        // mes queda separado (aunque tenga 2 cargos si se reparte entre
+        // parques) para poder mostrar de qué mes es y bloquear los meses
+        // posteriores hasta que los anteriores se agreguen a la lista de
+        // cobros (ver isMonthlyPeriodLocked en el frontend).
         $pendingConcepts = $pendingCharges
-            ->groupBy('concept_id')
+            ->groupBy(function (Charge $charge) {
+                if ($charge->concept?->code === 'MONTHLY_FEE') {
+                    return sprintf('%d-%04d-%02d', $charge->concept_id, $charge->period_year ?? 0, $charge->period_month ?? 0);
+                }
+
+                return $charge->concept_id . '-' . ($charge->membership?->club_id ?? 'none');
+            })
             ->map(function ($group) {
                 /** @var \App\Models\Billing\ChargeConcept|null $concept */
                 $concept = $group->first()->concept;
-                $months = $group->count();
+                $isMonthlyFee = $concept?->code === 'MONTHLY_FEE';
+                // Cada renglón de mensualidad representa exactamente un mes
+                // (aunque tenga un cargo por parque), así que no hay nada que
+                // promediar entre "meses" dentro del grupo.
+                $months = $isMonthlyFee ? 1 : $group->count();
                 $balance = round((float) $group->sum('balance'), 2);
                 $originalTotal = round((float) $group->sum('amount'), 2);
                 $isRecurring = (bool) ($concept?->is_recurring);
@@ -237,6 +273,8 @@ class CollectionController extends Controller
                         ->values()
                     : collect();
 
+                $firstCharge = $group->first();
+
                 return [
                     'concept_id' => $concept?->id,
                     'concept_code' => $concept?->code,
@@ -252,6 +290,11 @@ class CollectionController extends Controller
                     'balance' => $balance,
                     'is_multi_club' => $isMultiClub,
                     'club_breakdown' => $clubBreakdown,
+                    'period_year' => $isMonthlyFee ? $firstCharge->period_year : null,
+                    'period_month' => $isMonthlyFee ? $firstCharge->period_month : null,
+                    'period_label' => $isMonthlyFee
+                        ? $this->periodLabel($firstCharge->period_month, $firstCharge->period_year)
+                        : null,
                     'charges' => $group->map(fn (Charge $charge) => [
                         'id' => $charge->id,
                         'balance' => round((float) $charge->balance, 2),
@@ -263,6 +306,25 @@ class CollectionController extends Controller
                 ];
             })
             ->values();
+
+        // Los renglones de mensualidad quedan en su posición original, pero
+        // ordenados cronológicamente entre sí (mes más antiguo primero): el
+        // frontend depende de este orden para saber cuál es "el siguiente
+        // mes a pagar" y bloquear los posteriores.
+        $monthlySlots = $pendingConcepts->keys()
+            ->filter(fn ($index) => $pendingConcepts[$index]['concept_code'] === 'MONTHLY_FEE')
+            ->values();
+
+        if ($monthlySlots->count() > 1) {
+            $sortedMonthly = $monthlySlots
+                ->map(fn ($index) => $pendingConcepts[$index])
+                ->sortBy(fn ($row) => $row['period_year'] * 100 + $row['period_month'])
+                ->values();
+
+            foreach ($monthlySlots as $slotPosition => $originalIndex) {
+                $pendingConcepts[$originalIndex] = $sortedMonthly[$slotPosition];
+            }
+        }
 
         // ── Resumen ──
         $lastPaid = Charge::query()
@@ -388,12 +450,18 @@ class CollectionController extends Controller
             $validated = $request->validate([
                 'membership_account_id' => ['required', new ExistsInSchema('memberships', 'accounts', 'id')],
                 'club_id' => ['required', new ExistsInSchema('clubs', 'clubs', 'id')],
-                'payment_method_id' => ['required', new ExistsInSchema('billing', 'payment_methods', 'id')],
                 'paid_at' => ['required', 'date'],
-                'reference' => ['nullable', 'string', 'max:255'],
-                'bank_name' => ['nullable', 'string', 'max:255'],
-                'check_number' => ['nullable', 'string', 'max:255'],
                 'notes' => ['nullable', 'string', 'max:1000'],
+
+                // Formas de pago: puede ser más de una (p. ej. una parte en
+                // efectivo y otra con tarjeta); la suma debe cubrir el total
+                // exacto de lo seleccionado (ver PaymentRegistrationService::registerSplit).
+                'payments' => ['required', 'array', 'min:1'],
+                'payments.*.payment_method_id' => ['required', new ExistsInSchema('billing', 'payment_methods', 'id')],
+                'payments.*.amount' => ['required', 'numeric', 'gt:0'],
+                'payments.*.reference' => ['nullable', 'string', 'max:255'],
+                'payments.*.bank_name' => ['nullable', 'string', 'max:255'],
+                'payments.*.check_number' => ['nullable', 'string', 'max:255'],
 
                 // Cargos existentes seleccionados
                 'existing_charges' => ['array'],
@@ -405,12 +473,20 @@ class CollectionController extends Controller
                 'new_items.*.concept_id' => ['required', new ExistsInSchema('billing', 'concepts', 'id')],
                 'new_items.*.description' => ['nullable', 'string', 'max:255'],
                 'new_items.*.total' => ['required', 'numeric', 'gt:0'],
+
+                // Salidas de cafetería capturadas en "Agregar concepto de
+                // cobro": la visita solo se da por cerrada (y el cargo, si
+                // aplica, solo se genera) hasta que se confirme este pago.
+                'cafeteria_checkouts' => ['array'],
+                'cafeteria_checkouts.*.visit_id' => ['required', new ExistsInSchema('guest_lists', 'cafeteria_visits', 'id')],
+                'cafeteria_checkouts.*.consumption_amount' => ['required', 'numeric', 'min:0'],
             ]);
 
             $existing = collect($validated['existing_charges'] ?? []);
             $newItems = collect($validated['new_items'] ?? []);
+            $cafeteriaCheckouts = collect($validated['cafeteria_checkouts'] ?? []);
 
-            if ($existing->isEmpty() && $newItems->isEmpty()) {
+            if ($existing->isEmpty() && $newItems->isEmpty() && $cafeteriaCheckouts->isEmpty()) {
                 throw ValidationException::withMessages([
                     'applications' => 'Agrega al menos un cargo o concepto a la lista de cobros.',
                 ]);
@@ -420,10 +496,15 @@ class CollectionController extends Controller
                 ->with('primaryHolder.member')
                 ->findOrFail($validated['membership_account_id']);
             $clubId = (int) $validated['club_id'];
-            $paymentMethod = PaymentMethod::query()
-                ->where('id', $validated['payment_method_id'])
-                ->where('is_active', true)
-                ->firstOrFail();
+
+            $paymentMethodIds = collect($validated['payments'])->pluck('payment_method_id')->unique()->values();
+            $activePaymentMethodCount = PaymentMethod::whereIn('id', $paymentMethodIds)->where('is_active', true)->count();
+
+            if ($activePaymentMethodCount !== $paymentMethodIds->count()) {
+                throw ValidationException::withMessages([
+                    'payments' => 'Una o más formas de pago seleccionadas no están activas.',
+                ]);
+            }
 
             // Todas las cuentas del grupo del socio (una por parque, ver
             // resolveGroupAccountIds) y los parques donde tiene membresía
@@ -431,6 +512,16 @@ class CollectionController extends Controller
             // liquide en un solo pago aunque abarque más de un club (ver
             // PaymentRegistrationService::ensureChargesBelongToClub).
             $groupAccountIds = $this->resolveGroupAccountIds($account);
+
+            // No se puede saldar una mensualidad si queda una anterior
+            // pendiente (de cualquier parque del socio) que no se está
+            // incluyendo en este mismo pago: p. ej. no se puede pagar mayo
+            // sin haber cubierto abril. El frontend ya bloquea esto en la
+            // interfaz; esta es la validación real en el servidor.
+            $this->ensureMonthlyChargesArePaidInOrder(
+                $existing->pluck('charge_id')->map(fn ($id) => (int) $id),
+                $groupAccountIds
+            );
 
             $accountClubIds = Membership::query()
                 ->whereIn('membership_account_id', $groupAccountIds)
@@ -458,8 +549,8 @@ class CollectionController extends Controller
 
             $memberId = $account->primaryHolder?->member_id;
 
-            $payment = DB::transaction(function () use (
-                $account, $clubId, $paymentMethod, $existing, $newItems,
+            $payments = DB::transaction(function () use (
+                $account, $clubId, $existing, $newItems, $cafeteriaCheckouts,
                 $membership, $memberId, $validated, $request, $accountClubIds,
                 $groupAccountIds
             ) {
@@ -470,6 +561,29 @@ class CollectionController extends Controller
                     ])
                     ->values()
                     ->all();
+
+                // Cierra cada visita de cafetería seleccionada (marca la
+                // salida) y, si el consumo no alcanzó el mínimo, genera su
+                // cargo pendiente — todo dentro de esta misma transacción,
+                // para que no quede nada registrado si el pago no se
+                // confirma.
+                foreach ($cafeteriaCheckouts as $checkout) {
+                    $visit = CafeteriaVisit::lockForUpdate()->findOrFail($checkout['visit_id']);
+
+                    $charge = $this->cafeteriaCheckoutService->checkout(
+                        cafeteriaVisit: $visit,
+                        consumption: round((float) $checkout['consumption_amount'], 2),
+                        checkedOutBy: $request->user()?->id,
+                        chargePending: true,
+                    );
+
+                    if ($charge) {
+                        $applications[] = [
+                            'charge_id' => $charge->id,
+                            'amount' => (float) $charge->amount,
+                        ];
+                    }
+                }
 
                 // Genera un cargo pendiente por cada concepto nuevo y lo agrega
                 // a la lista de aplicaciones a su monto total.
@@ -503,15 +617,12 @@ class CollectionController extends Controller
                     ];
                 }
 
-                return $this->paymentRegistrationService->register(
+                return $this->paymentRegistrationService->registerSplit(
                     account: $account,
                     clubId: $clubId,
-                    paymentMethod: $paymentMethod,
                     applications: $applications,
+                    payments: $validated['payments'],
                     paidAt: $validated['paid_at'],
-                    reference: $validated['reference'] ?? null,
-                    bankName: $validated['bank_name'] ?? null,
-                    checkNumber: $validated['check_number'] ?? null,
                     notes: $validated['notes'] ?? null,
                     receivedBy: $request->user()?->id,
                     sessionClubId: session('club_id'),
@@ -520,13 +631,15 @@ class CollectionController extends Controller
                 );
             });
 
+            $totalPaid = round($payments->sum('amount'), 2);
+
             return response()->json([
                 'success' => true,
                 'message' => sprintf(
                     'Cobro registrado correctamente por $%s.',
-                    number_format((float) $payment->amount, 2)
+                    number_format($totalPaid, 2)
                 ),
-                'payment_id' => $payment->id,
+                'payment_ids' => $payments->pluck('id')->values(),
             ]);
         } catch (ValidationException $e) {
             return response()->json([
@@ -563,6 +676,41 @@ class CollectionController extends Controller
             ->where('account_group_id', $account->account_group_id)
             ->pluck('id')
             ->all();
+    }
+
+    /**
+     * Lanza una ValidationException si el pago intenta saldar una mensualidad
+     * sin cubrir también las mensualidades pendientes de meses anteriores
+     * (considerando todas las cuentas del grupo del socio, es decir todos sus
+     * parques): la mensualidad debe pagarse en orden, mes por mes.
+     */
+    protected function ensureMonthlyChargesArePaidInOrder(\Illuminate\Support\Collection $existingChargeIds, array $groupAccountIds): void
+    {
+        $chargesBeingPaid = Charge::query()
+            ->whereIn('id', $existingChargeIds)
+            ->whereHas('concept', fn (Builder $q) => $q->where('code', 'MONTHLY_FEE'))
+            ->get(['id', 'period_year', 'period_month']);
+
+        if ($chargesBeingPaid->isEmpty()) {
+            return;
+        }
+
+        $latestPeriodBeingPaid = $chargesBeingPaid
+            ->max(fn (Charge $c) => ($c->period_year ?? 0) * 100 + ($c->period_month ?? 0));
+
+        $missingEarlier = Charge::query()
+            ->whereIn('membership_account_id', $groupAccountIds)
+            ->whereHas('concept', fn (Builder $q) => $q->where('code', 'MONTHLY_FEE'))
+            ->whereIn('status', ['pending', 'partial'])
+            ->whereNotIn('id', $existingChargeIds)
+            ->get(['id', 'period_year', 'period_month'])
+            ->filter(fn (Charge $c) => (($c->period_year ?? 0) * 100 + ($c->period_month ?? 0)) <= $latestPeriodBeingPaid);
+
+        if ($missingEarlier->isNotEmpty()) {
+            throw ValidationException::withMessages([
+                'existing_charges' => 'Hay mensualidades de meses anteriores pendientes. Agrégalas también antes de pagar un mes posterior.',
+            ]);
+        }
     }
 
     protected function resolveHolderPhotoUrl(?\App\Models\Members\Member $holder): ?string

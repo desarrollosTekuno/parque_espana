@@ -21,12 +21,17 @@ interface ClubBreakdownItem {
     amount: number;
 }
 
-export interface PaymentConfirmPayload {
+export interface PaymentLinePayload {
     payment_method_id: number;
-    paid_at: string;
+    amount: number;
     reference: string;
     bank_name: string;
     check_number: string;
+}
+
+export interface PaymentConfirmPayload {
+    paid_at: string;
+    payments: PaymentLinePayload[];
 }
 
 interface Props {
@@ -61,18 +66,33 @@ const currencyFormatter = new Intl.NumberFormat("es-MX", {
 const formatCurrency = (value: number | null | undefined) =>
     currencyFormatter.format(Number(value ?? 0));
 
-const selectedMethodId = ref<number | null>(null);
+interface PaymentLineForm {
+    key: string;
+    payment_method_id: number | null;
+    amount: number | null;
+    reference: string;
+    bank_name: string;
+    check_number: string;
+}
+
+let lineSeq = 0;
+const newLine = (amount: number | null = null): PaymentLineForm => ({
+    key: `line-${++lineSeq}`,
+    payment_method_id: null,
+    amount,
+    reference: "",
+    bank_name: "",
+    check_number: "",
+});
+
 const paidAt = ref(nowAsLocalInput());
-const reference = ref("");
-const bankName = ref("");
-const checkNumber = ref("");
+const paymentLines = ref<PaymentLineForm[]>([newLine()]);
+
+const round2 = (value: number) => Math.round(value * 100) / 100;
 
 const resetForm = () => {
-    selectedMethodId.value = null;
     paidAt.value = nowAsLocalInput();
-    reference.value = "";
-    bankName.value = "";
-    checkNumber.value = "";
+    paymentLines.value = [newLine(round2(props.total))];
 };
 
 watch(
@@ -82,36 +102,54 @@ watch(
     },
 );
 
-const selectedMethod = computed(
-    () =>
-        props.paymentMethods.find((m) => m.id === selectedMethodId.value) ??
-        null,
-);
-
-const selectMethod = (methodId: number) => {
-    selectedMethodId.value = methodId;
-};
-
 const isSplit = computed(() => props.clubBreakdown.length > 1);
 
-const canConfirm = computed(() => {
-    if (!selectedMethodId.value) return false;
-    const m = selectedMethod.value;
-    if (m?.requires_reference && !reference.value) return false;
-    if (m?.requires_bank_name && !bankName.value) return false;
-    if (m?.requires_check_number && !checkNumber.value) return false;
+const methodFor = (line: PaymentLineForm): PaymentMethodItem | null =>
+    props.paymentMethods.find((m) => m.id === line.payment_method_id) ?? null;
+
+const assignedTotal = computed(() =>
+    round2(
+        paymentLines.value.reduce((sum, l) => sum + Number(l.amount ?? 0), 0),
+    ),
+);
+const remaining = computed(() => round2(props.total - assignedTotal.value));
+
+const addPaymentLine = () => {
+    paymentLines.value.push(newLine(remaining.value > 0 ? remaining.value : null));
+};
+const removePaymentLine = (key: string) => {
+    if (paymentLines.value.length <= 1) return;
+    paymentLines.value = paymentLines.value.filter((l) => l.key !== key);
+};
+
+const isLineValid = (line: PaymentLineForm): boolean => {
+    if (!line.payment_method_id) return false;
+    if (!line.amount || line.amount <= 0) return false;
+    const m = methodFor(line);
+    if (m?.requires_reference && !line.reference) return false;
+    if (m?.requires_bank_name && !line.bank_name) return false;
+    if (m?.requires_check_number && !line.check_number) return false;
     return true;
+};
+
+const canConfirm = computed(() => {
+    if (!paymentLines.value.length) return false;
+    if (Math.abs(remaining.value) >= 0.01) return false;
+    return paymentLines.value.every(isLineValid);
 });
 
 const confirmPayment = () => {
-    if (!canConfirm.value || !selectedMethodId.value) return;
+    if (!canConfirm.value) return;
 
     emit("confirm", {
-        payment_method_id: selectedMethodId.value,
         paid_at: paidAt.value,
-        reference: reference.value,
-        bank_name: bankName.value,
-        check_number: checkNumber.value,
+        payments: paymentLines.value.map((l) => ({
+            payment_method_id: l.payment_method_id as number,
+            amount: round2(Number(l.amount)),
+            reference: l.reference,
+            bank_name: l.bank_name,
+            check_number: l.check_number,
+        })),
     });
 };
 
@@ -121,7 +159,7 @@ const close = () => {
 </script>
 
 <template>
-    <v-dialog v-model="dialogModel" max-width="640" persistent>
+    <v-dialog v-model="dialogModel" max-width="720" persistent>
         <v-card>
             <v-card-title class="d-flex justify-space-between align-center">
                 <span>Forma de pago</span>
@@ -166,67 +204,114 @@ const close = () => {
                     </span>
                 </div>
 
-                <div>
-                    <div class="text-caption text-medium-emphasis mb-2">
-                        Método de pago
-                    </div>
-                    <v-row dense>
-                        <v-col
-                            v-for="method in paymentMethods"
-                            :key="method.id"
-                            cols="6"
-                            md="4"
-                        >
-                            <v-card
-                                :variant="selectedMethodId === method.id ? 'flat' : 'outlined'"
-                                :color="selectedMethodId === method.id ? 'primary' : undefined"
-                                class="pa-3 cursor-pointer"
-                                @click="selectMethod(method.id)"
-                            >
-                                <div class="text-body-2 font-weight-medium">
-                                    {{ method.name }}
-                                </div>
-                                <div class="text-caption">
-                                    {{
-                                        selectedMethodId === method.id
-                                            ? formatCurrency(total)
-                                            : formatCurrency(0)
-                                    }}
-                                </div>
-                            </v-card>
-                        </v-col>
-                        <v-col v-if="!paymentMethods.length" cols="12">
-                            <v-alert type="warning" variant="tonal" density="compact">
-                                Este parque no tiene métodos de pago habilitados.
-                            </v-alert>
-                        </v-col>
-                    </v-row>
-                </div>
-
                 <v-text-field
                     v-model="paidAt"
                     label="Fecha y hora del pago"
                     type="datetime-local"
                     hide-details="auto"
                 />
-                <v-text-field
-                    v-model="reference"
-                    label="Referencia"
-                    :disabled="!selectedMethod?.requires_reference"
-                    hide-details="auto"
-                />
-                <v-text-field
-                    v-model="bankName"
-                    label="Banco"
-                    :disabled="!selectedMethod?.requires_bank_name"
-                    hide-details="auto"
-                />
-                <v-text-field
-                    v-model="checkNumber"
-                    label="Número de cheque"
-                    :disabled="!selectedMethod?.requires_check_number"
-                    hide-details="auto"
-                />
+
+                <div>
+                    <div class="d-flex justify-space-between align-center mb-2">
+                        <span class="text-caption text-medium-emphasis">
+                            Formas de pago
+                        </span>
+                        <span
+                            class="text-caption font-weight-bold"
+                            :class="Math.abs(remaining) >= 0.01 ? 'text-error' : 'text-success'"
+                        >
+                            Restante por asignar: {{ formatCurrency(remaining) }}
+                        </span>
+                    </div>
+
+                    <v-card
+                        v-for="(line, idx) in paymentLines"
+                        :key="line.key"
+                        variant="outlined"
+                        class="pa-3 mb-3"
+                    >
+                        <div class="d-flex justify-space-between align-center mb-2">
+                            <span class="text-caption text-medium-emphasis">
+                                Forma de pago {{ idx + 1 }}
+                            </span>
+                            <BaseButton
+                                v-if="paymentLines.length > 1"
+                                action="delete"
+                                icon="mdi-close"
+                                color="error"
+                                variant="text"
+                                size="small"
+                                tooltip="Quitar esta forma de pago"
+                                @click="removePaymentLine(line.key)"
+                            />
+                        </div>
+                        <v-row dense>
+                            <v-col cols="12" md="5">
+                                <v-select
+                                    v-model="line.payment_method_id"
+                                    :items="paymentMethods"
+                                    item-title="name"
+                                    item-value="id"
+                                    label="Método de pago"
+                                    hide-details="auto"
+                                />
+                            </v-col>
+                            <v-col cols="12" md="3">
+                                <v-text-field
+                                    v-model.number="line.amount"
+                                    label="Importe"
+                                    type="number"
+                                    min="0"
+                                    prefix="$"
+                                    hide-details="auto"
+                                />
+                            </v-col>
+                            <v-col cols="12" md="4">
+                                <v-text-field
+                                    v-model="line.reference"
+                                    label="Referencia"
+                                    :disabled="!methodFor(line)?.requires_reference"
+                                    hide-details="auto"
+                                />
+                            </v-col>
+                            <v-col cols="12" md="6" v-if="methodFor(line)?.requires_bank_name">
+                                <v-text-field
+                                    v-model="line.bank_name"
+                                    label="Banco"
+                                    hide-details="auto"
+                                />
+                            </v-col>
+                            <v-col cols="12" md="6" v-if="methodFor(line)?.requires_check_number">
+                                <v-text-field
+                                    v-model="line.check_number"
+                                    label="Número de cheque"
+                                    hide-details="auto"
+                                />
+                            </v-col>
+                        </v-row>
+                    </v-card>
+
+                    <BaseButton
+                        :icon-only="false"
+                        action="add"
+                        icon="mdi-plus"
+                        text="Agregar otra forma de pago"
+                        variant="tonal"
+                        size="small"
+                        :disabled="remaining <= 0"
+                        @click="addPaymentLine"
+                    />
+
+                    <v-alert
+                        v-if="!paymentMethods.length"
+                        type="warning"
+                        variant="tonal"
+                        density="compact"
+                        class="mt-3"
+                    >
+                        Este parque no tiene métodos de pago habilitados.
+                    </v-alert>
+                </div>
             </v-card-text>
 
             <v-card-actions class="justify-end">
