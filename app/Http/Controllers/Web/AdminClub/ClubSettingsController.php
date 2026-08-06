@@ -41,6 +41,7 @@ class ClubSettingsController extends Controller
                 'social_facebook'  => $club->social_facebook,
                 'social_twitter'   => $club->social_twitter,
                 'social_youtube'   => $club->social_youtube,
+                'social_threads'   => $club->social_threads,
                 'address'          => [
                     'street'           => $address->street ?? null,
                     'exterior_number'  => $address->exterior_number ?? null,
@@ -77,6 +78,7 @@ class ClubSettingsController extends Controller
                 'social_facebook'          => ['nullable', 'url', 'max:500'],
                 'social_twitter'           => ['nullable', 'url', 'max:500'],
                 'social_youtube'           => ['nullable', 'url', 'max:500'],
+                'social_threads'           => ['nullable', 'url', 'max:500'],
                 'address.street'           => ['nullable', 'string', 'max:255'],
                 'address.exterior_number'  => ['nullable', 'string', 'max:30'],
                 'address.interior_number'  => ['nullable', 'string', 'max:30'],
@@ -117,6 +119,7 @@ class ClubSettingsController extends Controller
                 'social_facebook'  => $validated['social_facebook'] ?? null,
                 'social_twitter'   => $validated['social_twitter'] ?? null,
                 'social_youtube'   => $validated['social_youtube'] ?? null,
+                'social_threads'   => $validated['social_threads'] ?? null,
             ];
 
             if ($request->hasFile('logo')) {
