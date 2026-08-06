@@ -26,7 +26,7 @@ return new class extends Migration
         Schema::table('reservations.reservations', function (Blueprint $table) {
             $table->dropForeign(['member_id']);
             $table->renameColumn('member_id', 'user_id');
-            $table->foreign('user_id')->references('id')->on('users');
+            // $table->foreign('user_id')->references('id')->on('users');
         });
     }
 };

@@ -17,7 +17,7 @@ return new class extends Migration {
     public function down(): void
     {
         Schema::table('memberships.account_members', function (Blueprint $table) {
-            $table->dropColumn(['access_code', 'access_valid_until', 'access_status']);
+            // $table->dropColumn(['access_code', 'access_valid_until', 'access_status']);
         });
     }
 };

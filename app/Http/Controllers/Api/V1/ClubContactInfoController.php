@@ -25,6 +25,7 @@ class ClubContactInfoController extends Controller
                 'social_facebook'  => $club->social_facebook,
                 'social_twitter'   => $club->social_twitter,
                 'social_youtube'   => $club->social_youtube,
+                'social_threads'    => $club->social_threads,
             ]);
         } catch (\Exception $e) {
             report($e);
