@@ -65,6 +65,9 @@ interface PendingConcept {
     balance: number;
     is_multi_club: boolean;
     club_breakdown: ClubBreakdownItem[];
+    period_year: number | null;
+    period_month: number | null;
+    period_label: string | null;
     charges: PendingChargeRef[];
 }
 interface AccountInfo {
@@ -132,10 +135,11 @@ interface SearchResult {
     signals?: Signal[];
 }
 
-/** Renglón de la lista de cobros (mezcla cargos existentes y conceptos nuevos). */
+/** Renglón de la lista de cobros (mezcla cargos existentes, conceptos nuevos
+ *  y salidas de cafetería aún no confirmadas). */
 interface CobroLine {
     key: string;
-    type: "existing" | "new";
+    type: "existing" | "new" | "cafeteria_checkout";
     concept_label: string;
     detail: string;
     amount: number;
@@ -144,6 +148,8 @@ interface CobroLine {
     description?: string | null;
     is_multi_club?: boolean;
     club_breakdown?: ClubBreakdownItem[];
+    cafeteria_visit_id?: number;
+    cafeteria_consumption_amount?: number;
 }
 
 interface Props {
@@ -231,6 +237,7 @@ const runSearch = async () => {
 // Tabla 1: cargos pendientes 
 const pendingHeaders = [
     { title: "Concepto", key: "concept", sortable: false },
+    { title: "Parque", key: "club", sortable: false },
     { title: "Tasa", key: "rate", sortable: false },
     { title: "Cuota", key: "fee", sortable: false },
     { title: "Clase", key: "class_label", sortable: false },
@@ -245,15 +252,76 @@ const conceptLabel = (c: {
     concept_name: string | null;
 }) => `${c.concept_code ?? ""} ${c.concept_name ?? ""}`.trim();
 
-const isConceptInCobros = (conceptId: number | null) =>
-    conceptId !== null &&
+const isChargesInCobros = (chargeId: number | null) =>
+    chargeId !== null &&
     cobros.value.some(
-        (line) => line.type === "existing" && line.concept_id === conceptId,
+        (line) => line.type === "existing" && line.charges.some((ch) => ch.charge_id === chargeId),
     );
 
+/** Solo la mensualidad se puede repartir entre parques; cualquier otro cargo
+ *  solo se cobra en el parque al que pertenece (ver addPendingToCobros). */
+const isConceptOtherClub = (concept: PendingConcept) => {
+    if (concept.is_multi_club) return false;
+    const conceptClubId = concept.charges[0]?.club_id ?? null;
+    return conceptClubId !== null && !!cobroClub.value && conceptClubId !== cobroClub.value.id;
+};
+
+/** Renglones de mensualidad pendientes, en el orden cronológico que ya manda
+ *  el backend (mes más antiguo primero, ver CollectionController::search). */
+const monthlyFeeConcepts = computed(() =>
+    pendingConcepts.value.filter((c) => c.concept_code === "MONTHLY_FEE"),
+);
+
+/** La mensualidad debe pagarse en orden: un mes queda bloqueado mientras haya
+ *  algún mes anterior pendiente que todavía no se haya agregado a la lista de
+ *  cobros (ni pagado). P. ej. si marzo es la última pagada, no se puede
+ *  cobrar mayo sin haber agregado abril primero — pero sí se pueden agregar
+ *  abril y mayo en el mismo cobro, en ese orden. */
+const firstUnpaidEarlierMonth = (concept: PendingConcept): PendingConcept | null => {
+    if (concept.concept_code !== "MONTHLY_FEE") return null;
+
+    const list = monthlyFeeConcepts.value;
+    const index = list.findIndex((c) => c.charges[0]?.id === concept.charges[0]?.id);
+    if (index <= 0) return null;
+
+    return (
+        list.slice(0, index).find((earlier) => !isChargesInCobros(earlier.charges[0]?.id ?? null)) ??
+        null
+    );
+};
+
+const isMonthlyPeriodLocked = (concept: PendingConcept): boolean =>
+    firstUnpaidEarlierMonth(concept) !== null;
+
 const addPendingToCobros = (concept: PendingConcept) => {
-    if (concept.concept_id === null || isConceptInCobros(concept.concept_id)) {
+    const firstChargeId = concept.charges[0]?.id;
+    if (concept.concept_id === null || isChargesInCobros(firstChargeId)) {
         return;
+    }
+
+    const pendingEarlierMonth = firstUnpaidEarlierMonth(concept);
+    if (pendingEarlierMonth) {
+        customToastSwal({
+            title: `Primero debes agregar la mensualidad de ${pendingEarlierMonth.period_label ?? "un mes anterior"}.`,
+            icon: "warning",
+        });
+        return;
+    }
+
+    // Solo la mensualidad puede repartirse entre parques (is_multi_club);
+    // cualquier otro cargo se cobra en el parque al que pertenece, así que
+    // no se puede mezclar en la misma lista de cobros con el parque de la
+    // sesión actual (ver PaymentRegistrationService::ensureChargesBelongToClub).
+    if (!concept.is_multi_club) {
+        const conceptClubId = concept.charges[0]?.club_id ?? null;
+        if (conceptClubId !== null && cobroClub.value && conceptClubId !== cobroClub.value.id) {
+            const clubCode = concept.charges[0]?.club_code ?? "otro parque";
+            customToastSwal({
+                title: `Este cargo pertenece a ${clubCode}. Cambia el parque de la sesión para cobrarlo.`,
+                icon: "warning",
+            });
+            return;
+        }
     }
 
     cobros.value.push({
@@ -546,11 +614,62 @@ const emptyDayPassVisitor = (): DayPassVisitorForm => ({
 const dayPassDate = ref("");
 const dayPassVisitors = ref<DayPassVisitorForm[]>([emptyDayPassVisitor()]);
 const dayPassSubmitting = ref(false);
+const dayPassNormalPrice = ref<number | null>(null);
+const dayPassSpecialPrice = ref<number | null>(null);
+const dayPassMinAge = ref<number | null>(null);
+const dayPassMaxAge = ref<number | null>(null);
+const dayPassLoadingPricing = ref(false);
 
 const resetDayPassForm = () => {
     dayPassDate.value = new Date().toISOString().slice(0, 10);
     dayPassVisitors.value = [emptyDayPassVisitor()];
 };
+
+const loadDayPassPricing = async () => {
+    if (!cobroClub.value) return;
+    dayPassLoadingPricing.value = true;
+    try {
+        const { data } = await window.axios.get(route("day-passes.pricing"), {
+            params: { club_id: cobroClub.value.id },
+        });
+        dayPassNormalPrice.value = data.normal_price;
+        dayPassSpecialPrice.value = data.special_price;
+        dayPassMinAge.value = data.min_age;
+        dayPassMaxAge.value = data.max_age;
+    } catch (e: any) {
+        customToastSwal({
+            title: "No se pudo cargar la cuota de pase por día.",
+            icon: "error",
+        });
+    } finally {
+        dayPassLoadingPricing.value = false;
+    }
+};
+
+/** Cuota por visitante según su edad — misma regla que DayPassController::store()
+ *  y guest_lists.variables (MIN_AGE/MAX_AGE/NORMAL_PRICE/SPECIAL_PRICE del
+ *  club): menor a MIN_AGE no paga, entre MIN_AGE y MAX_AGE (inclusive) paga
+ *  la tarifa especial, mayor a MAX_AGE paga la tarifa normal. Es solo un
+ *  estimado para mostrar en pantalla: el monto real se calcula y valida en
+ *  el servidor al registrar el pase. */
+const dayPassVisitorPrice = (visitor: DayPassVisitorForm): number | null => {
+    if (
+        visitor.age === null ||
+        dayPassNormalPrice.value === null ||
+        dayPassSpecialPrice.value === null ||
+        dayPassMinAge.value === null ||
+        dayPassMaxAge.value === null
+    ) {
+        return null;
+    }
+    if (visitor.age < dayPassMinAge.value) return 0;
+    return visitor.age <= dayPassMaxAge.value
+        ? dayPassSpecialPrice.value
+        : dayPassNormalPrice.value;
+};
+const dayPassEstimatedTotal = computed(() =>
+    dayPassVisitors.value.reduce((sum, v) => sum + (dayPassVisitorPrice(v) ?? 0), 0),
+);
 
 const addDayPassVisitor = () => {
     dayPassVisitors.value.push(emptyDayPassVisitor());
@@ -617,7 +736,10 @@ const submitDayPass = async () => {
 };
 
 watch(isDayPassConcept, (isDayPass) => {
-    if (isDayPass) resetDayPassForm();
+    if (isDayPass) {
+        resetDayPassForm();
+        loadDayPassPricing();
+    }
 });
 
 // ── Cafetería desde "Agregar concepto de cobro" ──
@@ -649,7 +771,6 @@ const cafeteriaOpenVisits = ref<
 const cafeteriaLoadingOpenVisits = ref(false);
 const cafeteriaSelectedVisitId = ref<number | null>(null);
 const cafeteriaConsumption = ref<number | null>(null);
-const cafeteriaCheckingOut = ref(false);
 
 const resetCafeteriaForm = () => {
     cafeteriaMode.value = "entrada";
@@ -736,8 +857,19 @@ const checkInCafeteria = async () => {
     }
 };
 
-const checkOutCafeteria = async () => {
-    if (!canCheckOutCafeteria.value) {
+/** Visitas abiertas que aún no se agregaron a la lista de cobros. */
+const cafeteriaAvailableVisits = computed(() =>
+    cafeteriaOpenVisits.value.filter(
+        (v) => !cobros.value.some((l) => l.type === "cafeteria_checkout" && l.cafeteria_visit_id === v.id),
+    ),
+);
+
+/** La salida NO se registra aquí — solo se agrega a la lista de cobros. La
+ *  visita se cierra (y el cargo, si aplica, se genera) hasta que se confirme
+ *  el pago en "Efectuar cobro" (ver submitPayment/storePayment), para no
+ *  dejar una salida registrada sin que el cobro se haya efectuado. */
+const checkOutCafeteria = () => {
+    if (!canCheckOutCafeteria.value || !selectedCafeteriaVisit.value) {
         customToastSwal({
             title: "Selecciona la visita y captura el consumo.",
             icon: "warning",
@@ -745,41 +877,27 @@ const checkOutCafeteria = async () => {
         return;
     }
 
-    cafeteriaCheckingOut.value = true;
-    try {
-        const { data } = await window.axios.post(
-            route("cafeteria-visits.checkout", { cafeteriaVisit: cafeteriaSelectedVisitId.value }),
-            {
-                consumption_amount: cafeteriaConsumption.value,
-                as_json: 1,
-            },
-        );
+    const visit = selectedCafeteriaVisit.value;
+    const consumption = cafeteriaConsumption.value as number;
+    const waived = consumption >= visit.min_consumption;
 
-        if (data.charge) {
-            cobros.value.push({
-                key: `cafeteria-${data.charge.id}-${Date.now()}`,
-                type: "existing",
-                concept_id: selectedConcept.value?.id,
-                concept_label: `${selectedConcept.value?.code ?? "CAFETERIA_PASS"} ${selectedConcept.value?.name ?? "Cafetería"}`,
-                detail: `Acceso — ${selectedCafeteriaVisit.value?.visitor_name ?? "visitante"}`,
-                amount: data.charge.amount,
-                charges: [{ charge_id: data.charge.id, amount: data.charge.amount }],
-            });
-        }
+    cobros.value.push({
+        key: `cafeteria-${visit.id}-${Date.now()}`,
+        type: "cafeteria_checkout",
+        concept_id: selectedConcept.value?.id,
+        concept_label: `${selectedConcept.value?.code ?? "CAFETERIA_PASS"} ${selectedConcept.value?.name ?? "Cafetería"}`,
+        detail: waived
+            ? `Acceso exento — ${visit.visitor_name}`
+            : `Acceso — ${visit.visitor_name}`,
+        amount: waived ? 0 : visit.min_consumption,
+        cafeteria_visit_id: visit.id,
+        cafeteria_consumption_amount: consumption,
+    });
 
-        customToastSwal({ title: data.message, icon: "success" });
-        resetNewItem();
-        cafeteriaSelectedVisitId.value = null;
-        cafeteriaConsumption.value = null;
-        loadOpenCafeteriaVisits();
-    } catch (e: any) {
-        customToastSwal({
-            title: e?.response?.data?.message || "No se pudo registrar la salida.",
-            icon: "error",
-        });
-    } finally {
-        cafeteriaCheckingOut.value = false;
-    }
+    customToastSwal({ title: "Salida agregada a la lista de cobros.", icon: "success" });
+    resetNewItem();
+    cafeteriaSelectedVisitId.value = null;
+    cafeteriaConsumption.value = null;
 };
 
 /*watch(
@@ -948,27 +1066,31 @@ const submitPayment = async (payload: PaymentConfirmPayload) => {
             description: l.description,
             total: l.amount,
         }));
+    const cafeteria_checkouts = cobros.value
+        .filter((l) => l.type === "cafeteria_checkout")
+        .map((l) => ({
+            visit_id: l.cafeteria_visit_id,
+            consumption_amount: l.cafeteria_consumption_amount,
+        }));
 
     paying.value = true;
     try {
         await window.axios.post(route("collections.payment.store"), {
             membership_account_id: account.value.id,
             club_id: cobroClub.value.id,
-            payment_method_id: payload.payment_method_id,
             paid_at: payload.paid_at,
-            reference: payload.reference,
-            bank_name: payload.bank_name,
-            check_number: payload.check_number,
+            payments: payload.payments,
             existing_charges,
             new_items,
+            cafeteria_checkouts,
         });
 
-        const paymentMethod = availablePaymentMethods.value.find(
-            (m) => m.id === payload.payment_method_id,
-        );
-        const isCardPayment = paymentMethod?.code
-            ?.toUpperCase()
-            .includes("CARD");
+        const isCardPayment = payload.payments.some((p) => {
+            const method = availablePaymentMethods.value.find(
+                (m) => m.id === p.payment_method_id,
+            );
+            return method?.code?.toUpperCase().includes("CARD");
+        });
 
         paymentDialog.value = false;
         cobros.value = [];
@@ -1166,6 +1288,15 @@ const saveNote = async () => {
                         <template #item.concept="{ item }">
                             <span class="font-weight-medium">{{ conceptLabel(item) }}</span>
                             <v-chip
+                                v-if="item.period_label"
+                                size="x-small"
+                                class="ml-2"
+                                color="primary"
+                                variant="tonal"
+                            >
+                                {{ item.period_label }}
+                            </v-chip>
+                            <v-chip
                                 v-if="item.is_multi_club"
                                 size="x-small"
                                 class="ml-2"
@@ -1174,6 +1305,32 @@ const saveNote = async () => {
                             >
                                 Dividido entre parques
                             </v-chip>
+                            <v-chip
+                                v-if="isMonthlyPeriodLocked(item)"
+                                size="x-small"
+                                class="ml-2"
+                                color="error"
+                                variant="tonal"
+                            >
+                                Bloqueado
+                            </v-chip>
+                        </template>
+                        <template #item.club="{ item }">
+                            <v-tooltip v-if="item.is_multi_club" location="top">
+                                <template #activator="{ props: tooltipProps }">
+                                    <span v-bind="tooltipProps" class="text-medium-emphasis">
+                                        {{
+                                            item.club_breakdown
+                                                .map((c) => c.club_code ?? "—")
+                                                .join(" / ")
+                                        }}
+                                    </span>
+                                </template>
+                                <div v-for="club in item.club_breakdown" :key="club.club_id ?? club.club_code">
+                                    {{ club.club_code ?? club.club_name ?? "—" }}: {{ formatCurrency(club.amount) }}
+                                </div>
+                            </v-tooltip>
+                            <span v-else>{{ item.charges[0]?.club_code ?? "—" }}</span>
                         </template>
                         <template #item.rate="{ item }">
                             <span class="text-medium-emphasis">{{ item.rate ?? "—" }}</span>
@@ -1194,7 +1351,10 @@ const saveNote = async () => {
                             {{ formatCurrency(item.unit_amount) }}
                         </template>
                         <template #item.months="{ item }">
-                            {{ item.months }}
+                            <span v-if="item.class_label !== 'A meses'" class="text-medium-emphasis">
+                                No aplica
+                            </span>
+                            <span v-else>{{ item.months }}</span>
                         </template>
                         <template #item.balance="{ item }">
                             <span class="font-weight-bold">{{ formatCurrency(item.balance) }}</span>
@@ -1207,11 +1367,17 @@ const saveNote = async () => {
                                 icon="mdi-plus"
                                 text="Agregar"
                                 variant="tonal"
-                                :disabled="isConceptInCobros(item.concept_id)"
-                                tooltip="Agregar este adeudo a la lista de cobros"
+                               :disabled="isChargesInCobros(item.charges[0].id) || isConceptOtherClub(item) || isMonthlyPeriodLocked(item)"
+                                :tooltip="
+                                    isConceptOtherClub(item)
+                                        ? `Este cargo pertenece a ${item.charges[0].club_code ?? 'otro parque'}. Cambia el parque de la sesión para cobrarlo.`
+                                        : isMonthlyPeriodLocked(item)
+                                        ? `Primero debes agregar la mensualidad de ${firstUnpaidEarlierMonth(item)?.period_label ?? 'un mes anterior'}.`
+                                        : 'Agregar este adeudo a la lista de cobros'
+                                "
                                 @click="addPendingToCobros(item)"
                             />
-                        </template> 
+                        </template>
                     </v-data-table>
 
                     <!-- Resumen del socio -->
@@ -1500,14 +1666,14 @@ const saveNote = async () => {
                                                 hide-details="auto"
                                             />
                                         </v-col>
-                                        <v-col cols="6" md="3">
+                                        <v-col cols="6" md="2">
                                             <v-text-field
                                                 v-model="visitor.last_name"
                                                 label="Apellido"
                                                 hide-details="auto"
                                             />
                                         </v-col>
-                                        <v-col cols="6" md="2">
+                                        <v-col cols="6" md="1">
                                             <v-text-field
                                                 v-model.number="visitor.age"
                                                 label="Edad"
@@ -1516,7 +1682,16 @@ const saveNote = async () => {
                                                 hide-details="auto"
                                             />
                                         </v-col>
-                                        <v-col cols="6" md="3">
+                                        <v-col cols="6" md="2">
+                                            <v-text-field
+                                                :model-value="formatCurrency(dayPassVisitorPrice(visitor))"
+                                                label="Cuota"
+                                                readonly
+                                                :loading="dayPassLoadingPricing"
+                                                hide-details="auto"
+                                            />
+                                        </v-col>
+                                        <v-col cols="6" md="2">
                                             <v-text-field
                                                 v-model="visitor.email"
                                                 label="Correo (opcional)"
@@ -1538,7 +1713,13 @@ const saveNote = async () => {
                                     </v-row>
                                 </v-col>
 
-                                <v-col cols="12" class="d-flex justify-end">
+                                <v-col cols="12" class="d-flex justify-space-between align-center">
+                                    <div>
+                                        <span class="text-caption text-medium-emphasis">Total estimado</span>
+                                        <div class="text-h6 font-weight-bold text-primary">
+                                            {{ formatCurrency(dayPassEstimatedTotal) }}
+                                        </div>
+                                    </div>
                                     <BaseButton
                                         :icon-only="false"
                                         action="save"
@@ -1619,7 +1800,7 @@ const saveNote = async () => {
                                             class="mb-2"
                                         />
                                         <v-alert
-                                            v-else-if="!cafeteriaOpenVisits.length"
+                                            v-else-if="!cafeteriaAvailableVisits.length"
                                             type="info"
                                             variant="tonal"
                                             density="compact"
@@ -1629,7 +1810,7 @@ const saveNote = async () => {
                                         <v-select
                                             v-else
                                             v-model="cafeteriaSelectedVisitId"
-                                            :items="cafeteriaOpenVisits"
+                                            :items="cafeteriaAvailableVisits"
                                             item-title="visitor_name"
                                             item-value="id"
                                             label="Visita a cerrar"
@@ -1657,11 +1838,10 @@ const saveNote = async () => {
                                     <v-col cols="12" class="d-flex justify-end">
                                         <BaseButton
                                             :icon-only="false"
-                                            action="save"
+                                            action="add"
                                             icon="mdi-food-off"
-                                            text="Registrar salida"
+                                            text="Agregar salida a la lista"
                                             variant="tonal"
-                                            :loading="cafeteriaCheckingOut"
                                             :disabled="!canCheckOutCafeteria"
                                             @click="checkOutCafeteria"
                                         />

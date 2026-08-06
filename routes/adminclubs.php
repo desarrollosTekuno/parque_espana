@@ -81,6 +81,7 @@ Route::resource('/guest-list-variables', GuestListVariableController::class)->on
 Route::resource('/guest-list-payments', GuestListPaymentController::class)->only(['index'])->names('guest-list-payments');
 
 Route::get('/day-passes/members-search', [DayPassController::class, 'searchMembers'])->name('day-passes.members-search');
+Route::get('/day-passes/pricing', [DayPassController::class, 'pricing'])->name('day-passes.pricing');
 Route::get('/day-passes/check-incidents', [DayPassController::class, 'checkIncidents'])->name('day-passes.check-incidents');
 Route::get('/day-passes/incidents',  [DayPassController::class, 'indexIncidents'])->name('day-passes.incidents.index');
 Route::post('/day-passes/incidents', [DayPassController::class, 'storeIncident'])->name('day-passes.incidents.store');

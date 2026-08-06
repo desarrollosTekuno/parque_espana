@@ -96,6 +96,162 @@ class PaymentRegistrationService
     }
 
     /**
+     * Igual que register(), pero permite cobrar con más de una forma de pago
+     * a la vez (p. ej. una parte en efectivo y otra con tarjeta). $payments
+     * es un arreglo de líneas: [['payment_method_id' => int, 'amount' =>
+     * float, 'reference' => ?string, 'bank_name' => ?string, 'check_number'
+     * => ?string], ...]. La suma de $payments debe coincidir exactamente con
+     * la suma de $applications. Cada cargo se reparte entre las formas de
+     * pago en el orden en que llegan (waterfall), así que un mismo cargo
+     * puede terminar cubierto por dos pagos distintos si hace falta. Regresa
+     * la colección de Payment creados (uno por línea).
+     */
+    public function registerSplit(
+        MembershipAccount $account,
+        int $clubId,
+        array $applications,
+        array $payments,
+        string $paidAt,
+        ?string $notes,
+        ?int $receivedBy,
+        ?int $sessionClubId = null,
+        array $accountClubIds = [],
+        array $groupAccountIds = []
+    ): Collection {
+        if (empty($payments)) {
+            throw ValidationException::withMessages([
+                'payments' => 'Agrega al menos una forma de pago.',
+            ]);
+        }
+
+        $charges = $this->resolveCharges($groupAccountIds ?: [$account->id], $applications);
+        $this->ensureChargesBelongToClub($charges, $clubId, $accountClubIds);
+        $normalizedApplications = $this->normalizeApplications($charges, $applications);
+
+        $paymentMethodCache = [];
+        $paymentLines = collect($payments)->values()->map(function (array $line) use ($clubId, &$paymentMethodCache) {
+            $methodId = (int) $line['payment_method_id'];
+            $paymentMethod = $paymentMethodCache[$methodId] ??= PaymentMethod::findOrFail($methodId);
+            $amount = round((float) ($line['amount'] ?? 0), 2);
+
+            if ($amount <= 0) {
+                throw ValidationException::withMessages([
+                    'payments' => 'El importe de cada forma de pago debe ser mayor a cero.',
+                ]);
+            }
+
+            $this->ensurePaymentMethodAllowedForClub($paymentMethod->id, $clubId);
+            $this->validateMethodRequirements(
+                $paymentMethod,
+                $line['reference'] ?? null,
+                $line['bank_name'] ?? null,
+                $line['check_number'] ?? null
+            );
+
+            return [
+                'payment_method' => $paymentMethod,
+                'amount' => $amount,
+                'reference' => $line['reference'] ?? null,
+                'bank_name' => $line['bank_name'] ?? null,
+                'check_number' => $line['check_number'] ?? null,
+            ];
+        });
+
+        $totalApplications = round($normalizedApplications->sum('amount'), 2);
+        $totalPayments = round($paymentLines->sum('amount'), 2);
+
+        if (abs($totalApplications - $totalPayments) > 0.01) {
+            throw ValidationException::withMessages([
+                'payments' => 'La suma de las formas de pago debe coincidir con el total a cobrar.',
+            ]);
+        }
+
+        // Reparte cada cargo entre las formas de pago en el orden dado, para
+        // saber cuánto de cada cargo cubrió cada forma de pago.
+        $remainingPerLine = $paymentLines->map(fn (array $line) => $line['amount'])->all();
+        $allocationsPerLine = array_fill(0, $paymentLines->count(), []);
+
+        foreach ($normalizedApplications as $application) {
+            $remainingForCharge = $application['amount'];
+
+            foreach ($paymentLines as $idx => $line) {
+                if ($remainingForCharge <= 0.001) {
+                    break;
+                }
+                if ($remainingPerLine[$idx] <= 0.001) {
+                    continue;
+                }
+
+                $take = round(min($remainingForCharge, $remainingPerLine[$idx]), 2);
+                $allocationsPerLine[$idx][] = ['charge' => $application['charge'], 'amount' => $take];
+                $remainingPerLine[$idx] = round($remainingPerLine[$idx] - $take, 2);
+                $remainingForCharge = round($remainingForCharge - $take, 2);
+            }
+        }
+
+        return DB::transaction(function () use (
+            $account,
+            $clubId,
+            $paymentLines,
+            $allocationsPerLine,
+            $paidAt,
+            $notes,
+            $receivedBy,
+            $sessionClubId
+        ) {
+            $createdPayments = collect();
+
+            foreach ($paymentLines as $idx => $line) {
+                $lineAllocations = collect($allocationsPerLine[$idx]);
+                $parkSplit = $this->resolveParkSplit($lineAllocations);
+                $paymentMethod = $line['payment_method'];
+
+                $payment = Payment::create([
+                    'membership_account_id' => $account->id,
+                    'club_id' => $clubId,
+                    'payment_method_id' => $paymentMethod->id,
+                    'amount' => $line['amount'],
+                    'paid_at' => $paidAt,
+                    'reference' => $line['reference'],
+                    'bank_name' => $line['bank_name'],
+                    'check_number' => $line['check_number'],
+                    'notes' => $notes,
+                    'received_by' => $receivedBy,
+                    'status' => 'registered',
+                    'metadata' => [
+                        'session_club_id' => $sessionClubId,
+                        'settlement_channel' => $paymentMethod->affects_cash_cut ? 'cashier' : 'services',
+                        'affects_cash_cut' => (bool) $paymentMethod->affects_cash_cut,
+                        'park_split' => $parkSplit,
+                        'split_payment' => $paymentLines->count() > 1,
+                    ],
+                ]);
+
+                $lineAllocations->each(function (array $allocation) use ($payment) {
+                    $charge = $allocation['charge'];
+                    $amount = $allocation['amount'];
+                    $newBalance = round((float) $charge->balance - $amount, 2);
+
+                    PaymentApplication::create([
+                        'payment_id' => $payment->id,
+                        'charge_id' => $charge->id,
+                        'applied_amount' => $amount,
+                    ]);
+
+                    $charge->update([
+                        'balance' => $newBalance,
+                        'status' => $newBalance <= 0 ? 'paid' : 'partial',
+                    ]);
+                });
+
+                $createdPayments->push($payment);
+            }
+
+            return $createdPayments;
+        });
+    }
+
+    /**
      * $accountIds: la cuenta que cobra y, si el socio pertenece a más de un
      * parque, las demás cuentas de su mismo account_group_id (ver
      * CollectionController::resolveGroupAccountIds). Solo los cargos de
