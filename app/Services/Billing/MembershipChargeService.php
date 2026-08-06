@@ -301,43 +301,46 @@ class MembershipChargeService
         $monthlyConcept = $this->resolveConcept('MONTHLY_FEE');
         $groupMemberships = $this->resolveGroupPrimaryMemberships($membership, $chargeDate);
         $splitAcrossGroup = $this->shouldSplitMonthlyChargesAcrossGroup($groupMemberships);
-        $groupTotalMonthlyFee = $splitAcrossGroup
-            ? $this->resolveGroupMonthlyTotal(
+
+        if ($splitAcrossGroup) {
+            // Todo socio con membresía activa en más de un parque debe tener
+            // su mensualidad repartida entre ambos — sin importar si alguna
+            // membresía del grupo ya tenía un cargo del periodo (p. ej. venía
+            // de antes de sumar el segundo parque): a cada una se le cobra
+            // solo la diferencia hasta cubrir su mitad, nunca el total del
+            // grupo completo (ver ensureSplitMonthlyChargesForGroup).
+            $groupTotalMonthlyFee = $this->resolveGroupMonthlyTotal(
                 memberships: $groupMemberships,
                 candidateMonthlyFee: $monthlyFee
-            )
-            : null;
-        $shouldReconcileAgainstExistingCharges = $reconcileExistingMonthlyCharge || $splitAcrossGroup;
-        $existingPeriodMonthlyAmount = $shouldReconcileAgainstExistingCharges
-            ? $this->resolveExistingPeriodMonthlyAmount(
-                membership: $membership,
-                conceptId: $monthlyConcept->id,
-                chargeDate: $chargeDate
-            )
-            : 0.0;
+            );
 
-        if ($splitAcrossGroup && $existingPeriodMonthlyAmount <= 0) {
-            $this->createSplitInitialMonthlyCharges(
-                memberships: $groupMemberships,
-                totalMonthlyFee: (float) $groupTotalMonthlyFee,
+            $this->ensureSplitMonthlyChargesForGroup(
+                groupMemberships: $groupMemberships,
+                groupTotalMonthlyFee: $groupTotalMonthlyFee,
                 chargeDate: $chargeDate,
-                metadata: $metadata,
-                concept: $monthlyConcept
+                concept: $monthlyConcept,
+                metadata: $metadata
             );
         } else {
+            $existingPeriodMonthlyAmount = $reconcileExistingMonthlyCharge
+                ? $this->resolveExistingPeriodMonthlyAmount(
+                    membership: $membership,
+                    conceptId: $monthlyConcept->id,
+                    chargeDate: $chargeDate
+                )
+                : 0.0;
+
             $effectiveMonthlyFee = $this->resolveAbsenceAdjustedMonthlyFee(
                 membership: $membership,
-                monthlyFee: $splitAcrossGroup
-                    ? (float) $groupTotalMonthlyFee
-                    : $this->resolveMembershipMonthlyFeeShare($membership, $monthlyFee, $chargeDate->year),
+                monthlyFee: $this->resolveMembershipMonthlyFeeShare($membership, $monthlyFee, $chargeDate->year),
                 chargeDate: $chargeDate
             );
 
-            if (((bool) $membership->is_billable || $shouldReconcileAgainstExistingCharges) && $effectiveMonthlyFee > 0) {
+            if (((bool) $membership->is_billable || $reconcileExistingMonthlyCharge) && $effectiveMonthlyFee > 0) {
                 $monthlyChargeAmount = $effectiveMonthlyFee;
                 $monthlyChargeDescription = $this->buildMonthlyChargeDescription($membership, $chargeDate);
 
-                if ($shouldReconcileAgainstExistingCharges) {
+                if ($reconcileExistingMonthlyCharge) {
                     $monthlyChargeAmount = round($effectiveMonthlyFee - $existingPeriodMonthlyAmount, 2);
 
                     if ($existingPeriodMonthlyAmount > 0 && $monthlyChargeAmount > 0) {
@@ -355,16 +358,11 @@ class MembershipChargeService
                         concept: $monthlyConcept,
                         chargeDate: $chargeDate,
                         amount: $monthlyChargeAmount,
-                        targetMonthlyFee: $splitAcrossGroup
-                            ? (float) $groupTotalMonthlyFee
-                            : $this->resolveMembershipMonthlyFeeShare($membership, $monthlyFee, $chargeDate->year),
+                        targetMonthlyFee: $this->resolveMembershipMonthlyFeeShare($membership, $monthlyFee, $chargeDate->year),
                         effectiveMonthlyFee: $effectiveMonthlyFee,
                         description: $monthlyChargeDescription,
                         metadata: array_merge($metadata, [
-                            'is_monthly_adjustment' => $shouldReconcileAgainstExistingCharges,
-                            'split_mode' => $splitAcrossGroup ? 'equal_group_split_adjustment' : null,
-                            'split_group_total' => $groupTotalMonthlyFee,
-                            'split_group_memberships' => $splitAcrossGroup ? $groupMemberships->count() : null,
+                            'is_monthly_adjustment' => $reconcileExistingMonthlyCharge,
                         ]),
                         dueDate: $chargeDate
                     );
@@ -576,61 +574,96 @@ class MembershipChargeService
         return round(max($groupMaximumFee, (float) ($candidateMonthlyFee ?? 0)), 2);
     }
 
-    protected function createSplitInitialMonthlyCharges(
-        Collection $memberships,
-        float $totalMonthlyFee,
+    /**
+     * Garantiza que, para el periodo dado, cada membresía del grupo (mismo
+     * account_group_id, con membresía activa en 2 o más parques) tenga
+     * cargada exactamente su parte proporcional del total del grupo — ni más
+     * ni menos —, sin importar si alguna ya tenía un cargo previo para ese
+     * periodo (p. ej. porque venía de antes de tener el segundo parque, o de
+     * una corrida anterior de este mismo proceso). A cada membresía a la que
+     * le falte cobrar se le crea un cargo (o complemento) solo por la
+     * diferencia contra SU PROPIO cargo existente; a la que ya tenga cubierta
+     * su parte no se le toca nada. Esto evita que, cuando una membresía del
+     * grupo ya tenía cargo y otra no, la que faltaba terminara absorbiendo el
+     * total completo del grupo en vez de solo su mitad.
+     *
+     * Devuelve, por cada membresía del grupo, si se le generó cargo y por
+     * cuánto — lo usa el comando de generación mensual para su reporte.
+     *
+     * @return Collection<int, array{membership: Membership, created: bool, amount: float}>
+     */
+    public function ensureSplitMonthlyChargesForGroup(
+        Collection $groupMemberships,
+        float $groupTotalMonthlyFee,
         Carbon $chargeDate,
-        array $metadata,
-        ChargeConcept $concept
-    ): void {
-        $membershipCount = $memberships->count();
+        ?ChargeConcept $concept = null,
+        array $metadata = [],
+        bool $dryRun = false
+    ): Collection {
+        $concept ??= $this->resolveConcept('MONTHLY_FEE');
+        $membershipCount = $groupMemberships->count();
+        $results = collect();
 
-        if ($membershipCount === 0 || $totalMonthlyFee <= 0) {
-            return;
+        if ($membershipCount === 0 || $groupTotalMonthlyFee <= 0) {
+            return $results;
         }
 
-        $splitAmount = round($totalMonthlyFee / $membershipCount, 2);
+        $splitAmount = round($groupTotalMonthlyFee / $membershipCount, 2);
         $allocated = 0.0;
-        $lastMembership = $memberships->last();
+        $lastMembership = $groupMemberships->last();
 
-        foreach ($memberships as $groupMembership) {
-            if ($this->hasMonthlyChargeForPeriod($groupMembership, $chargeDate, $concept->id)) {
-                continue;
-            }
-
-            $targetMonthlyFee = $groupMembership->is($lastMembership)
-                ? round($totalMonthlyFee - $allocated, 2)
+        foreach ($groupMemberships as $groupMembership) {
+            $targetShare = $groupMembership->is($lastMembership)
+                ? round($groupTotalMonthlyFee - $allocated, 2)
                 : $splitAmount;
+            $allocated = round($allocated + $targetShare, 2);
 
-            $allocated = round($allocated + $targetMonthlyFee, 2);
-
-            $effectiveMonthlyFee = $this->resolveAbsenceAdjustedMonthlyFee(
+            $effectiveTargetShare = $this->resolveAbsenceAdjustedMonthlyFee(
                 membership: $groupMembership,
-                monthlyFee: $targetMonthlyFee,
+                monthlyFee: $targetShare,
                 chargeDate: $chargeDate
             );
 
-            if ($effectiveMonthlyFee <= 0) {
+            $alreadyChargedToThisMembership = (float) Charge::query()
+                ->where('membership_id', $groupMembership->id)
+                ->where('concept_id', $concept->id)
+                ->where('period_year', (int) $chargeDate->format('Y'))
+                ->where('period_month', (int) $chargeDate->format('m'))
+                ->where('status', '!=', 'cancelled')
+                ->sum('amount');
+
+            $amountToCharge = round($effectiveTargetShare - $alreadyChargedToThisMembership, 2);
+
+            if ($amountToCharge <= 0) {
+                $results->push(['membership' => $groupMembership, 'created' => false, 'amount' => 0.0]);
                 continue;
             }
 
-            $this->storeMonthlyCharge(
-                membership: $groupMembership,
-                concept: $concept,
-                chargeDate: $chargeDate,
-                amount: $effectiveMonthlyFee,
-                targetMonthlyFee: $targetMonthlyFee,
-                effectiveMonthlyFee: $effectiveMonthlyFee,
-                description: $this->buildMonthlyChargeDescription($groupMembership, $chargeDate),
-                metadata: array_merge($metadata, [
-                    'split_mode' => 'equal_group_split',
-                    'split_group_total' => $totalMonthlyFee,
-                    'split_group_memberships' => $membershipCount,
-                    'is_monthly_adjustment' => false,
-                ]),
-                dueDate: $chargeDate
-            );
+            if (!$dryRun) {
+                $this->storeMonthlyCharge(
+                    membership: $groupMembership,
+                    concept: $concept,
+                    chargeDate: $chargeDate,
+                    amount: $amountToCharge,
+                    targetMonthlyFee: $targetShare,
+                    effectiveMonthlyFee: $effectiveTargetShare,
+                    description: $alreadyChargedToThisMembership > 0
+                        ? $this->buildMonthlyAdjustmentChargeDescription($groupMembership, $chargeDate, $effectiveTargetShare)
+                        : $this->buildMonthlyChargeDescription($groupMembership, $chargeDate),
+                    metadata: array_merge($metadata, [
+                        'split_mode' => 'equal_group_split',
+                        'split_group_total' => $groupTotalMonthlyFee,
+                        'split_group_memberships' => $membershipCount,
+                        'is_monthly_adjustment' => $alreadyChargedToThisMembership > 0,
+                    ]),
+                    dueDate: $chargeDate
+                );
+            }
+
+            $results->push(['membership' => $groupMembership, 'created' => true, 'amount' => $amountToCharge]);
         }
+
+        return $results;
     }
 
     protected function resolveMembershipMonthlyFeeTotal(Membership $membership, ?float $fallback = null, ?int $year = null): float
