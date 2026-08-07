@@ -18,14 +18,6 @@ use Inertia\Inertia;
 
 class WebsiteContentController extends Controller {
 
-    private const CARD_CATEGORIES = [
-        'Gimnasio',
-        'Alberca',
-        'Tenis',
-        'Jardines',
-        'Cafetería',
-    ];
-
     private const VIRTUAL_TOUR_CATEGORIES = [
         'Interior',
         'Exterior',
@@ -90,7 +82,6 @@ class WebsiteContentController extends Controller {
         return Inertia::render('AdminClubs/WebsiteContent/Index', [
             'carouselImages' => $images,
             'homeCards' => $homeCards,
-            'cardCategories' => self::CARD_CATEGORIES,
             'virtualTourCategories' => $virtualTourCategories,
             'events' => $events,
             'eventTypes' => self::EVENT_TYPES,
@@ -158,9 +149,8 @@ class WebsiteContentController extends Controller {
 
     public function storeCard(Request $request) {
         $validated = $request->validate([
-            'category' => ['required', 'string', 'in:'.implode(',', self::CARD_CATEGORIES)],
-            'images' => ['required', 'array', 'min:1', 'max:2'],
-            'images.*' => [
+            'category' => ['required', 'string', 'max:30'],
+            'image' => [
                 'required',
                 'image',
                 'mimes:jpg,jpeg,png,webp',
@@ -168,58 +158,50 @@ class WebsiteContentController extends Controller {
                 'dimensions:min_width=1000,min_height=1000',
             ],
         ], [
-            'category.required' => 'Selecciona una categoría.',
-            'category.in' => 'La categoría seleccionada no es válida.',
-            'images.required' => 'Selecciona al menos una imagen.',
-            'images.max' => 'Cada categoría permite máximo 2 imágenes.',
-            'images.*.image' => 'Uno de los archivos no es una imagen válida.',
-            'images.*.mimes' => 'Las imágenes deben ser JPG, PNG o WebP.',
-            'images.*.max' => 'Cada imagen debe pesar máximo 20 MB.',
-            'images.*.dimensions' => 'Cada imagen debe medir al menos 1000 × 1000 px.',
+            'category.required' => 'Escribe el nombre de la categoría.',
+            'category.max' => 'La categoría debe tener máximo 30 caracteres.',
+            'image.required' => 'Selecciona una imagen.',
+            'image.image' => 'El archivo seleccionado no es una imagen válida.',
+            'image.mimes' => 'La imagen debe ser JPG, PNG o WebP.',
+            'image.max' => 'La imagen debe pesar máximo 20 MB.',
+            'image.dimensions' => 'La imagen debe medir al menos 1000 × 1000 px.',
         ]);
 
         $clubId = (int) session('club_id');
-        $currentCount = HomeCard::where('club_id', $clubId)
-            ->where('category', $validated['category'])
-            ->count();
-
-        if ($currentCount + count($request->file('images')) > 2) {
-            return back()->withErrors([
-                'images' => 'Esta categoría permite máximo 2 imágenes.',
-            ]);
-        }
-
         $club = Club::findOrFail($clubId);
-        $uploadedPaths = [];
+        $uploadedPath = null;
 
         DB::beginTransaction();
 
         try {
-            foreach ($request->file('images') as $image) {
-                $path = $this->uploadImage($image, $club->code, 'home-cards', 1000, 1000);
-                $uploadedPaths[] = $path;
+            $uploadedPath = $this->uploadImage(
+                $request->file('image'),
+                $club->code,
+                'home-cards',
+                1000,
+                1000
+            );
 
-                HomeCard::create([
-                    'club_id' => $clubId,
-                    'category' => $validated['category'],
-                    'image_path' => $path,
-                ]);
-            }
+            HomeCard::create([
+                'club_id' => $clubId,
+                'category' => $validated['category'],
+                'image_path' => $uploadedPath,
+            ]);
 
             DB::commit();
 
-            return back()->with('success', 'Cards guardadas correctamente.');
+            return back()->with('success', 'Categoría guardada correctamente.');
         } catch (\Exception $e) {
             DB::rollBack();
 
-            foreach ($uploadedPaths as $path) {
-                Storage::disk('spaces')->delete($path);
+            if ($uploadedPath) {
+                Storage::disk('spaces')->delete($uploadedPath);
             }
 
             report($e);
 
             return back()->withErrors([
-                'messageError' => 'No se pudieron guardar las cards.',
+                'messageError' => 'No se pudo guardar la categoría.',
                 'exception' => $e->getMessage(),
             ]);
         }

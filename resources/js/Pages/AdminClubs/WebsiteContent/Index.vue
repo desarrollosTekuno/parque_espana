@@ -9,7 +9,6 @@ import { computed, onUnmounted, ref, watch } from "vue";
 interface Props {
     carouselImages: any[];
     homeCards: any[];
-    cardCategories: string[];
     virtualTourCategories: any[];
     events: any[];
     eventTypes: any[];
@@ -23,10 +22,11 @@ const fileInput = ref<HTMLInputElement | null>(null);
 const cardFileInput = ref<HTMLInputElement | null>(null);
 const virtualTourFileInput = ref<HTMLInputElement | null>(null);
 const activeSection = ref("carousel");
+const showCardForm = ref(false);
 const showCategoryForm = ref(false);
 const isDragging = ref(false);
 const previews = ref<string[]>([]);
-const cardPreviews = ref<string[]>([]);
+const cardPreview = ref<string | null>(null);
 const virtualTourPreviews = ref<string[]>([]);
 const defaultVirtualTourCategories = [
     "Interior",
@@ -41,9 +41,9 @@ const form = useForm<{ images: File[]; descriptions: string[] }>({
     images: [],
     descriptions: [],
 });
-const cardForm = useForm<{ category: string; images: File[] }>({
-    category: props.cardCategories[0] ?? "Gimnasio",
-    images: [],
+const cardForm = useForm<{ category: string; image: File | null }>({
+    category: "",
+    image: null,
 });
 const categoryForm = useForm<{ name: string }>({
     name: "",
@@ -63,11 +63,6 @@ const eventForm = useForm<{ id: number | null; title: string; event_date: string
 /* ====================== Computed ====================== */
 const can = computed<string[]>(() => page.props.auth.permissions ?? []);
 const selectedCount = computed(() => form.images.length);
-const selectedCategoryCount = computed(() => {
-    return props.homeCards.filter((card) => card.category === cardForm.category).length;
-});
-const availableCardSpaces = computed(() => 2 - selectedCategoryCount.value);
-const cardSelectionSpaces = computed(() => availableCardSpaces.value - cardForm.images.length);
 const selectedVirtualTourCategory = computed(() => {
     return props.virtualTourCategories.find((category) => category.id === virtualTourForm.category_id);
 });
@@ -157,15 +152,7 @@ const destroy = (image: any) => {
 const openCardFilePicker = () => {
     if (!cardForm.category) {
         customToastSwal({
-            title: "Primero selecciona una categoría",
-            icon: "warning",
-        });
-        return;
-    }
-
-    if (!cardSelectionSpaces.value) {
-        customToastSwal({
-            title: "Esta categoría ya tiene sus 2 imágenes",
+            title: "Primero escribe el nombre de la categoría",
             icon: "warning",
         });
         return;
@@ -176,21 +163,15 @@ const openCardFilePicker = () => {
 
 const selectCardFiles = (event: Event) => {
     const input = event.target as HTMLInputElement;
-    const files = Array.from(input.files ?? []).filter((file) => file.type.startsWith("image/"));
-
-    if (files.length > cardSelectionSpaces.value) {
-        customToastSwal({
-            title: `Solo quedan ${cardSelectionSpaces.value} espacio(s) en esta categoría`,
-            icon: "warning",
-        });
-    }
-
-    cardForm.images = [...cardForm.images, ...files.slice(0, cardSelectionSpaces.value)];
+    const file = Array.from(input.files ?? []).find((item) => item.type.startsWith("image/"));
+    cardForm.image = file ?? null;
     input.value = "";
 };
 
-const removeSelectedCard = (index: number) => {
-    cardForm.images = cardForm.images.filter((_, imageIndex) => imageIndex !== index);
+const clearCardForm = () => {
+    cardForm.reset();
+    cardForm.clearErrors();
+    showCardForm.value = false;
 };
 
 const saveCards = () => {
@@ -199,15 +180,14 @@ const saveCards = () => {
         preserveScroll: true,
         onSuccess: () => {
             customToastSwal({
-                title: page.props.flash.success || "Cards guardadas correctamente",
+                title: page.props.flash.success || "Categoría guardada correctamente",
                 icon: "success",
             });
-            cardForm.images = [];
-            cardForm.clearErrors();
+            clearCardForm();
         },
         onError: (errors) => {
             customToastSwal({
-                title: Object.values(errors)[0] || "No se pudieron guardar las cards",
+                title: Object.values(errors)[0] || "No se pudo guardar la categoría",
                 icon: "error",
             });
         },
@@ -416,18 +396,13 @@ watch(
 );
 
 watch(
-    () => cardForm.images,
-    (images) => {
-        cardPreviews.value.forEach((preview) => URL.revokeObjectURL(preview));
-        cardPreviews.value = images.map((image) => URL.createObjectURL(image));
-    },
-);
+    () => cardForm.image,
+    (image) => {
+        if (cardPreview.value) {
+            URL.revokeObjectURL(cardPreview.value);
+        }
 
-watch(
-    () => cardForm.category,
-    () => {
-        cardForm.images = [];
-        cardForm.clearErrors();
+        cardPreview.value = image ? URL.createObjectURL(image) : null;
     },
 );
 
@@ -452,7 +427,11 @@ watch(
 /* ====================== Lifecycle ====================== */
 onUnmounted(() => {
     clearPreviews();
-    cardPreviews.value.forEach((preview) => URL.revokeObjectURL(preview));
+
+    if (cardPreview.value) {
+        URL.revokeObjectURL(cardPreview.value);
+    }
+
     virtualTourPreviews.value.forEach((preview) => URL.revokeObjectURL(preview));
 });
 </script>
@@ -610,36 +589,98 @@ onUnmounted(() => {
         </v-card>
 
         <v-card v-show="activeSection === 'cards'">
-            <v-card-title class="d-flex align-center ga-2">
+            <v-card-title class="flex-wrap d-flex align-center ga-2">
                 <v-icon icon="mdi-view-grid-outline" />
                 Cards de inicio
+                <v-spacer />
+                <v-btn
+                    v-if="can.includes('website-content.store')"
+                    variant="outlined"
+                    color="primary"
+                    prepend-icon="mdi-folder-plus-outline"
+                    @click="showCardForm = !showCardForm"
+                >
+                    Nueva categoría
+                </v-btn>
             </v-card-title>
             <v-card-subtitle>
-                Gimnasio, Alberca, Tenis, Jardines y Cafetería. Máximo 2 imágenes por categoría.
+                Cada categoría tiene una sola imagen.
             </v-card-subtitle>
 
             <v-card-text>
-                <v-tabs v-model="cardForm.category" color="primary" show-arrows class="mb-5">
-                    <v-tab v-for="category in cardCategories" :key="category" :value="category">
-                        {{ category }}
-                        <v-chip size="x-small" class="ml-2">
-                            {{ homeCards.filter((card) => card.category === category).length }}/2
-                        </v-chip>
-                    </v-tab>
-                </v-tabs>
+                <v-expand-transition>
+                    <v-card v-if="showCardForm" variant="tonal" class="mb-5">
+                        <v-card-text>
+                            <v-text-field
+                                v-model="cardForm.category"
+                                label="Nombre de la categoría"
+                                maxlength="30"
+                                :error-messages="cardForm.errors.category"
+                            />
 
-                <input
-                    ref="cardFileInput"
-                    type="file"
-                    multiple
-                    accept="image/jpeg,image/png,image/webp"
-                    class="d-none"
-                    @change="selectCardFiles"
-                />
+                            <input
+                                ref="cardFileInput"
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp"
+                                class="d-none"
+                                @change="selectCardFiles"
+                            />
+
+                            <v-row>
+                                <v-col v-if="cardPreview" cols="12" sm="6" md="4">
+                                    <v-card variant="outlined" class="position-relative">
+                                        <v-img :src="cardPreview" aspect-ratio="1" cover />
+                                        <div class="pending-image-label">Pendiente por subir</div>
+                                        <v-btn
+                                            class="remove-image-button"
+                                            icon="mdi-close"
+                                            size="x-small"
+                                            color="error"
+                                            @click="cardForm.image = null"
+                                        />
+                                    </v-card>
+                                </v-col>
+
+                                <v-col v-else cols="12" sm="6" md="4">
+                                    <div
+                                        class="upload-zone card-upload-zone"
+                                        role="button"
+                                        tabindex="0"
+                                        @click="openCardFilePicker"
+                                        @keydown.enter="openCardFilePicker"
+                                    >
+                                        <v-icon icon="mdi-image-plus-outline" size="46" color="primary" />
+                                        <div class="mt-2 text-subtitle-1 font-weight-bold">Agregar imagen</div>
+                                        <div class="mt-1 text-caption text-medium-emphasis">
+                                            1000 × 1000 px · máximo 20 MB
+                                        </div>
+                                    </div>
+                                </v-col>
+                            </v-row>
+
+                            <v-alert v-if="cardForm.errors.image" type="error" variant="tonal" class="mt-4">
+                                {{ cardForm.errors.image }}
+                            </v-alert>
+
+                            <div class="justify-end mt-4 d-flex ga-2">
+                                <v-btn variant="text" @click="clearCardForm">Cancelar</v-btn>
+                                <v-btn
+                                    color="primary"
+                                    prepend-icon="mdi-content-save"
+                                    :loading="cardForm.processing"
+                                    :disabled="!cardForm.category || !cardForm.image"
+                                    @click="saveCards"
+                                >
+                                    Guardar categoría
+                                </v-btn>
+                            </div>
+                        </v-card-text>
+                    </v-card>
+                </v-expand-transition>
 
                 <v-row>
                     <v-col
-                        v-for="card in homeCards.filter((item) => item.category === cardForm.category)"
+                        v-for="card in homeCards"
                         :key="card.id"
                         cols="12"
                         sm="6"
@@ -647,6 +688,7 @@ onUnmounted(() => {
                     >
                         <v-card variant="outlined" class="position-relative">
                             <v-img :src="card.image_url" aspect-ratio="1" cover />
+                            <v-card-title>{{ card.category }}</v-card-title>
                             <div
                                 v-if="can.includes('website-content.destroy')"
                                 class="saved-delete-button"
@@ -660,58 +702,11 @@ onUnmounted(() => {
                             </div>
                         </v-card>
                     </v-col>
-
-                    <v-col
-                        v-for="(image, index) in cardForm.images"
-                        :key="`${image.name}-${image.lastModified}`"
-                        cols="12"
-                        sm="6"
-                        md="4"
-                    >
-                        <v-card variant="outlined" class="position-relative">
-                            <v-img :src="cardPreviews[index]" aspect-ratio="1" cover />
-                            <div class="pending-image-label">Pendiente por subir</div>
-                            <v-btn
-                                class="remove-image-button"
-                                icon="mdi-close"
-                                size="x-small"
-                                color="error"
-                                @click="removeSelectedCard(index)"
-                            />
-                        </v-card>
-                    </v-col>
-
-                    <v-col v-if="can.includes('website-content.store') && cardSelectionSpaces > 0" cols="12" sm="6" md="4">
-                        <div
-                            class="upload-zone card-upload-zone"
-                            role="button"
-                            tabindex="0"
-                            @click="openCardFilePicker"
-                            @keydown.enter="openCardFilePicker"
-                        >
-                            <v-icon icon="mdi-image-plus-outline" size="46" color="primary" />
-                            <div class="mt-2 text-subtitle-1 font-weight-bold">Agregar imagen</div>
-                            <div class="mt-1 text-caption text-medium-emphasis">
-                                1000 × 1000 px · máximo 20 MB
-                            </div>
-                        </div>
-                    </v-col>
                 </v-row>
 
-                <v-alert v-if="cardForm.errors.images" type="error" variant="tonal" class="mt-4">
-                    {{ cardForm.errors.images }}
+                <v-alert v-if="!homeCards.length" type="info" variant="tonal">
+                    No hay categorías registradas.
                 </v-alert>
-
-                <div v-if="cardForm.images.length" class="justify-end mt-4 d-flex">
-                    <v-btn
-                        color="primary"
-                        prepend-icon="mdi-upload"
-                        :loading="cardForm.processing"
-                        @click="saveCards"
-                    >
-                        Guardar {{ cardForm.images.length }} imagen(es) en {{ cardForm.category }}
-                    </v-btn>
-                </div>
             </v-card-text>
         </v-card>
 
