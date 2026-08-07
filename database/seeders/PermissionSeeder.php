@@ -306,6 +306,7 @@ class PermissionSeeder extends Seeder
             ['module' => 'Página web', 'name' => 'website-content.index', 'description' => 'Ver módulo de página web', 'contexts' => ['web']],
             ['module' => 'Página web', 'name' => 'website-content.store', 'description' => 'Subir imágenes del carrusel', 'contexts' => ['web']],
             ['module' => 'Página web', 'name' => 'website-content.destroy', 'description' => 'Eliminar imágenes del carrusel', 'contexts' => ['web']],
+            ['module' => 'Página web', 'name' => 'website-contacts.index', 'description' => 'Ver mensajes del formulario de contacto', 'contexts' => ['web']],
 
             // Files
             ['module' => 'Archivos', 'name' => 'files.index', 'description' => 'Ver archivos', 'contexts' => ['Web']],

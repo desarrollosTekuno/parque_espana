@@ -303,6 +303,7 @@ class AdminClubSeeder extends Seeder
             'website-content.index',
             'website-content.store',
             'website-content.destroy',
+            'website-contacts.index',
         );
         $adminClubRole = Role::updateOrCreate([
             'name' => 'admin_club',
