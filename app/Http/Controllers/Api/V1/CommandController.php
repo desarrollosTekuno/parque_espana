@@ -34,8 +34,8 @@ class CommandController extends Controller {
                 'data.users.*.user_type' => 'required|string|in:normal,visitor',
                 'data.users.*.is_active' => 'required|boolean',
                 'data.users.*.is_permanent' => 'required|boolean',
-                'data.users.*.validFrom' => 'required|date_format:Y-m-d H:i:s',
-                'data.users.*.validTo' => 'required|date_format:Y-m-d H:i:s|after:data.users.*.validFrom',
+                'data.users.*.valid_from' => 'required|date_format:Y-m-d H:i:s',
+                'data.users.*.valid_to' => 'required|date_format:Y-m-d H:i:s|after:data.users.*.validFrom',
                 'data.users.*.card_no' => 'required|string|max:32'
             ]);
 
@@ -54,8 +54,8 @@ class CommandController extends Controller {
                     'user_type' => $user['user_type'],
                     'is_active' => $user['is_active'],
                     'is_permanent' => $user['is_permanent'],
-                    'validFrom' => Carbon::parse($user['validFrom'], 'UTC')->format('Y-m-d\TH:i:sP'),
-                    'validTo' => Carbon::parse($user['validTo'], 'UTC')->format('Y-m-d\TH:i:sP'),
+                    'valid_from' => Carbon::parse($user['valid_from'], 'UTC')->format('Y-m-d\TH:i:sP'),
+                    'valid_to' => Carbon::parse($user['valid_to'], 'UTC')->format('Y-m-d\TH:i:sP'),
                     'card_no' => $user['card_no']
                 ];
             });
@@ -88,9 +88,25 @@ class CommandController extends Controller {
     {
         try
         {
+            $validator = Validator::make($request->query(), [
+                'ip'        => 'required|string',
+                'club_code' => ['required', new ExistsInSchema('clubs', 'clubs', 'code')],
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Error de validación',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
             $commands = Command::where('status', 'pending')
                 ->whereHas('device', function ($query) use ($request) {
-                    $query->where('ip', $request->ip);
+                    $query->where('ip', $request->query('ip'))
+                        ->whereHas('club', function ($q) use ($request) {
+                             $q->where('code', $request->query('club_code'));
+                         });
                 })
                 ->get();
 
@@ -108,42 +124,42 @@ class CommandController extends Controller {
         }
     }
 
-    // public function updateStatus(Request $request, DeviceCommand $deviceCommand)
-    // {
-    //     $validator = Validator::make($request->all(), [
-    //         'status'        => 'required|string|in:pending,processing,completed,error',
-    //         'error_message' => 'nullable|string|required_if:status,error',
-    //     ]);
+    public function updateStatus(Request $request, Command $command)
+    {
+        $validator = Validator::make($request->all(), [
+            'status'        => 'required|string|in:pending,processing,completed,error',
+            'error_message' => 'nullable|string|required_if:status,error',
+        ]);
 
-    //     if ($validator->fails()) {
-    //         return response()->json([
-    //             'success' => false,
-    //             'message' => 'Error de validación',
-    //             'errors' => $validator->errors()
-    //         ], 422);
-    //     }
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error de validación',
+                'errors' => $validator->errors()
+            ], 422);
+        }
 
-    //     $validated = $validator->validated();
+        $validated = $validator->validated();
 
-    //     $deviceCommand->status = $validated['status'];
-    //     $deviceCommand->error_message = $validated['error_message'] ?? null;
+        $command->status = $validated['status'];
+        $command->error_message = $validated['error_message'] ?? null;
 
-    //     // solo incrementamos intentos si fue error (indica que se intentó y falló)
-    //     if ($validated['status'] === 'error') {
-    //         $deviceCommand->attempts++;
-    //     }
+        // solo incrementamos intentos si fue error (indica que se intentó y falló)
+        if ($validated['status'] === 'error') {
+            $command->attempts++;
+        }
 
-    //     // solo marcamos processed_at cuando ya terminó (completado o error definitivo)
-    //     if (in_array($validated['status'], ['completed', 'error'])) {
-    //         $deviceCommand->processed_at = now();
-    //     }
+        // solo marcamos processed_at cuando ya terminó (completado o error definitivo)
+        if (in_array($validated['status'], ['completed', 'error'])) {
+            $command->processed_at = now();
+        }
 
-    //     $deviceCommand->save();
+        $command->save();
 
-    //     return response()->json([
-    //         'success' => true,
-    //         'message' => 'Estado actualizado correctamente',
-    //         'data' => $deviceCommand
-    //     ]);
-    // }
+        return response()->json([
+            'success' => true,
+            'message' => 'Estado actualizado correctamente',
+            'data' => $command
+        ]);
+    }
 }
