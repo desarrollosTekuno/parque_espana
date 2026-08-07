@@ -25,6 +25,11 @@
       "key": "month",
       "value": "7",
       "type": "string"
+    },
+    {
+      "key": "api_token",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -176,6 +181,65 @@
             "exec": [
               "pm.test('Status 200', () => pm.response.to.have.status(200));",
               "pm.test('Data es un arreglo', () => pm.expect(pm.response.json().data).to.be.an('array'));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Enviar mensaje de contacto",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Nombre de prueba\",\n  \"subject\": \"Consulta\",\n  \"message\": \"Mensaje enviado desde Postman.\"\n}",
+          "options": {
+            "raw": { "language": "json" }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/clubs/{{club_id}}/website/contact",
+          "host": ["{{base_url}}"],
+          "path": ["clubs", "{{club_id}}", "website", "contact"]
+        },
+        "description": "Guarda un mensaje enviado desde el formulario de contacto de la página web."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 201', () => pm.response.to.have.status(201));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Obtener datos de contacto y redes sociales",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{api_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/clubs/{{club_id}}/contact-info",
+          "host": ["{{base_url}}"],
+          "path": ["clubs", "{{club_id}}", "contact-info"]
+        },
+        "description": "Devuelve datos de contacto y redes sociales del parque indicado. Requiere token Sanctum."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));"
             ],
             "type": "text/javascript"
           }
