@@ -56,6 +56,7 @@ use App\Http\Controllers\Web\AdminClub\CoachController;
 use App\Http\Controllers\Web\AdminClub\SpecialtyController;
 use App\Http\Controllers\Web\AdminClub\ClassScheduleController;
 use App\Http\Controllers\Web\AdminClub\WebsiteContentController;
+use App\Http\Controllers\Web\AdminClub\WebsiteContactController;
 use Illuminate\Support\Facades\Route;
 
 // amenities
@@ -363,6 +364,8 @@ Route::post('/website-content/events', [WebsiteContentController::class, 'saveEv
     ->name('website-content.events.save');
 Route::delete('/website-content/events/{id}', [WebsiteContentController::class, 'destroyEvent'])
     ->name('website-content.events.destroy');
+Route::get('/website-contacts', [WebsiteContactController::class, 'index'])
+    ->name('website-contacts.index');
 
 // Acts
 Route::prefix('acts')->group(function () {

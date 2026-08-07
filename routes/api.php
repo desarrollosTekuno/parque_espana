@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\V1\ClubContactInfoController;
 use App\Http\Controllers\Api\V1\ReservationGuestController;
 use App\Http\Controllers\Api\V1\SurveyController;
 use App\Http\Controllers\Api\V1\WebsiteApiController;
+use App\Http\Controllers\Api\V1\WebsiteContactController;
 use App\Http\Controllers\Api\V1\ClinicalHistoryController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -57,6 +58,7 @@ Route::prefix('v1')->name('api.')->group(function () {
     Route::get('/clubs/{club}/website/membership-prices', [WebsiteApiController::class, 'membershipPrices']);
     Route::get('/clubs/{club}/website/virtual-tour', [WebsiteApiController::class, 'virtualTour']);
     Route::get('/clubs/{club}/website/events', [WebsiteApiController::class, 'events']);
+    Route::post('/clubs/{club}/website/contact', [WebsiteContactController::class, 'store']);
 
     // Business Ads
     // Enviar solicitud de promoción desde la app
