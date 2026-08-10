@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\V1\SurveyController;
 use App\Http\Controllers\Api\V1\WebsiteApiController;
 use App\Http\Controllers\Api\V1\WebsiteContactController;
 use App\Http\Controllers\Api\V1\ClinicalHistoryController;
+use App\Http\Controllers\Api\V1\CommandController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -166,6 +167,20 @@ Route::prefix('v1')->name('api.')->group(function () {
 
     // Cobro con tarjeta domiciliada (Conekta)
     Route::post('/charge-payment', [ChargePaymentController::class, 'store'])->middleware('auth:sanctum');
+
+    // Payment sources (domiciliación de tarjetas)
+    Route::middleware('auth:sanctum')->prefix('payment-sources')->group(function () {
+        Route::get('/',           [PaymentSourceController::class, 'index']);
+        Route::post('/',          [PaymentSourceController::class, 'store']);
+        Route::delete('/{source}', [PaymentSourceController::class, 'destroy']);
+        Route::patch('/{source}/set-default', [PaymentSourceController::class, 'setDefault']);
+    });
+
+
+    // Control de Access Devices
+    Route::post('device-commands', [CommandController::class, 'store']);
+    Route::get('device-commands', [CommandController::class, 'show']);
+    Route::patch('device-commands/{deviceCommand}/status', [CommandController::class, 'updateStatus']);
 
 });
 
