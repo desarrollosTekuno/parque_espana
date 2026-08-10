@@ -365,7 +365,7 @@ onUnmounted(() => {
     <AppLayout>
         <template #header>Página web</template>
 
-        <v-card class="mb-4">
+        <v-card class="website-tabs mb-4">
             <v-tabs v-model="activeSection" color="primary" grow>
                 <v-tab value="carousel" prepend-icon="mdi-view-carousel-outline">
                     Carrusel
@@ -382,7 +382,7 @@ onUnmounted(() => {
             </v-tabs>
         </v-card>
 
-        <v-card v-show="activeSection === 'carousel'">
+        <v-card v-show="activeSection === 'carousel'" class="content-panel">
             <v-card-title class="d-flex align-center ga-2">
                 <v-icon icon="mdi-view-carousel-outline" />
                 Carrusel de inicio
@@ -419,7 +419,7 @@ onUnmounted(() => {
                         sm="6"
                         lg="4"
                     >
-                        <v-card variant="outlined" class="h-100 position-relative">
+                        <v-card variant="outlined" class="media-card h-100 position-relative">
                             <v-img :src="image.image_url" aspect-ratio="1.5" cover />
                             <v-card-text class="text-subtitle-1">
                                 {{ image.description || "Sin descripción" }}
@@ -440,7 +440,7 @@ onUnmounted(() => {
                         sm="6"
                         lg="4"
                     >
-                        <v-card variant="outlined" class="h-100 position-relative">
+                        <v-card variant="outlined" class="media-card h-100 position-relative">
                             <v-img :src="previews[index]" aspect-ratio="1.5" cover />
                             <v-btn
                                 class="remove-image-button"
@@ -511,7 +511,7 @@ onUnmounted(() => {
             </v-card-text>
         </v-card>
 
-        <v-card v-show="activeSection === 'cards'">
+        <v-card v-show="activeSection === 'cards'" class="content-panel">
             <v-card-title class="flex-wrap d-flex align-center ga-2">
                 <v-icon icon="mdi-view-grid-outline" />
                 Cards de inicio
@@ -536,7 +536,7 @@ onUnmounted(() => {
                 </v-alert>
 
                 <v-expand-transition>
-                    <v-card v-if="showCardForm" variant="tonal" class="mb-5">
+                    <v-card v-if="showCardForm" variant="tonal" class="soft-panel mb-5">
                         <v-card-text>
                             <v-text-field
                                 v-model="cardForm.category"
@@ -555,7 +555,7 @@ onUnmounted(() => {
 
                             <v-row>
                                 <v-col v-if="cardPreview" cols="12" sm="6" md="4">
-                                    <v-card variant="outlined" class="position-relative">
+                                    <v-card variant="outlined" class="media-card position-relative">
                                         <v-img :src="cardPreview" aspect-ratio="1" cover />
                                         <div class="pending-image-label">Pendiente por subir</div>
                                         <v-btn
@@ -613,7 +613,7 @@ onUnmounted(() => {
                         sm="6"
                         md="4"
                     >
-                        <v-card variant="outlined" class="position-relative">
+                        <v-card variant="outlined" class="media-card position-relative">
                             <v-img :src="card.image_url" aspect-ratio="1" cover />
                             <v-card-title>{{ card.category }}</v-card-title>
                             <div
@@ -637,7 +637,7 @@ onUnmounted(() => {
             </v-card-text>
         </v-card>
 
-        <v-card v-show="activeSection === 'virtual-tour'">
+        <v-card v-show="activeSection === 'virtual-tour'" class="content-panel">
             <v-card-title class="d-flex align-center ga-2">
                 <v-icon icon="mdi-panorama-variant-outline" />
                 Vista virtual de instalaciones
@@ -655,7 +655,7 @@ onUnmounted(() => {
                     @change="selectVirtualTourFile"
                 />
 
-                <v-card v-if="virtualTourPreview" variant="tonal" class="mb-5">
+                <v-card v-if="virtualTourPreview" variant="tonal" class="soft-panel mb-5">
                     <v-card-title>Imagen seleccionada</v-card-title>
                     <v-card-text class="flex-wrap d-flex align-center ga-4">
                         <v-img :src="virtualTourPreview" width="180" aspect-ratio="1.5" cover />
@@ -692,12 +692,8 @@ onUnmounted(() => {
                 <div v-for="section in virtualTourSections" v-show="activeVirtualTourSection === section.name" :key="section.name">
                     <v-row>
                         <v-col v-for="slot in section.slots" :key="slot.title" cols="12" sm="6" lg="4">
-                            <v-card variant="outlined" class="h-100">
-                                <v-img v-if="slot.image" :src="slot.image.image_url" aspect-ratio="1.5" cover />
-                                <div v-else class="upload-zone virtual-tour-upload-zone" @click="selectVirtualTourSlot(section.name, slot.title)">
-                                    <v-icon icon="mdi-image-plus-outline" size="46" color="primary" />
-                                    <div class="mt-2 text-subtitle-1 font-weight-bold">Subir imagen</div>
-                                </div>
+                            <v-card v-if="slot.image" variant="outlined" class="media-card h-100">
+                                <v-img :src="slot.image.image_url" aspect-ratio="1.5" cover />
                                 <v-card-text class="text-subtitle-1 font-weight-bold">
                                     {{ slot.title }}
                                 </v-card-text>
@@ -710,11 +706,11 @@ onUnmounted(() => {
                                         prepend-icon="mdi-upload"
                                         @click="selectVirtualTourSlot(section.name, slot.title)"
                                     >
-                                        {{ slot.image ? "Cambiar imagen" : "Subir imagen" }}
+                                        Cambiar imagen
                                     </v-btn>
                                     <v-spacer />
                                     <v-btn
-                                        v-if="slot.image && can.includes('website-content.destroy')"
+                                        v-if="can.includes('website-content.destroy')"
                                         size="small"
                                         color="error"
                                         variant="text"
@@ -724,13 +720,25 @@ onUnmounted(() => {
                                     </v-btn>
                                 </v-card-actions>
                             </v-card>
+                            <div
+                                v-else
+                                class="upload-zone carousel-upload-zone virtual-tour-upload-zone"
+                                role="button"
+                                tabindex="0"
+                                @click="selectVirtualTourSlot(section.name, slot.title)"
+                                @keydown.enter="selectVirtualTourSlot(section.name, slot.title)"
+                            >
+                                <v-icon icon="mdi-image-plus-outline" size="46" color="primary" />
+                                <div class="mt-2 text-subtitle-1 font-weight-bold">{{ slot.title }}</div>
+                                <div class="mt-1 text-body-2 text-medium-emphasis">Subir imagen</div>
+                            </div>
                         </v-col>
                     </v-row>
                 </div>
             </v-card-text>
         </v-card>
 
-        <v-card v-show="activeSection === 'events'">
+        <v-card v-show="activeSection === 'events'" class="content-panel">
             <v-card-title class="d-flex align-center ga-2">
                 <v-icon icon="mdi-calendar-month-outline" />
                 Eventos del calendario
@@ -743,7 +751,7 @@ onUnmounted(() => {
                 <v-card
                     v-if="can.includes('website-content.store')"
                     variant="tonal"
-                    class="mb-6"
+                    class="soft-panel mb-6"
                 >
                     <v-card-text>
                         <div class="mb-3 text-subtitle-1 font-weight-bold">
@@ -875,6 +883,30 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.website-tabs,
+.content-panel {
+    border: 1px solid #e6ebf0;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+.content-panel {
+    overflow: hidden;
+}
+
+.media-card {
+    border: 1px solid #dce4ea !important;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+.soft-panel {
+    border: 1px solid #dcecf2;
+    border-radius: 12px;
+    box-shadow: none;
+}
+
 .upload-zone {
     border: 2px dashed #90a4ae;
     border-radius: 14px;
