@@ -697,28 +697,13 @@ onUnmounted(() => {
                                 <v-card-text class="text-subtitle-1 font-weight-bold">
                                     {{ slot.title }}
                                 </v-card-text>
-                                <v-card-actions>
-                                    <v-btn
-                                        v-if="can.includes('website-content.store')"
-                                        size="small"
-                                        color="primary"
-                                        variant="tonal"
-                                        prepend-icon="mdi-upload"
-                                        @click="selectVirtualTourSlot(section.name, slot.title)"
-                                    >
-                                        Cambiar imagen
-                                    </v-btn>
-                                    <v-spacer />
-                                    <v-btn
+                                <div class="saved-delete-button">
+                                    <BaseButton
                                         v-if="can.includes('website-content.destroy')"
-                                        size="small"
-                                        color="error"
-                                        variant="text"
+                                        action="delete"
                                         @click="destroyVirtualTourImage(slot.image)"
-                                    >
-                                        Eliminar
-                                    </v-btn>
-                                </v-card-actions>
+                                    />
+                                </div>
                             </v-card>
                             <div
                                 v-else
