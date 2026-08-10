@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendWebsiteContactMessageJob;
 use App\Models\Administrator\Club;
 use App\Models\Website\ContactMessage;
 use Illuminate\Http\Request;
@@ -28,6 +29,8 @@ class WebsiteContactController extends Controller {
                 'subject' => $validated['subject'],
                 'message' => $validated['message'],
             ]);
+
+            SendWebsiteContactMessageJob::dispatch($contactMessage->id);
 
             return $this->created('Mensaje enviado correctamente.', $contactMessage);
         } catch (\Exception $e) {
