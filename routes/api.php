@@ -112,8 +112,8 @@ Route::prefix('v1')->group(function () {
 
     // Control de Access Devices
     Route::post('device-commands', [CommandController::class, 'store']);
-    Route::get('device-commands', [CommandController::class, 'show']);
-    Route::patch('device-commands/{deviceCommand}/status', [CommandController::class, 'updateStatus']);
+    Route::get('device-commands', [CommandController::class, 'show'])->middleware('auth:sanctum');
+    Route::patch('device-commands/{command}/status', [CommandController::class, 'updateStatus'])->middleware('auth:sanctum');
 
 });
 

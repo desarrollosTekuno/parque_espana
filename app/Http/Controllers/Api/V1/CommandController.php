@@ -54,8 +54,8 @@ class CommandController extends Controller {
                     'user_type' => $user['user_type'],
                     'is_active' => $user['is_active'],
                     'is_permanent' => $user['is_permanent'],
-                    'valid_from' => Carbon::parse($user['valid_from'], 'UTC')->format('Y-m-d\TH:i:sP'),
-                    'valid_to' => Carbon::parse($user['valid_to'], 'UTC')->format('Y-m-d\TH:i:sP'),
+                    'valid_from' => Carbon::parse($user['valid_from'])->format('Y-m-d\TH:i:s'),
+                    'valid_to' => Carbon::parse($user['valid_to'])->format('Y-m-d\TH:i:s'),
                     'card_no' => $user['card_no']
                 ];
             });
@@ -160,7 +160,7 @@ class CommandController extends Controller {
         return response()->json([
             'success' => true,
             'message' => 'Estado actualizado correctamente',
-            'data' => $command
+            'data' => new CommandResource($command)
         ]);
     }
 }
