@@ -53,14 +53,6 @@ Route::prefix('v1')->name('api.')->group(function () {
     Route::get('/amenities/{amenityResource}/available-slots', [AmenityController::class, 'availableSlots'])->middleware('auth:sanctum');
     Route::get('/clubs/{club}/amenities', [AmenityController::class, 'amenitiesByClub'])->middleware('auth:sanctum');
 
-    // =================================== Pagina web Test ================================
-    Route::get('/clubs/{club}/website/carousel', [WebsiteApiController::class, 'carousel']);
-    Route::get('/clubs/{club}/website/home-cards', [WebsiteApiController::class, 'homeCards']);
-    Route::get('/clubs/{club}/website/membership-prices', [WebsiteApiController::class, 'membershipPrices']);
-    Route::get('/clubs/{club}/website/virtual-tour', [WebsiteApiController::class, 'virtualTour']);
-    Route::get('/clubs/{club}/website/events', [WebsiteApiController::class, 'events']);
-    Route::post('/clubs/{club}/website/contact', [WebsiteContactController::class, 'store']);
-
     // Business Ads
     // Enviar solicitud de promoción desde la app
     Route::post('/business-ads', [BusinessAdController::class, 'store'])->middleware('auth:sanctum');
@@ -69,6 +61,14 @@ Route::prefix('v1')->name('api.')->group(function () {
     Route::middleware('auth:sanctum')->prefix('clubs/{club}')->group(function () {
         // Mostrar categorías de negocios en la pantalla principal de la app
         Route::get('/business-categories', [BusinessCategoryController::class, 'index']);
+
+        // =================================== Pagina web =====================================
+        Route::get('/website/carousel', [WebsiteApiController::class, 'carousel']);
+        Route::get('/website/home-cards', [WebsiteApiController::class, 'homeCards']);
+        Route::get('/website/membership-prices', [WebsiteApiController::class, 'membershipPrices']);
+        Route::get('/website/virtual-tour', [WebsiteApiController::class, 'virtualTour']);
+        Route::get('/website/events', [WebsiteApiController::class, 'events']);
+        Route::post('/website/contact', [WebsiteContactController::class, 'store']);
 
         // Información de contacto del club (pantallas "Contacto" y "Mapa" de la app)
         Route::get('/contact-info', [ClubContactInfoController::class, 'show']);

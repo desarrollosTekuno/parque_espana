@@ -195,17 +195,12 @@ class WebsiteApiController extends Controller {
                 ->orderBy('id')
                 ->get()
                 ->map(function ($event) {
-                    $type = self::EVENT_TYPES[$event->type];
-
                     return [
                         'id' => (string) $event->id,
                         'title' => $event->title,
                         'start' => $event->start_date->format('Y-m-d'),
                         'end' => $event->end_date->format('Y-m-d'),
                         'calendarId' => $event->type,
-                        'type' => $event->type,
-                        'type_label' => $type['label'],
-                        'color' => $type['color'],
                     ];
                 });
 
