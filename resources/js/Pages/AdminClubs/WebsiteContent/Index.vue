@@ -43,10 +43,11 @@ const virtualTourForm = useForm<{ category: string; title: string; image: File |
     title: "",
     image: null,
 });
-const eventForm = useForm<{ id: number | null; title: string; event_date: string; type: string }>({
+const eventForm = useForm<{ id: number | null; title: string; start_date: string; end_date: string; type: string }>({
     id: null,
     title: "",
-    event_date: "",
+    start_date: "",
+    end_date: "",
     type: "activity",
 });
 
@@ -266,7 +267,8 @@ const resetEventForm = () => {
 const editEvent = (event: any) => {
     eventForm.id = event.id;
     eventForm.title = event.title;
-    eventForm.event_date = event.event_date;
+    eventForm.start_date = event.start_date;
+    eventForm.end_date = event.end_date;
     eventForm.type = event.type;
 };
 
@@ -748,7 +750,7 @@ onUnmounted(() => {
                             {{ eventForm.id ? "Editar evento" : "Nuevo evento" }}
                         </div>
                         <v-row align="start">
-                            <v-col cols="12" md="5">
+                            <v-col cols="12" md="3">
                                 <v-text-field
                                     v-model="eventForm.title"
                                     label="Título"
@@ -760,14 +762,23 @@ onUnmounted(() => {
                             </v-col>
                             <v-col cols="12" sm="6" md="3">
                                 <v-text-field
-                                    v-model="eventForm.event_date"
-                                    label="Fecha"
+                                    v-model="eventForm.start_date"
+                                    label="Fecha de inicio"
                                     type="date"
                                     hide-details="auto"
-                                    :error-messages="eventForm.errors.event_date"
+                                    :error-messages="eventForm.errors.start_date"
                                 />
                             </v-col>
-                            <v-col cols="12" sm="6" md="4">
+                            <v-col cols="12" sm="6" md="3">
+                                <v-text-field
+                                    v-model="eventForm.end_date"
+                                    label="Fecha de fin"
+                                    type="date"
+                                    hide-details="auto"
+                                    :error-messages="eventForm.errors.end_date"
+                                />
+                            </v-col>
+                            <v-col cols="12" sm="6" md="3">
                                 <v-select
                                     v-model="eventForm.type"
                                     :items="eventTypes"
@@ -818,7 +829,8 @@ onUnmounted(() => {
                 <v-table v-if="events.length" hover>
                     <thead>
                         <tr>
-                            <th>Fecha</th>
+                            <th>Inicio</th>
+                            <th>Fin</th>
                             <th>Título</th>
                             <th>Tipo</th>
                             <th class="text-right">Acciones</th>
@@ -826,7 +838,8 @@ onUnmounted(() => {
                     </thead>
                     <tbody>
                         <tr v-for="event in events" :key="event.id">
-                            <td class="text-no-wrap">{{ event.event_date }}</td>
+                            <td class="text-no-wrap">{{ event.start_date }}</td>
+                            <td class="text-no-wrap">{{ event.end_date }}</td>
                             <td>{{ event.title }}</td>
                             <td>
                                 <v-chip

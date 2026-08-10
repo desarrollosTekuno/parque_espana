@@ -184,23 +184,25 @@ class WebsiteApiController extends Controller {
             $query = WebsiteEvent::where('club_id', $club->id);
 
             if ($request->filled('year')) {
-                $query->whereYear('event_date', (int) $request->year);
+                $query->whereYear('start_date', (int) $request->year);
             }
 
             if ($request->filled('month')) {
-                $query->whereMonth('event_date', (int) $request->month);
+                $query->whereMonth('start_date', (int) $request->month);
             }
 
-            $events = $query->orderBy('event_date')
+            $events = $query->orderBy('start_date')
                 ->orderBy('id')
                 ->get()
                 ->map(function ($event) {
                     $type = self::EVENT_TYPES[$event->type];
 
                     return [
-                        'id' => $event->id,
+                        'id' => (string) $event->id,
                         'title' => $event->title,
-                        'date' => $event->event_date->format('Y-m-d'),
+                        'start' => $event->start_date->format('Y-m-d'),
+                        'end' => $event->end_date->format('Y-m-d'),
+                        'calendarId' => $event->type,
                         'type' => $event->type,
                         'type_label' => $type['label'],
                         'color' => $type['color'],

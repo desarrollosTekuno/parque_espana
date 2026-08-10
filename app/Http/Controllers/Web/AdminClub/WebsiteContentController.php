@@ -81,7 +81,7 @@ class WebsiteContentController extends Controller {
         })->values();
 
         $events = WebsiteEvent::where('club_id', $clubId)
-            ->orderByDesc('event_date')
+            ->orderByDesc('start_date')
             ->orderByDesc('id')
             ->get();
 
@@ -344,12 +344,15 @@ class WebsiteContentController extends Controller {
         $validated = $request->validate([
             'id' => ['nullable', 'integer'],
             'title' => ['required', 'string', 'max:100'],
-            'event_date' => ['required', 'date'],
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'type' => ['required', 'in:activity,celebration,holiday'],
         ], [
             'title.required' => 'Escribe el título del evento.',
             'title.max' => 'El título debe tener máximo 100 caracteres.',
-            'event_date.required' => 'Selecciona la fecha del evento.',
+            'start_date.required' => 'Selecciona la fecha de inicio del evento.',
+            'end_date.required' => 'Selecciona la fecha de fin del evento.',
+            'end_date.after_or_equal' => 'La fecha de fin debe ser igual o posterior a la fecha de inicio.',
             'type.required' => 'Selecciona el tipo de evento.',
         ]);
 
@@ -359,7 +362,8 @@ class WebsiteContentController extends Controller {
             $event = WebsiteEvent::where('club_id', $clubId)->findOrFail($validated['id']);
             $event->update([
                 'title' => $validated['title'],
-                'event_date' => $validated['event_date'],
+                'start_date' => $validated['start_date'],
+                'end_date' => $validated['end_date'],
                 'type' => $validated['type'],
             ]);
 
@@ -369,7 +373,8 @@ class WebsiteContentController extends Controller {
         WebsiteEvent::create([
             'club_id' => $clubId,
             'title' => $validated['title'],
-            'event_date' => $validated['event_date'],
+            'start_date' => $validated['start_date'],
+            'end_date' => $validated['end_date'],
             'type' => $validated['type'],
         ]);
 
