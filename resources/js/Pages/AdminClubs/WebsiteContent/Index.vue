@@ -9,7 +9,7 @@ import { computed, onUnmounted, ref, watch } from "vue";
 interface Props {
     carouselImages: any[];
     homeCards: any[];
-    virtualTourCategories: any[];
+    virtualTourSections: any[];
     events: any[];
     eventTypes: any[];
 }
@@ -22,19 +22,12 @@ const fileInput = ref<HTMLInputElement | null>(null);
 const cardFileInput = ref<HTMLInputElement | null>(null);
 const virtualTourFileInput = ref<HTMLInputElement | null>(null);
 const activeSection = ref("carousel");
+const activeVirtualTourSection = ref(props.virtualTourSections[0]?.name ?? "");
 const showCardForm = ref(false);
-const showCategoryForm = ref(false);
 const isDragging = ref(false);
 const previews = ref<string[]>([]);
 const cardPreview = ref<string | null>(null);
-const virtualTourPreviews = ref<string[]>([]);
-const defaultVirtualTourCategories = [
-    "Interior",
-    "Exterior",
-    "Servicios",
-    "Actividad física",
-    "Estacionamiento",
-];
+const virtualTourPreview = ref<string | null>(null);
 
 /* ====================== useForm ====================== */
 const form = useForm<{ images: File[]; descriptions: string[] }>({
@@ -45,13 +38,10 @@ const cardForm = useForm<{ category: string; image: File | null }>({
     category: "",
     image: null,
 });
-const categoryForm = useForm<{ name: string }>({
-    name: "",
-});
-const virtualTourForm = useForm<{ category_id: number | null; images: File[]; titles: string[] }>({
-    category_id: props.virtualTourCategories[0]?.id ?? null,
-    images: [],
-    titles: [],
+const virtualTourForm = useForm<{ category: string; title: string; image: File | null }>({
+    category: "",
+    title: "",
+    image: null,
 });
 const eventForm = useForm<{ id: number | null; title: string; event_date: string; type: string }>({
     id: null,
@@ -63,13 +53,7 @@ const eventForm = useForm<{ id: number | null; title: string; event_date: string
 /* ====================== Computed ====================== */
 const can = computed<string[]>(() => page.props.auth.permissions ?? []);
 const selectedCount = computed(() => form.images.length);
-const selectedVirtualTourCategory = computed(() => {
-    return props.virtualTourCategories.find((category) => category.id === virtualTourForm.category_id);
-});
-const availableVirtualTourSpaces = computed(() => {
-    const savedImages = selectedVirtualTourCategory.value?.images.length ?? 0;
-    return 6 - savedImages - virtualTourForm.images.length;
-});
+const cardLimitReached = computed(() => props.homeCards.length >= 6);
 
 /* ====================== Funciones ====================== */
 const openFilePicker = () => {
@@ -212,61 +196,24 @@ const destroyCard = (card: any) => {
     });
 };
 
-const createVirtualTourCategory = () => {
-    categoryForm.post(route("website-content.virtual-tour.categories.store"), {
-        preserveScroll: true,
-        onSuccess: () => {
-            customToastSwal({
-                title: page.props.flash.success || "Categoría guardada correctamente",
-                icon: "success",
-            });
-            categoryForm.reset();
-            showCategoryForm.value = false;
-        },
-        onError: (errors) => {
-            customToastSwal({
-                title: Object.values(errors)[0] || "No se pudo guardar la categoría",
-                icon: "error",
-            });
-        },
-    });
-};
-
-const openVirtualTourFilePicker = () => {
+const selectVirtualTourSlot = (category: string, title: string) => {
+    virtualTourForm.category = category;
+    virtualTourForm.title = title;
+    virtualTourForm.image = null;
+    virtualTourForm.clearErrors();
     virtualTourFileInput.value?.click();
 };
 
-const getVirtualTourIcon = (category: string) => {
-    const icons: Record<string, string> = {
-        Interior: "mdi-sofa-outline",
-        Exterior: "mdi-tree-outline",
-        Servicios: "mdi-coffee-outline",
-        "Actividad física": "mdi-basketball",
-        Estacionamiento: "mdi-car-outline",
-    };
-
-    return icons[category] || "mdi-image-multiple-outline";
-};
-
-const selectVirtualTourFiles = (event: Event) => {
+const selectVirtualTourFile = (event: Event) => {
     const input = event.target as HTMLInputElement;
-    const files = Array.from(input.files ?? []).filter((file) => file.type.startsWith("image/"));
-    const available = availableVirtualTourSpaces.value;
-
-    if (files.length > available) {
-        customToastSwal({
-            title: `Solo quedan ${available} espacio(s) en esta categoría`,
-            icon: "warning",
-        });
-    }
-
-    virtualTourForm.images = [...virtualTourForm.images, ...files.slice(0, available)];
+    const file = Array.from(input.files ?? []).find((item) => item.type.startsWith("image/"));
+    virtualTourForm.image = file ?? null;
     input.value = "";
 };
 
-const removeVirtualTourSelected = (index: number) => {
-    virtualTourForm.images = virtualTourForm.images.filter((_, imageIndex) => imageIndex !== index);
-    virtualTourForm.titles = virtualTourForm.titles.filter((_, titleIndex) => titleIndex !== index);
+const clearVirtualTourSelection = () => {
+    virtualTourForm.reset();
+    virtualTourForm.clearErrors();
 };
 
 const saveVirtualTourImages = () => {
@@ -275,16 +222,14 @@ const saveVirtualTourImages = () => {
         preserveScroll: true,
         onSuccess: () => {
             customToastSwal({
-                title: page.props.flash.success || "Imágenes guardadas correctamente",
+                title: page.props.flash.success || "Imagen guardada correctamente",
                 icon: "success",
             });
-            virtualTourForm.images = [];
-            virtualTourForm.titles = [];
-            virtualTourForm.clearErrors();
+            clearVirtualTourSelection();
         },
         onError: (errors) => {
             customToastSwal({
-                title: Object.values(errors)[0] || "No se pudieron guardar las imágenes",
+                title: Object.values(errors)[0] || "No se pudo guardar la imagen",
                 icon: "error",
             });
         },
@@ -301,25 +246,6 @@ const destroyVirtualTourImage = (image: any) => {
                 onSuccess: () => {
                     customToastSwal({
                         title: page.props.flash.success || "Imagen eliminada correctamente",
-                        icon: "success",
-                    });
-                },
-            });
-        }
-    });
-};
-
-const destroyVirtualTourCategory = (category: any) => {
-    customConfirmSwal({
-        title: `¿Eliminar la categoría ${category.name} y todas sus imágenes?`,
-    }).then((result) => {
-        if (result.isConfirmed) {
-            router.delete(route("website-content.virtual-tour.categories.destroy", category.id), {
-                preserveScroll: true,
-                onSuccess: () => {
-                    virtualTourForm.category_id = props.virtualTourCategories[0]?.id ?? null;
-                    customToastSwal({
-                        title: page.props.flash.success || "Categoría eliminada correctamente",
                         icon: "success",
                     });
                 },
@@ -407,20 +333,13 @@ watch(
 );
 
 watch(
-    () => virtualTourForm.images,
-    (images) => {
-        virtualTourPreviews.value.forEach((preview) => URL.revokeObjectURL(preview));
-        virtualTourPreviews.value = images.map((image) => URL.createObjectURL(image));
-        virtualTourForm.titles = images.map((_, index) => virtualTourForm.titles[index] || "");
-    },
-);
+    () => virtualTourForm.image,
+    (image) => {
+        if (virtualTourPreview.value) {
+            URL.revokeObjectURL(virtualTourPreview.value);
+        }
 
-watch(
-    () => virtualTourForm.category_id,
-    () => {
-        virtualTourForm.images = [];
-        virtualTourForm.titles = [];
-        virtualTourForm.clearErrors();
+        virtualTourPreview.value = image ? URL.createObjectURL(image) : null;
     },
 );
 
@@ -432,7 +351,9 @@ onUnmounted(() => {
         URL.revokeObjectURL(cardPreview.value);
     }
 
-    virtualTourPreviews.value.forEach((preview) => URL.revokeObjectURL(preview));
+    if (virtualTourPreview.value) {
+        URL.revokeObjectURL(virtualTourPreview.value);
+    }
 });
 </script>
 
@@ -594,7 +515,7 @@ onUnmounted(() => {
                 Cards de inicio
                 <v-spacer />
                 <v-btn
-                    v-if="can.includes('website-content.store')"
+                    v-if="can.includes('website-content.store') && !cardLimitReached"
                     variant="outlined"
                     color="primary"
                     prepend-icon="mdi-folder-plus-outline"
@@ -604,10 +525,14 @@ onUnmounted(() => {
                 </v-btn>
             </v-card-title>
             <v-card-subtitle>
-                Cada categoría tiene una sola imagen.
+                Cada categoría tiene una sola imagen. Máximo 6 cards.
             </v-card-subtitle>
 
             <v-card-text>
+                <v-alert v-if="cardLimitReached" type="warning" variant="tonal" class="mb-5">
+                    Llegaste al máximo de 6 cards. Elimina una existente para agregar otra.
+                </v-alert>
+
                 <v-expand-transition>
                     <v-card v-if="showCardForm" variant="tonal" class="mb-5">
                         <v-card-text>
@@ -711,191 +636,94 @@ onUnmounted(() => {
         </v-card>
 
         <v-card v-show="activeSection === 'virtual-tour'">
-            <v-card-title class="flex-wrap d-flex align-center ga-2">
+            <v-card-title class="d-flex align-center ga-2">
                 <v-icon icon="mdi-panorama-variant-outline" />
                 Vista virtual de instalaciones
-                <v-spacer />
-                <v-btn
-                    v-if="can.includes('website-content.store')"
-                    variant="outlined"
-                    color="primary"
-                    prepend-icon="mdi-folder-plus-outline"
-                    @click="showCategoryForm = !showCategoryForm"
-                >
-                    Nueva categoría
-                </v-btn>
             </v-card-title>
             <v-card-subtitle>
-                Organiza las instalaciones por categoría y agrega un título a cada imagen.
+                Selecciona un cajón para cargar o cambiar su imagen.
             </v-card-subtitle>
 
             <v-card-text>
-                <v-expand-transition>
-                    <v-card v-if="showCategoryForm" variant="tonal" class="mb-5">
-                        <v-card-text class="flex-wrap d-flex align-start ga-3">
-                            <v-text-field
-                                v-model="categoryForm.name"
-                                label="Nombre de la categoría"
-                                placeholder="Ej. Salones"
-                                maxlength="60"
-                                hide-details="auto"
-                                :error-messages="categoryForm.errors.name"
-                                class="category-name-field"
-                                @keydown.enter="createVirtualTourCategory"
-                            />
-                            <v-btn
-                                color="primary"
-                                prepend-icon="mdi-content-save-outline"
-                                :loading="categoryForm.processing"
-                                @click="createVirtualTourCategory"
-                            >
-                                Guardar categoría
-                            </v-btn>
-                        </v-card-text>
-                    </v-card>
-                </v-expand-transition>
+                <input
+                    ref="virtualTourFileInput"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    class="d-none"
+                    @change="selectVirtualTourFile"
+                />
 
-                <v-tabs
-                    v-model="virtualTourForm.category_id"
-                    color="primary"
-                    show-arrows
-                    class="mb-5"
-                >
-                    <v-tab
-                        v-for="category in virtualTourCategories"
-                        :key="category.id"
-                        :value="category.id"
-                        :prepend-icon="getVirtualTourIcon(category.name)"
-                    >
-                        {{ category.name }}
-                        <v-chip size="x-small" class="ml-2">{{ category.images.length }}/6</v-chip>
-                    </v-tab>
-                </v-tabs>
-
-                <div v-if="selectedVirtualTourCategory">
-                    <div class="mb-4 d-flex align-center">
-                        <div class="text-h6">{{ selectedVirtualTourCategory.name }}</div>
+                <v-card v-if="virtualTourPreview" variant="tonal" class="mb-5">
+                    <v-card-title>Imagen seleccionada</v-card-title>
+                    <v-card-text class="flex-wrap d-flex align-center ga-4">
+                        <v-img :src="virtualTourPreview" width="180" aspect-ratio="1.5" cover />
+                        <div>
+                            <div class="text-subtitle-1 font-weight-bold">{{ virtualTourForm.title }}</div>
+                            <div class="text-caption">Sección: {{ virtualTourForm.category }}</div>
+                        </div>
                         <v-spacer />
-                        <v-btn
-                            v-if="
-                                can.includes('website-content.destroy') &&
-                                !defaultVirtualTourCategories.includes(selectedVirtualTourCategory.name)
-                            "
-                            variant="text"
-                            color="error"
-                            prepend-icon="mdi-delete-outline"
-                            @click="destroyVirtualTourCategory(selectedVirtualTourCategory)"
-                        >
-                            Eliminar categoría
-                        </v-btn>
-                    </div>
-
-                    <input
-                        ref="virtualTourFileInput"
-                        type="file"
-                        multiple
-                        accept="image/jpeg,image/png,image/webp"
-                        class="d-none"
-                        @change="selectVirtualTourFiles"
-                    />
-
-                    <v-row>
-                        <v-col
-                            v-for="image in selectedVirtualTourCategory.images"
-                            :key="image.id"
-                            cols="12"
-                            sm="6"
-                            lg="4"
-                        >
-                            <v-card variant="outlined" class="h-100 position-relative">
-                                <v-img :src="image.image_url" aspect-ratio="1.5" cover />
-                                <v-card-text class="text-subtitle-1 font-weight-bold">
-                                    {{ image.title }}
-                                </v-card-text>
-                                <div
-                                    v-if="can.includes('website-content.destroy')"
-                                    class="saved-delete-button"
-                                >
-                                    <BaseButton
-                                        action="delete"
-                                        @click="destroyVirtualTourImage(image)"
-                                    />
-                                </div>
-                            </v-card>
-                        </v-col>
-
-                        <v-col
-                            v-for="(image, index) in virtualTourForm.images"
-                            :key="`${image.name}-${image.lastModified}`"
-                            cols="12"
-                            sm="6"
-                            lg="4"
-                        >
-                            <v-card variant="outlined" class="h-100 position-relative">
-                                <v-img :src="virtualTourPreviews[index]" aspect-ratio="1.5" cover />
-                                <v-btn
-                                    class="remove-image-button"
-                                    icon="mdi-close"
-                                    size="x-small"
-                                    color="error"
-                                    @click="removeVirtualTourSelected(index)"
-                                />
-                                <v-card-text>
-                                    <v-text-field
-                                        v-model="virtualTourForm.titles[index]"
-                                        label="Título de la imagen"
-                                        placeholder="Ej. Recepción"
-                                        maxlength="100"
-                                        counter="100"
-                                        density="compact"
-                                        hide-details="auto"
-                                        :error-messages="(virtualTourForm.errors as any)[`titles.${index}`]"
-                                    />
-                                </v-card-text>
-                            </v-card>
-                        </v-col>
-
-                        <v-col
-                            v-if="can.includes('website-content.store') && availableVirtualTourSpaces > 0"
-                            cols="12"
-                            sm="6"
-                            lg="4"
-                        >
-                            <div
-                                class="upload-zone virtual-tour-upload-zone"
-                                role="button"
-                                tabindex="0"
-                                @click="openVirtualTourFilePicker"
-                                @keydown.enter="openVirtualTourFilePicker"
-                            >
-                                <v-icon icon="mdi-image-plus-outline" size="46" color="primary" />
-                                <div class="mt-2 text-subtitle-1 font-weight-bold">Agregar imágenes</div>
-                                <div class="mt-1 text-caption text-medium-emphasis">
-                                    1200 × 800 px · máximo 20 MB
-                                </div>
-                            </div>
-                        </v-col>
-                    </v-row>
-
-                    <v-alert
-                        v-if="virtualTourForm.errors.images"
-                        type="error"
-                        variant="tonal"
-                        class="mt-4"
-                    >
-                        {{ virtualTourForm.errors.images }}
-                    </v-alert>
-
-                    <div v-if="virtualTourForm.images.length" class="justify-end mt-4 d-flex">
+                        <v-btn variant="text" @click="clearVirtualTourSelection">Cancelar</v-btn>
                         <v-btn
                             color="primary"
-                            prepend-icon="mdi-upload"
+                            prepend-icon="mdi-content-save"
                             :loading="virtualTourForm.processing"
                             @click="saveVirtualTourImages"
                         >
-                            Guardar {{ virtualTourForm.images.length }} imagen(es)
+                            Guardar imagen
                         </v-btn>
-                    </div>
+                    </v-card-text>
+                </v-card>
+
+                <v-alert v-if="virtualTourForm.errors.image" type="error" variant="tonal" class="mb-5">
+                    {{ virtualTourForm.errors.image }}
+                </v-alert>
+
+                <v-tabs v-model="activeVirtualTourSection" color="primary" show-arrows class="mb-5">
+                    <v-tab v-for="section in virtualTourSections" :key="section.name" :value="section.name">
+                        {{ section.name }}
+                        <v-chip size="x-small" class="ml-2">
+                            {{ section.slots.filter(slot => slot.image).length }}/{{ section.slots.length }}
+                        </v-chip>
+                    </v-tab>
+                </v-tabs>
+
+                <div v-for="section in virtualTourSections" v-show="activeVirtualTourSection === section.name" :key="section.name">
+                    <v-row>
+                        <v-col v-for="slot in section.slots" :key="slot.title" cols="12" sm="6" lg="4">
+                            <v-card variant="outlined" class="h-100">
+                                <v-img v-if="slot.image" :src="slot.image.image_url" aspect-ratio="1.5" cover />
+                                <div v-else class="upload-zone virtual-tour-upload-zone" @click="selectVirtualTourSlot(section.name, slot.title)">
+                                    <v-icon icon="mdi-image-plus-outline" size="46" color="primary" />
+                                    <div class="mt-2 text-subtitle-1 font-weight-bold">Subir imagen</div>
+                                </div>
+                                <v-card-text class="text-subtitle-1 font-weight-bold">
+                                    {{ slot.title }}
+                                </v-card-text>
+                                <v-card-actions>
+                                    <v-btn
+                                        v-if="can.includes('website-content.store')"
+                                        size="small"
+                                        color="primary"
+                                        variant="tonal"
+                                        prepend-icon="mdi-upload"
+                                        @click="selectVirtualTourSlot(section.name, slot.title)"
+                                    >
+                                        {{ slot.image ? "Cambiar imagen" : "Subir imagen" }}
+                                    </v-btn>
+                                    <v-spacer />
+                                    <v-btn
+                                        v-if="slot.image && can.includes('website-content.destroy')"
+                                        size="small"
+                                        color="error"
+                                        variant="text"
+                                        @click="destroyVirtualTourImage(slot.image)"
+                                    >
+                                        Eliminar
+                                    </v-btn>
+                                </v-card-actions>
+                            </v-card>
+                        </v-col>
+                    </v-row>
                 </div>
             </v-card-text>
         </v-card>
@@ -1116,5 +944,13 @@ onUnmounted(() => {
 
 .pending-image-label {
     background: rgb(var(--v-theme-primary));
+}
+
+.empty-virtual-tour-slot {
+    aspect-ratio: 1.5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f1f5f9;
 }
 </style>

@@ -147,19 +147,29 @@ class WebsiteApiController extends Controller {
 
     public function virtualTour(Club $club) {
         try {
-            $categories = VirtualTourCategory::where('club_id', $club->id)
+            $virtualTourConfig = config("website.virtual_tour.{$club->code}", []);
+            $savedCategories = VirtualTourCategory::where('club_id', $club->id)
                 ->with('images')
-                ->orderBy('id')
                 ->get()
-                ->map(fn ($category) => [
-                    'id' => $category->id,
-                    'name' => $category->name,
-                    'images' => $category->images->map(fn ($image) => [
-                        'id' => $image->id,
-                        'title' => $image->title,
-                        'image_url' => $image->image_url,
-                    ]),
-                ]);
+                ->keyBy('name');
+
+            $categories = collect($virtualTourConfig)->map(function ($titles, $categoryName) use ($savedCategories) {
+                $category = $savedCategories->get($categoryName);
+
+                return [
+                    'id' => $category?->id,
+                    'name' => $categoryName,
+                    'images' => collect($titles)->map(function ($title) use ($category) {
+                        $image = $category?->images->firstWhere('title', $title);
+
+                        return [
+                            'id' => $image?->id,
+                            'title' => $title,
+                            'image_url' => $image?->image_url,
+                        ];
+                    })->values(),
+                ];
+            })->values();
 
             return $this->ok($categories);
         } catch (\Exception $e) {

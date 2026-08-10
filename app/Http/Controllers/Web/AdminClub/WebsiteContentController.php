@@ -18,14 +18,6 @@ use Inertia\Inertia;
 
 class WebsiteContentController extends Controller {
 
-    private const VIRTUAL_TOUR_CATEGORIES = [
-        'Interior',
-        'Exterior',
-        'Servicios',
-        'Actividad física',
-        'Estacionamiento',
-    ];
-
     private const EVENT_TYPES = [
         ['value' => 'activity', 'title' => 'Actividad', 'color' => '#0097A7'],
         ['value' => 'celebration', 'title' => 'Celebración', 'color' => '#EC659C'],
@@ -37,14 +29,12 @@ class WebsiteContentController extends Controller {
         $this->middleware('permission:website-content.store')->only([
             'store',
             'storeCard',
-            'storeVirtualTourCategory',
             'storeVirtualTourImages',
             'saveEvent',
         ]);
         $this->middleware('permission:website-content.destroy')->only([
             'destroy',
             'destroyCard',
-            'destroyVirtualTourCategory',
             'destroyVirtualTourImage',
             'destroyEvent',
         ]);
@@ -52,8 +42,10 @@ class WebsiteContentController extends Controller {
 
     public function index() {
         $clubId = (int) session('club_id');
+        $club = Club::findOrFail($clubId);
+        $virtualTourConfig = config("website.virtual_tour.{$club->code}", []);
 
-        foreach (self::VIRTUAL_TOUR_CATEGORIES as $category) {
+        foreach (array_keys($virtualTourConfig) as $category) {
             VirtualTourCategory::firstOrCreate([
                 'club_id' => $clubId,
                 'name' => $category,
@@ -71,8 +63,22 @@ class WebsiteContentController extends Controller {
 
         $virtualTourCategories = VirtualTourCategory::where('club_id', $clubId)
             ->with('images')
-            ->orderBy('id')
-            ->get();
+            ->get()
+            ->keyBy('name');
+
+        $virtualTourSections = collect($virtualTourConfig)->map(function ($titles, $categoryName) use ($virtualTourCategories) {
+            $category = $virtualTourCategories->get($categoryName);
+
+            return [
+                'name' => $categoryName,
+                'slots' => collect($titles)->map(function ($title) use ($category) {
+                    return [
+                        'title' => $title,
+                        'image' => $category?->images->firstWhere('title', $title),
+                    ];
+                })->values(),
+            ];
+        })->values();
 
         $events = WebsiteEvent::where('club_id', $clubId)
             ->orderByDesc('event_date')
@@ -82,7 +88,7 @@ class WebsiteContentController extends Controller {
         return Inertia::render('AdminClubs/WebsiteContent/Index', [
             'carouselImages' => $images,
             'homeCards' => $homeCards,
-            'virtualTourCategories' => $virtualTourCategories,
+            'virtualTourSections' => $virtualTourSections,
             'events' => $events,
             'eventTypes' => self::EVENT_TYPES,
         ]);
@@ -111,6 +117,7 @@ class WebsiteContentController extends Controller {
         ]);
 
         $clubId = (int) session('club_id');
+
         $club = Club::findOrFail($clubId);
         $uploadedPaths = [];
 
@@ -168,6 +175,13 @@ class WebsiteContentController extends Controller {
         ]);
 
         $clubId = (int) session('club_id');
+
+        if (HomeCard::where('club_id', $clubId)->count() >= 6) {
+            return back()->withErrors([
+                'category' => 'Solo puedes registrar un máximo de 6 cards de inicio. Elimina una para agregar otra.',
+            ]);
+        }
+
         $club = Club::findOrFail($clubId);
         $uploadedPath = null;
 
@@ -228,88 +242,76 @@ class WebsiteContentController extends Controller {
         }
     }
 
-    public function storeVirtualTourCategory(Request $request) {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:60'],
-        ], [
-            'name.required' => 'Escribe el nombre de la categoría.',
-            'name.max' => 'El nombre debe tener máximo 60 caracteres.',
-        ]);
-
-        VirtualTourCategory::firstOrCreate([
-            'club_id' => (int) session('club_id'),
-            'name' => $validated['name'],
-        ]);
-
-        return back()->with('success', 'Categoría guardada correctamente.');
-    }
-
     public function storeVirtualTourImages(Request $request) {
         $validated = $request->validate([
-            'category_id' => ['required', 'integer'],
-            'images' => ['required', 'array', 'min:1', 'max:6'],
-            'images.*' => [
+            'category' => ['required', 'string'],
+            'title' => ['required', 'string'],
+            'image' => [
                 'required',
                 'image',
                 'mimes:jpg,jpeg,png,webp',
                 'max:20480',
                 'dimensions:min_width=1200,min_height=800',
             ],
-            'titles' => ['required', 'array', 'max:6'],
-            'titles.*' => ['required', 'string', 'max:100'],
         ], [
-            'category_id.required' => 'Selecciona una categoría.',
-            'images.required' => 'Selecciona al menos una imagen.',
-            'images.max' => 'Cada categoría permite máximo 6 imágenes.',
-            'images.*.image' => 'Uno de los archivos no es una imagen válida.',
-            'images.*.mimes' => 'Las imágenes deben ser JPG, PNG o WebP.',
-            'images.*.max' => 'Cada imagen debe pesar máximo 20 MB.',
-            'images.*.dimensions' => 'Cada imagen debe medir al menos 1200 × 800 px.',
-            'titles.*.required' => 'Escribe el título de cada imagen.',
-            'titles.*.max' => 'Cada título debe tener máximo 100 caracteres.',
+            'image.required' => 'Selecciona una imagen.',
+            'image.image' => 'El archivo seleccionado no es una imagen válida.',
+            'image.mimes' => 'La imagen debe ser JPG, PNG o WebP.',
+            'image.max' => 'La imagen debe pesar máximo 20 MB.',
+            'image.dimensions' => 'La imagen debe medir al menos 1200 × 800 px.',
         ]);
 
         $clubId = (int) session('club_id');
-        $category = VirtualTourCategory::where('club_id', $clubId)
-            ->findOrFail($validated['category_id']);
+        $club = Club::findOrFail($clubId);
+        $virtualTourConfig = config("website.virtual_tour.{$club->code}", []);
 
-        if ($category->images()->count() + count($request->file('images')) > 6) {
+        if (!isset($virtualTourConfig[$validated['category']]) || !in_array($validated['title'], $virtualTourConfig[$validated['category']])) {
             return back()->withErrors([
-                'images' => 'Esta categoría permite máximo 6 imágenes.',
+                'messageError' => 'La sección seleccionada no es válida para este parque.',
             ]);
         }
 
-        $club = Club::findOrFail($clubId);
-        $uploadedPaths = [];
+        $category = VirtualTourCategory::firstOrCreate([
+            'club_id' => $clubId,
+            'name' => $validated['category'],
+        ]);
+        $image = $category->images()->where('title', $validated['title'])->first();
+        $uploadedPath = null;
+        $previousPath = $image?->image_path;
 
         DB::beginTransaction();
 
         try {
-            foreach ($request->file('images') as $index => $image) {
-                $path = $this->uploadImage($image, $club->code, 'virtual-tour');
-                $uploadedPaths[] = $path;
+            $uploadedPath = $this->uploadImage($request->file('image'), $club->code, 'virtual-tour');
 
+            if ($image) {
+                $image->update(['image_path' => $uploadedPath]);
+            } else {
                 VirtualTourImage::create([
                     'category_id' => $category->id,
-                    'title' => $validated['titles'][$index],
-                    'image_path' => $path,
+                    'title' => $validated['title'],
+                    'image_path' => $uploadedPath,
                 ]);
             }
 
             DB::commit();
 
-            return back()->with('success', 'Imágenes guardadas correctamente.');
+            if ($previousPath && Storage::disk('spaces')->exists($previousPath)) {
+                Storage::disk('spaces')->delete($previousPath);
+            }
+
+            return back()->with('success', 'Imagen guardada correctamente.');
         } catch (\Exception $e) {
             DB::rollBack();
 
-            foreach ($uploadedPaths as $path) {
-                Storage::disk('spaces')->delete($path);
+            if ($uploadedPath) {
+                Storage::disk('spaces')->delete($uploadedPath);
             }
 
             report($e);
 
             return back()->withErrors([
-                'messageError' => 'No se pudieron guardar las imágenes.',
+                'messageError' => 'No se pudo guardar la imagen.',
                 'exception' => $e->getMessage(),
             ]);
         }
@@ -333,37 +335,6 @@ class WebsiteContentController extends Controller {
 
             return back()->withErrors([
                 'messageError' => 'No se pudo eliminar la imagen.',
-                'exception' => $e->getMessage(),
-            ]);
-        }
-    }
-
-    public function destroyVirtualTourCategory(int $id) {
-        try {
-            $category = VirtualTourCategory::where('club_id', session('club_id'))
-                ->with('images')
-                ->findOrFail($id);
-
-            if (in_array($category->name, self::VIRTUAL_TOUR_CATEGORIES)) {
-                return back()->withErrors([
-                    'messageError' => 'Las categorías predeterminadas no se pueden eliminar.',
-                ]);
-            }
-
-            foreach ($category->images as $image) {
-                if (Storage::disk('spaces')->exists($image->image_path)) {
-                    Storage::disk('spaces')->delete($image->image_path);
-                }
-            }
-
-            $category->delete();
-
-            return back()->with('success', 'Categoría eliminada correctamente.');
-        } catch (\Exception $e) {
-            report($e);
-
-            return back()->withErrors([
-                'messageError' => 'No se pudo eliminar la categoría.',
                 'exception' => $e->getMessage(),
             ]);
         }
