@@ -3,6 +3,7 @@ import BaseButton from "@/Components/BaseButton.vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import { Head, router, useForm, usePage } from "@inertiajs/vue3";
+import axios from "axios";
 import { computed, onUnmounted, ref, watch } from "vue";
 
 /* ====================== Props ====================== */
@@ -12,6 +13,14 @@ interface Props {
     virtualTourSections: any[];
     events: any[];
     eventTypes: any[];
+}
+
+interface PendingVirtualTourImage {
+    category: string;
+    title: string;
+    image: File;
+    preview: string;
+    error?: string;
 }
 
 const props = defineProps<Props>();
@@ -28,6 +37,9 @@ const isDragging = ref(false);
 const previews = ref<string[]>([]);
 const cardPreview = ref<string | null>(null);
 const virtualTourPreview = ref<string | null>(null);
+const pendingVirtualTourImages = ref<PendingVirtualTourImage[]>([]);
+const savingVirtualTourImages = ref(false);
+const virtualTourImageError = ref("");
 
 /* ====================== useForm ====================== */
 const form = useForm<{ images: File[]; descriptions: string[] }>({
@@ -200,41 +212,104 @@ const destroyCard = (card: any) => {
 const selectVirtualTourSlot = (category: string, title: string) => {
     virtualTourForm.category = category;
     virtualTourForm.title = title;
-    virtualTourForm.image = null;
     virtualTourForm.clearErrors();
+    virtualTourImageError.value = "";
     virtualTourFileInput.value?.click();
 };
 
 const selectVirtualTourFile = (event: Event) => {
     const input = event.target as HTMLInputElement;
     const file = Array.from(input.files ?? []).find((item) => item.type.startsWith("image/"));
-    virtualTourForm.image = file ?? null;
+
+    if (file) {
+        const index = pendingVirtualTourImages.value.findIndex((item) => {
+            return item.category === virtualTourForm.category && item.title === virtualTourForm.title;
+        });
+
+        if (index >= 0) {
+            URL.revokeObjectURL(pendingVirtualTourImages.value[index].preview);
+            pendingVirtualTourImages.value[index] = {
+                category: virtualTourForm.category,
+                title: virtualTourForm.title,
+                image: file,
+                preview: URL.createObjectURL(file),
+            };
+        } else {
+            pendingVirtualTourImages.value.push({
+                category: virtualTourForm.category,
+                title: virtualTourForm.title,
+                image: file,
+                preview: URL.createObjectURL(file),
+            });
+        }
+    }
+
     input.value = "";
 };
 
 const clearVirtualTourSelection = () => {
+    pendingVirtualTourImages.value.forEach((item) => URL.revokeObjectURL(item.preview));
+    pendingVirtualTourImages.value = [];
     virtualTourForm.reset();
     virtualTourForm.clearErrors();
+    virtualTourImageError.value = "";
 };
 
-const saveVirtualTourImages = () => {
-    virtualTourForm.post(route("website-content.virtual-tour.images.store"), {
-        forceFormData: true,
-        preserveScroll: true,
-        onSuccess: () => {
-            customToastSwal({
-                title: page.props.flash.success || "Imagen guardada correctamente",
-                icon: "success",
-            });
-            clearVirtualTourSelection();
-        },
-        onError: (errors) => {
-            customToastSwal({
-                title: Object.values(errors)[0] || "No se pudo guardar la imagen",
-                icon: "error",
-            });
-        },
+const removePendingVirtualTourImage = (category: string, title: string) => {
+    const image = pendingVirtualTourImages.value.find((item) => {
+        return item.category === category && item.title === title;
     });
+
+    if (image) {
+        URL.revokeObjectURL(image.preview);
+    }
+
+    pendingVirtualTourImages.value = pendingVirtualTourImages.value.filter((item) => {
+        return item.category !== category || item.title !== title;
+    });
+};
+
+const getPendingVirtualTourImage = (category: string, title: string) => {
+    return pendingVirtualTourImages.value.find((item) => {
+        return item.category === category && item.title === title;
+    });
+};
+
+const saveVirtualTourImages = async () => {
+    savingVirtualTourImages.value = true;
+    const failedImages: PendingVirtualTourImage[] = [];
+    let savedImages = 0;
+
+    for (const pendingImage of pendingVirtualTourImages.value) {
+        try {
+            const formData = new FormData();
+            formData.append("category", pendingImage.category);
+            formData.append("title", pendingImage.title);
+            formData.append("image", pendingImage.image);
+
+            await axios.post(route("website-content.virtual-tour.images.store"), formData);
+
+            URL.revokeObjectURL(pendingImage.preview);
+            savedImages++;
+        } catch (error: any) {
+            failedImages.push({
+                ...pendingImage,
+                error: error.response?.data?.errors?.image?.[0] || "No se pudo guardar esta imagen.",
+            });
+        }
+    }
+
+    pendingVirtualTourImages.value = failedImages;
+
+    if (savedImages) {
+        router.reload({ only: ["virtualTourSections"] });
+        customToastSwal({
+            title: savedImages === 1 ? "Imagen guardada correctamente" : "Imágenes guardadas correctamente",
+            icon: "success",
+        });
+    }
+
+    savingVirtualTourImages.value = false;
 };
 
 const destroyVirtualTourImage = (image: any) => {
@@ -334,17 +409,6 @@ watch(
     },
 );
 
-watch(
-    () => virtualTourForm.image,
-    (image) => {
-        if (virtualTourPreview.value) {
-            URL.revokeObjectURL(virtualTourPreview.value);
-        }
-
-        virtualTourPreview.value = image ? URL.createObjectURL(image) : null;
-    },
-);
-
 /* ====================== Lifecycle ====================== */
 onUnmounted(() => {
     clearPreviews();
@@ -353,9 +417,7 @@ onUnmounted(() => {
         URL.revokeObjectURL(cardPreview.value);
     }
 
-    if (virtualTourPreview.value) {
-        URL.revokeObjectURL(virtualTourPreview.value);
-    }
+    clearVirtualTourSelection();
 });
 </script>
 
@@ -676,8 +738,8 @@ onUnmounted(() => {
                     </v-card-text>
                 </v-card>
 
-                <v-alert v-if="virtualTourForm.errors.image" type="error" variant="tonal" class="mb-5">
-                    {{ virtualTourForm.errors.image }}
+                <v-alert v-if="virtualTourImageError" type="error" variant="tonal" class="mb-5">
+                    {{ virtualTourImageError }}
                 </v-alert>
 
                 <v-tabs v-model="activeVirtualTourSection" color="primary" show-arrows class="mb-5">
@@ -692,7 +754,33 @@ onUnmounted(() => {
                 <div v-for="section in virtualTourSections" v-show="activeVirtualTourSection === section.name" :key="section.name">
                     <v-row>
                         <v-col v-for="slot in section.slots" :key="slot.title" cols="12" sm="6" lg="4">
-                            <v-card v-if="slot.image" variant="outlined" class="media-card h-100">
+                            <v-card
+                                v-if="getPendingVirtualTourImage(section.name, slot.title)"
+                                variant="outlined"
+                                class="media-card h-100 position-relative"
+                            >
+                                <v-img :src="getPendingVirtualTourImage(section.name, slot.title)?.preview" aspect-ratio="1.5" cover />
+                                <v-btn
+                                    class="remove-image-button"
+                                    icon="mdi-close"
+                                    size="x-small"
+                                    color="error"
+                                    @click="removePendingVirtualTourImage(section.name, slot.title)"
+                                />
+                                <v-card-text class="text-subtitle-1 font-weight-bold">
+                                    {{ slot.title }}
+                                </v-card-text>
+                                <v-alert
+                                    v-if="getPendingVirtualTourImage(section.name, slot.title)?.error"
+                                    type="error"
+                                    variant="tonal"
+                                    density="compact"
+                                    class="mx-4 mb-4"
+                                >
+                                    {{ getPendingVirtualTourImage(section.name, slot.title)?.error }}
+                                </v-alert>
+                            </v-card>
+                            <v-card v-else-if="slot.image" variant="outlined" class="media-card h-100">
                                 <v-img :src="slot.image.image_url" aspect-ratio="1.5" cover />
                                 <v-card-text class="text-subtitle-1 font-weight-bold">
                                     {{ slot.title }}
@@ -719,6 +807,19 @@ onUnmounted(() => {
                             </div>
                         </v-col>
                     </v-row>
+                    <div v-if="pendingVirtualTourImages.length" class="justify-end mt-4 d-flex align-center ga-2">
+                        <v-btn variant="text" color="error" @click="clearVirtualTourSelection">
+                            Limpiar selección
+                        </v-btn>
+                        <v-btn
+                            color="primary"
+                            prepend-icon="mdi-upload"
+                            :loading="savingVirtualTourImages"
+                            @click="saveVirtualTourImages"
+                        >
+                            Guardar imágenes
+                        </v-btn>
+                    </div>
                 </div>
             </v-card-text>
         </v-card>
