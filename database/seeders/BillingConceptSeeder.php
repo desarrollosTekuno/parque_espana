@@ -1440,6 +1440,8 @@ class BillingConceptSeeder extends Seeder
         ];
 
         foreach ($concepts as $concept) {
+            $concept['internal_key'] = $concept['code'];
+
             ChargeConcept::updateOrCreate(
                 ['code' => $concept['code']],
                 $concept

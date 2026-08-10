@@ -17,6 +17,7 @@ class ChargeConceptClubAmount extends Model
 
     protected $casts = [
         'amount' => 'float',
+        'applies_iva' => 'boolean',
         'is_active' => 'boolean',
     ];
 

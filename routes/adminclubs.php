@@ -105,6 +105,8 @@ Route::post('/billing/annual-payment', [BillingController::class, 'storeAnnualPa
 // collections desk (módulo de cobranza tipo caja)
 Route::get('/collections', [CollectionController::class, 'index'])->name('collections.index');
 Route::get('/collections/search', [CollectionController::class, 'search'])->name('collections.search');
+Route::post('/collections/monthly-fee/resolve', [CollectionController::class, 'resolveMonthlyFeeMonths'])->name('collections.monthly-fee.resolve');
+Route::post('/collections/inscription/resolve', [CollectionController::class, 'resolveInscriptionInstallments'])->name('collections.inscription.resolve');
 Route::post('/collections/payment', [CollectionController::class, 'storePayment'])->name('collections.payment.store');
 Route::post('/collections/notes', [CollectionController::class, 'storeNote'])->name('collections.notes.store');
 

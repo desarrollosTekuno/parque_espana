@@ -191,6 +191,28 @@ class MembershipChargeService
         return true;
     }
 
+    /**
+     * Calcula (sin persistir nada) el monto que se cobraría por esta
+     * membresía en el periodo indicado — misma resolución de cuota que usa
+     * createRecurringMonthlyCharge. Sirve para previsualizar meses que
+     * todavía no tienen cargo generado (p. ej. el cálculo en vivo del
+     * módulo de cobranza) sin crear cargos reales solo por calcular.
+     */
+    public function previewMonthlyFeeAmount(Membership $membership, Carbon $periodDate): float
+    {
+        $chargeDate = $periodDate->copy()->startOfMonth();
+        $monthlyFee = round(
+            $this->resolveMembershipMonthlyFeeShare($membership, null, $chargeDate->year, $chargeDate),
+            2
+        );
+
+        return $this->resolveAbsenceAdjustedMonthlyFee(
+            membership: $membership,
+            monthlyFee: $monthlyFee,
+            chargeDate: $chargeDate
+        );
+    }
+
     public function hasMonthlyChargeForPeriod(
         Membership $membership,
         ?Carbon $periodDate = null,
@@ -209,83 +231,60 @@ class MembershipChargeService
     }
 
     /**
-     * Periodo (primer día del mes) que corresponde cobrar a continuación:
-     * el mes siguiente al último cargo de mensualidad pagado, o el periodo
-     * del cargo pendiente/parcial más reciente si nunca se ha pagado uno,
-     * o el mes en curso si la membresía nunca ha generado ningún cargo
-     * (evita "resucitar" décadas de mensualidades atrasadas en membresías
-     * antiguas migradas sin historial de cobros).
+     * Garantiza que existan cargos de mensualidad para TODOS los meses entre
+     * el cargo más antiguo que ya exista para el grupo de cuentas del socio
+     * (cualquiera de sus parques) y el mes en curso, creando aquí mismo
+     * cualquier hueco de en medio — no solo el siguiente periodo. Antes se
+     * usaba resolveNextChargeablePeriod()/ensureMonthlyChargeForNextPeriod(),
+     * que al no haber ningún cargo 'paid' regresaba el mismo periodo del
+     * cargo pendiente más antiguo una y otra vez, así que una membresía con
+     * un solo mes vencido desde hace más de un año se quedaba "atorada" en
+     * ese único mes en vez de ir generando los siguientes.
+     *
+     * Si el grupo nunca ha tenido ningún cargo, solo se crea el del mes en
+     * curso (no se resucitan años de historial para una membresía sin
+     * cargos previos, p. ej. una migrada sin ese dato).
      */
-    public function resolveNextChargeablePeriod(Membership $membership): Carbon
+    public function ensureMonthlyChargesUpToToday(Membership $billableMembership, array $groupAccountIds): void
     {
         $monthlyConcept = $this->resolveConcept('MONTHLY_FEE');
+        $currentPeriod = now()->startOfMonth();
 
-        $lastPaid = Charge::query()
-            ->where('membership_id', $membership->id)
+        $earliestCharge = Charge::query()
             ->where('concept_id', $monthlyConcept->id)
-            ->where('status', 'paid')
-            ->whereNotNull('period_year')
-            ->whereNotNull('period_month')
-            ->orderByDesc('period_year')
-            ->orderByDesc('period_month')
-            ->first();
-
-        if ($lastPaid) {
-            return Carbon::create((int) $lastPaid->period_year, (int) $lastPaid->period_month, 1)
-                ->addMonthNoOverflow();
-        }
-
-        $pendingCharge = Charge::query()
-            ->where('membership_id', $membership->id)
-            ->where('concept_id', $monthlyConcept->id)
-            ->whereIn('status', ['pending', 'partial'])
+            ->whereIn('membership_account_id', $groupAccountIds)
             ->whereNotNull('period_year')
             ->whereNotNull('period_month')
             ->orderBy('period_year')
             ->orderBy('period_month')
             ->first();
 
-        if ($pendingCharge) {
-            return Carbon::create((int) $pendingCharge->period_year, (int) $pendingCharge->period_month, 1);
+        if (!$earliestCharge) {
+            $this->createRecurringMonthlyCharge($billableMembership, $currentPeriod);
+
+            return;
         }
 
-        return now()->startOfMonth();
-    }
+        $cursor = Carbon::create((int) $earliestCharge->period_year, (int) $earliestCharge->period_month, 1);
+        $safetyLimit = 240; // ~20 años, para nunca quedar en un ciclo infinito por un dato inesperado.
 
-    /**
-     * Garantiza que exista un cargo de mensualidad pendiente para el
-     * siguiente periodo a cobrar de la membresía (ver resolveNextChargeablePeriod).
-     * No duplica cargos: si ya existe uno para ese periodo, solo lo regresa.
-     */
-    public function ensureMonthlyChargeForNextPeriod(Membership $membership): ?Charge
-    {
-        $monthlyConcept = $this->resolveConcept('MONTHLY_FEE');
-        $periodDate = $this->resolveNextChargeablePeriod($membership);
+        while ($cursor->lte($currentPeriod) && $safetyLimit-- > 0) {
+            $existsForPeriod = Charge::query()
+                ->where('concept_id', $monthlyConcept->id)
+                ->whereIn('membership_account_id', $groupAccountIds)
+                ->where('period_year', $cursor->year)
+                ->where('period_month', $cursor->month)
+                ->where('status', '!=', 'cancelled')
+                ->exists();
 
-        $existing = Charge::query()
-            ->where('membership_id', $membership->id)
-            ->where('concept_id', $monthlyConcept->id)
-            ->where('period_year', (int) $periodDate->format('Y'))
-            ->where('period_month', (int) $periodDate->format('m'))
-            ->where('status', '!=', 'cancelled')
-            ->first();
+            if (!$existsForPeriod) {
+                $this->createRecurringMonthlyCharge($billableMembership, $cursor->copy(), [
+                    'charge_origin' => 'auto_backfill_on_search',
+                ]);
+            }
 
-        if ($existing) {
-            return $existing;
+            $cursor->addMonthNoOverflow();
         }
-
-        $created = $this->createRecurringMonthlyCharge($membership, $periodDate);
-
-        if (!$created) {
-            return null;
-        }
-
-        return Charge::query()
-            ->where('membership_id', $membership->id)
-            ->where('concept_id', $monthlyConcept->id)
-            ->where('period_year', (int) $periodDate->format('Y'))
-            ->where('period_month', (int) $periodDate->format('m'))
-            ->first();
     }
 
     public function createInitialCharges(

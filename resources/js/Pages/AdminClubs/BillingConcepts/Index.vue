@@ -18,6 +18,8 @@ interface BillingConceptItem {
     allows_partial_payments: boolean;
     is_mobile_payable: boolean;
     splits_between_parks: boolean;
+    applies_iva: boolean;
+    club_applies_iva: boolean | null;
     is_active: boolean;
 }
 
@@ -96,6 +98,8 @@ interface BillingConceptForm {
     allows_partial_payments: boolean;
     is_mobile_payable: boolean;
     splits_between_parks: boolean;
+    applies_iva: boolean;
+    club_applies_iva: boolean | null;
     is_active: boolean;
 }
 
@@ -111,6 +115,8 @@ const form = useForm<BillingConceptForm>({
     allows_partial_payments: false,
     is_mobile_payable: true,
     splits_between_parks: false,
+    applies_iva: false,
+    club_applies_iva: null,
     is_active: true,
 });
 
@@ -128,6 +134,8 @@ const resetForm = () => {
     form.allows_partial_payments = false;
     form.is_mobile_payable = true;
     form.splits_between_parks = false;
+    form.applies_iva = false;
+    form.club_applies_iva = null;
     form.is_active = true;
 };
 
@@ -149,6 +157,8 @@ const openEdit = (item: BillingConceptItem) => {
     form.allows_partial_payments = item.allows_partial_payments;
     form.is_mobile_payable = item.is_mobile_payable;
     form.splits_between_parks = item.splits_between_parks;
+    form.applies_iva = item.applies_iva;
+    form.club_applies_iva = item.club_applies_iva;
     form.is_active = item.is_active;
     showModal.value = true;
 };
@@ -161,6 +171,17 @@ const close = () => {
 const formatAmount = (value: number | null) => {
     return value === null ? "Sin definir" : currencyFormatter.format(value);
 };
+
+// El override del parque en sesión manda si existe; si no, se usa el
+// default del concepto (ver ChargeConcept::resolveAppliesIvaForClub).
+const resolveConceptAppliesIva = (item: BillingConceptItem) =>
+    item.club_applies_iva ?? item.applies_iva;
+
+const clubIvaOverrideOptions = [
+    // { title: "Usar el default del concepto", value: null },
+    { title: "Sí", value: true },
+    { title: "No", value: false },
+];
 
 const save = () => {
     formSendRef.value?.validate().then(({ valid: isValid }: { valid: boolean }) => {
@@ -388,6 +409,14 @@ watch(
                                 >
                                     Split 50/50
                                 </v-chip>
+                                <v-chip
+                                    size="small"
+                                    :color="resolveConceptAppliesIva(item) ? 'primary' : 'default'"
+                                    variant="tonal"
+                                >
+                                    {{ resolveConceptAppliesIva(item) ? "Facturable" : "No facturable" }}
+                                    <span v-if="item.club_applies_iva !== null" class="ml-1">({{ currentClub?.code }})</span>
+                                </v-chip>
                             </div>
                         </template>
 
@@ -487,6 +516,28 @@ watch(
                                     :error-messages="form.errors.club_amount"
                                 />
                             </v-col>
+
+                            <!-- <v-col cols="12" md="6">
+                                <v-switch
+                                    v-model="form.applies_iva"
+                                    color="primary"
+                                    label="Factura IVA (default)"
+                                    hint="Si este concepto factura IVA cuando no hay un override específico para el parque."
+                                    persistent-hint
+                                />
+                            </v-col> -->
+
+                            <v-col cols="12" md="6">
+                                <v-select
+                                    v-model="form.club_applies_iva"
+                                    :items="clubIvaOverrideOptions"
+                                    :label="currentClub?.code ? `¿Este concepto es facturable?` : 'Si'"
+                                   
+                                    persistent-hint
+                                    :error-messages="form.errors.club_applies_iva"
+                                />
+                            </v-col>
+                            <v-col cols=12></v-col>
 
                             <v-col cols="12" md="4">
                                 <v-switch

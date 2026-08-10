@@ -37,6 +37,7 @@ class PaymentRegistrationService
         $this->validateMethodRequirements($paymentMethod, $reference, $bankName, $checkNumber);
         $normalizedApplications = $this->normalizeApplications($charges, $applications);
         $parkSplit = $this->resolveParkSplit($normalizedApplications);
+        ['subtotal' => $subtotal, 'iva' => $iva] = $this->calculateSubtotalAndIva($normalizedApplications, $clubId);
 
         return DB::transaction(function () use (
             $account,
@@ -50,7 +51,9 @@ class PaymentRegistrationService
             $notes,
             $receivedBy,
             $sessionClubId,
-            $parkSplit
+            $parkSplit,
+            $subtotal,
+            $iva
         ) {
             $totalAmount = round($normalizedApplications->sum('amount'), 2);
 
@@ -59,6 +62,8 @@ class PaymentRegistrationService
                 'club_id' => $clubId,
                 'payment_method_id' => $paymentMethod->id,
                 'amount' => $totalAmount,
+                'subtotal' => $subtotal,
+                'iva' => $iva,
                 'paid_at' => $paidAt,
                 'reference' => $reference,
                 'bank_name' => $bankName,
@@ -128,8 +133,24 @@ class PaymentRegistrationService
         $this->ensureChargesBelongToClub($charges, $clubId, $accountClubIds);
         $normalizedApplications = $this->normalizeApplications($charges, $applications);
 
+        // Si alguno de los cargos que se están pagando es de un concepto que
+        // se reparte entre parques (billing.concepts.splits_between_parks,
+        // p. ej. MONTHLY_FEE) y el socio tiene membresía en más de un parque,
+        // se permite pagar con un método de pago configurado en CUALQUIERA
+        // de esos parques, no solo el de la sesión — p. ej. la tarjeta de
+        // crédito propia del otro parque — aunque el pago se siga
+        // registrando completo en el parque de la sesión (es informativo,
+        // no crea un segundo pago en el otro parque). No se puede usar
+        // resolveParkSplit aquí: el cargo real de la mensualidad siempre
+        // vive en UN solo parque (el de la membresía facturable), el
+        // reparto 50/50 es solo informativo a nivel de concepto.
+        $allowCrossClubMethods = count($accountClubIds) > 1
+            && $normalizedApplications->contains(
+                fn (array $application) => (bool) ($application['charge']->concept?->splits_between_parks)
+            );
+
         $paymentMethodCache = [];
-        $paymentLines = collect($payments)->values()->map(function (array $line) use ($clubId, &$paymentMethodCache) {
+        $paymentLines = collect($payments)->values()->map(function (array $line) use ($clubId, $accountClubIds, $allowCrossClubMethods, &$paymentMethodCache) {
             $methodId = (int) $line['payment_method_id'];
             $paymentMethod = $paymentMethodCache[$methodId] ??= PaymentMethod::findOrFail($methodId);
             $amount = round((float) ($line['amount'] ?? 0), 2);
@@ -140,7 +161,7 @@ class PaymentRegistrationService
                 ]);
             }
 
-            $this->ensurePaymentMethodAllowedForClub($paymentMethod->id, $clubId);
+            $this->ensurePaymentMethodAllowedForClub($paymentMethod->id, $clubId, $accountClubIds, $allowCrossClubMethods);
             $this->validateMethodRequirements(
                 $paymentMethod,
                 $line['reference'] ?? null,
@@ -204,6 +225,10 @@ class PaymentRegistrationService
             foreach ($paymentLines as $idx => $line) {
                 $lineAllocations = collect($allocationsPerLine[$idx]);
                 $parkSplit = $this->resolveParkSplit($lineAllocations);
+                // Subtotal/IVA se calculan sobre lo que ESTA línea cubrió
+                // (lineAllocations), no sobre el total del pago completo:
+                // cada forma de pago puede cubrir cargos distintos.
+                ['subtotal' => $lineSubtotal, 'iva' => $lineIva] = $this->calculateSubtotalAndIva($lineAllocations, $clubId);
                 $paymentMethod = $line['payment_method'];
 
                 $payment = Payment::create([
@@ -211,6 +236,8 @@ class PaymentRegistrationService
                     'club_id' => $clubId,
                     'payment_method_id' => $paymentMethod->id,
                     'amount' => $line['amount'],
+                    'subtotal' => $lineSubtotal,
+                    'iva' => $lineIva,
                     'paid_at' => $paidAt,
                     'reference' => $line['reference'],
                     'bank_name' => $line['bank_name'],
@@ -330,6 +357,48 @@ class PaymentRegistrationService
     }
 
     /**
+     * Desglose informativo Subtotal/IVA del monto que cubre este pago
+     * (amount), cargo por cargo: cada cargo aporta su parte según si el
+     * concepto de ESE cargo factura IVA en el parque DONDE SE ESTÁ COBRANDO
+     * ($clubId) — no en el parque al que pertenece el cargo. Es el mismo
+     * criterio que ya usa la vista de cobranza (resolveConceptAppliesIva con
+     * cobroClub, no con el club de cada cargo individual): una mensualidad
+     * puede tener un cargo viejo en otro parque (ver el caso de la
+     * membresía que dejó de ser facturable), pero el IVA se decide por
+     * dónde se está cobrando, para que sea consistente con lo que ve el
+     * cajero. Un mismo pago puede cubrir cargos de conceptos distintos,
+     * unos con IVA y otros sin. No cambia el monto cobrado (amount), solo
+     * cómo se reporta.
+     */
+    protected function calculateSubtotalAndIva(Collection $applications, int $clubId): array
+    {
+        $subtotal = 0.0;
+        $iva = 0.0;
+
+        foreach ($applications as $application) {
+            $charge = $application['charge'];
+            $amount = (float) $application['amount'];
+            $appliesIva = (bool) $charge->concept?->resolveAppliesIvaForClub($clubId);
+
+            if ($appliesIva) {
+                $chargeSubtotal = round(($amount * 100) / 116, 2);
+                $chargeIva = round(($chargeSubtotal * 16) / 100, 2);
+            } else {
+                $chargeSubtotal = round($amount, 2);
+                $chargeIva = 0.0;
+            }
+
+            $subtotal += $chargeSubtotal;
+            $iva += $chargeIva;
+        }
+
+        return [
+            'subtotal' => round($subtotal, 2),
+            'iva' => round($iva, 2),
+        ];
+    }
+
+    /**
      * Desglose del pago por parque cuando los cargos aplicados abarcan más
      * de un club (mensualidad dividida entre Parque España 1 y 2). Null si
      * todos los cargos son del mismo parque.
@@ -356,19 +425,37 @@ class PaymentRegistrationService
         })->values()->all();
     }
 
-    protected function ensurePaymentMethodAllowedForClub(int $paymentMethodId, int $clubId): void
-    {
+    protected function ensurePaymentMethodAllowedForClub(
+        int $paymentMethodId,
+        int $clubId,
+        array $accountClubIds = [],
+        bool $allowCrossClub = false
+    ): void {
         $isAllowed = ClubPaymentMethod::query()
             ->where('club_id', $clubId)
             ->where('payment_method_id', $paymentMethodId)
             ->where('is_active', true)
             ->exists();
 
-        if (!$isAllowed) {
-            throw ValidationException::withMessages([
-                'payment_method_id' => 'El metodo de pago seleccionado no esta habilitado para este parque.',
-            ]);
+        if ($isAllowed) {
+            return;
         }
+
+        if ($allowCrossClub && !empty($accountClubIds)) {
+            $isAllowedElsewhere = ClubPaymentMethod::query()
+                ->whereIn('club_id', $accountClubIds)
+                ->where('payment_method_id', $paymentMethodId)
+                ->where('is_active', true)
+                ->exists();
+
+            if ($isAllowedElsewhere) {
+                return;
+            }
+        }
+
+        throw ValidationException::withMessages([
+            'payment_method_id' => 'El metodo de pago seleccionado no esta habilitado para este parque.',
+        ]);
     }
 
     protected function validateMethodRequirements(
