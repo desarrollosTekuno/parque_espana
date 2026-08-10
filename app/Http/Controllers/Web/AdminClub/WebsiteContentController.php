@@ -96,27 +96,33 @@ class WebsiteContentController extends Controller {
 
     public function store(Request $request) {
         $validated = $request->validate([
-            'images' => ['required', 'array', 'min:1', 'max:20'],
+            'images' => ['required', 'array', 'min:1', 'max:5'],
             'images.*' => [
                 'required',
                 'image',
                 'mimes:jpg,jpeg,png,webp',
-                'max:20480',
+                'max:5120',
                 'dimensions:min_width=1200,min_height=800',
             ],
-            'descriptions' => ['nullable', 'array', 'max:20'],
+            'descriptions' => ['nullable', 'array', 'max:5'],
             'descriptions.*' => ['nullable', 'string', 'max:100'],
         ], [
             'images.required' => 'Selecciona al menos una imagen.',
-            'images.max' => 'Puedes subir hasta 20 imágenes por carga.',
+            'images.max' => 'El carrusel puede tener máximo 5 imágenes.',
             'images.*.image' => 'Uno de los archivos no es una imagen válida.',
             'images.*.mimes' => 'Las imágenes deben ser JPG, PNG o WebP.',
-            'images.*.max' => 'Cada imagen debe pesar máximo 20 MB.',
+            'images.*.max' => 'Cada imagen debe pesar máximo 5 MB.',
             'images.*.dimensions' => 'Cada imagen debe medir al menos 1200 × 800 px.',
             'descriptions.*.max' => 'Cada descripción debe tener máximo 100 caracteres.',
         ]);
 
         $clubId = (int) session('club_id');
+
+        if (CarouselImage::where('club_id', $clubId)->count() + count($validated['images']) > 5) {
+            return back()->withErrors([
+                'images' => 'El carrusel puede tener máximo 5 imágenes. Elimina una existente para agregar otra.',
+            ]);
+        }
 
         $club = Club::findOrFail($clubId);
         $uploadedPaths = [];
@@ -161,7 +167,7 @@ class WebsiteContentController extends Controller {
                 'required',
                 'image',
                 'mimes:jpg,jpeg,png,webp',
-                'max:20480',
+                'max:5120',
                 'dimensions:min_width=1000,min_height=1000',
             ],
         ], [
@@ -170,15 +176,15 @@ class WebsiteContentController extends Controller {
             'image.required' => 'Selecciona una imagen.',
             'image.image' => 'El archivo seleccionado no es una imagen válida.',
             'image.mimes' => 'La imagen debe ser JPG, PNG o WebP.',
-            'image.max' => 'La imagen debe pesar máximo 20 MB.',
+            'image.max' => 'La imagen debe pesar máximo 5 MB.',
             'image.dimensions' => 'La imagen debe medir al menos 1000 × 1000 px.',
         ]);
 
         $clubId = (int) session('club_id');
 
-        if (HomeCard::where('club_id', $clubId)->count() >= 6) {
+        if (HomeCard::where('club_id', $clubId)->count() >= 8) {
             return back()->withErrors([
-                'category' => 'Solo puedes registrar un máximo de 6 cards de inicio. Elimina una para agregar otra.',
+                'category' => 'Solo puedes registrar un máximo de 8 cards de inicio. Elimina una para agregar otra.',
             ]);
         }
 
@@ -250,14 +256,14 @@ class WebsiteContentController extends Controller {
                 'required',
                 'image',
                 'mimes:jpg,jpeg,png,webp',
-                'max:20480',
+                'max:5120',
                 'dimensions:min_width=1200,min_height=800',
             ],
         ], [
             'image.required' => 'Selecciona una imagen.',
             'image.image' => 'El archivo seleccionado no es una imagen válida.',
             'image.mimes' => 'La imagen debe ser JPG, PNG o WebP.',
-            'image.max' => 'La imagen debe pesar máximo 20 MB.',
+            'image.max' => 'La imagen debe pesar máximo 5 MB.',
             'image.dimensions' => 'La imagen debe medir al menos 1200 × 800 px.',
         ]);
 

@@ -32,7 +32,6 @@ const cardFileInput = ref<HTMLInputElement | null>(null);
 const virtualTourFileInput = ref<HTMLInputElement | null>(null);
 const activeSection = ref("carousel");
 const activeVirtualTourSection = ref(props.virtualTourSections[0]?.name ?? "");
-const showCardForm = ref(false);
 const isDragging = ref(false);
 const previews = ref<string[]>([]);
 const cardPreview = ref<string | null>(null);
@@ -66,7 +65,7 @@ const eventForm = useForm<{ id: number | null; title: string; start_date: string
 /* ====================== Computed ====================== */
 const can = computed<string[]>(() => page.props.auth.permissions ?? []);
 const selectedCount = computed(() => form.images.length);
-const cardLimitReached = computed(() => props.homeCards.length >= 6);
+const cardLimitReached = computed(() => props.homeCards.length >= 8);
 
 /* ====================== Funciones ====================== */
 const openFilePicker = () => {
@@ -75,16 +74,16 @@ const openFilePicker = () => {
 
 const addFiles = (files: File[]) => {
     const imageFiles = files.filter((file) => file.type.startsWith("image/"));
-    const available = 20 - form.images.length;
+    const available = 5 - props.carouselImages.length - form.images.length;
 
     if (imageFiles.length > available) {
         customToastSwal({
-            title: "Puedes seleccionar hasta 20 imágenes por carga",
+            title: "El carrusel puede tener máximo 5 imágenes",
             icon: "warning",
         });
     }
 
-    form.images = [...form.images, ...imageFiles.slice(0, available)];
+    form.images = [...form.images, ...imageFiles.slice(0, Math.max(available, 0))];
 };
 
 const selectFiles = (event: Event) => {
@@ -168,7 +167,6 @@ const selectCardFiles = (event: Event) => {
 const clearCardForm = () => {
     cardForm.reset();
     cardForm.clearErrors();
-    showCardForm.value = false;
 };
 
 const saveCards = () => {
@@ -449,9 +447,7 @@ onUnmounted(() => {
                 <v-icon icon="mdi-view-carousel-outline" />
                 Carrusel de inicio
             </v-card-title>
-            <v-card-subtitle>
-                Se recomiendan de 3 a 5 imágenes, pero puedes agregar las que necesites.
-            </v-card-subtitle>
+            <v-card-subtitle>Máximo 5 imágenes.</v-card-subtitle>
 
             <v-card-text>
                 <div class="mb-4 d-flex align-center ga-2">
@@ -527,7 +523,7 @@ onUnmounted(() => {
                     </v-col>
 
                     <v-col
-                        v-if="can.includes('website-content.store') && selectedCount < 20"
+                        v-if="can.includes('website-content.store') && carouselImages.length + selectedCount < 5"
                         cols="12"
                         sm="6"
                         lg="4"
@@ -547,7 +543,7 @@ onUnmounted(() => {
                             <v-icon icon="mdi-image-plus-outline" size="46" color="primary" />
                             <div class="mt-2 text-subtitle-1 font-weight-bold">Agregar imágenes</div>
                             <div class="mt-1 text-caption text-medium-emphasis">
-                                1200 × 800 px · máximo 20 MB
+                                1200 × 800 px · máximo 5 MB
                             </div>
                         </div>
                     </v-col>
@@ -577,36 +573,19 @@ onUnmounted(() => {
             <v-card-title class="flex-wrap d-flex align-center ga-2">
                 <v-icon icon="mdi-view-grid-outline" />
                 Cards de inicio
-                <v-spacer />
-                <v-btn
-                    v-if="can.includes('website-content.store') && !cardLimitReached"
-                    variant="outlined"
-                    color="primary"
-                    prepend-icon="mdi-folder-plus-outline"
-                    @click="showCardForm = !showCardForm"
-                >
-                    Nueva categoría
-                </v-btn>
             </v-card-title>
             <v-card-subtitle>
-                Cada categoría tiene una sola imagen. Máximo 6 cards.
+                Cada categoría tiene una sola imagen. Máximo 8 cards.
             </v-card-subtitle>
 
             <v-card-text>
                 <v-alert v-if="cardLimitReached" type="warning" variant="tonal" class="mb-5">
-                    Llegaste al máximo de 6 cards. Elimina una existente para agregar otra.
+                    Llegaste al máximo de 8 cards. Elimina una existente para agregar otra.
                 </v-alert>
 
-                <v-expand-transition>
-                    <v-card v-if="showCardForm" variant="tonal" class="soft-panel mb-5">
-                        <v-card-text>
-                            <v-text-field
-                                v-model="cardForm.category"
-                                label="Nombre de la categoría"
-                                maxlength="30"
-                                :error-messages="cardForm.errors.category"
-                            />
-
+                <v-row>
+                    <v-col v-if="can.includes('website-content.store') && !cardLimitReached" cols="12" sm="6" md="4">
+                        <v-card variant="outlined" class="media-card h-100 position-relative">
                             <input
                                 ref="cardFileInput"
                                 type="file"
@@ -615,43 +594,47 @@ onUnmounted(() => {
                                 @change="selectCardFiles"
                             />
 
-                            <v-row>
-                                <v-col v-if="cardPreview" cols="12" sm="6" md="4">
-                                    <v-card variant="outlined" class="media-card position-relative">
-                                        <v-img :src="cardPreview" aspect-ratio="1" cover />
-                                        <div class="pending-image-label">Pendiente por subir</div>
-                                        <v-btn
-                                            class="remove-image-button"
-                                            icon="mdi-close"
-                                            size="x-small"
-                                            color="error"
-                                            @click="cardForm.image = null"
-                                        />
-                                    </v-card>
-                                </v-col>
+                            <div v-if="cardPreview" class="position-relative">
+                                <v-img :src="cardPreview" aspect-ratio="1" cover />
+                                <div class="pending-image-label">Pendiente por subir</div>
+                                <v-btn
+                                    class="remove-image-button"
+                                    icon="mdi-close"
+                                    size="x-small"
+                                    color="error"
+                                    @click="cardForm.image = null"
+                                />
+                            </div>
+                            <div
+                                v-else
+                                class="upload-zone card-upload-zone"
+                                role="button"
+                                tabindex="0"
+                                @click="openCardFilePicker"
+                                @keydown.enter="openCardFilePicker"
+                            >
+                                <v-icon icon="mdi-image-plus-outline" size="46" color="primary" />
+                                <div class="mt-2 text-subtitle-1 font-weight-bold">Agregar imagen</div>
+                                <div class="mt-1 text-caption text-medium-emphasis">
+                                    1000 × 1000 px · máximo 5 MB
+                                </div>
+                            </div>
 
-                                <v-col v-else cols="12" sm="6" md="4">
-                                    <div
-                                        class="upload-zone card-upload-zone"
-                                        role="button"
-                                        tabindex="0"
-                                        @click="openCardFilePicker"
-                                        @keydown.enter="openCardFilePicker"
-                                    >
-                                        <v-icon icon="mdi-image-plus-outline" size="46" color="primary" />
-                                        <div class="mt-2 text-subtitle-1 font-weight-bold">Agregar imagen</div>
-                                        <div class="mt-1 text-caption text-medium-emphasis">
-                                            1000 × 1000 px · máximo 20 MB
-                                        </div>
-                                    </div>
-                                </v-col>
-                            </v-row>
+                            <v-card-text>
+                                <v-text-field
+                                    v-model="cardForm.category"
+                                    label="Nombre de la categoría"
+                                    maxlength="30"
+                                    density="compact"
+                                    hide-details="auto"
+                                    :error-messages="cardForm.errors.category"
+                                />
+                                <v-alert v-if="cardForm.errors.image" type="error" variant="tonal" class="mt-3">
+                                    {{ cardForm.errors.image }}
+                                </v-alert>
+                            </v-card-text>
 
-                            <v-alert v-if="cardForm.errors.image" type="error" variant="tonal" class="mt-4">
-                                {{ cardForm.errors.image }}
-                            </v-alert>
-
-                            <div class="justify-end mt-4 d-flex ga-2">
+                            <v-card-actions class="justify-end pt-0">
                                 <v-btn variant="text" @click="clearCardForm">Cancelar</v-btn>
                                 <v-btn
                                     color="primary"
@@ -660,14 +643,12 @@ onUnmounted(() => {
                                     :disabled="!cardForm.category || !cardForm.image"
                                     @click="saveCards"
                                 >
-                                    Guardar categoría
+                                    Guardar
                                 </v-btn>
-                            </div>
-                        </v-card-text>
-                    </v-card>
-                </v-expand-transition>
+                            </v-card-actions>
+                        </v-card>
+                    </v-col>
 
-                <v-row>
                     <v-col
                         v-for="card in homeCards"
                         :key="card.id"
