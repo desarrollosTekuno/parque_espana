@@ -7,6 +7,7 @@ import { ref, watch } from "vue";
 interface ContactMessage {
     id: number;
     name: string;
+    email: string;
     subject: string;
     message: string;
     created_at: string;
@@ -24,6 +25,7 @@ const props = defineProps<{ messages: PaginatedMessages }>();
 /* ====================== Variables ====================== */
 const headers = [
     { title: "Nombre", key: "name", sortable: false },
+    { title: "Correo electrónico", key: "email", sortable: false },
     { title: "Asunto", key: "subject", sortable: false },
     { title: "Mensaje", key: "message", sortable: false },
     { title: "Fecha", key: "created_at", sortable: false },

@@ -258,7 +258,7 @@
                 ],
                 "body": {
                     "mode": "raw",
-                    "raw": "{\n  \"name\": \"Panfilo pancracio bonifancio de la paz\",\n  \"subject\": \"Es un asunto de prueba\",\n  \"message\": \"Mensaje enviado desde Postman. Muajajaja\"\n}",
+                    "raw": "{\n  \"name\": \"Panfilo pancracio bonifancio de la paz\",\n  \"email\": \"persona@example.com\",\n  \"subject\": \"Es un asunto de prueba\",\n  \"message\": \"Mensaje enviado desde Postman. Muajajaja\"\n}",
                     "options": {
                         "raw": { "language": "json" }
                     }

@@ -10,12 +10,14 @@ return new class extends Migration
     {
         Schema::create('website.contact_messages', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('club_id')->constrained('clubs.clubs')->cascadeOnDelete();
+
             $table->string('name', 100);
+            $table->string('email', 150);
             $table->string('subject', 150);
             $table->text('message');
-            $table->timestamps();
 
+            $table->foreignId('club_id')->constrained('clubs.clubs')->cascadeOnDelete();
+            $table->timestamps();
             $table->index(['club_id', 'created_at']);
         });
     }

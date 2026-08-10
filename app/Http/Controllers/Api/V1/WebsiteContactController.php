@@ -14,6 +14,7 @@ class WebsiteContactController extends Controller
         try {
             $validated = $request->validate([
                 'name' => ['required', 'string', 'max:100'],
+                'email' => ['required', 'email', 'max:150'],
                 'subject' => ['required', 'string', 'max:150'],
                 'message' => ['required', 'string'],
             ]);
@@ -21,6 +22,7 @@ class WebsiteContactController extends Controller
             $contactMessage = ContactMessage::create([
                 'club_id' => $club->id,
                 'name' => $validated['name'],
+                'email' => $validated['email'],
                 'subject' => $validated['subject'],
                 'message' => $validated['message'],
             ]);
