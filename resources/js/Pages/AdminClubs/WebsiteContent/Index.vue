@@ -425,7 +425,7 @@ onUnmounted(() => {
     <AppLayout>
         <template #header>Página web</template>
 
-        <v-card class="website-tabs mb-4">
+        <v-card class="mb-4 website-tabs">
             <v-tabs v-model="activeSection" color="primary" grow>
                 <v-tab value="carousel" prepend-icon="mdi-view-carousel-outline">
                     Carrusel
@@ -595,7 +595,7 @@ onUnmounted(() => {
                             />
 
                             <div v-if="cardPreview" class="position-relative">
-                                <v-img :src="cardPreview" aspect-ratio="1" cover />
+                                <v-img :src="cardPreview" aspect-ratio="0.75" cover />
                                 <div class="pending-image-label">Pendiente por subir</div>
                                 <v-btn
                                     class="remove-image-button"
@@ -613,10 +613,10 @@ onUnmounted(() => {
                                 @click="openCardFilePicker"
                                 @keydown.enter="openCardFilePicker"
                             >
-                                <v-icon icon="mdi-image-plus-outline" size="46" color="primary" />
+                                <v-icon icon="mdi-image-plus-outline" size="32" color="primary" />
                                 <div class="mt-2 text-subtitle-1 font-weight-bold">Agregar imagen</div>
                                 <div class="mt-1 text-caption text-medium-emphasis">
-                                    1000 × 1000 px · máximo 5 MB
+                                    750 × 1000 px · máximo 5 MB
                                 </div>
                             </div>
 
@@ -653,11 +653,11 @@ onUnmounted(() => {
                         v-for="card in homeCards"
                         :key="card.id"
                         cols="12"
-                        sm="6"
-                        md="4"
+                        sm="4"
+                        md="3"
                     >
                         <v-card variant="outlined" class="media-card position-relative">
-                            <v-img :src="card.image_url" aspect-ratio="1" cover />
+                            <v-img :src="card.image_url" aspect-ratio="0.75" cover />
                             <v-card-title>{{ card.category }}</v-card-title>
                             <div
                                 v-if="can.includes('website-content.destroy')"
@@ -698,7 +698,7 @@ onUnmounted(() => {
                     @change="selectVirtualTourFile"
                 />
 
-                <v-card v-if="virtualTourPreview" variant="tonal" class="soft-panel mb-5">
+                <v-card v-if="virtualTourPreview" variant="tonal" class="mb-5 soft-panel">
                     <v-card-title>Imagen seleccionada</v-card-title>
                     <v-card-text class="flex-wrap d-flex align-center ga-4">
                         <v-img :src="virtualTourPreview" width="180" aspect-ratio="1.5" cover />
@@ -818,7 +818,7 @@ onUnmounted(() => {
                 <v-card
                     v-if="can.includes('website-content.store')"
                     variant="tonal"
-                    class="soft-panel mb-6"
+                    class="mb-6 soft-panel"
                 >
                     <v-card-text>
                         <div class="mb-3 text-subtitle-1 font-weight-bold">
@@ -996,7 +996,7 @@ onUnmounted(() => {
 }
 
 .card-upload-zone {
-    aspect-ratio: 1;
+    aspect-ratio: 0.75;
     padding: 20px;
     display: flex;
     flex-direction: column;

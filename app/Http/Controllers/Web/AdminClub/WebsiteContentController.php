@@ -168,7 +168,7 @@ class WebsiteContentController extends Controller {
                 'image',
                 'mimes:jpg,jpeg,png,webp',
                 'max:5120',
-                'dimensions:min_width=1000,min_height=1000',
+                'dimensions:min_width=750,min_height=1000',
             ],
         ], [
             'category.required' => 'Escribe el nombre de la categoría.',
@@ -177,7 +177,7 @@ class WebsiteContentController extends Controller {
             'image.image' => 'El archivo seleccionado no es una imagen válida.',
             'image.mimes' => 'La imagen debe ser JPG, PNG o WebP.',
             'image.max' => 'La imagen debe pesar máximo 5 MB.',
-            'image.dimensions' => 'La imagen debe medir al menos 1000 × 1000 px.',
+            'image.dimensions' => 'La imagen debe medir al menos 750 × 1000 px.',
         ]);
 
         $clubId = (int) session('club_id');
@@ -198,7 +198,7 @@ class WebsiteContentController extends Controller {
                 $request->file('image'),
                 $club->code,
                 'home-cards',
-                1000,
+                750,
                 1000
             );
 
