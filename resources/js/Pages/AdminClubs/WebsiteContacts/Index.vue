@@ -20,7 +20,7 @@ interface PaginatedMessages {
     per_page: number;
 }
 
-const props = defineProps<{ messages: PaginatedMessages }>();
+const props = defineProps<{ messages: PaginatedMessages; search: string }>();
 
 /* ====================== Variables ====================== */
 const headers = [
@@ -32,6 +32,8 @@ const headers = [
 ];
 const items = ref(props.messages.data);
 const total = ref(props.messages.total);
+const search = ref(props.search ?? "");
+let searchTimer: ReturnType<typeof setTimeout> | null = null;
 const loading = ref(false);
 const options = ref({
     page: props.messages.current_page,
@@ -47,6 +49,7 @@ const fetchItems = () => {
         {
             page: options.value.page,
             per_page: options.value.itemsPerPage,
+            search: search.value,
         },
         {
             preserveState: true,
@@ -72,6 +75,16 @@ watch(
 );
 
 watch(options, fetchItems, { deep: true });
+
+watch(search, () => {
+    options.value.page = 1;
+
+    if (searchTimer) {
+        clearTimeout(searchTimer);
+    }
+
+    searchTimer = setTimeout(fetchItems, 400);
+});
 </script>
 
 <template>
@@ -90,6 +103,15 @@ watch(options, fetchItems, { deep: true });
                     :items-length="total"
                     :loading="loading"
                 >
+                    <template #top>
+                        <v-text-field
+                            v-model="search"
+                            label="Buscar contactos"
+                            class=""
+                            clearable
+                        />
+                    </template>
+
                     <template #item.message="{ item }">
                         <span class="message-cell">{{ item.message }}</span>
                     </template>
