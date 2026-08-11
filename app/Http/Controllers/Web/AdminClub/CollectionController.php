@@ -153,19 +153,25 @@ class CollectionController extends Controller
             ]);
         }
 
-        // Membresía sobre la que se factura: primaria activa/suspendida,
-        // priorizando el parque de la sesión.
-        $membership = Membership::query()
-           // ->with('club')
-            ->where('membership_account_id', $account->id)
-            ->where('is_primary', true)
-            ->whereIn('status', ['active', 'suspended'])
-            ->orderByRaw('CASE WHEN club_id = ? THEN 0 ELSE 1 END', [$sessionClubId])
-            ->first();
+        // La cuenta encontrada debe pertenecer al parque de la sesión, sin
+        // excepción — aunque el socio sea interclub (tenga cuenta en ambos
+        // parques, cada una es una MembershipAccount distinta con su propio
+        // club_id). Si se busca por nombre y el socio tiene cuenta en varios
+        // parques, la preferencia de orden de arriba ya elige la de este
+        // parque; pero si se busca por la CLAVE específica de la cuenta del
+        // OTRO parque, esa clave solo empata esa cuenta — y esa cuenta no es
+        // de este parque, así que se rechaza igual que si el socio no fuera
+        // interclub en absoluto.
+        if ($sessionClubId && (int) $account->club_id !== $sessionClubId) {
+            $ownClub = Club::find($account->club_id);
 
-        $cobroClub = $membership?->club
-            ?? ($sessionClubId ? Club::find($sessionClubId) : null);
-        $cobroClubId = $cobroClub?->id;
+            return response()->json([
+                'found' => false,
+                'message' => $ownClub
+                    ? "Esta cuenta pertenece a {$ownClub->code}, no al parque de tu sesión. Cambia de parque para poder cobrarla."
+                    : 'Esta cuenta no pertenece al parque de tu sesión.',
+            ]);
+        }
 
         // Un socio que pertenece a más de un parque tiene una MembershipAccount
         // distinta por parque, enlazadas por account_group_id (mismo mecanismo
@@ -185,22 +191,17 @@ class CollectionController extends Controller
             ->whereIn('status', ['active', 'suspended'])
             ->get();
 
-        // No se puede cobrar una cuenta desde un parque al que el socio no
-        // pertenece: solo se permite buscarla/cobrarla desde el parque de la
-        // sesión, o desde cualquiera de los suyos si pertenece a más de uno
-        // (interclub). Sin este candado, buscar la clave de una cuenta de un
-        // solo parque estando en el otro dejaba cobrarla igual, atribuyendo
-        // el pago al parque equivocado.
-        if ($sessionClubId && !$accountMemberships->contains('club_id', $sessionClubId)) {
-            $ownClubs = $accountMemberships->pluck('club.code')->filter()->unique()->implode(', ');
+        // Membresía sobre la que se factura: la de la cuenta encontrada, que
+        // el candado de arriba ya garantiza que es del parque de la sesión.
+        $membership = Membership::query()
+            ->where('membership_account_id', $account->id)
+            ->where('is_primary', true)
+            ->whereIn('status', ['active', 'suspended'])
+            ->first();
 
-            return response()->json([
-                'found' => false,
-                'message' => $ownClubs !== ''
-                    ? "Esta cuenta pertenece a {$ownClubs}, no al parque de tu sesión. Cambia de parque para poder cobrarla."
-                    : 'Esta cuenta no pertenece al parque de tu sesión.',
-            ]);
-        }
+        $cobroClub = $membership?->club
+            ?? ($sessionClubId ? Club::find($sessionClubId) : null);
+        $cobroClubId = $cobroClub?->id;
 
         // Rellena cualquier hueco de mensualidad hasta el mes en curso (ver
         // MembershipChargeService::ensureMonthlyChargesUpToToday) — solo la
@@ -807,10 +808,15 @@ class CollectionController extends Controller
                 $groupAccountIds
             );
 
+            // Sin filtrar por status: aunque una de las membresías del grupo
+            // ya se haya dado de baja, sus cargos de mensualidad pendientes
+            // de ANTES de la baja siguen siendo cobrables — si aquí solo se
+            // consideraran las membresías activas, ensureChargesBelongToClub
+            // rechazaría esos cargos viejos por "pertenecer a otro parque"
+            // en cuanto se cancelara cualquiera de los dos lados del combo.
             $accountClubIds = Membership::query()
                 ->whereIn('membership_account_id', $groupAccountIds)
                 ->where('is_primary', true)
-                ->whereIn('status', ['active', 'suspended'])
                 ->pluck('club_id')
                 ->filter()
                 ->unique()
