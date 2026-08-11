@@ -27,6 +27,7 @@ class DatabaseSeeder extends Seeder
             UserSeeder::class,
             // UserCodeSeeder::class,
             SystemVariableSeeder::class,
+            AppVariableSeeder::class,
             NotificationChannelSeeder::class,
             NotificationStatusCatalogSeeder::class,
             EmailConfigSeeder::class,
