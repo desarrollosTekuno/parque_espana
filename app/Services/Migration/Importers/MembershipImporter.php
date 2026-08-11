@@ -2,6 +2,7 @@
 
 namespace App\Services\Migration\Importers;
 
+use App\Models\Memberships\InterclubPackageRule;
 use App\Models\Memberships\Membership;
 use App\Models\Memberships\MembershipAccount;
 use App\Models\Memberships\MembershipAccountGroup;
@@ -9,6 +10,7 @@ use App\Models\Memberships\PricingRule;
 use App\Services\Billing\MembershipPricingService;
 use App\Services\Migration\MigrationContext;
 use App\Services\Migration\MigrationReport;
+use Illuminate\Database\Eloquent\Builder;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class MembershipImporter extends BaseImporter
@@ -206,28 +208,53 @@ class MembershipImporter extends BaseImporter
                     // queda facturable; también sirve de referencia para resolver
                     // la tarifa interclub.
                     $billableMembership = $groupMemberships->first();
-                    $interclubRule = $this->pricingService->resolvePricingRule(
-                        membershipTypeId: $billableMembership->membership_type_id,
-                        fromMembershipTypeId: null,
-                        age: null,
-                        hasMultipleClubs: true
+                    $sourceMembership = $groupMemberships->first(
+                        fn (Membership $m) => $m->club_id !== $billableMembership->club_id
                     );
 
-                    if (!$interclubRule) {
-                        continue;
-                    }
+                    // La combinación real (p. ej. Individual en un parque +
+                    // Familiar en el otro) puede tener su propia tarifa vía
+                    // InterclubPackageRule (origen club+tipo → destino
+                    // club+tipo) — igual que hace el alta manual, ver
+                    // MemberController::resolveInterclubPackageRule. Si no
+                    // hay un paquete específico para esta combinación, se
+                    // cae a la regla genérica anterior (solo por el tipo de
+                    // la membresía facturable, ignorando la del otro parque).
+                    $interclubPackageRule = $sourceMembership
+                        ? $this->resolveInterclubPackageRule($billableMembership, $sourceMembership)
+                        : null;
 
-                    $groupTotal = round((float) ($interclubRule->resolveMonthlyFee() ?? 0), 2);
+                    if ($interclubPackageRule) {
+                        $groupTotal = round((float) ($interclubPackageRule->resolveMonthlyFee() ?? 0), 2);
+                        $interclubRuleId = $interclubPackageRule->id;
+                        $genericPricingRuleId = null;
+                    } else {
+                        $interclubRule = $this->pricingService->resolvePricingRule(
+                            membershipTypeId: $billableMembership->membership_type_id,
+                            fromMembershipTypeId: null,
+                            age: null,
+                            hasMultipleClubs: true
+                        );
+
+                        if (!$interclubRule) {
+                            continue;
+                        }
+
+                        $groupTotal = round((float) ($interclubRule->resolveMonthlyFee() ?? 0), 2);
+                        $interclubRuleId = null;
+                        $genericPricingRuleId = $interclubRule->id;
+                    }
 
                     foreach ($groupMemberships as $membership) {
                         if ($membership->is($billableMembership)) {
                             $membership->update([
-                                'monthly_fee'        => $groupTotal,
-                                'monthly_fee_total'  => $groupTotal,
-                                'monthly_fee_share'  => $groupTotal,
-                                'billing_split_mode' => 'single',
-                                'is_billable'        => true,
-                                'pricing_rule_id'    => $interclubRule->id,
+                                'monthly_fee'               => $groupTotal,
+                                'monthly_fee_total'         => $groupTotal,
+                                'monthly_fee_share'         => $groupTotal,
+                                'billing_split_mode'        => 'single',
+                                'is_billable'               => true,
+                                'pricing_rule_id'           => $genericPricingRuleId,
+                                'interclub_package_rule_id' => $interclubRuleId,
                             ]);
                         } else {
                             $membership->update([
@@ -243,6 +270,38 @@ class MembershipImporter extends BaseImporter
         }
 
         $report->record($this->name(), $ok, $errors);
+    }
+
+    /**
+     * Busca el paquete interclub que corresponde EXACTAMENTE a la combinación
+     * origen→destino del grupo (mismo criterio que
+     * MemberController::resolveInterclubPackageRule para el alta manual):
+     * parque+tipo de la membresía que se vuelve no facturable (origen) hacia
+     * parque+tipo de la que se queda facturable (destino). Null si no hay
+     * ningún paquete capturado para esa combinación específica — en ese caso
+     * el llamador cae a la regla genérica por tipo (ver import()).
+     */
+    private function resolveInterclubPackageRule(
+        Membership $billableMembership,
+        Membership $sourceMembership
+    ): ?InterclubPackageRule {
+        $today = now()->toDateString();
+
+        return InterclubPackageRule::query()
+            ->where('target_club_id', $billableMembership->club_id)
+            ->where('target_membership_type_id', $billableMembership->membership_type_id)
+            ->where('source_club_id', $sourceMembership->club_id)
+            ->where(function (Builder $query) use ($sourceMembership) {
+                $query->where('source_membership_type_id', $sourceMembership->membership_type_id)
+                    ->orWhereNull('source_membership_type_id');
+            })
+            ->where('is_active', true)
+            ->where(fn (Builder $q) => $q->whereNull('valid_from')->orWhere('valid_from', '<=', $today))
+            ->where(fn (Builder $q) => $q->whereNull('valid_until')->orWhere('valid_until', '>=', $today))
+            ->whereNull('min_years_in_source_club')
+            ->orderByRaw('CASE WHEN source_membership_type_id IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('priority')
+            ->first();
     }
 
     /**

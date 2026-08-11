@@ -19,6 +19,8 @@ class Payment extends Model
 
     protected $casts = [
         'amount' => 'float',
+        'subtotal' => 'float',
+        'iva' => 'float',
         'paid_at' => 'datetime',
         'metadata' => 'array',
     ];

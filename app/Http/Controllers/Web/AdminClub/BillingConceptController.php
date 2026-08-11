@@ -86,6 +86,11 @@ class BillingConceptController extends Controller
                         'allows_partial_payments' => (bool) $concept->allows_partial_payments,
                         'is_mobile_payable' => (bool) $concept->is_mobile_payable,
                         'splits_between_parks' => (bool) $concept->splits_between_parks,
+                        // applies_iva: si aplica IVA por default (sin override
+                        // de parque); club_applies_iva: el override específico
+                        // para el parque en sesión (null = usa el default).
+                        'applies_iva' => (bool) $concept->applies_iva,
+                        'club_applies_iva' => $clubAmount?->applies_iva,
                         'is_active' => (bool) $concept->is_active,
                     ];
                 })
@@ -211,6 +216,10 @@ class BillingConceptController extends Controller
             'allows_partial_payments' => ['required', 'boolean'],
             'is_mobile_payable' => ['required', 'boolean'],
             'splits_between_parks' => ['required', 'boolean'],
+            'applies_iva' => ['required', 'boolean'],
+            // null = sin override, usa applies_iva del concepto para el
+            // parque en sesión.
+            'club_applies_iva' => ['nullable', 'boolean'],
             'is_active' => ['required', 'boolean'],
         ]);
     }
@@ -227,15 +236,24 @@ class BillingConceptController extends Controller
             'allows_partial_payments' => (bool) $validated['allows_partial_payments'],
             'is_mobile_payable' => (bool) $validated['is_mobile_payable'],
             'splits_between_parks' => (bool) $validated['splits_between_parks'],
+            'applies_iva' => (bool) $validated['applies_iva'],
             'is_active' => (bool) $validated['is_active'],
         ];
     }
 
+    /**
+     * El renglón de billing.concept_club_amounts para (concepto, parque) ya
+     * no es solo "el monto de este parque": también puede cargar el
+     * override de applies_iva para ese parque. Por eso solo se borra cuando
+     * NINGUNO de los dos está definido (monto vacío y sin override de IVA);
+     * si cualquiera de los dos tiene valor, se conserva el renglón.
+     */
     protected function syncClubAmount(ChargeConcept $concept, int $clubId, array $validated): void
     {
         $clubAmount = $validated['club_amount'] ?? null;
+        $clubAppliesIva = $validated['club_applies_iva'] ?? null;
 
-        if ($clubAmount === null || $clubAmount === '') {
+        if (($clubAmount === null || $clubAmount === '') && $clubAppliesIva === null) {
             $concept->clubAmounts()
                 ->where('club_id', $clubId)
                 ->delete();
@@ -249,7 +267,8 @@ class BillingConceptController extends Controller
                 'club_id' => $clubId,
             ],
             [
-                'amount' => (float) $clubAmount,
+                'amount' => ($clubAmount === null || $clubAmount === '') ? null : (float) $clubAmount,
+                'applies_iva' => $clubAppliesIva === null ? null : (bool) $clubAppliesIva,
                 'is_active' => true,
             ]
         );
