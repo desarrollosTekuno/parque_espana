@@ -101,7 +101,7 @@ class CommandController extends Controller {
                 ], 422);
             }
 
-            $commands = Command::where('status', ['pending', 'error'])
+            $commands = Command::whereIn('status', ['pending', 'error'])
                 ->where('attempts', '<', 5)
                 ->whereHas('device', function ($query) use ($request) {
                     $query->where('ip', $request->query('ip'))
