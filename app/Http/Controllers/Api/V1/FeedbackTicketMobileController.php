@@ -3,10 +3,15 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreFeedbackTicketCommentRequest;
 use App\Http\Requests\StoreFeedbackTicketRequest;
 use App\Models\Administrator\Club;
+use App\Models\Feedback\Category;
+use App\Models\Feedback\Comment;
+use App\Models\Feedback\Priority;
 use App\Models\Feedback\Status;
 use App\Models\Feedback\Ticket;
+use App\Models\Feedback\TicketType;
 use App\Models\Members\Member;
 use App\Services\Email\MailService;
 use App\Traits\HandlesFeedbackTickets;
@@ -54,6 +59,47 @@ class FeedbackTicketMobileController extends Controller
         } catch (\Exception $e) {
             report($e);
             return $this->serverError('Error al obtener tickets.');
+        }
+    }
+
+    /**
+     * GET /api/v1/clubs/{club}/feedback/options
+     *
+     * Catálogos para armar el formulario de "nueva queja/sugerencia": categorías, tipos de ticket y prioridades.
+     */
+    public function options(Club $club): JsonResponse
+    {
+        try {
+            return $this->ok([
+                'categories'   => Category::where('is_active', true)
+                    ->orderBy('name')
+                    ->get()
+                    ->map(fn ($category) => [
+                        'id'          => $category->id,
+                        'name'        => $category->name,
+                        'code'        => $category->code,
+                        'description' => $category->description,
+                    ]),
+                'ticket_types' => TicketType::where('is_active', true)
+                    ->orderBy('name')
+                    ->get()
+                    ->map(fn ($type) => [
+                        'id'   => $type->id,
+                        'name' => $type->name,
+                        'code' => $type->code,
+                    ]),
+                'priorities'   => Priority::where('is_active', true)
+                    ->orderBy('name')
+                    ->get()
+                    ->map(fn ($priority) => [
+                        'id'   => $priority->id,
+                        'name' => $priority->name,
+                        'code' => $priority->code,
+                    ]),
+            ]);
+        } catch (\Exception $e) {
+            report($e);
+            return $this->serverError('Error al obtener los catálogos de feedback.');
         }
     }
 
@@ -184,6 +230,44 @@ class FeedbackTicketMobileController extends Controller
         } catch (\Exception $e) {
             report($e);
             return $this->serverError('Error al cancelar el ticket.');
+        }
+    }
+
+    /**
+     * POST /api/v1/clubs/{club}/feedback/tickets/{ticket}/comments
+     */
+    public function comment(StoreFeedbackTicketCommentRequest $request, Club $club, Ticket $ticket): JsonResponse
+    {  
+        try {
+            $member = Member::where('user_id', $request->user()->id)->first();
+
+            $belongs = $ticket->club_id === $club->id && (
+                $ticket->reported_by_user_id === $request->user()->id ||
+                ($member && $ticket->member_id === $member->id)
+            );
+
+            if (!$belongs) {
+                return $this->notFound('Ticket no encontrado.');
+            }
+
+            $comment = Comment::create([
+                'ticket_id'   => $ticket->id,
+                'user_id'     => $request->user()->id,
+                'comment'     => $request->comment,
+                'is_internal' => false,
+            ]);
+
+            $comment->load('user:id,name');
+
+            return $this->created('Comentario agregado correctamente.', [
+                'id'         => $comment->id,
+                'body'       => $comment->comment,
+                'author'     => $comment->user?->name ?? 'Usuario',
+                'created_at' => $comment->created_at?->toDateTimeString(),
+            ]);
+        } catch (\Exception $e) {
+            report($e);
+            return $this->serverError('Error al agregar el comentario.');
         }
     }
 

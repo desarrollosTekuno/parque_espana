@@ -85,9 +85,11 @@ Route::prefix('v1')->name('api.')->group(function () {
         Route::post('/surveys/{survey}/responses', [SurveyController::class, 'store']); // Enviar respuestas
 
         // Feedback (tickets de quejas y sugerencias de cada usuario)
+        Route::get('/feedback/options',                          [FeedbackTicketMobileController::class, 'options']);
         Route::get('/feedback/tickets',                          [FeedbackTicketMobileController::class, 'index']);
         Route::post('/feedback/tickets',                         [FeedbackTicketMobileController::class, 'store']);
         Route::get('/feedback/tickets/{ticket}',                 [FeedbackTicketMobileController::class, 'show']);
+        Route::post('/feedback/tickets/{ticket}/comments',       [FeedbackTicketMobileController::class, 'comment']);
         Route::patch('/feedback/tickets/{ticket}/cancel',        [FeedbackTicketMobileController::class, 'cancel']);
 
         // Estado de cuenta (solo socio titular)
