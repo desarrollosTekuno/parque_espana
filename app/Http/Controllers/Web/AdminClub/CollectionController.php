@@ -24,6 +24,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
@@ -362,6 +363,15 @@ class CollectionController extends Controller
                         ->values()
                     : collect();
 
+                if ($isMonthlyFee && !$isMultiClub) {
+                    $comboBreakdown = $this->resolveComboClubBreakdown($billableMembership, $balance);
+
+                    if ($comboBreakdown) {
+                        $isMultiClub = true;
+                        $clubBreakdown = $comboBreakdown;
+                    }
+                }
+
                 return [
                     'concept_id' => $concept?->id,
                     'concept_code' => $concept?->code,
@@ -564,9 +574,11 @@ class CollectionController extends Controller
             ->orderBy('period_month')
             ->first();
 
-        $cursor = $earliestCharge
+        $earliestChargePeriod = $earliestCharge
             ? Carbon::create((int) $earliestCharge->period_year, (int) $earliestCharge->period_month, 1)
-            : now()->startOfMonth();
+            : null;
+        $cursor = $this->membershipChargeService->resolveMonthlyBackfillStart($billableMembership, $earliestChargePeriod);
+        $cancelledPeriods = $this->membershipChargeService->resolveCancelledPeriods($billableMembership);
 
         // Aquí sí se permite adelantar el pago de meses que todavía no
         // vencen (a diferencia del backfill automático al buscar al socio,
@@ -579,6 +591,11 @@ class CollectionController extends Controller
         $safetyLimit = 240; // ~20 años, para nunca quedar en un ciclo infinito por un dato inesperado.
 
         while ($cursor->lte($latestChargeablePeriod) && count($resolved) < $validated['months'] && $safetyLimit-- > 0) {
+            if ($this->membershipChargeService->periodFallsWithin($cursor, $cancelledPeriods)) {
+                $cursor->addMonthNoOverflow();
+                continue;
+            }
+
             // Un mismo periodo puede tener MÁS DE UN cargo (p. ej. el cargo
             // original de una membresía que después se volvió no facturable,
             // más el "ajuste" que se generó en la nueva membresía facturable
@@ -665,35 +682,46 @@ class CollectionController extends Controller
             return response()->json(['message' => 'No hay mensualidades pendientes por agregar.'], 422);
         }
 
+        $total = round(collect($resolved)->sum('balance'), 2);
+        // Un solo reparto para todo el conjunto de meses agregados aquí (no
+        // uno por periodo): la condición de combo es propia de la membresía
+        // facturable, no cambia mes a mes — ver resolveComboClubBreakdown.
+        $comboBreakdown = $this->resolveComboClubBreakdown($billableMembership, $total);
+
         return response()->json([
             'charges' => collect($resolved)->values(),
-            'total' => round(collect($resolved)->sum('balance'), 2),
+            'total' => $total,
+            'is_multi_club' => (bool) $comboBreakdown,
+            'club_breakdown' => $comboBreakdown ?? collect(),
         ]);
     }
 
     /**
-     * "Agregar concepto de cobro" → código INSCRIPTION: este módulo solo
-     * cobra, no decide diferir a meses (eso se define en el alta de la
-     * cuenta — ver MembershipChargeService::createInitialCharges,
-     * $installmentMonths — que ya crea ahí los N cargos si aplica). Aquí el
-     * encargado solo indica cuántos de esos cargos ya existentes quiere
-     * cobrar ahora: si la inscripción no se difirió, siempre hay uno solo;
-     * si sí se difirió, puede haber varios y se resuelven los más antiguos
-     * primero (mismo criterio que resolveMonthlyFeeMonths). No crea nada,
-     * solo resuelve cargos que ya existen.
+     * "Agregar concepto de cobro" → código INSCRIPTION o CUOTA_REINSCRIPCION:
+     * este módulo solo cobra, no decide diferir a meses (eso se define en el
+     * alta de la cuenta o en la reactivación — ver
+     * MembershipChargeService::createInitialCharges /
+     * ::createInstallmentCharge, $installmentMonths — que ya crean ahí los N
+     * cargos si aplica). Aquí el encargado solo indica cuántos de esos
+     * cargos ya existentes quiere cobrar ahora: si no se difirió, siempre
+     * hay uno solo; si sí se difirió, puede haber varios y se resuelven los
+     * más antiguos primero (mismo criterio que resolveMonthlyFeeMonths). No
+     * crea nada, solo resuelve cargos que ya existen.
      */
     public function resolveInscriptionInstallments(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'membership_account_id' => ['required', new ExistsInSchema('memberships', 'accounts', 'id')],
             'quantity' => ['required', 'integer', 'min:1'],
+            'concept_code' => ['sometimes', 'string', Rule::in(['INSCRIPTION', 'CUOTA_REINSCRIPCION'])],
         ]);
 
+        $conceptCode = $validated['concept_code'] ?? 'INSCRIPTION';
         $account = MembershipAccount::findOrFail($validated['membership_account_id']);
-        $concept = ChargeConcept::where('code', 'INSCRIPTION')->first();
+        $concept = ChargeConcept::where('code', $conceptCode)->first();
 
         if (!$concept) {
-            return response()->json(['message' => 'No existe el concepto INSCRIPTION.'], 422);
+            return response()->json(['message' => "No existe el concepto {$conceptCode}."], 422);
         }
 
         // Solo la mensualidad se busca en todo el grupo de cuentas del
@@ -709,7 +737,7 @@ class CollectionController extends Controller
             ->get();
 
         if ($allCharges->isEmpty()) {
-            return response()->json(['message' => 'No hay cargos de inscripción pendientes.'], 422);
+            return response()->json(['message' => "No hay cargos de {$concept->name} pendientes."], 422);
         }
 
         $selected = $allCharges->take($validated['quantity']);
@@ -1055,6 +1083,71 @@ class CollectionController extends Controller
         }
 
         return (self::MONTHS[$month] ?? (string) $month) . ' ' . $year;
+    }
+
+    /**
+     * La mensualidad de un combo interclub (Individual+Familiar, etc.) ya se
+     * genera como UN SOLO cargo, en la cuenta del parque que quedó
+     * facturable (ver
+     * MembershipPricingService::recalculateGroupFeesAfterReactivation) — no
+     * dos cargos repartidos como en el modo "equal_split" (deshabilitado).
+     * Aun así, para que el cajero pueda repartir el pago en Cheque/Tarjeta de
+     * crédito entre ambos parques (ver PaymentMethodsDialog.vue), se arma un
+     * reparto 50/50 "virtual" cuando la membresía facturable representa un
+     * combo — no cambia dónde se registra el cargo real, solo qué métodos de
+     * pago se ofrecen y en qué proporción. El combo puede venir de un
+     * paquete interclub específico (interclub_package_rule_id) o de la regla
+     * genérica por tipo marcada requires_multiple_clubs=true (rama sin
+     * paquete específico capturado en recalculateGroupFeesAfterReactivation)
+     * — cualquiera de las dos representa una cuota combinada entre parques.
+     *
+     * @return \Illuminate\Support\Collection|null null si la membresía
+     *  facturable no representa un combo interclub o no tiene hermano activo.
+     */
+    private function resolveComboClubBreakdown(?Membership $billableMembership, float $balance): ?\Illuminate\Support\Collection
+    {
+        if (!$billableMembership) {
+            return null;
+        }
+
+        $representsCombo = (bool) $billableMembership->interclub_package_rule_id
+            || (bool) ($billableMembership->pricingRule?->requires_multiple_clubs ?? false);
+
+        if (!$representsCombo) {
+            return null;
+        }
+
+        $siblingMembership = Membership::query()
+            ->with('club')
+            ->where('is_primary', true)
+            ->whereIn('status', ['active', 'suspended'])
+            ->where('club_id', '!=', $billableMembership->club_id)
+            ->whereHas('account', fn (Builder $q) => $q->where(
+                'account_group_id',
+                $billableMembership->account?->account_group_id
+            ))
+            ->first();
+
+        if (!$siblingMembership?->club) {
+            return null;
+        }
+
+        $siblingShare = round($balance / 2, 2);
+
+        return collect([
+            [
+                'club_id' => $billableMembership->club_id,
+                'club_code' => $billableMembership->club?->code,
+                'club_name' => $billableMembership->club?->name,
+                'amount' => round($balance - $siblingShare, 2),
+            ],
+            [
+                'club_id' => $siblingMembership->club->id,
+                'club_code' => $siblingMembership->club->code,
+                'club_name' => $siblingMembership->club->name,
+                'amount' => $siblingShare,
+            ],
+        ]);
     }
 
     /**

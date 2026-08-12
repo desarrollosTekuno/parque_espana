@@ -131,13 +131,17 @@ watch(
 
 const isSplit = computed(() => props.clubBreakdown.length > 1);
 
-// Qué proporción del total le toca a cada parque (mensualidad dividida) —
-// se usa para repartir automáticamente lo que se asigne a un método de pago
-// entre la fila del parque de la sesión y su pareja del otro parque.
-const ratioForClubCode = (clubCode: string | null | undefined): number => {
+// Monto real que le toca a cada parque según el desglose del cobro (p. ej.
+// la mensualidad combo repartida 50/50) — NO una proporción sobre el total
+// del diálogo, que puede incluir además otros conceptos que no se dividen
+// (p. ej. un concepto nuevo capturado a mano, propio del parque de la
+// sesión). Antes se usaba `entry.amount / props.total`, lo que daba una
+// proporción incorrecta en cuanto el total incluía algo más que el
+// desglosable, y además hacía que escribir un monto distinto en la fila de
+// la sesión (para cubrir ese extra) recalculara también la fila pareja.
+const clubBreakdownAmount = (clubCode: string | null | undefined): number => {
     if (!clubCode) return 0;
-    const entry = props.clubBreakdown.find((c) => c.club_code === clubCode);
-    return entry && props.total > 0 ? entry.amount / props.total : 0;
+    return props.clubBreakdown.find((c) => c.club_code === clubCode)?.amount ?? 0;
 };
 
 // Empareja cada método del parque de la sesión con su equivalente en el
@@ -176,9 +180,10 @@ const assignedTotal = computed(() =>
 );
 const remaining = computed(() => round2(props.total - assignedTotal.value));
 
-// Recalcula la fila pareja (del otro parque) a partir de lo que se tecleó
-// en la fila del parque de la sesión, según la proporción real de cada
-// parque en el total — no un 50/50 fijo, por si el reparto no fuera exacto.
+// Fija la fila pareja (del otro parque) a su monto real del desglose,
+// independiente de lo que traiga tecleado la fila de la sesión — así el
+// cajero puede agregar de más en su propia fila (para cubrir otros
+// conceptos no divididos) sin que se altere lo que le toca al otro parque.
 const syncPair = (line: PaymentLineForm) => {
     const partnerKey = pairedKey.value.get(line.option_key);
     if (!partnerKey) return;
@@ -186,17 +191,8 @@ const syncPair = (line: PaymentLineForm) => {
     if (!partner) return;
 
     partner.checked = line.checked;
-
-    if (!line.checked) {
-        partner.amount = null;
-        return;
-    }
-
-    const lineRatio = ratioForClubCode(methodByKey(line.option_key)?.club_code);
-    const partnerRatio = ratioForClubCode(methodByKey(partnerKey)?.club_code);
-
-    partner.amount = lineRatio > 0
-        ? round2(Number(line.amount ?? 0) * (partnerRatio / lineRatio))
+    partner.amount = line.checked
+        ? (clubBreakdownAmount(methodByKey(partnerKey)?.club_code) || null)
         : null;
 };
 
@@ -213,12 +209,11 @@ const onToggle = (line: PaymentLineForm) => {
     }
 
     if (isPairedSplit) {
-        // Lo que falta por asignar (antes de marcar este método) se reparte
-        // entre la fila de este parque y la de su pareja, en la proporción
-        // real de cada uno dentro del total.
-        const ratio = ratioForClubCode(methodByKey(line.option_key)?.club_code);
-        const totalForPair = remaining.value > 0 ? remaining.value : 0;
-        line.amount = ratio > 0 ? round2(totalForPair * ratio) : null;
+        // Por default se propone lo que le toca a este parque según el
+        // desglose real del cobro; si sobra algo más (otros conceptos no
+        // divididos), el cajero lo agrega escribiendo encima — no se
+        // recalcula la fila pareja a partir de eso (ver syncPair).
+        line.amount = clubBreakdownAmount(methodByKey(line.option_key)?.club_code) || null;
         syncPair(line);
         return;
     }
@@ -226,10 +221,6 @@ const onToggle = (line: PaymentLineForm) => {
     if (!line.amount) {
         line.amount = remaining.value > 0 ? remaining.value : null;
     }
-};
-
-const onAmountChange = (line: PaymentLineForm) => {
-    if (isSplit.value) syncPair(line);
 };
 
 const isLineValid = (line: PaymentLineForm): boolean => {
@@ -268,7 +259,7 @@ const close = () => {
 </script>
 
 <template>
-    <v-dialog v-model="dialogModel" max-width="820" persistent>
+    <v-dialog v-model="dialogModel" max-width="1200" persistent>
         <v-card>
             <v-card-title class="d-flex justify-space-between align-center">
                 <span>Método de pago</span>
@@ -381,7 +372,6 @@ const close = () => {
                                             density="compact"
                                             hide-details="auto"
                                             :disabled="!line.checked || isMirrored(line)"
-                                            @update:model-value="onAmountChange(line)"
                                         />
                                     </td>
                                     <td>

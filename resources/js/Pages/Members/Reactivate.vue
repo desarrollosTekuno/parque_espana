@@ -3,7 +3,7 @@ import BaseButton from "@/Components/BaseButton.vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { customToastSwal } from "@/utils/swal";
 import { Head, router, useForm, usePage } from "@inertiajs/vue3";
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 
 const page = usePage<any>();
 
@@ -58,11 +58,12 @@ interface Props {
 const props = defineProps<Props>();
 
 const confirmed = ref(false);
+const deferEnrollmentFeeToMonths = ref(false);
 
 const form = useForm({
-    requires_documentation: false,
     apply_enrollment_fee: false,
     enrollment_fee_amount: null as number | null,
+    enrollment_fee_installment_months: null as number | null,
     notes: "",
     confirmed: false,
 });
@@ -120,7 +121,18 @@ const membershipStatusColor = (status: string) => {
 const isFormValid = computed(() => {
     if (!confirmed.value) return false;
     if (form.apply_enrollment_fee && (!form.enrollment_fee_amount || form.enrollment_fee_amount <= 0)) return false;
+    if (deferEnrollmentFeeToMonths.value && (!form.enrollment_fee_installment_months || form.enrollment_fee_installment_months < 2)) return false;
     return true;
+});
+
+watch(() => form.apply_enrollment_fee, (applies) => {
+    if (!applies) {
+        deferEnrollmentFeeToMonths.value = false;
+    }
+});
+
+watch(deferEnrollmentFeeToMonths, (defer) => {
+    form.enrollment_fee_installment_months = defer ? 2 : null;
 });
 
 const submit = () => {
@@ -332,27 +344,7 @@ const submit = () => {
                                     Opciones de reactivación
                                 </div>
 
-                                <!-- Requiere documentación -->
-                                <v-card variant="outlined" class="pa-3 mb-4">
-                                    <v-checkbox
-                                        v-model="form.requires_documentation"
-                                        color="warning"
-                                        hide-details
-                                    >
-                                        <template #label>
-                                            <div>
-                                                <div class="font-weight-medium">
-                                                    Requiere nueva documentación
-                                                </div>
-                                                <div class="text-caption text-medium-emphasis">
-                                                    El usuario deberá presentar documentación actualizada antes de gozar de todos los beneficios.
-                                                </div>
-                                            </div>
-                                        </template>
-                                    </v-checkbox>
-                                </v-card>
-
-                                <!-- Cobro de inscripción -->
+                                <!-- Cobro de reinscripción -->
                                 <v-card variant="outlined" class="pa-3 mb-4">
                                     <v-checkbox
                                         v-model="form.apply_enrollment_fee"
@@ -363,28 +355,50 @@ const submit = () => {
                                         <template #label>
                                             <div>
                                                 <div class="font-weight-medium">
-                                                    Aplicar cobro de inscripción
+                                                    Aplicar cobro de reinscripción
                                                 </div>
                                                 <div class="text-caption text-medium-emphasis">
-                                                    Se generará un cargo de inscripción pendiente de pago.
+                                                    Se generará un cargo de reinscripción pendiente de pago.
                                                 </div>
                                             </div>
                                         </template>
                                     </v-checkbox>
 
-                                    <v-text-field
-                                        v-if="form.apply_enrollment_fee"
-                                        v-model.number="form.enrollment_fee_amount"
-                                        label="Monto de inscripción"
-                                        type="number"
-                                        min="0.01"
-                                        step="0.01"
-                                        prefix="$"
-                                        class="mt-2"
-                                        :error-messages="form.errors.enrollment_fee_amount"
-                                        density="compact"
-                                        variant="outlined"
-                                    />
+                                    <div v-if="form.apply_enrollment_fee" class="mt-2">
+                                        <v-text-field
+                                            v-model.number="form.enrollment_fee_amount"
+                                            label="Monto de reinscripción"
+                                            type="number"
+                                            min="0.01"
+                                            step="0.01"
+                                            prefix="$"
+                                            :error-messages="form.errors.enrollment_fee_amount"
+                                            density="compact"
+                                            variant="outlined"
+                                        />
+
+                                        <v-checkbox
+                                            v-model="deferEnrollmentFeeToMonths"
+                                            color="info"
+                                            hide-details
+                                            density="compact"
+                                            class="mb-2"
+                                            label="Diferir a meses"
+                                        />
+
+                                        <v-text-field
+                                            v-if="deferEnrollmentFeeToMonths"
+                                            v-model.number="form.enrollment_fee_installment_months"
+                                            label="Cantidad de meses"
+                                            type="number"
+                                            min="2"
+                                            max="12"
+                                            step="1"
+                                            :error-messages="form.errors.enrollment_fee_installment_months"
+                                            density="compact"
+                                            variant="outlined"
+                                        />
+                                    </div>
                                 </v-card>
 
                                 <!-- Notas -->

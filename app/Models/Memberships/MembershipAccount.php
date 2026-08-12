@@ -22,6 +22,7 @@ class MembershipAccount extends Model
     protected $casts = [
         'cancelled_at' => 'datetime',
         'cancellation_type' => 'string',
+        'billing_backfill_floor' => 'date',
     ];
 
     protected $table = 'memberships.accounts';

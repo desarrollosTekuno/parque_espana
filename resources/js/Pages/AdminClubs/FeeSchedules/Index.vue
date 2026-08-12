@@ -105,6 +105,21 @@ const applyQuickFill = (ruleIds: number[], value: number | null) => {
 
 const singleClubLabel = (): string => currentClub.value?.name ?? "Club único";
 
+// ── Captura rápida — Individual-Familiar interclub: un solo campo que
+// sobrescribe la cuota mensual de TODOS los paquetes interclub de la tabla
+// de abajo, sin importar la categoría/tipo específico de cada uno. Muestra
+// el valor del primer renglón como referencia (no intenta detectar si ya
+// están en valores distintos).
+const interclubQuickFillValue = computed((): number | null =>
+    interclubRows.value.length ? interclubRows.value[0].monthly_fee : null,
+);
+
+const applyInterclubQuickFill = (value: number | null) => {
+    interclubRows.value.forEach((row) => {
+        row.monthly_fee = value;
+    });
+};
+
 // ── Filtros (client-side, la tabla ya trae todos los renglones del club) ──
 const pricingDestinationFilter = ref<string | null>(null);
 const pricingConditionFilter = ref<boolean | null>(null);
@@ -349,7 +364,29 @@ const save = () => {
                 (incluyendo las reglas de transición que llegan al mismo destino) — sigue
                 siendo necesario dar clic en "Guardar cuotas" para confirmar.
             </p>
+
             <v-row class="mb-6" dense>
+                <v-col cols="12" md="6" lg="4">
+                    <v-card variant="outlined" class="pa-3 h-100">
+                        <div class="text-subtitle-2 font-weight-bold mb-2">Mensualidad Intermedia(Individual en un parque y Familiar en otro)</div>
+                        <p class="text-caption text-medium-emphasis mb-2">
+                            Sobrescribe la cuota mensual de todos los paquetes intermedios
+                            (tabla "Paquetes intermedios" de abajo).
+                        </p>
+                        <v-text-field
+                            :model-value="interclubQuickFillValue"
+                            @update:model-value="(v) => applyInterclubQuickFill(v === '' ? null : Number(v))"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            density="compact"
+                            variant="outlined"
+                            hide-details
+                            prefix="$"
+                        />
+                    </v-card>
+                </v-col>
+
                 <v-col
                     v-for="group in familyGroups"
                     :key="group.label"
@@ -559,7 +596,7 @@ const save = () => {
                 </tbody>
             </v-table>
 
-            <h3 class="text-h6 mt-6 mb-2">Paquetes interclub</h3>
+            <h3 class="text-h6 mt-6 mb-2">Paquetes intermedios</h3>
             <v-table :loading="loading" density="comfortable" fixed-header height="420px">
                 <thead>
                     <tr>

@@ -564,9 +564,11 @@ const addMonthlyFeeMonths = async () => {
             key: `existing-monthlyfee-${newBreakdownCharges[0].id}-${Date.now()}`,
             type: "existing",
             concept_id: selectedConcept.value?.id,
-            concept_label: `${selectedConcept.value?.code ?? "MONTHLY_FEE"} ${selectedConcept.value?.name ?? "Mensualidad"}`,
+            concept_label: `${selectedConcept.value?.internal_key ?? ""} ${selectedConcept.value?.name ?? "Mensualidad"}`.trim(),
             detail: `${periods.length} ${periods.length === 1 ? "mensualidad" : "mensualidades"} (${rangeLabel})`,
             amount: total,
+            is_multi_club: data.is_multi_club ?? false,
+            club_breakdown: data.club_breakdown ?? [],
             charges: newBreakdownCharges.map((c) => ({ charge_id: c.id, amount: c.balance })),
         });
 
@@ -602,17 +604,18 @@ watch(monthlyFeeMonthsCount, (value) => {
 });
 
 // ── Inscripción desde "Agregar concepto de cobro" ──
-// Este módulo solo cobra: diferir la inscripción a meses se decide en el
-// alta de la cuenta (ahí ya se crean los N cargos si aplica, ver
-// MembershipChargeService::createInitialCharges). Aquí solo se indica el
-// concepto y la Cantidad: si la inscripción no se difirió, siempre hay un
-// solo cargo pendiente; si sí se difirió, puede haber varios y "Cantidad"
-// es cuántos de esos cargos (los más antiguos primero) se van a cobrar
-// ahora — mismo mecanismo que "Cantidad de meses" en la mensualidad, pero
-// sin crear nada nuevo (los cargos ya existen). Ver
-// CollectionController::resolveInscriptionInstallments.
+// Este módulo solo cobra: diferir la inscripción/reinscripción a meses se
+// decide en el alta de la cuenta o en la reactivación (ahí ya se crean los N
+// cargos si aplica, ver MembershipChargeService::createInitialCharges /
+// ::createInstallmentCharge). Aquí solo se indica el concepto y la Cantidad:
+// si no se difirió, siempre hay un solo cargo pendiente; si sí se difirió,
+// puede haber varios y "Cantidad" es cuántos de esos cargos (los más
+// antiguos primero) se van a cobrar ahora — mismo mecanismo que "Cantidad de
+// meses" en la mensualidad, pero sin crear nada nuevo (los cargos ya
+// existen). Ver CollectionController::resolveInscriptionInstallments.
+const INSCRIPTION_LIKE_CONCEPT_CODES = ["INSCRIPTION", "CUOTA_REINSCRIPCION"];
 const isInscriptionConcept = computed(
-    () => selectedConcept.value?.code?.toUpperCase() === "INSCRIPTION",
+    () => INSCRIPTION_LIKE_CONCEPT_CODES.includes(selectedConcept.value?.code?.toUpperCase() ?? ""),
 );
 const inscriptionQuantity = ref<number | null>(1);
 const inscriptionCalculating = ref(false);
@@ -658,13 +661,14 @@ const calculateInscriptionPreview = async () => {
         const { data } = await window.axios.post(route("collections.inscription.resolve"), {
             membership_account_id: account.value.id,
             quantity: inscriptionQuantity.value,
+            concept_code: selectedConcept.value?.code,
         });
         inscriptionPreviewTotal.value = data.total ?? 0;
         inscriptionMaxCount.value = data.available_count ?? null;
     } catch (e: any) {
         inscriptionPreviewTotal.value = null;
         customToastSwal({
-            title: e?.response?.data?.message || "No se pudo calcular el total de la inscripción.",
+            title: e?.response?.data?.message || `No se pudo calcular el total de ${selectedConcept.value?.name ?? "la inscripción"}.`,
             icon: "error",
         });
     } finally {
@@ -699,6 +703,7 @@ const addInscriptionCharges = async () => {
         const { data } = await window.axios.post(route("collections.inscription.resolve"), {
             membership_account_id: account.value.id,
             quantity: inscriptionQuantity.value,
+            concept_code: selectedConcept.value?.code,
         });
 
         const charges = data.charges as { id: number; balance: number }[];
@@ -710,26 +715,27 @@ const addInscriptionCharges = async () => {
         }
 
         const total = newCharges.reduce((sum, c) => sum + Number(c.balance), 0);
+        const conceptName = selectedConcept.value?.name ?? "inscripción";
 
         cobros.value.push({
             key: `existing-inscription-${newCharges[0].id}-${Date.now()}`,
             type: "existing",
             concept_id: selectedConcept.value?.id,
-            concept_label: `${selectedConcept.value?.code ?? "INSCRIPTION"} ${selectedConcept.value?.name ?? "Inscripción"}`,
-            detail: newCharges.length > 1 ? `${newCharges.length} pagos de inscripción` : "Pago de inscripción",
+            concept_label: `${selectedConcept.value?.internal_key ?? ""} ${conceptName}`.trim(),
+            detail: newCharges.length > 1 ? `${newCharges.length} pagos de ${conceptName}` : `Pago de ${conceptName}`,
             amount: total,
             charges: newCharges.map((c) => ({ charge_id: c.id, amount: c.balance })),
         });
 
         customToastSwal({
-            title: `${newCharges.length} cargo(s) de inscripción agregado(s).`,
+            title: `${newCharges.length} cargo(s) de ${conceptName} agregado(s).`,
             icon: "success",
         });
         resetNewItem();
         resetInscriptionForm();
     } catch (e: any) {
         customToastSwal({
-            title: e?.response?.data?.message || "No se pudo agregar la inscripción.",
+            title: e?.response?.data?.message || `No se pudo agregar ${selectedConcept.value?.name ?? "la inscripción"}.`,
             icon: "error",
         });
     } finally {
@@ -908,7 +914,7 @@ const assignLocker = async () => {
             key: `locker-${data.charge.id}-${Date.now()}`,
             type: "existing",
             concept_id: selectedConcept.value?.id,
-            concept_label: `${selectedConcept.value?.code ?? "LOCKERS"} ${selectedConcept.value?.name ?? "Casillero"}`,
+            concept_label: `${selectedConcept.value?.internal_key ?? ""} ${selectedConcept.value?.name ?? "Casillero"}`.trim(),
             detail: "Casillero (prorrateado a diciembre)",
             amount: data.charge.amount,
             charges: [{ charge_id: data.charge.id, amount: data.charge.amount }],
@@ -1069,7 +1075,7 @@ const submitDayPass = async () => {
             key: `daypass-${data.charge.id}-${Date.now()}`,
             type: "existing",
             concept_id: selectedConcept.value?.id,
-            concept_label: `${selectedConcept.value?.code ?? "GUEST_LIST"} ${selectedConcept.value?.name ?? "Pase por día"}`,
+            concept_label: `${selectedConcept.value?.internal_key ?? ""} ${selectedConcept.value?.name ?? "Pase por día"}`.trim(),
             detail: `${data.charge.total_visitors} visitante(s) — ${dayPassDate.value}`,
             amount: data.charge.amount,
             charges: [{ charge_id: data.charge.id, amount: data.charge.amount }],
@@ -1260,7 +1266,7 @@ const checkOutCafeteria = () => {
         key: `cafeteria-${visit.id}-${Date.now()}`,
         type: "cafeteria_checkout",
         concept_id: selectedConcept.value?.id,
-        concept_label: `${selectedConcept.value?.code ?? "CAFETERIA_PASS"} ${selectedConcept.value?.name ?? "Cafetería"}`,
+        concept_label: `${selectedConcept.value?.internal_key ?? ""} ${selectedConcept.value?.name ?? "Cafetería"}`.trim(),
         detail: waived
             ? `Acceso exento — ${visit.visitor_name}`
             : `Acceso — ${visit.visitor_name}`,
@@ -1351,7 +1357,7 @@ const addNewItemToCobros = () => {
         key: `new-${concept.id}-${Date.now()}`,
         type: "new",
         concept_id: concept.id,
-        concept_label: `${concept.code} ${concept.name}`,
+        concept_label: `${concept.internal_key} ${concept.name}`,
         description: newItem.value.description || concept.name,
         detail: `${newItem.value.cantidad} x ${formatCurrency(newItem.value.importe)}`,
         amount: Number(newTotal.value.toFixed(2)),
@@ -1427,11 +1433,16 @@ const paymentMethodOptions = computed<PaymentMethodOption[]>(() => {
         .map((cm) => cm.club_id)
         .filter((id): id is number => id !== null && id !== sessionClub.id);
 
+    // Solo Cheque y Tarjeta de crédito se pueden repartir entre parques: no
+    // hay caja física del otro parque (efectivo) ni cuenta bancaria/terminal
+    // compartida para transferencia o tarjeta de débito en este mostrador.
+    const CROSS_CLUB_ALLOWED_CODES = ["CHECK", "CREDIT_CARD"];
+
     const otherMethods: PaymentMethodOption[] = props.clubPaymentMethods
         .filter((c) => otherClubIds.includes(c.id))
         .flatMap((c) =>
             c.payment_methods
-                .filter((m) => m.code !== "CASH")
+                .filter((m) => CROSS_CLUB_ALLOWED_CODES.includes(m.code))
                 .map((m) => ({
                     ...m,
                     club_id: c.id,

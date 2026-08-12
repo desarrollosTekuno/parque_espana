@@ -21,6 +21,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '01',
             ],
             [
                 'code' => 'INSCRIPTION',
@@ -30,6 +31,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => true,
                 'is_active' => true,
+                'internal_key' => '04',
             ],
             [
                 'code' => 'BUSINESS_AD',
@@ -39,6 +41,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => 'business_ad',
             ],
             [
                 'code' => 'LOCKERS',
@@ -48,6 +51,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '02',
             ],
             [
                 'code' => 'GUEST_LIST',
@@ -57,6 +61,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => 'guess_list',
             ],
             [
                 'code' => 'CAFETERIA_PASS',
@@ -66,6 +71,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => 'cafeteria_pass',
             ],
             [
                 'code' => 'OTHER',
@@ -75,6 +81,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => 'other',
             ],
             // event
             [
@@ -85,6 +92,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => 'event',
             ],
 
             [
@@ -95,6 +103,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '01A',
             ],
             // [
             //     'code' => '01B',
@@ -122,6 +131,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '03',
             ],
             [
                 'code' => '031',
@@ -131,6 +141,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '031',
             ],
             // [
             //     'code' => '041',
@@ -160,13 +171,14 @@ class BillingConceptSeeder extends Seeder
             //     'is_active' => true,
             // ],
             [
-                'code' => '05',
-                'name' => 'Cuota reinscripcion',
+                'code' => 'CUOTA_REINSCRIPCION',
+                'name' => 'Cuota reinscripción',
                 'description' => null,
                 'default_amount' => null,
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '05',
             ],
             [
                 'code' => '06',
@@ -176,6 +188,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '06',
             ],
             [
                 'code' => '061',
@@ -185,6 +198,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '061',
             ],
             // [
             //     'code' => '063',
@@ -203,6 +217,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '07',
             ],
             // [
             //     'code' => '08',
@@ -230,6 +245,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '09',
             ],
             [
                 'code' => '091',
@@ -239,6 +255,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '091',
             ],
             [
                 'code' => '092',
@@ -248,6 +265,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '092',
             ],
             [
                 'code' => '093',
@@ -257,6 +275,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '093',
             ],
             [
                 'code' => '09I',
@@ -266,6 +285,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '09I',
             ],
             [
                 'code' => '10',
@@ -275,6 +295,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '10',
             ],
             [
                 'code' => '11',
@@ -284,6 +305,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '11',
             ],
             [
                 'code' => '12',
@@ -293,6 +315,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '12',
             ],
             [
                 'code' => '120',
@@ -302,6 +325,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '120',
             ],
             [
                 'code' => '121',
@@ -311,6 +335,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '121',
             ],
             [
                 'code' => '122',
@@ -320,6 +345,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '122',
             ],
             [
                 'code' => '12A',
@@ -329,6 +355,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '12A',
             ],
             [
                 'code' => '12B',
@@ -338,6 +365,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '12B',
             ],
             [
                 'code' => '12C',
@@ -347,6 +375,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '12C',
             ],
             [
                 'code' => '12D',
@@ -356,6 +385,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '12D',
             ],
             [
                 'code' => '12E',
@@ -365,6 +395,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '12E',
             ],
             [
                 'code' => '12F',
@@ -374,6 +405,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '12F',
             ],
             [
                 'code' => '12G',
@@ -383,6 +415,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '12G',
             ],
             [
                 'code' => '12H',
@@ -392,6 +425,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '12H',
             ],
             [
                 'code' => '12I',
@@ -401,6 +435,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '12I',
             ],
             [
                 'code' => '12J',
@@ -410,6 +445,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '12J',
             ],
             [
                 'code' => '12K',
@@ -419,6 +455,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '12K',
             ],
             [
                 'code' => '12L',
@@ -428,6 +465,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '12L',
             ],
             [
                 'code' => '12M',
@@ -437,6 +475,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '12M',
             ],
             [
                 'code' => '12N',
@@ -446,6 +485,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '12N',
             ],
             [
                 'code' => '12O',
@@ -455,6 +495,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '12O',
             ],
             [
                 'code' => '12P',
@@ -464,6 +505,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '12P',
             ],
             [
                 'code' => '12Q',
@@ -473,6 +515,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '12Q',
             ],
             [
                 'code' => '12R',
@@ -482,6 +525,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '12R',
             ],
             [
                 'code' => '12S',
@@ -491,6 +535,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '12S',
             ],
             [
                 'code' => '12T',
@@ -500,6 +545,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '12T',
             ],
             [
                 'code' => '12U',
@@ -509,6 +555,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '12U',
             ],
             [
                 'code' => '12V',
@@ -518,6 +565,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '12V',
             ],
             [
                 'code' => '12W',
@@ -527,6 +575,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '12W',
             ],
             [
                 'code' => '12X',
@@ -536,6 +585,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '12X',
             ],
             [
                 'code' => '12Y',
@@ -545,6 +595,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '12Y',
             ],
             [
                 'code' => '12Z',
@@ -554,6 +605,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '12Z',
             ],
             [
                 'code' => '13',
@@ -563,6 +615,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '13',
             ],
             // [
             //     'code' => '14',
@@ -581,6 +634,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '15',
             ],
             [
                 'code' => '16',
@@ -590,6 +644,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '16',
             ],
             [
                 'code' => '17',
@@ -599,6 +654,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '17',
             ],
             [
                 'code' => '18',
@@ -608,6 +664,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '18',
             ],
             [
                 'code' => '20',
@@ -617,6 +674,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '20',
             ],
             [
                 'code' => '22',
@@ -626,6 +684,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '22',
             ],
             [
                 'code' => '23',
@@ -635,6 +694,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '23',
             ],
             [
                 'code' => '30',
@@ -644,6 +704,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '30',
             ],
             [
                 'code' => '31',
@@ -653,6 +714,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '31',
             ],
             [
                 'code' => '32',
@@ -662,6 +724,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '32',
             ],
             [
                 'code' => '33',
@@ -671,6 +734,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '33',
             ],
             [
                 'code' => '332',
@@ -680,6 +744,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '332',
             ],
             [
                 'code' => '333',
@@ -689,6 +754,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '333',
             ],
             [
                 'code' => '34',
@@ -698,6 +764,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '34',
             ],
             [
                 'code' => '342',
@@ -707,6 +774,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '342',
             ],
             [
                 'code' => '343',
@@ -716,6 +784,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '343',
             ],
             [
                 'code' => '344',
@@ -725,6 +794,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '344',
             ],
             [
                 'code' => '345',
@@ -734,6 +804,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '345',
             ],
             [
                 'code' => '346',
@@ -743,6 +814,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '346',
             ],
             [
                 'code' => '34D',
@@ -752,6 +824,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '34D',
             ],
             [
                 'code' => '34T',
@@ -761,6 +834,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '34T',
             ],
             [
                 'code' => '35',
@@ -770,6 +844,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '35',
             ],
             [
                 'code' => '36',
@@ -779,6 +854,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '36',
             ],
             [
                 'code' => '37',
@@ -788,6 +864,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '37',
             ],
             [
                 'code' => '40',
@@ -797,6 +874,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '40',
             ],
             [
                 'code' => '50',
@@ -806,6 +884,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '50',
             ],
             [
                 'code' => '500',
@@ -815,6 +894,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '500',
             ],
             // [
             //     'code' => '501',
@@ -833,6 +913,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '502',
             ],
             [
                 'code' => '51',
@@ -842,6 +923,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '51',
             ],
             // [
             //     'code' => '510',
@@ -869,6 +951,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '541',
             ],
             [
                 'code' => '542',
@@ -878,6 +961,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '542',
             ],
             [
                 'code' => '543',
@@ -887,6 +971,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '543',
             ],
             [
                 'code' => '544',
@@ -896,6 +981,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '544',
             ],
             [
                 'code' => '545',
@@ -905,6 +991,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '545',
             ],
             [
                 'code' => '546',
@@ -914,6 +1001,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '546',
             ],
             [
                 'code' => '548',
@@ -923,6 +1011,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '548',
             ],
             [
                 'code' => '549',
@@ -932,6 +1021,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '549',
             ],
             [
                 'code' => '550',
@@ -941,6 +1031,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '550',
             ],
             [
                 'code' => '551',
@@ -950,6 +1041,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '551',
             ],
             [
                 'code' => '553',
@@ -959,6 +1051,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '553',
             ],
             [
                 'code' => '554',
@@ -968,6 +1061,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '554',
             ],
             [
                 'code' => '555',
@@ -977,6 +1071,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '555',
             ],
             [
                 'code' => '556',
@@ -986,6 +1081,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '556',
             ],
             [
                 'code' => '557',
@@ -995,6 +1091,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '557',
             ],
             [
                 'code' => '558',
@@ -1004,6 +1101,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '558',
             ],
             [
                 'code' => '559',
@@ -1013,6 +1111,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '559',
             ],
             [
                 'code' => '560',
@@ -1022,6 +1121,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '560',
             ],
             [
                 'code' => '561',
@@ -1031,6 +1131,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '561',
             ],
             [
                 'code' => '562',
@@ -1040,6 +1141,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => '562',
             ],
             [
                 'code' => '60',
@@ -1049,6 +1151,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '60',
             ],
             [
                 'code' => '70',
@@ -1058,6 +1161,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '70',
             ],
             [
                 'code' => '703',
@@ -1067,6 +1171,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '703',
             ],
             [
                 'code' => '707',
@@ -1076,6 +1181,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '707',
             ],
             [
                 'code' => '708',
@@ -1085,6 +1191,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '708',
             ],
             [
                 'code' => '709',
@@ -1094,6 +1201,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '709',
             ],
             [
                 'code' => '710',
@@ -1103,6 +1211,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '710',
             ],
             [
                 'code' => '711',
@@ -1112,6 +1221,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => '711',
             ],
             [
                 'code' => '712',
@@ -1120,7 +1230,7 @@ class BillingConceptSeeder extends Seeder
                 'default_amount' => null,
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
-                'is_active' => true,
+                'internal_key' => '712',
             ],
             [
                 'code' => '713',
@@ -1129,7 +1239,7 @@ class BillingConceptSeeder extends Seeder
                 'default_amount' => null,
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
-                'is_active' => true,
+                'internal_key' => '713',
             ],
             [
                 'code' => '714',
@@ -1138,7 +1248,7 @@ class BillingConceptSeeder extends Seeder
                 'default_amount' => null,
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
-                'is_active' => true,
+                'internal_key' => '714',
             ],
             [
                 'code' => '715',
@@ -1147,7 +1257,7 @@ class BillingConceptSeeder extends Seeder
                 'default_amount' => null,
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
-                'is_active' => true,
+                'internal_key' => '715',
             ],
             [
                 'code' => '716',
@@ -1156,7 +1266,7 @@ class BillingConceptSeeder extends Seeder
                 'default_amount' => null,
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
-                'is_active' => true,
+                'internal_key' => '716',
             ],
             [
                 'code' => '717',
@@ -1165,7 +1275,7 @@ class BillingConceptSeeder extends Seeder
                 'default_amount' => null,
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
-                'is_active' => true,
+                'internal_key' => '717',
             ],
             [
                 'code' => '718',
@@ -1174,7 +1284,7 @@ class BillingConceptSeeder extends Seeder
                 'default_amount' => null,
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
-                'is_active' => true,
+                'internal_key' => '718',
             ],
             [
                 'code' => '799',
@@ -1183,7 +1293,7 @@ class BillingConceptSeeder extends Seeder
                 'default_amount' => null,
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
-                'is_active' => true,
+                'internal_key' => '799',
             ],
             // [
             //     'code' => '80',
@@ -1220,6 +1330,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => 'B01',
             ],
             [
                 'code' => 'B02',
@@ -1229,6 +1340,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => 'B02',
             ],
             [
                 'code' => 'B03',
@@ -1238,6 +1350,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => 'B03',
             ],
             [
                 'code' => 'B04',
@@ -1247,6 +1360,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => 'B04',
             ],
             [
                 'code' => 'B05',
@@ -1256,6 +1370,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => 'B05',
             ],
             [
                 'code' => 'B06',
@@ -1265,6 +1380,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => 'B06',
             ],
             [
                 'code' => 'B07',
@@ -1274,6 +1390,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => 'B07',
             ],
             [
                 'code' => 'B08',
@@ -1283,6 +1400,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => 'B08',
             ],
             [
                 'code' => 'B09',
@@ -1292,6 +1410,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => 'B09',
             ],
             [
                 'code' => 'CE',
@@ -1301,6 +1420,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => 'CE',
             ],
             [
                 'code' => 'CM',
@@ -1310,6 +1430,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => 'CM',
             ],
             [
                 'code' => 'CP',
@@ -1319,6 +1440,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => 'CP',
             ],
             [
                 'code' => 'CR',
@@ -1328,6 +1450,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => 'CR',
             ],
             [
                 'code' => 'CR1',
@@ -1337,6 +1460,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => 'CR1',
             ],
             [
                 'code' => 'CTC',
@@ -1346,6 +1470,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => 'CTC',
             ],
             // [
             //     'code' => 'D01',
@@ -1364,6 +1489,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => 'DE',
             ],
             [
                 'code' => 'IF',
@@ -1373,6 +1499,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => 'IF',
             ],
             [
                 'code' => 'PE',
@@ -1382,6 +1509,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => 'PE',
             ],
             [
                 'code' => 'PS',
@@ -1391,6 +1519,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => 'PS',
             ],
             [
                 'code' => 'VA',
@@ -1400,6 +1529,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => 'VA',
             ],
             [
                 'code' => 'VR',
@@ -1409,6 +1539,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
+                'internal_key' => 'VR', 
             ],
             [
                 'code' => 'X02',
@@ -1418,6 +1549,7 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => 'X02',
             ],
             [
                 'code' => 'X03',
@@ -1427,6 +1559,8 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => 'X03',
+
             ],
             [
                 'code' => 'X07',
@@ -1436,11 +1570,12 @@ class BillingConceptSeeder extends Seeder
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
+                'internal_key' => 'X07',
             ],
         ];
 
         foreach ($concepts as $concept) {
-            $concept['internal_key'] = $concept['code'];
+            // $concept['internal_key'] = $concept['code'];
 
             ChargeConcept::updateOrCreate(
                 ['code' => $concept['code']],
