@@ -162,6 +162,7 @@ class AdminSubRolesSeeder extends Seeder
                     'acts.update',
                     'member-access.index',
                     'member-access.store',
+                    'member-access.reset-password',
                     'member-access.destroy',
                     'members.lockers.create',
                     'members.lockers.store',

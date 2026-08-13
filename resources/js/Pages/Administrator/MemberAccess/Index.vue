@@ -7,6 +7,7 @@ import { Head, router, useForm, usePage } from "@inertiajs/vue3";
 import { debounce } from "lodash";
 import { ref, watch } from "vue";
 import { required, email } from "@/constants/validationRules";
+import axios from "axios";
 
 const can = usePage().props.auth.permissions;
 const page = usePage<any>();
@@ -86,6 +87,30 @@ const revokeAccess = (member: any) => {
                     });
                 },
             });
+        }
+    });
+};
+
+const resetPassword = async (member: any) => {
+    customConfirmSwal({
+        title: `¿Reiniciar contraseña de ${member.full_name}?`,
+        text: "Se asignará la contraseña por defecto configurada para el club.",
+    }).then(async (result: any) => {
+        if (result.isConfirmed) {
+            try {
+                const response = await axios.put(route("member-access.reset-password", member.id));
+
+                customToastSwal({
+                    title: response.data.message,
+                    icon: "success",
+                });
+            } catch (e: any) {
+                console.error(e);
+                customToastSwal({
+                    title: `Error: ${e.response?.data?.message ?? "No fue posible reiniciar la contraseña."}`,
+                    icon: "error",
+                });
+            }
         }
     });
 };
@@ -270,6 +295,14 @@ watch([options, search, accessFilter], debounce(fetchItems, 400), { deep: true }
                             </v-icon>
                         </template>
                     </v-tooltip>
+                    <!-- Reiniciar contraseña -->
+                    <BaseButton
+                        v-if="item.user_id && can.includes('member-access.reset-password')"
+                        icon="mdi-lock-reset"
+                        color="warning"
+                        tooltip="Reiniciar contraseña"
+                        @click="resetPassword(item)"
+                    />
                     <!-- Revocar acceso -->
                     <BaseButton
                         v-if="item.user_id && can.includes('member-access.destroy')"

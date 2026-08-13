@@ -24,4 +24,5 @@ Route::get('/conekta-credentials', [ConektaCredentialController::class, 'index']
 Route::put('/conekta-credentials', [ConektaCredentialController::class, 'update'])->name('conekta-credentials.update');
 
 // Accesos app móvil
+Route::put('/member-access/{member}/reset-password', [MemberAccessController::class, 'resetPassword'])->name('member-access.reset-password');
 Route::resource('/member-access', MemberAccessController::class)->only(['index', 'store', 'destroy'])->names('member-access')->parameters(['member-access' => 'member']);

@@ -174,6 +174,7 @@ class PermissionSeeder extends Seeder
             ['module' => 'Membresías', 'name' => 'acts.update', 'description' => 'Actualizar multas y/o actas', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'member-access.index', 'description' => 'Ver acceso de miembros', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'member-access.store', 'description' => 'Asignar acceso a miembros', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'member-access.reset-password', 'description' => 'Reiniciar contraseña de miembros', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'member-access.destroy', 'description' => 'Revocar acceso a miembros', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.cancel.create', 'description' => 'Dar de baja membresía', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.additional-membership.create', 'description' => 'Agregar nueva membresía', 'contexts' => ['web']],
