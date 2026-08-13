@@ -12,6 +12,7 @@ use App\Http\Controllers\Web\AdminClub\ReservationController;
 use App\Http\Controllers\Web\AdminClub\AnnouncementController;
 use App\Http\Controllers\Web\AdminClub\BlockedPeriodController;
 use App\Http\Controllers\Web\AdminClub\SystemVariableController;
+use App\Http\Controllers\Web\AdminClub\AppVariableController;
 use App\Http\Controllers\Web\AdminClub\AmenityScheduleController;
 use App\Http\Controllers\Web\AdminClub\BusinessCategoryController;
 use App\Http\Controllers\Web\AdminClub\BillingConceptController;
@@ -72,6 +73,7 @@ Route::get('/amenity-resource/{amenityResource}/generate-qr', [AmenityResourceCo
 // reservations
 Route::resource('/reservations', ReservationController::class)->only(['index', 'update', 'store'])->names('reservations');
 Route::resource('/system-variables', SystemVariableController::class)->only(['index', 'store', 'update', 'destroy'])->names('system-variables');
+Route::resource('/app-variables', AppVariableController::class)->only(['index', 'store', 'update', 'destroy'])->names('app-variables');
 Route::get('/reservations/calendar', [ReservationController::class, 'calendar'])
     ->name('reservations.calendar');
 Route::post('/reservations/{reservation}/cancel', [ReservationController::class, 'cancel'])
