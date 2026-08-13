@@ -14,6 +14,8 @@ import { printTicket } from "@/utils/ticket";
 import { Head, usePage } from "@inertiajs/vue3";
 import { computed, ref, watch } from "vue";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
+import { nowAsLocalInput } from "@/constants/formatDates";
+import { isLoading } from "@/loading";
 import Swal from "sweetalert2";
 
 interface ConceptOption {
@@ -565,9 +567,11 @@ const addMonthlyFeeMonths = async () => {
             key: `existing-monthlyfee-${newBreakdownCharges[0].id}-${Date.now()}`,
             type: "existing",
             concept_id: selectedConcept.value?.id,
-            concept_label: `${selectedConcept.value?.code ?? "MONTHLY_FEE"} ${selectedConcept.value?.name ?? "Mensualidad"}`,
+            concept_label: `${selectedConcept.value?.internal_key ?? ""} ${selectedConcept.value?.name ?? "Mensualidad"}`.trim(),
             detail: `${periods.length} ${periods.length === 1 ? "mensualidad" : "mensualidades"} (${rangeLabel})`,
             amount: total,
+            is_multi_club: data.is_multi_club ?? false,
+            club_breakdown: data.club_breakdown ?? [],
             charges: newBreakdownCharges.map((c) => ({ charge_id: c.id, amount: c.balance })),
         });
 
@@ -603,17 +607,18 @@ watch(monthlyFeeMonthsCount, (value) => {
 });
 
 // ── Inscripción desde "Agregar concepto de cobro" ──
-// Este módulo solo cobra: diferir la inscripción a meses se decide en el
-// alta de la cuenta (ahí ya se crean los N cargos si aplica, ver
-// MembershipChargeService::createInitialCharges). Aquí solo se indica el
-// concepto y la Cantidad: si la inscripción no se difirió, siempre hay un
-// solo cargo pendiente; si sí se difirió, puede haber varios y "Cantidad"
-// es cuántos de esos cargos (los más antiguos primero) se van a cobrar
-// ahora — mismo mecanismo que "Cantidad de meses" en la mensualidad, pero
-// sin crear nada nuevo (los cargos ya existen). Ver
-// CollectionController::resolveInscriptionInstallments.
+// Este módulo solo cobra: diferir la inscripción/reinscripción a meses se
+// decide en el alta de la cuenta o en la reactivación (ahí ya se crean los N
+// cargos si aplica, ver MembershipChargeService::createInitialCharges /
+// ::createInstallmentCharge). Aquí solo se indica el concepto y la Cantidad:
+// si no se difirió, siempre hay un solo cargo pendiente; si sí se difirió,
+// puede haber varios y "Cantidad" es cuántos de esos cargos (los más
+// antiguos primero) se van a cobrar ahora — mismo mecanismo que "Cantidad de
+// meses" en la mensualidad, pero sin crear nada nuevo (los cargos ya
+// existen). Ver CollectionController::resolveInscriptionInstallments.
+const INSCRIPTION_LIKE_CONCEPT_CODES = ["INSCRIPTION", "CUOTA_REINSCRIPCION"];
 const isInscriptionConcept = computed(
-    () => selectedConcept.value?.code?.toUpperCase() === "INSCRIPTION",
+    () => INSCRIPTION_LIKE_CONCEPT_CODES.includes(selectedConcept.value?.code?.toUpperCase() ?? ""),
 );
 const inscriptionQuantity = ref<number | null>(1);
 const inscriptionCalculating = ref(false);
@@ -659,13 +664,14 @@ const calculateInscriptionPreview = async () => {
         const { data } = await window.axios.post(route("collections.inscription.resolve"), {
             membership_account_id: account.value.id,
             quantity: inscriptionQuantity.value,
+            concept_code: selectedConcept.value?.code,
         });
         inscriptionPreviewTotal.value = data.total ?? 0;
         inscriptionMaxCount.value = data.available_count ?? null;
     } catch (e: any) {
         inscriptionPreviewTotal.value = null;
         customToastSwal({
-            title: e?.response?.data?.message || "No se pudo calcular el total de la inscripción.",
+            title: e?.response?.data?.message || `No se pudo calcular el total de ${selectedConcept.value?.name ?? "la inscripción"}.`,
             icon: "error",
         });
     } finally {
@@ -700,6 +706,7 @@ const addInscriptionCharges = async () => {
         const { data } = await window.axios.post(route("collections.inscription.resolve"), {
             membership_account_id: account.value.id,
             quantity: inscriptionQuantity.value,
+            concept_code: selectedConcept.value?.code,
         });
 
         const charges = data.charges as { id: number; balance: number }[];
@@ -711,26 +718,27 @@ const addInscriptionCharges = async () => {
         }
 
         const total = newCharges.reduce((sum, c) => sum + Number(c.balance), 0);
+        const conceptName = selectedConcept.value?.name ?? "inscripción";
 
         cobros.value.push({
             key: `existing-inscription-${newCharges[0].id}-${Date.now()}`,
             type: "existing",
             concept_id: selectedConcept.value?.id,
-            concept_label: `${selectedConcept.value?.code ?? "INSCRIPTION"} ${selectedConcept.value?.name ?? "Inscripción"}`,
-            detail: newCharges.length > 1 ? `${newCharges.length} pagos de inscripción` : "Pago de inscripción",
+            concept_label: `${selectedConcept.value?.internal_key ?? ""} ${conceptName}`.trim(),
+            detail: newCharges.length > 1 ? `${newCharges.length} pagos de ${conceptName}` : `Pago de ${conceptName}`,
             amount: total,
             charges: newCharges.map((c) => ({ charge_id: c.id, amount: c.balance })),
         });
 
         customToastSwal({
-            title: `${newCharges.length} cargo(s) de inscripción agregado(s).`,
+            title: `${newCharges.length} cargo(s) de ${conceptName} agregado(s).`,
             icon: "success",
         });
         resetNewItem();
         resetInscriptionForm();
     } catch (e: any) {
         customToastSwal({
-            title: e?.response?.data?.message || "No se pudo agregar la inscripción.",
+            title: e?.response?.data?.message || `No se pudo agregar ${selectedConcept.value?.name ?? "la inscripción"}.`,
             icon: "error",
         });
     } finally {
@@ -909,7 +917,7 @@ const assignLocker = async () => {
             key: `locker-${data.charge.id}-${Date.now()}`,
             type: "existing",
             concept_id: selectedConcept.value?.id,
-            concept_label: `${selectedConcept.value?.code ?? "LOCKERS"} ${selectedConcept.value?.name ?? "Casillero"}`,
+            concept_label: `${selectedConcept.value?.internal_key ?? ""} ${selectedConcept.value?.name ?? "Casillero"}`.trim(),
             detail: "Casillero (prorrateado a diciembre)",
             amount: data.charge.amount,
             charges: [{ charge_id: data.charge.id, amount: data.charge.amount }],
@@ -1070,7 +1078,7 @@ const submitDayPass = async () => {
             key: `daypass-${data.charge.id}-${Date.now()}`,
             type: "existing",
             concept_id: selectedConcept.value?.id,
-            concept_label: `${selectedConcept.value?.code ?? "GUEST_LIST"} ${selectedConcept.value?.name ?? "Pase por día"}`,
+            concept_label: `${selectedConcept.value?.internal_key ?? ""} ${selectedConcept.value?.name ?? "Pase por día"}`.trim(),
             detail: `${data.charge.total_visitors} visitante(s) — ${dayPassDate.value}`,
             amount: data.charge.amount,
             charges: [{ charge_id: data.charge.id, amount: data.charge.amount }],
@@ -1242,7 +1250,7 @@ const cafeteriaAvailableVisits = computed(() =>
 
 /** La salida NO se registra aquí — solo se agrega a la lista de cobros. La
  *  visita se cierra (y el cargo, si aplica, se genera) hasta que se confirme
- *  el pago en "Efectuar cobro" (ver submitPayment/storePayment), para no
+ *  el pago en "Registrar cobro" (ver registerPayment/storePayment), para no
  *  dejar una salida registrada sin que el cobro se haya efectuado. */
 const checkOutCafeteria = () => {
     if (!canCheckOutCafeteria.value || !selectedCafeteriaVisit.value) {
@@ -1261,7 +1269,7 @@ const checkOutCafeteria = () => {
         key: `cafeteria-${visit.id}-${Date.now()}`,
         type: "cafeteria_checkout",
         concept_id: selectedConcept.value?.id,
-        concept_label: `${selectedConcept.value?.code ?? "CAFETERIA_PASS"} ${selectedConcept.value?.name ?? "Cafetería"}`,
+        concept_label: `${selectedConcept.value?.internal_key ?? ""} ${selectedConcept.value?.name ?? "Cafetería"}`.trim(),
         detail: waived
             ? `Acceso exento — ${visit.visitor_name}`
             : `Acceso — ${visit.visitor_name}`,
@@ -1352,7 +1360,7 @@ const addNewItemToCobros = () => {
         key: `new-${concept.id}-${Date.now()}`,
         type: "new",
         concept_id: concept.id,
-        concept_label: `${concept.code} ${concept.name}`,
+        concept_label: `${concept.internal_key} ${concept.name}`,
         description: newItem.value.description || concept.name,
         detail: `${newItem.value.cantidad} x ${formatCurrency(newItem.value.importe)}`,
         amount: Number(newTotal.value.toFixed(2)),
@@ -1428,11 +1436,16 @@ const paymentMethodOptions = computed<PaymentMethodOption[]>(() => {
         .map((cm) => cm.club_id)
         .filter((id): id is number => id !== null && id !== sessionClub.id);
 
+    // Cheque, Tarjeta de crédito y Tarjeta de débito se pueden repartir
+    // entre parques; no hay caja física del otro parque (efectivo) ni
+    // cuenta bancaria compartida para transferencia en este mostrador.
+    const CROSS_CLUB_ALLOWED_CODES = ["CHECK", "CREDIT_CARD", "DEBIT_CARD"];
+
     const otherMethods: PaymentMethodOption[] = props.clubPaymentMethods
         .filter((c) => otherClubIds.includes(c.id))
         .flatMap((c) =>
             c.payment_methods
-                .filter((m) => m.code !== "CASH")
+                .filter((m) => CROSS_CLUB_ALLOWED_CODES.includes(m.code))
                 .map((m) => ({
                     ...m,
                     club_id: c.id,
@@ -1482,8 +1495,82 @@ const openPaymentDialog = () => {
     paymentDialog.value = true;
 };
 
-const submitPayment = async (payload: PaymentConfirmPayload) => {
-    if (!account.value || !cobroClub.value) return;
+// El diálogo de método de pago solo CONFIGURA con qué formas se va a
+// cobrar (ya pide su propia confirmación al aceptar, ver
+// PaymentMethodsDialog::confirmPayment) — todavía no registra nada.
+//
+// Por default se propone 100% efectivo por el total (el método más común en
+// el mostrador), así que "Registrar cobro" queda disponible desde que hay
+// algo en la lista de cobros, sin necesidad de abrir "Método de pago". Si el
+// cajero sí necesita otra forma de pago, abre el diálogo y la corrige — lo
+// que capture ahí (manualPaymentOverride) tiene prioridad sobre el default.
+const manualPaymentOverride = ref<PaymentConfirmPayload | null>(null);
+
+const defaultCashPayment = computed<PaymentConfirmPayload | null>(() => {
+    if (!cobrosTotal.value) return null;
+    const cash = paymentMethodOptions.value.find(
+        (m) => m.is_session_club && m.code === "CASH",
+    );
+    if (!cash) return null;
+
+    return {
+        paid_at: nowAsLocalInput(),
+        payments: [{
+            payment_method_id: cash.id,
+            amount: Number(cobrosTotal.value.toFixed(2)),
+            reference: "",
+            bank_name: "",
+            check_number: "",
+        }],
+    };
+});
+
+const configuredPayment = computed<PaymentConfirmPayload | null>(
+    () => manualPaymentOverride.value ?? defaultCashPayment.value,
+);
+
+const handlePaymentMethodsConfigured = (payload: PaymentConfirmPayload) => {
+    manualPaymentOverride.value = payload;
+};
+
+// Si la lista de cobros cambia después de corregir la forma de pago (se
+// agrega o quita algo), lo ya configurado a mano ya no cuadra con el nuevo
+// total — se invalida y vuelve a caer en el default de efectivo (que sí se
+// recalcula solo, ver defaultCashPayment).
+watch(cobrosTotal, () => {
+    manualPaymentOverride.value = null;
+});
+
+const cancelCobros = async () => {
+    if (!cobros.value.length) return;
+
+    const result = await customConfirmSwal({
+        title: "¿Cancelar cobro?",
+        text: "Se vaciará la lista de conceptos agregados. Tendrás que volver a capturarlos si te arrepientes.",
+        icon: "warning",
+        confirmText: "Sí, vaciar lista",
+        cancelText: "Seguir capturando",
+        showLoaderOnConfirm: false,
+    });
+    if (!result?.isConfirmed) return;
+
+    cobros.value = [];
+};
+
+const registerPayment = async () => {
+    if (!account.value || !cobroClub.value || !configuredPayment.value) return;
+
+    const payload = configuredPayment.value;
+
+    const result = await customConfirmSwal({
+        title: "¿Registrar cobro?",
+        text: `Se registrará un cobro por ${formatCurrency(cobrosTotal.value)}. Esta acción no se puede deshacer.`,
+        icon: "question",
+        confirmText: "Sí, registrar",
+        cancelText: "Cancelar",
+        showLoaderOnConfirm: false,
+    });
+    if (!result?.isConfirmed) return;
 
     const existing_charges = cobros.value
         .filter((l) => l.type === "existing")
@@ -1503,6 +1590,7 @@ const submitPayment = async (payload: PaymentConfirmPayload) => {
         }));
 
     paying.value = true;
+    isLoading.value = true;
     try {
         const { data } = await window.axios.post(route("collections.payment.store"), {
             membership_account_id: account.value.id,
@@ -1514,6 +1602,11 @@ const submitPayment = async (payload: PaymentConfirmPayload) => {
             cafeteria_checkouts,
         });
 
+        // El loader compartido solo cubre la petición en sí; lo que sigue
+        // (Swal de éxito, pregunta de imprimir ticket) ya tiene su propio
+        // overlay modal, no hace falta encimar los dos.
+        isLoading.value = false;
+
         const isCardPayment = payload.payments.some((p) => {
             const method = paymentMethodOptions.value.find(
                 (m) => m.id === p.payment_method_id,
@@ -1521,7 +1614,7 @@ const submitPayment = async (payload: PaymentConfirmPayload) => {
             return method?.code?.toUpperCase().includes("CARD");
         });
 
-        paymentDialog.value = false;
+        manualPaymentOverride.value = null;
         cobros.value = [];
         // Refresca el estado de cuenta del socio.
         await runSearch();
@@ -1562,6 +1655,7 @@ const submitPayment = async (payload: PaymentConfirmPayload) => {
         });
     } finally {
         paying.value = false;
+        isLoading.value = false;
     }
 };
 
@@ -2470,6 +2564,18 @@ const saveNote = async () => {
                                     </v-data-table>
                                     <v-divider />
                                     <v-card-text>
+                                        <v-alert
+                                            v-if="cobros.length && !manualPaymentOverride"
+                                            type="info"
+                                            variant="tonal"
+                                            density="compact"
+                                            class="mb-3"
+                                        >
+                                            No configuraste un método de pago: se cobrará
+                                            {{ formatCurrency(cobrosTotal) }} en efectivo. Si necesitas
+                                            otro método, da clic en "Configurar método(s) de pago".
+                                        </v-alert>
+
                                         <div class="d-flex flex-wrap justify-space-between align-center ga-4">
                                             <div class="d-flex align-center ga-2">
                                                 <span class="text-subtitle-1 font-weight-bold">
@@ -2480,16 +2586,38 @@ const saveNote = async () => {
                                                 </span>
                                             </div>
 
-                                            <BaseButton
-                                                v-if="can.includes('collections.store')"
-                                                :icon-only="false"
-                                                action="save"
-                                                icon="mdi-cash-check"
-                                                text="Método de pago"
-                                                :loading="paying"
-                                                :disabled="!cobros.length"
-                                                @click="openPaymentDialog"
-                                            />
+                                            <div class="d-flex ga-2">
+                                                <BaseButton
+                                                    v-if="can.includes('collections.store')"
+                                                    :icon-only="false"
+                                                    action="save"
+                                                    icon="mdi-cash-check"
+                                                    text="Configurar método(s) de pago"
+                                                    variant="tonal"
+                                                    :disabled="!cobros.length || paying"
+                                                    @click="openPaymentDialog"
+                                                />
+                                                <BaseButton
+                                                    v-if="can.includes('collections.store')"
+                                                    :icon-only="false"
+                                                    action="save"
+                                                    icon="mdi-check-circle-outline"
+                                                    text="Registrar cobro"
+                                                    :loading="paying"
+                                                    :disabled="!configuredPayment"
+                                                    @click="registerPayment"
+                                                />
+                                                <BaseButton
+                                                    :icon-only="false"
+                                                    action="cancel"
+                                                    icon="mdi-close-circle-outline"
+                                                    text="Cancelar"
+                                                    variant="text"
+                                                    color="error"
+                                                    :disabled="!cobros.length || paying"
+                                                    @click="cancelCobros"
+                                                />
+                                            </div>
                                         </div>
                                     </v-card-text>
                                 </v-card>
@@ -2504,7 +2632,7 @@ const saveNote = async () => {
                     :club-breakdown="dialogClubBreakdown"
                     :payment-methods="paymentMethodOptions"
                     :loading="paying"
-                    @confirm="submitPayment"
+                    @confirm="handlePaymentMethodsConfigured"
                 />
 
                 <!-- Comentarios / incidencias -->

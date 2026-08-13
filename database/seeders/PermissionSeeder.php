@@ -196,6 +196,7 @@ class PermissionSeeder extends Seeder
             ['module' => 'Cobranza', 'name' => 'payment-methods.update', 'description' => 'Actualizar métodos de pago', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'payment-methods.destroy', 'description' => 'Eliminar métodos de pago', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'tickets.index', 'description' => 'Ver y reimprimir tickets de pago', 'contexts' => ['web']],
+            ['module' => 'Cobranza', 'name' => 'payments.cancel', 'description' => 'Cancelar pagos (p. ej. cheque rebotado)', 'contexts' => ['web']],
 
             // Cortes de caja
             ['module' => 'Cortes de caja', 'name' => 'cash-cuts.index', 'description' => 'Ver mis cortes de caja', 'contexts' => ['web']],

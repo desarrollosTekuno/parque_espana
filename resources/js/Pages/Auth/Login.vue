@@ -10,6 +10,8 @@ import Loader from "@/Components/Loader.vue";
 import { isLoading } from "@/loading";
 import { Head, Link, useForm } from "@inertiajs/vue3";
 import { email } from "@/constants/validationRules";
+import EnvironmentBadge from "@/Components/EnvironmentBadge.vue";
+
 const formLoginSendRef = ref();
 defineProps({
     canResetPassword: Boolean,
@@ -46,7 +48,7 @@ const submit = () => {
         <template #logo>
             <AuthenticationCardLogo />
         </template>
-
+        <EnvironmentBadge />
         <div
             v-if="status"
             class="mb-4 font-medium text-sm text-green-600 dark:text-green-400"

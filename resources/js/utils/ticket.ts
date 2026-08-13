@@ -12,6 +12,18 @@ export interface TicketConcept {
     monto: number;
 }
 
+export interface TicketPaymentMethod {
+    payment_id: number;
+    nombre: string | null;
+    codigo: string | null;
+    codigo_ticket: string | null;
+    monto: number;
+    referencia: string | null;
+    banco: string | null;
+    numero_cheque: string | null;
+    es_este_ticket: boolean;
+}
+
 export interface TicketData {
     payment_id: number;
     folio: string | null;
@@ -47,6 +59,8 @@ export interface TicketData {
     referencia: string | null;
     banco: string | null;
     numero_cheque: string | null;
+    es_pago_dividido: boolean;
+    formas_de_pago: TicketPaymentMethod[];
     notas: string | null;
     leyenda_institucion: string;
     leyenda_no_fiscal: string;
@@ -56,7 +70,7 @@ export interface TicketData {
     total: number;
 }
 
-const escapeHtml = (value: unknown): string => {
+export const escapeHtml = (value: unknown): string => {
     return String(value ?? "")
         .replaceAll("&", "&amp;")
         .replaceAll("<", "&lt;")
@@ -133,6 +147,25 @@ const ticketHtml = (ticket: TicketData, duplicate: boolean): string => {
         ticket.pago_identificacion,
         ticket.banco,
     ].filter(Boolean).map(escapeHtml).join(" ");
+    // Cobro dividido en varias formas de pago (ver
+    // PaymentRegistrationService::registerSplit): se muestra el desglose
+    // completo de todas, no solo la de este ticket en particular — cualquiera
+    // de los tickets del grupo sirve como comprobante completo del cobro.
+    const paymentBreakdownHtml = ticket.es_pago_dividido
+        ? `
+        <div class="concept-title">Formas de pago</div>
+        ${ticket.formas_de_pago.map((fp) => {
+            const detail = [fp.referencia, fp.banco, fp.numero_cheque].filter(Boolean).map(escapeHtml).join(" · ");
+            return `
+                <div class="row">
+                    <span>${escapeHtml(fp.codigo_ticket ?? fp.nombre)}${fp.es_este_ticket ? " *" : ""}${detail ? ` (${detail})` : ""}</span>
+                    <strong>${escapeHtml(money(fp.monto))}</strong>
+                </div>
+            `;
+        }).join("")}
+        <div class="muted">* Forma de pago de este ticket</div>
+    `
+        : paymentDetail;
 
     return `<!doctype html>
 <html lang="es">
@@ -225,7 +258,7 @@ const ticketHtml = (ticket: TicketData, duplicate: boolean): string => {
     ${ticket.subtotal !== null ? row("Subtotal", money(ticket.subtotal)) : ""}
     ${ticket.iva !== null ? row(`IVA ${ticket.iva_porcentaje ?? 16}%`, money(ticket.iva)) : ""}
     <div class="row total"><span>Total</span><strong>${escapeHtml(money(ticket.total))}</strong></div>
-    <div class="payment-detail">${paymentDetail}</div>
+    <div class="payment-detail">${paymentBreakdownHtml}</div>
     <div class="institution-legend">${escapeHtml(ticket.leyenda_institucion)}</div>
     <div class="footer">
         <div>${escapeHtml(ticket.leyenda_no_fiscal)}</div>

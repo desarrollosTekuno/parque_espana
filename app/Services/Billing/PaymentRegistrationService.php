@@ -11,6 +11,7 @@ use App\Models\Memberships\MembershipAccount;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class PaymentRegistrationService
@@ -58,6 +59,7 @@ class PaymentRegistrationService
             $totalAmount = round($normalizedApplications->sum('amount'), 2);
 
             $payment = Payment::create([
+                'payment_group_id' => (string) Str::uuid(),
                 'membership_account_id' => $account->id,
                 'club_id' => $clubId,
                 'payment_method_id' => $paymentMethod->id,
@@ -79,15 +81,18 @@ class PaymentRegistrationService
                 ],
             ]);
 
-            $normalizedApplications->each(function (array $application) use ($payment) {
+            $normalizedApplications->each(function (array $application) use ($payment, $clubId) {
                 $charge = $application['charge'];
                 $amount = $application['amount'];
                 $newBalance = round((float) $charge->balance - $amount, 2);
+                $breakdown = $this->resolveApplicationSubtotalAndIva($application, $clubId);
 
                 PaymentApplication::create([
                     'payment_id' => $payment->id,
                     'charge_id' => $charge->id,
                     'applied_amount' => $amount,
+                    'subtotal' => $breakdown['subtotal'],
+                    'iva' => $breakdown['iva'],
                 ]);
 
                 $charge->update([
@@ -221,6 +226,12 @@ class PaymentRegistrationService
             $sessionClubId
         ) {
             $createdPayments = collect();
+            // Comparten este id todas las líneas creadas en esta misma
+            // llamada (un mismo cobro dividido en varias formas de pago) —
+            // ver PaymentTicketService::data, que arma el desglose completo
+            // del cobro para el ticket de cualquiera de ellas a partir de
+            // este campo.
+            $paymentGroupId = (string) Str::uuid();
 
             foreach ($paymentLines as $idx => $line) {
                 $lineAllocations = collect($allocationsPerLine[$idx]);
@@ -232,6 +243,7 @@ class PaymentRegistrationService
                 $paymentMethod = $line['payment_method'];
 
                 $payment = Payment::create([
+                    'payment_group_id' => $paymentGroupId,
                     'membership_account_id' => $account->id,
                     'club_id' => $clubId,
                     'payment_method_id' => $paymentMethod->id,
@@ -254,15 +266,18 @@ class PaymentRegistrationService
                     ],
                 ]);
 
-                $lineAllocations->each(function (array $allocation) use ($payment) {
+                $lineAllocations->each(function (array $allocation) use ($payment, $clubId) {
                     $charge = $allocation['charge'];
                     $amount = $allocation['amount'];
                     $newBalance = round((float) $charge->balance - $amount, 2);
+                    $breakdown = $this->resolveApplicationSubtotalAndIva($allocation, $clubId);
 
                     PaymentApplication::create([
                         'payment_id' => $payment->id,
                         'charge_id' => $charge->id,
                         'applied_amount' => $amount,
+                        'subtotal' => $breakdown['subtotal'],
+                        'iva' => $breakdown['iva'],
                     ]);
 
                     $charge->update([
@@ -376,26 +391,40 @@ class PaymentRegistrationService
         $iva = 0.0;
 
         foreach ($applications as $application) {
-            $charge = $application['charge'];
-            $amount = (float) $application['amount'];
-            $appliesIva = (bool) $charge->concept?->resolveAppliesIvaForClub($clubId);
-
-            if ($appliesIva) {
-                $chargeSubtotal = round(($amount * 100) / 116, 2);
-                $chargeIva = round(($chargeSubtotal * 16) / 100, 2);
-            } else {
-                $chargeSubtotal = round($amount, 2);
-                $chargeIva = 0.0;
-            }
-
-            $subtotal += $chargeSubtotal;
-            $iva += $chargeIva;
+            $breakdown = $this->resolveApplicationSubtotalAndIva($application, $clubId);
+            $subtotal += $breakdown['subtotal'];
+            $iva += $breakdown['iva'];
         }
 
         return [
             'subtotal' => round($subtotal, 2),
             'iva' => round($iva, 2),
         ];
+    }
+
+    /**
+     * Mismo cálculo que calculateSubtotalAndIva pero para UNA sola línea
+     * (un cargo cubierto) — se usa tanto para sumar el total del pago como
+     * para guardar el desglose en la propia PaymentApplication (ver
+     * register()/registerSplit()), porque un mismo cargo puede cubrirse con
+     * más de un pago (dividido en varias formas de pago) y hay que poder
+     * sumar exactamente lo que le tocó a ESE cargo, no solo al pago completo.
+     */
+    protected function resolveApplicationSubtotalAndIva(array $application, int $clubId): array
+    {
+        $charge = $application['charge'];
+        $amount = (float) $application['amount'];
+        $appliesIva = (bool) $charge->concept?->resolveAppliesIvaForClub($clubId);
+
+        if ($appliesIva) {
+            $subtotal = round(($amount * 100) / 116, 2);
+            $iva = round(($subtotal * 16) / 100, 2);
+        } else {
+            $subtotal = round($amount, 2);
+            $iva = 0.0;
+        }
+
+        return ['subtotal' => $subtotal, 'iva' => $iva];
     }
 
     /**

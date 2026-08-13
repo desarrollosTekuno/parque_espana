@@ -124,7 +124,11 @@ class HandleInertiaRequests extends Middleware
             },
 
             'showingMobileMenu' => false,
-            
+
+            // Para el badge tipo Flutter (EnvironmentBadge.vue) que marca si
+            // la app está en modo sandbox o producción, según APP_ENV.
+            'appEnv' => config('app.env'),
+
         ]);
     }
 }
