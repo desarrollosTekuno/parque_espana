@@ -148,6 +148,21 @@ class MembershipChargeService
             return false;
         }
 
+        // Punto único de control: cualquier camino que genere mensualidad
+        // recurrente pasa por aquí (backfill al buscar al socio, "Agregar
+        // mensualidades" en Collections, y el comando de ciclo mensual
+        // memberships:generate-monthly-charges) — sin esto, un camino que no
+        // revisara esto por su cuenta podía resucitar mensualidad de un
+        // periodo ya condonado o de cuando la cuenta estuvo dada de baja.
+        $backfillFloor = $this->resolveBackfillFloorMonth($membership);
+        if ($backfillFloor && $chargeDate->lt($backfillFloor)) {
+            return false;
+        }
+
+        if ($this->periodFallsWithin($chargeDate, $this->resolveCancelledPeriods($membership))) {
+            return false;
+        }
+
         if ($this->hasMonthlyChargeForPeriod($membership, $chargeDate, $monthlyConcept->id)) {
             return false;
         }
@@ -739,6 +754,16 @@ class MembershipChargeService
                 ? round($groupTotalMonthlyFee - $allocated, 2)
                 : $splitAmount;
             $allocated = round($allocated + $targetShare, 2);
+
+            // Mismo control que createRecurringMonthlyCharge — ver ahí.
+            $backfillFloor = $this->resolveBackfillFloorMonth($groupMembership);
+            $skipByFloor = $backfillFloor && $chargeDate->lt($backfillFloor);
+            $skipByCancelledPeriod = $this->periodFallsWithin($chargeDate, $this->resolveCancelledPeriods($groupMembership));
+
+            if ($skipByFloor || $skipByCancelledPeriod) {
+                $results->push(['membership' => $groupMembership, 'created' => false, 'amount' => 0.0]);
+                continue;
+            }
 
             $effectiveTargetShare = $this->resolveAbsenceAdjustedMonthlyFee(
                 membership: $groupMembership,
