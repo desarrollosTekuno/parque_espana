@@ -27,7 +27,9 @@ use App\Http\Controllers\Api\V1\ClubContactInfoController;
 use App\Http\Controllers\Api\V1\ReservationGuestController;
 use App\Http\Controllers\Api\V1\SurveyController;
 use App\Http\Controllers\Api\V1\WebsiteApiController;
+use App\Http\Controllers\Api\V1\WebsiteContactController;
 use App\Http\Controllers\Api\V1\ClinicalHistoryController;
+use App\Http\Controllers\Api\V1\CommandController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -51,13 +53,6 @@ Route::prefix('v1')->name('api.')->group(function () {
     Route::get('/amenities/{amenityResource}/available-slots', [AmenityController::class, 'availableSlots'])->middleware('auth:sanctum');
     Route::get('/clubs/{club}/amenities', [AmenityController::class, 'amenitiesByClub'])->middleware('auth:sanctum');
 
-    // =================================== Pagina web Test ================================
-    Route::get('/clubs/{club}/website/carousel', [WebsiteApiController::class, 'carousel']);
-    Route::get('/clubs/{club}/website/home-cards', [WebsiteApiController::class, 'homeCards']);
-    Route::get('/clubs/{club}/website/membership-prices', [WebsiteApiController::class, 'membershipPrices']);
-    Route::get('/clubs/{club}/website/virtual-tour', [WebsiteApiController::class, 'virtualTour']);
-    Route::get('/clubs/{club}/website/events', [WebsiteApiController::class, 'events']);
-
     // Business Ads
     // Enviar solicitud de promoción desde la app
     Route::post('/business-ads', [BusinessAdController::class, 'store'])->middleware('auth:sanctum');
@@ -66,6 +61,14 @@ Route::prefix('v1')->name('api.')->group(function () {
     Route::middleware('auth:sanctum')->prefix('clubs/{club}')->group(function () {
         // Mostrar categorías de negocios en la pantalla principal de la app
         Route::get('/business-categories', [BusinessCategoryController::class, 'index']);
+
+        // =================================== Pagina web =====================================
+        Route::get('/website/carousel', [WebsiteApiController::class, 'carousel']);
+        Route::get('/website/home-cards', [WebsiteApiController::class, 'homeCards']);
+        Route::get('/website/membership-prices', [WebsiteApiController::class, 'membershipPrices']);
+        Route::get('/website/virtual-tour', [WebsiteApiController::class, 'virtualTour']);
+        Route::get('/website/events', [WebsiteApiController::class, 'events']);
+        Route::post('/website/contact', [WebsiteContactController::class, 'store']);
 
         // Información de contacto del club (pantallas "Contacto" y "Mapa" de la app)
         Route::get('/contact-info', [ClubContactInfoController::class, 'show']);
@@ -82,9 +85,11 @@ Route::prefix('v1')->name('api.')->group(function () {
         Route::post('/surveys/{survey}/responses', [SurveyController::class, 'store']); // Enviar respuestas
 
         // Feedback (tickets de quejas y sugerencias de cada usuario)
+        Route::get('/feedback/options',                          [FeedbackTicketMobileController::class, 'options']);
         Route::get('/feedback/tickets',                          [FeedbackTicketMobileController::class, 'index']);
         Route::post('/feedback/tickets',                         [FeedbackTicketMobileController::class, 'store']);
         Route::get('/feedback/tickets/{ticket}',                 [FeedbackTicketMobileController::class, 'show']);
+        Route::post('/feedback/tickets/{ticket}/comments',       [FeedbackTicketMobileController::class, 'comment']);
         Route::patch('/feedback/tickets/{ticket}/cancel',        [FeedbackTicketMobileController::class, 'cancel']);
 
         // Estado de cuenta (solo socio titular)
@@ -164,6 +169,20 @@ Route::prefix('v1')->name('api.')->group(function () {
 
     // Cobro con tarjeta domiciliada (Conekta)
     Route::post('/charge-payment', [ChargePaymentController::class, 'store'])->middleware('auth:sanctum');
+
+    // Payment sources (domiciliación de tarjetas)
+    Route::middleware('auth:sanctum')->prefix('payment-sources')->group(function () {
+        Route::get('/',           [PaymentSourceController::class, 'index']);
+        Route::post('/',          [PaymentSourceController::class, 'store']);
+        Route::delete('/{source}', [PaymentSourceController::class, 'destroy']);
+        Route::patch('/{source}/set-default', [PaymentSourceController::class, 'setDefault']);
+    });
+
+
+    // Control de Access Devices
+    Route::post('device-commands', [CommandController::class, 'store']);
+    Route::get('device-commands', [CommandController::class, 'show'])->middleware('auth:sanctum');
+    Route::patch('device-commands/{command}/status', [CommandController::class, 'updateStatus'])->middleware('auth:sanctum');
 
 });
 

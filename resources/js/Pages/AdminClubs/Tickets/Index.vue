@@ -49,7 +49,6 @@ const headers = [
     { title: "Monto", key: "monto", sortable: false },
     { title: "Forma de pago", key: "forma_pago", sortable: false },
     { title: "Cajero", key: "cajero", sortable: false },
-    { title: "Estado", key: "estatus", sortable: false },
     { title: "Acciones", key: "actions", sortable: false, align: "center" as const },
 ];
 const items = ref<TicketListItem[]>(props.tickets.data);
@@ -98,7 +97,7 @@ const openPreview = async (item: TicketListItem) => {
     }
 };
 
-const sendToPrint = async (item: TicketListItem | null = null, duplicate = false) => {
+const sendToPrint = async (item: TicketListItem | null = null, duplicate = true) => {
     const paymentId = item?.id ?? selectedTicket.value?.payment_id;
 
     if (!paymentId) {
@@ -252,11 +251,6 @@ watch(() => page.props.auth.currentClub, () => {
                     <template #item.monto="{ item }">{{ money(item.monto) }}</template>
                     <template #item.cajero="{ item }">
                         {{ item.cajero || "-" }}<span v-if="item.cajero_codigo"> ({{ item.cajero_codigo }})</span>
-                    </template>
-                    <template #item.estatus="{ item }">
-                        <v-chip :color="statusColor(item.estatus)" size="small" variant="tonal">
-                            {{ statusLabel(item.estatus) }}
-                        </v-chip>
                     </template>
                     <template #item.actions="{ item }">
                         <BaseButton action="view" tooltip="Vista previa" @click="openPreview(item)" />

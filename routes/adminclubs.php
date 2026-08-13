@@ -12,6 +12,7 @@ use App\Http\Controllers\Web\AdminClub\ReservationController;
 use App\Http\Controllers\Web\AdminClub\AnnouncementController;
 use App\Http\Controllers\Web\AdminClub\BlockedPeriodController;
 use App\Http\Controllers\Web\AdminClub\SystemVariableController;
+use App\Http\Controllers\Web\AdminClub\AppVariableController;
 use App\Http\Controllers\Web\AdminClub\AmenityScheduleController;
 use App\Http\Controllers\Web\AdminClub\BusinessCategoryController;
 use App\Http\Controllers\Web\AdminClub\BillingConceptController;
@@ -57,6 +58,7 @@ use App\Http\Controllers\Web\AdminClub\CoachController;
 use App\Http\Controllers\Web\AdminClub\SpecialtyController;
 use App\Http\Controllers\Web\AdminClub\ClassScheduleController;
 use App\Http\Controllers\Web\AdminClub\WebsiteContentController;
+use App\Http\Controllers\Web\AdminClub\WebsiteContactController;
 use Illuminate\Support\Facades\Route;
 
 // amenities
@@ -72,6 +74,7 @@ Route::get('/amenity-resource/{amenityResource}/generate-qr', [AmenityResourceCo
 // reservations
 Route::resource('/reservations', ReservationController::class)->only(['index', 'update', 'store'])->names('reservations');
 Route::resource('/system-variables', SystemVariableController::class)->only(['index', 'store', 'update', 'destroy'])->names('system-variables');
+Route::resource('/app-variables', AppVariableController::class)->only(['index', 'store', 'update', 'destroy'])->names('app-variables');
 Route::get('/reservations/calendar', [ReservationController::class, 'calendar'])
     ->name('reservations.calendar');
 Route::post('/reservations/{reservation}/cancel', [ReservationController::class, 'cancel'])
@@ -360,10 +363,6 @@ Route::post('/website-content/home-cards', [WebsiteContentController::class, 'st
     ->name('website-content.cards.store');
 Route::delete('/website-content/home-cards/{id}', [WebsiteContentController::class, 'destroyCard'])
     ->name('website-content.cards.destroy');
-Route::post('/website-content/virtual-tour/categories', [WebsiteContentController::class, 'storeVirtualTourCategory'])
-    ->name('website-content.virtual-tour.categories.store');
-Route::delete('/website-content/virtual-tour/categories/{id}', [WebsiteContentController::class, 'destroyVirtualTourCategory'])
-    ->name('website-content.virtual-tour.categories.destroy');
 Route::post('/website-content/virtual-tour/images', [WebsiteContentController::class, 'storeVirtualTourImages'])
     ->name('website-content.virtual-tour.images.store');
 Route::delete('/website-content/virtual-tour/images/{id}', [WebsiteContentController::class, 'destroyVirtualTourImage'])
@@ -372,6 +371,8 @@ Route::post('/website-content/events', [WebsiteContentController::class, 'saveEv
     ->name('website-content.events.save');
 Route::delete('/website-content/events/{id}', [WebsiteContentController::class, 'destroyEvent'])
     ->name('website-content.events.destroy');
+Route::get('/website-contacts', [WebsiteContactController::class, 'index'])
+    ->name('website-contacts.index');
 
 // Acts
 Route::prefix('acts')->group(function () {

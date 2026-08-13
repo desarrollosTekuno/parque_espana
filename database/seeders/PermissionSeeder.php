@@ -106,6 +106,10 @@ class PermissionSeeder extends Seeder
             ['module' => 'Sistema', 'name' => 'system-variables.store', 'description' => 'Crear variables de sistema', 'contexts' => ['web']],
             ['module' => 'Sistema', 'name' => 'system-variables.update', 'description' => 'Actualizar variables de sistema', 'contexts' => ['web']],
             ['module' => 'Sistema', 'name' => 'system-variables.destroy', 'description' => 'Eliminar variables de sistema', 'contexts' => ['web']],
+            ['module' => 'Sistema', 'name' => 'app-variables.index', 'description' => 'Ver variables de app móvil', 'contexts' => ['web']],
+            ['module' => 'Sistema', 'name' => 'app-variables.store', 'description' => 'Crear variables de app móvil', 'contexts' => ['web']],
+            ['module' => 'Sistema', 'name' => 'app-variables.update', 'description' => 'Actualizar variables de app móvil', 'contexts' => ['web']],
+            ['module' => 'Sistema', 'name' => 'app-variables.destroy', 'description' => 'Eliminar variables de app móvil', 'contexts' => ['web']],
             ['module' => 'Sistema', 'name' => 'pricing-rules.index', 'description' => 'Ver reglas de precio', 'contexts' => ['web']],
             ['module' => 'Sistema', 'name' => 'pricing-rules.store', 'description' => 'Crear reglas de precio', 'contexts' => ['web']],
             ['module' => 'Sistema', 'name' => 'pricing-rules.update', 'description' => 'Actualizar reglas de precio', 'contexts' => ['web']],
@@ -307,15 +311,16 @@ class PermissionSeeder extends Seeder
             ['module' => 'Página web', 'name' => 'website-content.index', 'description' => 'Ver módulo de página web', 'contexts' => ['web']],
             ['module' => 'Página web', 'name' => 'website-content.store', 'description' => 'Subir imágenes del carrusel', 'contexts' => ['web']],
             ['module' => 'Página web', 'name' => 'website-content.destroy', 'description' => 'Eliminar imágenes del carrusel', 'contexts' => ['web']],
+            ['module' => 'Página web', 'name' => 'website-contacts.index', 'description' => 'Ver mensajes del formulario de contacto', 'contexts' => ['web']],
 
             // Files
-            ['module' => 'Archivos', 'name' => 'files.index', 'description' => 'Ver archivos', 'contexts' => ['Web']],
-            ['module' => 'Archivos', 'name' => 'files.store', 'description' => 'Crear formato de archivo', 'contexts' => ['Web']],
-            ['module' => 'Archivos', 'name' => 'files.update', 'description' => 'Editar formato de archivo', 'contexts' => ['Web']],
-            ['module' => 'Archivos', 'name' => 'files.destroy', 'description' => 'Eliminar formato de archivo', 'contexts' => ['Web']],
-            ['module' => 'Archivos', 'name' => 'files.club-file.upload', 'description' => 'Subir archivo del club', 'contexts' => ['Web']],
-            ['module' => 'Archivos', 'name' => 'files.club-file.destroy', 'description' => 'Eliminar archivo del club', 'contexts' => ['Web']],
-            ['module' => 'Archivos', 'name' => 'files.variables', 'description' => 'Extracción de variables en Formato', 'contexts' => ['Web']]
+            ['module' => 'Archivos', 'name' => 'files.index', 'description' => 'Ver archivos', 'contexts' => ['web']],
+            ['module' => 'Archivos', 'name' => 'files.store', 'description' => 'Crear formato de archivo', 'contexts' => ['web']],
+            ['module' => 'Archivos', 'name' => 'files.update', 'description' => 'Editar formato de archivo', 'contexts' => ['web']],
+            ['module' => 'Archivos', 'name' => 'files.destroy', 'description' => 'Eliminar formato de archivo', 'contexts' => ['web']],
+            ['module' => 'Archivos', 'name' => 'files.club-file.upload', 'description' => 'Subir archivo del club', 'contexts' => ['web']],
+            ['module' => 'Archivos', 'name' => 'files.club-file.destroy', 'description' => 'Eliminar archivo del club', 'contexts' => ['web']],
+            ['module' => 'Archivos', 'name' => 'files.variables', 'description' => 'Extracción de variables en Formato', 'contexts' => ['web']]
             ];
 
         foreach ($permissions as $permission) {

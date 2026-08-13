@@ -10,6 +10,7 @@ import {
     fileTypeRule,
     requiredFileRule,
 } from "@/constants/validationRules";
+import { printTicket } from "@/utils/ticket";
 import { Head, usePage } from "@inertiajs/vue3";
 import { computed, ref, watch } from "vue";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
@@ -1573,7 +1574,7 @@ const registerPayment = async () => {
 
     paying.value = true;
     try {
-        await window.axios.post(route("collections.payment.store"), {
+        const { data } = await window.axios.post(route("collections.payment.store"), {
             membership_account_id: account.value.id,
             club_id: cobroClub.value.id,
             paid_at: payload.paid_at,
@@ -1602,10 +1603,7 @@ const registerPayment = async () => {
             confirmButtonText: "Continuar",
         });
 
-        // La impresión de ticket se conecta más adelante; por ahora solo
-        // se pregunta y se cierra el flujo sin efecto (no hay preConfirm
-        // asíncrono, así que se desactiva el loader del botón de confirmar).
-        await customConfirmSwal({
+        const result = await customConfirmSwal({
             title: "¿Desea imprimir ticket?",
             text: "",
             icon: "question",
@@ -1613,6 +1611,20 @@ const registerPayment = async () => {
             cancelText: "No",
             showLoaderOnConfirm: false,
         });
+
+        if (result.isConfirmed) {
+            try {
+                for (const paymentId of data.payment_ids) {
+                    await printTicket(paymentId);
+                }
+            } catch (error) {
+                const message = error instanceof Error
+                    ? error.message
+                    : "No fue posible imprimir el ticket.";
+
+                customToastSwal({ title: message, icon: "error" });
+            }
+        }
     } catch (e: any) {
         customToastSwal({
             title: e?.response?.data?.message || "No se pudo registrar el cobro.",

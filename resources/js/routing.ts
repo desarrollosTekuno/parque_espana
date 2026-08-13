@@ -37,11 +37,25 @@ const routes: Routing[] = [
         group: null,
     },
     {
-        name: ["website-content.index"],
+        name: ["website-content.index", "website-contacts.index"],
         title: "Página web",
         icon: "mdi-web",
         value: "pagina-web",
-        group: null,
+        group: "Página web",
+        groupItems: [
+            {
+                name: "website-content.index",
+                title: "Contenido",
+                icon: "mdi-image-multiple-outline",
+                value: "contenido-pagina-web",
+            },
+            {
+                name: "website-contacts.index",
+                title: "Mensajes de contacto",
+                icon: "mdi-email-outline",
+                value: "mensajes-contacto-pagina-web",
+            },
+        ],
     },
     {
         name: [
@@ -358,6 +372,12 @@ const routes: Routing[] = [
                 title: "Variables del Sistema",
                 icon: "mdi-cog",
                 value: "variables-sistema",
+            },
+            {
+                name: "app-variables.index",
+                title: "Variables de App Móvil",
+                icon: "mdi-cellphone-cog",
+                value: "variables-app-movil",
             }
         ]
     },

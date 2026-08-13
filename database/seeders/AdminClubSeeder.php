@@ -85,6 +85,10 @@ class AdminClubSeeder extends Seeder
             'system-variables.store',
             'system-variables.update',
             'system-variables.destroy',
+            'app-variables.index',
+            'app-variables.store',
+            'app-variables.update',
+            'app-variables.destroy',
             'pricing-rules.index',
             'pricing-rules.store',
             'pricing-rules.update',
@@ -304,6 +308,16 @@ class AdminClubSeeder extends Seeder
             'website-content.index',
             'website-content.store',
             'website-content.destroy',
+            'website-contacts.index',
+            // files
+            'files.index',
+            'files.store',
+            'files.update',
+            'files.destroy',
+            'files.club-file.upload',
+            'files.club-file.destroy',
+            'files.variables',
+
         );
         $adminClubRole = Role::updateOrCreate([
             'name' => 'admin_club',

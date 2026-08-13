@@ -105,7 +105,7 @@ class MemberAccessController extends Controller
                 'password' => Hash::make($request->password),
             ]);
 
-            $member->update(['user_id' => $user->id]);
+            $member->update(['user_id' => $user->id, 'email' => $request->email]);
 
             $this->accessService->syncMobileRoles($member->fresh());
 
@@ -136,7 +136,7 @@ class MemberAccessController extends Controller
 
             $user = $member->user;
 
-            $member->update(['user_id' => null]);
+            $member->update(['user_id' => null, 'email' => null]);
 
             $user->tokens()->delete();
             $user->roles()->detach();

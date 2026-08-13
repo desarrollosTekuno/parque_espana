@@ -171,28 +171,32 @@ class GenerateMonthlyMembershipCharges extends Command
             return;
         }
 
-        $splitAmount = round($groupTotalMonthlyFee / $groupMembershipCount, 2);
+        // Delega en el mismo cálculo que usa el alta de una segunda membresía
+        // (ver MembershipChargeService::ensureSplitMonthlyChargesForGroup):
+        // a cada membresía se le cobra solo lo que le falte para cubrir su
+        // mitad del total del grupo, considerando lo que YA tiene cargado
+        // ella misma — así una membresía que ya traía cargo del periodo (de
+        // antes de tener doble parque, por ejemplo) no hace que la otra
+        // absorba el total completo en vez de solo su mitad.
+        $results = $this->membershipChargeService->ensureSplitMonthlyChargesForGroup(
+            groupMemberships: $memberships,
+            groupTotalMonthlyFee: $groupTotalMonthlyFee,
+            chargeDate: $periodDate,
+            metadata: [
+                'charge_origin' => 'monthly_generation',
+                'generated_reason' => 'Ciclo mensual automatico 50/50',
+            ],
+            dryRun: $dryRun
+        );
 
-        /** @var Membership|null $lastMembership */
-        $lastMembership = $memberships->last();
-        $allocated = 0.0;
+        foreach ($results as $result) {
+            /** @var Membership $membership */
+            $membership = $result['membership'];
 
-        foreach ($memberships as $membership) {
-            if ($this->membershipChargeService->hasMonthlyChargeForPeriod($membership, $periodDate)) {
+            if (!$result['created']) {
                 $this->skippedExisting++;
                 continue;
             }
-
-            $membershipAmount = $membership->is($lastMembership)
-                ? round($groupTotalMonthlyFee - $allocated, 2)
-                : $splitAmount;
-
-            if ($membershipAmount <= 0) {
-                $this->skippedIneligible++;
-                continue;
-            }
-
-            $allocated = round($allocated + $membershipAmount, 2);
 
             $this->line(sprintf(
                 'Mensualidad 50/50: %s | %s | %s | %s | %s',
@@ -200,34 +204,10 @@ class GenerateMonthlyMembershipCharges extends Command
                 $membership->club?->code ?? 'N/D',
                 $membership->membershipType?->code ?? 'N/D',
                 $this->resolveHolderName($membership),
-                number_format($membershipAmount, 2)
+                number_format($result['amount'], 2)
             ));
 
-            if ($dryRun) {
-                $this->generated++;
-                continue;
-            }
-
-            $created = $this->membershipChargeService->createRecurringMonthlyCharge(
-                membership: $membership,
-                periodDate: $periodDate,
-                metadata: [
-                    'charge_origin' => 'monthly_generation',
-                    'generated_reason' => 'Ciclo mensual automatico 50/50',
-                    'split_mode' => 'equal_group_split',
-                    'split_group_total' => $groupTotalMonthlyFee,
-                    'split_group_memberships' => $groupMembershipCount,
-                ],
-                monthlyFeeOverride: $membershipAmount,
-                ignoreBillableState: true
-            );
-
-            if ($created) {
-                $this->generated++;
-                continue;
-            }
-
-            $this->skippedIneligible++;
+            $this->generated++;
         }
     }
 
