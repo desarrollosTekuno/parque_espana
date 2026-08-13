@@ -77,11 +77,31 @@ class PaymentTicketTestSeeder extends Seeder
                     ->withTestFolio()
                     ->create();
             }
+
+            foreach ($clubs as $club) {
+                $account = $accounts->firstWhere('club_id', $club->id);
+
+                Payment::factory()
+                    ->forAccount($account)
+                    ->usingPaymentMethod('CASH')
+                    ->state([
+                        'amount' => 1160,
+                        'received_by' => $cashier->id,
+                    ])
+                    ->withTicketConcept()
+                    ->withTestFolio()
+                    ->splitWith('DEBIT_CARD')
+                    ->create();
+            }
         });
+
+        $generatedPayments = Payment::query()
+            ->where('metadata->source', 'payment-ticket-test-factory')
+            ->count();
 
         $this->command?->info(
             "Se generaron {$accounts->count()} cuentas completas y "
-            . max($requestedPayments, $accounts->count())
+            . $generatedPayments
             . ' pagos para probar tickets.'
         );
     }

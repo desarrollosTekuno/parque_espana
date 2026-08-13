@@ -123,7 +123,11 @@ class PaymentTicketServiceTest extends TestCase
         $charge->id = 10;
         $charge->setRelation('concept', $concept);
 
-        $application = (new PaymentApplication())->forceFill(['applied_amount' => 116]);
+        $application = (new PaymentApplication())->forceFill([
+            'applied_amount' => 116,
+            'subtotal' => 100,
+            'iva' => 16,
+        ]);
         $application->setRelation('charge', $charge);
 
         $paymentMethod = (new PaymentMethod())->forceFill([
@@ -199,11 +203,11 @@ class PaymentTicketServiceTest extends TestCase
         $club->applies_iva = false;
         $naturalData = (new PaymentTicketService())->data($payment);
 
-        $this->assertSame(116.0, $naturalData['subtotal']);
+        $this->assertSame(100.0, $naturalData['subtotal']);
         $this->assertSame($data['identificacion_archivo'], $naturalData['identificacion_archivo']);
-        $this->assertNull($naturalData['iva']);
+        $this->assertSame(16.0, $naturalData['iva']);
         $this->assertNull($naturalData['iva_porcentaje']);
         $this->assertSame(116.0, $naturalData['total']);
-        $this->assertSame(116.0, $naturalData['conceptos'][0]['importe_unitario']);
+        $this->assertSame(100.0, $naturalData['conceptos'][0]['importe_unitario']);
     }
 }

@@ -12,6 +12,7 @@ use App\Models\Administrator\UserClub;
 use App\Models\Memberships\MembershipAccount;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 /**
@@ -92,6 +93,7 @@ class PaymentFactory extends Factory
         return $this->afterCreating(function (Payment $payment) {
             $concept = ChargeConcept::query()
                 ->where('is_active', true)
+                ->orderByRaw("CASE WHEN code = 'MONTHLY_FEE' THEN 0 ELSE 1 END")
                 ->orderBy('id')
                 ->first();
 
@@ -99,9 +101,17 @@ class PaymentFactory extends Factory
                 throw new RuntimeException('No hay conceptos activos para generar el desglose del ticket.');
             }
 
+            $breakdown = $this->taxBreakdown((float) $payment->amount, $concept, (int) $payment->club_id);
+            $membershipId = $payment->membershipAccount
+                ?->memberships()
+                ->where('club_id', $payment->club_id)
+                ->where('status', 'active')
+                ->where('is_primary', true)
+                ->value('id');
+
             $charge = Charge::query()->create([
                 'membership_account_id' => $payment->membership_account_id,
-                'membership_id' => null,
+                'membership_id' => $membershipId,
                 'member_id' => null,
                 'concept_id' => $concept->id,
                 'description' => 'Concepto de prueba para impresión de ticket',
@@ -122,6 +132,13 @@ class PaymentFactory extends Factory
                 'payment_id' => $payment->id,
                 'charge_id' => $charge->id,
                 'applied_amount' => $payment->amount,
+                'subtotal' => $breakdown['subtotal'],
+                'iva' => $breakdown['iva'],
+            ]);
+
+            $payment->update([
+                'subtotal' => $breakdown['subtotal'],
+                'iva' => $breakdown['iva'],
             ]);
         });
     }
@@ -129,14 +146,71 @@ class PaymentFactory extends Factory
     public function withTestFolio(): static
     {
         return $this->afterCreating(function (Payment $payment) {
-            $cashierCode = $payment->receiver?->code ?: 'TEST';
-            $clubCode = $payment->club?->code ?: 'CLUB' . $payment->club_id;
-            $date = $payment->paid_at?->format('ymd') ?? now()->format('ymd');
-            $consecutive = str_pad((string) $payment->id, 3, '0', STR_PAD_LEFT);
+            $this->assignTestFolio($payment);
+        });
+    }
+
+    public function splitWith(string $paymentMethodCode = 'DEBIT_CARD'): static
+    {
+        return $this->afterCreating(function (Payment $payment) use ($paymentMethodCode) {
+            $application = $payment->applications()->with('charge.concept')->first();
+            $paymentMethod = PaymentMethod::query()
+                ->where('code', $paymentMethodCode)
+                ->where('is_active', true)
+                ->first();
+
+            if (!$application || !$paymentMethod) {
+                throw new RuntimeException('No fue posible generar el pago dividido de prueba.');
+            }
+
+            $groupId = $payment->payment_group_id ?: (string) Str::uuid();
+            $total = round((float) $payment->amount, 2);
+            $firstAmount = round($total * 0.4, 2);
+            $secondAmount = round($total - $firstAmount, 2);
+            $firstBreakdown = $this->taxBreakdown($firstAmount, $application->charge->concept, (int) $payment->club_id);
+            $secondBreakdown = $this->taxBreakdown($secondAmount, $application->charge->concept, (int) $payment->club_id);
+            $metadata = array_merge($payment->metadata ?? [], ['split_payment' => true]);
 
             $payment->update([
-                'folio' => $clubCode . '-' . $cashierCode . '-' . $date . '-' . $consecutive,
+                'payment_group_id' => $groupId,
+                'amount' => $firstAmount,
+                'subtotal' => $firstBreakdown['subtotal'],
+                'iva' => $firstBreakdown['iva'],
+                'metadata' => $metadata,
             ]);
+            $application->update([
+                'applied_amount' => $firstAmount,
+                'subtotal' => $firstBreakdown['subtotal'],
+                'iva' => $firstBreakdown['iva'],
+            ]);
+
+            $secondPayment = Payment::query()->create([
+                'payment_group_id' => $groupId,
+                'membership_account_id' => $payment->membership_account_id,
+                'club_id' => $payment->club_id,
+                'payment_method_id' => $paymentMethod->id,
+                'amount' => $secondAmount,
+                'subtotal' => $secondBreakdown['subtotal'],
+                'iva' => $secondBreakdown['iva'],
+                'paid_at' => $payment->paid_at,
+                'reference' => 'TEST-TICKET-SPLIT-' . strtoupper($this->faker->unique()->bothify('####??')),
+                'bank_name' => in_array($paymentMethodCode, ['CREDIT_CARD', 'DEBIT_CARD'], true) ? 'VISA' : 'Banco de prueba',
+                'check_number' => $paymentMethodCode === 'CHECK' ? $this->faker->numerify('######') : null,
+                'notes' => 'Pago dividido generado para pruebas de impresión de tickets',
+                'received_by' => $payment->received_by,
+                'status' => 'registered',
+                'metadata' => $metadata,
+            ]);
+
+            PaymentApplication::query()->create([
+                'payment_id' => $secondPayment->id,
+                'charge_id' => $application->charge_id,
+                'applied_amount' => $secondAmount,
+                'subtotal' => $secondBreakdown['subtotal'],
+                'iva' => $secondBreakdown['iva'],
+            ]);
+
+            $this->assignTestFolio($secondPayment);
         });
     }
 
@@ -163,10 +237,13 @@ class PaymentFactory extends Factory
         $receiver = User::query()->find($receiverId) ?? User::query()->first();
 
         return [
+            'payment_group_id' => (string) Str::uuid(),
             'membership_account_id' => $account->id,
             'club_id' => $clubId,
             'payment_method_id' => $paymentMethod->id,
             'amount' => $this->faker->randomFloat(2, 100, 5000),
+            'subtotal' => null,
+            'iva' => null,
             'paid_at' => $this->faker->dateTimeBetween('-30 days', 'now'),
             'reference' => 'TEST-TICKET-' . strtoupper($this->faker->unique()->bothify('####??')),
             'bank_name' => $paymentMethod->requires_bank_name ? 'Banco de prueba' : null,
@@ -175,8 +252,41 @@ class PaymentFactory extends Factory
             'received_by' => $receiver?->id,
             'status' => 'registered',
             'metadata' => [
+                'session_club_id' => $clubId,
+                'settlement_channel' => $paymentMethod->affects_cash_cut ? 'cashier' : 'services',
+                'affects_cash_cut' => (bool) $paymentMethod->affects_cash_cut,
+                'park_split' => null,
                 'source' => 'payment-ticket-test-factory',
             ],
         ];
+    }
+
+    private function taxBreakdown(float $amount, ChargeConcept $concept, int $clubId): array
+    {
+        if ($concept->resolveAppliesIvaForClub($clubId)) {
+            $subtotal = round(($amount * 100) / 116, 2);
+
+            return [
+                'subtotal' => $subtotal,
+                'iva' => round(($subtotal * 16) / 100, 2),
+            ];
+        }
+
+        return [
+            'subtotal' => round($amount, 2),
+            'iva' => 0.0,
+        ];
+    }
+
+    private function assignTestFolio(Payment $payment): void
+    {
+        $cashierCode = $payment->receiver?->code ?: 'TEST';
+        $clubCode = $payment->club?->code ?: 'CLUB' . $payment->club_id;
+        $date = $payment->paid_at?->format('ymd') ?? now()->format('ymd');
+        $consecutive = str_pad((string) $payment->id, 3, '0', STR_PAD_LEFT);
+
+        $payment->update([
+            'folio' => $clubCode . '-' . $cashierCode . '-' . $date . '-' . $consecutive,
+        ]);
     }
 }
