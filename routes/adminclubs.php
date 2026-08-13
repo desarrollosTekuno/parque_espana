@@ -49,6 +49,7 @@ use App\Http\Controllers\Web\AdminClub\GuestListPaymentController;
 use App\Http\Controllers\Web\AdminClub\MembershipTypeController;
 use App\Http\Controllers\Web\AdminClub\PaymentMethodController;
 use App\Http\Controllers\Web\AdminClub\TicketController;
+use App\Http\Controllers\Web\AdminClub\PaymentCancellationController;
 use App\Http\Controllers\Web\AdminClub\LockerAssignmentHistoryController;
 use App\Http\Controllers\Web\AdminClub\ClinicalHistoryController;
 use App\Http\Controllers\Web\AdminClub\ClubSettingsController;
@@ -135,6 +136,12 @@ Route::put('/payment-methods/{paymentMethod}/club-config', [PaymentMethodControl
     ->name('payment-methods.update-club-config');
 Route::get('/tickets', [TicketController::class, 'index'])->name('tickets.index');
 Route::get('/tickets/{payment}/data', [TicketController::class, 'data'])->name('tickets.data');
+
+// Cancelación de pagos (p. ej. cheque rebotado)
+Route::get('/payments/{payment}/cancel/create', [PaymentCancellationController::class, 'create'])
+    ->name('payments.cancel.create');
+Route::post('/payments/{payment}/cancel', [PaymentCancellationController::class, 'store'])
+    ->name('payments.cancel.store');
 Route::resource('/pricing-rules', PricingRuleController::class)
     ->only(['index', 'store', 'update', 'destroy'])
     ->names('pricing-rules');

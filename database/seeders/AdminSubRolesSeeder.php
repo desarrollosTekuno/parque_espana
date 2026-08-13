@@ -191,6 +191,7 @@ class AdminSubRolesSeeder extends Seeder
                     'payment-methods.update',
                     'payment-methods.destroy',
                     'tickets.index',
+                    'payments.cancel',
                     'cash-cuts.index',
                     'cash-cuts.store',
                     'cash-cuts.show',

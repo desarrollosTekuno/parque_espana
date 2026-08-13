@@ -11,6 +11,7 @@ use App\Models\Memberships\MembershipAccount;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class PaymentRegistrationService
@@ -58,6 +59,7 @@ class PaymentRegistrationService
             $totalAmount = round($normalizedApplications->sum('amount'), 2);
 
             $payment = Payment::create([
+                'payment_group_id' => (string) Str::uuid(),
                 'membership_account_id' => $account->id,
                 'club_id' => $clubId,
                 'payment_method_id' => $paymentMethod->id,
@@ -221,6 +223,12 @@ class PaymentRegistrationService
             $sessionClubId
         ) {
             $createdPayments = collect();
+            // Comparten este id todas las líneas creadas en esta misma
+            // llamada (un mismo cobro dividido en varias formas de pago) —
+            // ver PaymentTicketService::data, que arma el desglose completo
+            // del cobro para el ticket de cualquiera de ellas a partir de
+            // este campo.
+            $paymentGroupId = (string) Str::uuid();
 
             foreach ($paymentLines as $idx => $line) {
                 $lineAllocations = collect($allocationsPerLine[$idx]);
@@ -232,6 +240,7 @@ class PaymentRegistrationService
                 $paymentMethod = $line['payment_method'];
 
                 $payment = Payment::create([
+                    'payment_group_id' => $paymentGroupId,
                     'membership_account_id' => $account->id,
                     'club_id' => $clubId,
                     'payment_method_id' => $paymentMethod->id,

@@ -24,11 +24,27 @@ class PaymentTicketService {
             'applications.charge.concept',
         ]);
 
+        // Si este pago es parte de un cobro dividido en varias formas de
+        // pago (ver PaymentRegistrationService::registerSplit), el ticket
+        // muestra la información COMPLETA del cobro — todas las formas de
+        // pago, todos los conceptos, el total conjunto — no solo lo que
+        // cubrió este pago en particular, aunque cada forma de pago sigue
+        // teniendo su propio folio/ticket físico. Sin payment_group_id
+        // (pagos de una sola forma, o de antes de este campo) el "grupo" es
+        // nada más este pago.
+        $groupPayments = $payment->payment_group_id
+            ? Payment::query()
+                ->where('payment_group_id', $payment->payment_group_id)
+                ->with(['paymentMethod', 'applications.charge.concept'])
+                ->orderBy('id')
+                ->get()
+            : collect([$payment]);
+
         $club = $payment->club;
         $account = $payment->membershipAccount;
         $holder = $account?->primaryHolder?->member;
         $addressLines = $this->addressLines($payment);
-        $total = round((float) $payment->amount, 2);
+        $total = round((float) $groupPayments->sum('amount'), 2);
         $subtotal = $total;
         $iva = null;
         $ticketSeries = $this->cashierInitial($payment->receiver);
@@ -38,6 +54,8 @@ class PaymentTicketService {
             $subtotal = round($total / 1.16, 2);
             $iva = round($total - $subtotal, 2);
         }
+
+        $groupApplications = $groupPayments->flatMap(fn (Payment $p) => $p->applications);
 
         return [
             'payment_id' => $payment->id,
@@ -67,7 +85,7 @@ class PaymentTicketService {
             'receptor_regimen_fiscal' => $account?->fiscalData?->fiscal_regime,
             'receptor_codigo_postal' => $account?->fiscalData?->postal_code,
             'casilleros' => $this->lockerCodes($account),
-            'conceptos' => $payment->applications->map(function ($application) use ($club) {
+            'conceptos' => $groupApplications->map(function ($application) use ($club) {
                 $charge = $application->charge;
                 $amount = (float) $application->applied_amount;
                 $unitPrice = $club?->applies_iva ? round($amount / 1.16, 2) : $amount;
@@ -97,6 +115,10 @@ class PaymentTicketService {
 
                 return $concept;
             })->values()->all(),
+            // Se conservan por compatibilidad (algún ticket viejo podría
+            // solo usar estos) — reflejan nada más la forma de pago DE ESTE
+            // registro. Para el desglose completo del cobro, ver
+            // formas_de_pago / es_pago_dividido.
             'forma_pago' => $payment->paymentMethod?->name,
             'forma_pago_codigo' => $payment->paymentMethod?->code,
             'forma_pago_ticket_codigo' => $this->paymentMethodTicketCode($payment->paymentMethod?->code),
@@ -104,6 +126,20 @@ class PaymentTicketService {
             'referencia' => $payment->reference,
             'banco' => $payment->bank_name,
             'numero_cheque' => $payment->check_number,
+            'es_pago_dividido' => $groupPayments->count() > 1,
+            'formas_de_pago' => $groupPayments->map(function (Payment $p) use ($payment) {
+                return [
+                    'payment_id' => $p->id,
+                    'nombre' => $p->paymentMethod?->name,
+                    'codigo' => $p->paymentMethod?->code,
+                    'codigo_ticket' => $this->paymentMethodTicketCode($p->paymentMethod?->code),
+                    'monto' => (float) $p->amount,
+                    'referencia' => $p->reference,
+                    'banco' => $p->bank_name,
+                    'numero_cheque' => $p->check_number,
+                    'es_este_ticket' => $p->id === $payment->id,
+                ];
+            })->values()->all(),
             'notas' => $payment->notes,
             'leyenda_institucion' => 'DOS MESES SIN APORTACIÓN GENERAN SUSPENSIÓN',
             'leyenda_no_fiscal' => 'Este comprobante no tiene validez fiscal.',

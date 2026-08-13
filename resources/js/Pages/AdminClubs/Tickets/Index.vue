@@ -2,15 +2,18 @@
 import BaseButton from "@/Components/BaseButton.vue";
 import TicketPreview from "@/Components/TicketPreview.vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
-import { getTicketData, printTicket, type TicketData } from "@/utils/ticket";
+import { escapeHtml, getTicketData, printTicket, type TicketData } from "@/utils/ticket";
 import { customToastSwal } from "@/utils/swal";
 import { Head, router, usePage } from "@inertiajs/vue3";
 import { debounce } from "lodash";
 import { ref, watch } from "vue";
+import Swal from "sweetalert2";
 
 interface TicketListItem {
     id: number;
+    payment_group_id: string | null;
     folio: string | null;
+    formas_de_pago_count: number;
     fecha: string | null;
     estatus: string | null;
     cuenta_numero: string | null;
@@ -36,7 +39,8 @@ const props = defineProps<{
 }>();
 
 /* ====================== Variables ====================== */
-const page = usePage();
+const page = usePage<any>();
+const can = page.props.auth.permissions;
 const headers = [
     { title: "Folio / pago", key: "folio", sortable: false },
     { title: "Fecha", key: "fecha", sortable: false },
@@ -106,6 +110,50 @@ const sendToPrint = async (item: TicketListItem | null = null, duplicate = false
     } catch (error) {
         const message = error instanceof Error ? error.message : "No fue posible imprimir el ticket.";
         customToastSwal({ title: message, icon: "error" });
+    }
+};
+
+// Cancela UNA forma de pago específica (un Payment) — no todo el cobro
+// agrupado. El renglón de la tabla solo representa el cobro completo (el
+// pago con menor id del grupo, ver TicketController::index), así que si
+// hubo más de una forma de pago hay que dejar elegir cuál se quiere
+// cancelar en vez de asumir siempre la representante.
+const goToCancelPayment = async (item: TicketListItem) => {
+    if (item.formas_de_pago_count <= 1) {
+        router.visit(route("payments.cancel.create", item.id));
+        return;
+    }
+
+    try {
+        const ticket = await getTicketData(item.id);
+        const options = ticket.formas_de_pago
+            .map((fp) => `<option value="${fp.payment_id}">${escapeHtml(fp.codigo_ticket ?? fp.nombre)} — ${escapeHtml(money(fp.monto))}${fp.referencia ? ` (${escapeHtml(fp.referencia)})` : ""}</option>`)
+            .join("");
+
+        const { value: selectedId, isConfirmed } = await Swal.fire({
+            title: "¿Cuál forma de pago deseas cancelar?",
+            html: `
+                <p class="swal2-html-container" style="margin-bottom: 8px;">
+                    Este cobro se pagó con ${item.formas_de_pago_count} formas de pago. Elige cuál cancelar.
+                </p>
+                <select id="swal-payment-select" class="swal2-select" style="display: block; width: 100%;">
+                    ${options}
+                </select>
+            `,
+            showCancelButton: true,
+            confirmButtonText: "Continuar",
+            cancelButtonText: "Cancelar",
+            preConfirm: () => {
+                const select = document.getElementById("swal-payment-select") as HTMLSelectElement | null;
+                return select?.value ?? null;
+            },
+        });
+
+        if (!isConfirmed || !selectedId) return;
+
+        router.visit(route("payments.cancel.create", selectedId));
+    } catch (error) {
+        customToastSwal({ title: "No fue posible cargar las formas de pago de este cobro.", icon: "error" });
     }
 };
 
@@ -188,6 +236,15 @@ watch(() => page.props.auth.currentClub, () => {
                     <template #item.folio="{ item }">
                         <span v-if="item.folio">{{ item.folio }}</span>
                         <v-chip v-else size="small" color="warning" variant="tonal">Pago #{{ item.id }}</v-chip>
+                        <v-chip
+                            v-if="item.formas_de_pago_count > 1"
+                            size="small"
+                            color="info"
+                            variant="tonal"
+                            class="ml-1"
+                        >
+                            +{{ item.formas_de_pago_count - 1 }}
+                        </v-chip>
                     </template>
 
                     <template #item.fecha="{ item }">{{ dateTime(item.fecha) }}</template>
@@ -204,6 +261,13 @@ watch(() => page.props.auth.currentClub, () => {
                     <template #item.actions="{ item }">
                         <BaseButton action="view" tooltip="Vista previa" @click="openPreview(item)" />
                         <BaseButton icon="mdi-printer-outline" color="primary" tooltip="Reimprimir" @click="sendToPrint(item, true)" />
+                        <BaseButton
+                            v-if="can.includes('payments.cancel') && item.estatus !== 'cancelled'"
+                            icon="mdi-cash-remove"
+                            color="error"
+                            tooltip="Cancelar pago"
+                            @click="goToCancelPayment(item)"
+                        />
                     </template>
                 </v-data-table-server>
             </v-card-text>

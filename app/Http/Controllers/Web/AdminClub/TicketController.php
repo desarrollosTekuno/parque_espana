@@ -27,16 +27,10 @@ class TicketController extends Controller {
         $like = $driver === 'pgsql' ? 'ilike' : 'like';
         $search = trim((string) $request->input('tickets_search', ''));
 
-        $query = Payment::query()
-            ->where('club_id', $clubId)
-            ->with([
-                'receiver',
-                'paymentMethod',
-                'membershipAccount.primaryHolder.member',
-            ]);
+        $baseQuery = Payment::query()->where('club_id', $clubId);
 
         if ($search !== '') {
-            $query->where(function (Builder $builder) use ($search, $like) {
+            $baseQuery->where(function (Builder $builder) use ($search, $like) {
                 $builder->where('folio', $like, "%{$search}%")
                     ->orWhere('reference', $like, "%{$search}%")
                     ->orWhereHas('membershipAccount', function (Builder $accountQuery) use ($search, $like) {
@@ -51,34 +45,81 @@ class TicketController extends Controller {
             });
         }
 
-        $tickets = $query
+        $perPage = $request->integer('tickets_per_page', 10);
+        $page = $request->integer('tickets_page', 1);
+
+        // Un cobro dividido en varias formas de pago genera varios Payment
+        // (uno por forma, ver PaymentRegistrationService::registerSplit)
+        // que comparten payment_group_id — aquí se colapsan a UN renglón
+        // por cobro en vez de uno por Payment. Se agrupa en PHP (no con
+        // GROUP BY en SQL) porque payment_group_id puede venir null en
+        // pagos de antes de este campo, y cada uno de esos cuenta como su
+        // propio grupo de un solo elemento.
+        $matches = (clone $baseQuery)
             ->orderByDesc('paid_at')
             ->orderByDesc('id')
-            ->paginate(
-                $request->integer('tickets_per_page', 10),
-                ['*'],
-                'tickets_page',
-                $request->integer('tickets_page', 1)
-            )
-            ->through(function (Payment $payment) {
+            ->get(['id', 'payment_group_id']);
+
+        $orderedGroupKeys = $matches
+            ->map(fn (Payment $p) => $p->payment_group_id ?: ('single-' . $p->id))
+            ->unique()
+            ->values();
+
+        $total = $orderedGroupKeys->count();
+        $pageKeys = $orderedGroupKeys->forPage($page, $perPage)->values();
+
+        $realGroupIds = $pageKeys->filter(fn (string $k) => !str_starts_with($k, 'single-'))->values();
+        $singleIds = $pageKeys->filter(fn (string $k) => str_starts_with($k, 'single-'))
+            ->map(fn (string $k) => (int) substr($k, strlen('single-')))
+            ->values();
+
+        $groupPayments = Payment::query()
+            ->where('club_id', $clubId)
+            ->where(function (Builder $q) use ($realGroupIds, $singleIds) {
+                $q->whereIn('payment_group_id', $realGroupIds)
+                    ->orWhereIn('id', $singleIds);
+            })
+            ->with(['receiver', 'paymentMethod', 'membershipAccount.primaryHolder.member'])
+            ->get()
+            ->groupBy(fn (Payment $p) => $p->payment_group_id ?: ('single-' . $p->id));
+
+        $tickets = $pageKeys
+            ->map(function (string $key) use ($groupPayments) {
+                $payments = $groupPayments->get($key, collect());
+                $representative = $payments->sortBy('id')->first();
+
+                if (!$representative) {
+                    return null;
+                }
+
                 return [
-                    'id' => $payment->id,
-                    'folio' => $payment->folio,
-                    'fecha' => $payment->paid_at,
-                    'estatus' => $payment->status,
-                    'cuenta_numero' => $payment->membershipAccount?->membership_number,
-                    'cuenta_interna' => $payment->membershipAccount?->internal_account_number,
-                    'titular' => $payment->membershipAccount?->primaryHolder?->member?->full_name,
-                    'monto' => (float) $payment->amount,
-                    'forma_pago' => $payment->paymentMethod?->name,
-                    'cajero' => $payment->receiver?->name,
-                    'cajero_codigo' => $payment->receiver?->code,
+                    'id' => $representative->id,
+                    'payment_group_id' => $representative->payment_group_id,
+                    'folio' => $representative->folio,
+                    'formas_de_pago_count' => $payments->count(),
+                    'fecha' => $representative->paid_at,
+                    'estatus' => $representative->status,
+                    'cuenta_numero' => $representative->membershipAccount?->membership_number,
+                    'cuenta_interna' => $representative->membershipAccount?->internal_account_number,
+                    'titular' => $representative->membershipAccount?->primaryHolder?->member?->full_name,
+                    'monto' => round((float) $payments->sum('amount'), 2),
+                    'forma_pago' => $payments->count() > 1
+                        ? $payments->count() . ' formas de pago'
+                        : $representative->paymentMethod?->name,
+                    'cajero' => $representative->receiver?->name,
+                    'cajero_codigo' => $representative->receiver?->code,
                 ];
             })
-            ->appends($request->all());
+            ->filter()
+            ->values();
 
         return Inertia::render('AdminClubs/Tickets/Index', [
-            'tickets' => $tickets,
+            'tickets' => [
+                'data' => $tickets,
+                'total' => $total,
+                'current_page' => $page,
+                'per_page' => $perPage,
+            ],
             'filters' => [
                 'search' => $search,
             ],

@@ -13,6 +13,7 @@ import {
 import { Head, usePage } from "@inertiajs/vue3";
 import { computed, ref, watch } from "vue";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
+import { nowAsLocalInput } from "@/constants/formatDates";
 import Swal from "sweetalert2";
 
 interface ConceptOption {
@@ -1247,7 +1248,7 @@ const cafeteriaAvailableVisits = computed(() =>
 
 /** La salida NO se registra aquí — solo se agrega a la lista de cobros. La
  *  visita se cierra (y el cargo, si aplica, se genera) hasta que se confirme
- *  el pago en "Efectuar cobro" (ver submitPayment/storePayment), para no
+ *  el pago en "Registrar cobro" (ver registerPayment/storePayment), para no
  *  dejar una salida registrada sin que el cobro se haya efectuado. */
 const checkOutCafeteria = () => {
     if (!canCheckOutCafeteria.value || !selectedCafeteriaVisit.value) {
@@ -1433,10 +1434,10 @@ const paymentMethodOptions = computed<PaymentMethodOption[]>(() => {
         .map((cm) => cm.club_id)
         .filter((id): id is number => id !== null && id !== sessionClub.id);
 
-    // Solo Cheque y Tarjeta de crédito se pueden repartir entre parques: no
-    // hay caja física del otro parque (efectivo) ni cuenta bancaria/terminal
-    // compartida para transferencia o tarjeta de débito en este mostrador.
-    const CROSS_CLUB_ALLOWED_CODES = ["CHECK", "CREDIT_CARD"];
+    // Cheque, Tarjeta de crédito y Tarjeta de débito se pueden repartir
+    // entre parques; no hay caja física del otro parque (efectivo) ni
+    // cuenta bancaria compartida para transferencia en este mostrador.
+    const CROSS_CLUB_ALLOWED_CODES = ["CHECK", "CREDIT_CARD", "DEBIT_CARD"];
 
     const otherMethods: PaymentMethodOption[] = props.clubPaymentMethods
         .filter((c) => otherClubIds.includes(c.id))
@@ -1492,8 +1493,66 @@ const openPaymentDialog = () => {
     paymentDialog.value = true;
 };
 
-const submitPayment = async (payload: PaymentConfirmPayload) => {
-    if (!account.value || !cobroClub.value) return;
+// El diálogo de método de pago solo CONFIGURA con qué formas se va a
+// cobrar (ya pide su propia confirmación al aceptar, ver
+// PaymentMethodsDialog::confirmPayment) — todavía no registra nada.
+//
+// Por default se propone 100% efectivo por el total (el método más común en
+// el mostrador), así que "Registrar cobro" queda disponible desde que hay
+// algo en la lista de cobros, sin necesidad de abrir "Método de pago". Si el
+// cajero sí necesita otra forma de pago, abre el diálogo y la corrige — lo
+// que capture ahí (manualPaymentOverride) tiene prioridad sobre el default.
+const manualPaymentOverride = ref<PaymentConfirmPayload | null>(null);
+
+const defaultCashPayment = computed<PaymentConfirmPayload | null>(() => {
+    if (!cobrosTotal.value) return null;
+    const cash = paymentMethodOptions.value.find(
+        (m) => m.is_session_club && m.code === "CASH",
+    );
+    if (!cash) return null;
+
+    return {
+        paid_at: nowAsLocalInput(),
+        payments: [{
+            payment_method_id: cash.id,
+            amount: Number(cobrosTotal.value.toFixed(2)),
+            reference: "",
+            bank_name: "",
+            check_number: "",
+        }],
+    };
+});
+
+const configuredPayment = computed<PaymentConfirmPayload | null>(
+    () => manualPaymentOverride.value ?? defaultCashPayment.value,
+);
+
+const handlePaymentMethodsConfigured = (payload: PaymentConfirmPayload) => {
+    manualPaymentOverride.value = payload;
+};
+
+// Si la lista de cobros cambia después de corregir la forma de pago (se
+// agrega o quita algo), lo ya configurado a mano ya no cuadra con el nuevo
+// total — se invalida y vuelve a caer en el default de efectivo (que sí se
+// recalcula solo, ver defaultCashPayment).
+watch(cobrosTotal, () => {
+    manualPaymentOverride.value = null;
+});
+
+const registerPayment = async () => {
+    if (!account.value || !cobroClub.value || !configuredPayment.value) return;
+
+    const payload = configuredPayment.value;
+
+    const result = await customConfirmSwal({
+        title: "¿Registrar cobro?",
+        text: `Se registrará un cobro por ${formatCurrency(cobrosTotal.value)}. Esta acción no se puede deshacer.`,
+        icon: "question",
+        confirmText: "Sí, registrar",
+        cancelText: "Cancelar",
+        showLoaderOnConfirm: false,
+    });
+    if (!result?.isConfirmed) return;
 
     const existing_charges = cobros.value
         .filter((l) => l.type === "existing")
@@ -1531,7 +1590,7 @@ const submitPayment = async (payload: PaymentConfirmPayload) => {
             return method?.code?.toUpperCase().includes("CARD");
         });
 
-        paymentDialog.value = false;
+        manualPaymentOverride.value = null;
         cobros.value = [];
         // Refresca el estado de cuenta del socio.
         await runSearch();
@@ -2469,6 +2528,18 @@ const saveNote = async () => {
                                     </v-data-table>
                                     <v-divider />
                                     <v-card-text>
+                                        <v-alert
+                                            v-if="cobros.length && !manualPaymentOverride"
+                                            type="info"
+                                            variant="tonal"
+                                            density="compact"
+                                            class="mb-3"
+                                        >
+                                            No configuraste un método de pago: se cobrará
+                                            {{ formatCurrency(cobrosTotal) }} en efectivo. Si necesitas
+                                            otro método, da clic en "Configurar método(s) de pago".
+                                        </v-alert>
+
                                         <div class="d-flex flex-wrap justify-space-between align-center ga-4">
                                             <div class="d-flex align-center ga-2">
                                                 <span class="text-subtitle-1 font-weight-bold">
@@ -2479,16 +2550,28 @@ const saveNote = async () => {
                                                 </span>
                                             </div>
 
-                                            <BaseButton
-                                                v-if="can.includes('collections.store')"
-                                                :icon-only="false"
-                                                action="save"
-                                                icon="mdi-cash-check"
-                                                text="Método de pago"
-                                                :loading="paying"
-                                                :disabled="!cobros.length"
-                                                @click="openPaymentDialog"
-                                            />
+                                            <div class="d-flex ga-2">
+                                                <BaseButton
+                                                    v-if="can.includes('collections.store')"
+                                                    :icon-only="false"
+                                                    action="save"
+                                                    icon="mdi-cash-check"
+                                                    text="Configurar método(s) de pago"
+                                                    variant="tonal"
+                                                    :disabled="!cobros.length || paying"
+                                                    @click="openPaymentDialog"
+                                                />
+                                                <BaseButton
+                                                    v-if="can.includes('collections.store')"
+                                                    :icon-only="false"
+                                                    action="save"
+                                                    icon="mdi-check-circle-outline"
+                                                    text="Registrar cobro"
+                                                    :loading="paying"
+                                                    :disabled="!configuredPayment"
+                                                    @click="registerPayment"
+                                                />
+                                            </div>
                                         </div>
                                     </v-card-text>
                                 </v-card>
@@ -2503,7 +2586,7 @@ const saveNote = async () => {
                     :club-breakdown="dialogClubBreakdown"
                     :payment-methods="paymentMethodOptions"
                     :loading="paying"
-                    @confirm="submitPayment"
+                    @confirm="handlePaymentMethodsConfigured"
                 />
 
                 <!-- Comentarios / incidencias -->
