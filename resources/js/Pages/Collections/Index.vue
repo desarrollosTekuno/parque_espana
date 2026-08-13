@@ -1637,7 +1637,11 @@ const registerPayment = async () => {
 
         if (result.isConfirmed) {
             try {
-                for (const paymentId of data.payment_ids) {
+                const paymentId = data.payment_ids?.[0];
+
+                if (paymentId) {
+                    // Un id representa todo el grupo del cobro. El módulo de
+                    // tickets arma dentro los parques, métodos y dos copias.
                     await printTicket(paymentId);
                 }
             } catch (error) {

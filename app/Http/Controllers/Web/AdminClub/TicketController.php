@@ -12,16 +12,18 @@ use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
-class TicketController extends Controller {
-
-    public function __construct(private PaymentTicketService $ticketService) {
+class TicketController extends Controller
+{
+    public function __construct(private PaymentTicketService $ticketService)
+    {
         $this->middleware('permission:tickets.index')->only(['index', 'data']);
     }
 
-    public function index(Request $request): Response {
+    public function index(Request $request): Response
+    {
         $clubId = (int) session('club_id');
 
-        abort_if(!$clubId, 403);
+        abort_if(! $clubId, 403);
 
         $driver = DB::getDriverName();
         $like = $driver === 'pgsql' ? 'ilike' : 'like';
@@ -61,14 +63,14 @@ class TicketController extends Controller {
             ->get(['id', 'payment_group_id']);
 
         $orderedGroupKeys = $matches
-            ->map(fn (Payment $p) => $p->payment_group_id ?: ('single-' . $p->id))
+            ->map(fn (Payment $p) => $p->payment_group_id ?: ('single-'.$p->id))
             ->unique()
             ->values();
 
         $total = $orderedGroupKeys->count();
         $pageKeys = $orderedGroupKeys->forPage($page, $perPage)->values();
 
-        $realGroupIds = $pageKeys->filter(fn (string $k) => !str_starts_with($k, 'single-'))->values();
+        $realGroupIds = $pageKeys->filter(fn (string $k) => ! str_starts_with($k, 'single-'))->values();
         $singleIds = $pageKeys->filter(fn (string $k) => str_starts_with($k, 'single-'))
             ->map(fn (string $k) => (int) substr($k, strlen('single-')))
             ->values();
@@ -81,14 +83,14 @@ class TicketController extends Controller {
             })
             ->with(['receiver', 'paymentMethod', 'membershipAccount.primaryHolder.member'])
             ->get()
-            ->groupBy(fn (Payment $p) => $p->payment_group_id ?: ('single-' . $p->id));
+            ->groupBy(fn (Payment $p) => $p->payment_group_id ?: ('single-'.$p->id));
 
         $tickets = $pageKeys
             ->map(function (string $key) use ($groupPayments) {
                 $payments = $groupPayments->get($key, collect());
                 $representative = $payments->sortBy('id')->first();
 
-                if (!$representative) {
+                if (! $representative) {
                     return null;
                 }
 
@@ -104,7 +106,7 @@ class TicketController extends Controller {
                     'titular' => $representative->membershipAccount?->primaryHolder?->member?->full_name,
                     'monto' => round((float) $payments->sum('amount'), 2),
                     'forma_pago' => $payments->count() > 1
-                        ? $payments->count() . ' formas de pago'
+                        ? $payments->count().' formas de pago'
                         : $representative->paymentMethod?->name,
                     'cajero' => $representative->receiver?->name,
                     'cajero_codigo' => $representative->receiver?->code,
@@ -126,13 +128,17 @@ class TicketController extends Controller {
         ]);
     }
 
-    public function data(Payment $payment): JsonResponse {
+    public function data(Payment $payment): JsonResponse
+    {
         $clubId = (int) session('club_id');
 
-        if (!$clubId || (int) $payment->club_id !== $clubId) {
+        if (! $clubId || (int) $payment->club_id !== $clubId) {
             abort(404);
         }
 
-        return response()->json($this->ticketService->data($payment));
+        return response()->json([
+            'payment_group_key' => $payment->payment_group_id ?: ('single-'.$payment->id),
+            'tickets' => $this->ticketService->tickets($payment),
+        ]);
     }
 }

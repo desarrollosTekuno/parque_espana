@@ -2,7 +2,7 @@
 import BaseButton from "@/Components/BaseButton.vue";
 import TicketPreview from "@/Components/TicketPreview.vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
-import { escapeHtml, getTicketData, printTicket, type TicketData } from "@/utils/ticket";
+import { escapeHtml, getTicketBundle, getTicketData, printTicket, type TicketData } from "@/utils/ticket";
 import { customToastSwal } from "@/utils/swal";
 import { Head, router, usePage } from "@inertiajs/vue3";
 import { debounce } from "lodash";
@@ -61,7 +61,7 @@ const options = ref({
 });
 const showPreview = ref(false);
 const previewLoading = ref(false);
-const selectedTicket = ref<TicketData | null>(null);
+const selectedTickets = ref<TicketData[]>([]);
 
 /* ====================== Funciones ====================== */
 const fetchItems = () => {
@@ -85,10 +85,10 @@ const fetchItems = () => {
 const openPreview = async (item: TicketListItem) => {
     showPreview.value = true;
     previewLoading.value = true;
-    selectedTicket.value = null;
+    selectedTickets.value = [];
 
     try {
-        selectedTicket.value = await getTicketData(item.id);
+        selectedTickets.value = (await getTicketBundle(item.id)).tickets;
     } catch (error) {
         showPreview.value = false;
         customToastSwal({ title: "No fue posible cargar el ticket.", icon: "error" });
@@ -98,7 +98,7 @@ const openPreview = async (item: TicketListItem) => {
 };
 
 const sendToPrint = async (item: TicketListItem | null = null, duplicate = true) => {
-    const paymentId = item?.id ?? selectedTicket.value?.payment_id;
+    const paymentId = item?.id ?? selectedTickets.value[0]?.payment_id;
 
     if (!paymentId) {
         return;
@@ -274,7 +274,14 @@ watch(() => page.props.auth.currentClub, () => {
                     <div v-if="previewLoading" class="text-center pa-8">
                         <v-progress-circular indeterminate color="primary" />
                     </div>
-                    <TicketPreview v-else-if="selectedTicket" :ticket="selectedTicket" />
+                    <div v-else-if="selectedTickets.length">
+                        <TicketPreview
+                            v-for="ticket in selectedTickets"
+                            :key="ticket.club_id"
+                            :ticket="ticket"
+                            class="mb-6"
+                        />
+                    </div>
                 </v-card-text>
                 <v-card-actions>
                     <v-spacer />
@@ -284,7 +291,7 @@ watch(() => page.props.auth.currentClub, () => {
                         text="Imprimir"
                         tooltip="Imprimir"
                         :icon-only="false"
-                        :disabled="!selectedTicket"
+                        :disabled="!selectedTickets.length"
                         @click="sendToPrint()"
                     />
                 </v-card-actions>
