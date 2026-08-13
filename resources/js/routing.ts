@@ -372,6 +372,12 @@ const routes: Routing[] = [
                 title: "Variables del Sistema",
                 icon: "mdi-cog",
                 value: "variables-sistema",
+            },
+            {
+                name: "app-variables.index",
+                title: "Variables de App Móvil",
+                icon: "mdi-cellphone-cog",
+                value: "variables-app-movil",
             }
         ]
     },
