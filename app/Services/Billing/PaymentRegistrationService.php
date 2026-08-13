@@ -180,6 +180,12 @@ class PaymentRegistrationService
                 'reference' => $line['reference'] ?? null,
                 'bank_name' => $line['bank_name'] ?? null,
                 'check_number' => $line['check_number'] ?? null,
+                // Ver PaymentLinePayload en el frontend: true para la fila
+                // del parque de la sesión con pareja, sus "otro pago" extra,
+                // y la fila espejo del otro parque — se usa abajo para que
+                // esas líneas se apliquen primero al cargo que se reparte
+                // entre parques, antes de mezclarse con cualquier otro cargo.
+                'is_park_split' => (bool) ($line['is_park_split'] ?? false),
             ];
         });
 
@@ -193,14 +199,35 @@ class PaymentRegistrationService
         }
 
         // Reparte cada cargo entre las formas de pago en el orden dado, para
-        // saber cuánto de cada cargo cubrió cada forma de pago.
+        // saber cuánto de cada cargo cubrió cada forma de pago. Antes de
+        // repartir, se reordena (de forma estable, sin alterar el orden
+        // relativo dentro de cada grupo):
+        //   - los cargos que se reparten entre parques (splits_between_parks,
+        //     p. ej. la mensualidad combo) van primero;
+        //   - las líneas de pago marcadas is_park_split van primero.
+        // Sin esto, una línea "pareja" (p. ej. Tarjeta de crédito del otro
+        // parque, cuyo monto es exactamente la mitad de la mensualidad) podía
+        // terminar cubriendo sobre todo OTRO cargo si antes ya se habían
+        // consumido otras formas de pago sobre la mensualidad — el total por
+        // cargo seguía cuadrando, pero el reparto por parque (informativo)
+        // de esa línea quedaba incorrecto. Priorizar ambos lados hace que,
+        // en el caso normal, las líneas pareja se consuman EXACTO contra el
+        // cargo que reparten, sin sobrante que se vaya a otro lado.
+        $orderedApplications = $normalizedApplications
+            ->sortByDesc(fn (array $application) => (bool) ($application['charge']->concept?->splits_between_parks))
+            ->values();
+
+        $paymentLineIndexes = $paymentLines->keys()
+            ->sortByDesc(fn ($idx) => (bool) $paymentLines[$idx]['is_park_split'])
+            ->values();
+
         $remainingPerLine = $paymentLines->map(fn (array $line) => $line['amount'])->all();
         $allocationsPerLine = array_fill(0, $paymentLines->count(), []);
 
-        foreach ($normalizedApplications as $application) {
+        foreach ($orderedApplications as $application) {
             $remainingForCharge = $application['amount'];
 
-            foreach ($paymentLines as $idx => $line) {
+            foreach ($paymentLineIndexes as $idx) {
                 if ($remainingForCharge <= 0.001) {
                     break;
                 }

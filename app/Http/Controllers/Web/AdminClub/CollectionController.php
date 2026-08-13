@@ -775,6 +775,7 @@ class CollectionController extends Controller
                 'payments.*.reference' => ['nullable', 'string', 'max:255'],
                 'payments.*.bank_name' => ['nullable', 'string', 'max:255'],
                 'payments.*.check_number' => ['nullable', 'string', 'max:255'],
+                'payments.*.is_park_split' => ['sometimes', 'boolean'],
 
                 // Cargos existentes seleccionados
                 'existing_charges' => ['array'],

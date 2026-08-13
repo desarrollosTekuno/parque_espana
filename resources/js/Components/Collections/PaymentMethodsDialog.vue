@@ -32,6 +32,12 @@ export interface PaymentLinePayload {
     reference: string;
     bank_name: string;
     check_number: string;
+    // true si esta línea es parte de un par entre parques (la del parque de
+    // la sesión con pareja, sus "otro pago" extra, o la fila espejo del otro
+    // parque) — el backend la prioriza para cubrir PRIMERO el cargo que se
+    // reparte entre parques (p. ej. la mensualidad combo), antes de usarla
+    // para cualquier otro cargo. Ver PaymentRegistrationService::registerSplit.
+    is_park_split: boolean;
 }
 
 export interface PaymentConfirmPayload {
@@ -376,6 +382,7 @@ const confirmPayment = async () => {
             reference: l.reference,
             bank_name: l.bank_name,
             check_number: l.check_number,
+            is_park_split: isSplit.value && pairedKey.value.has(l.source_option_key),
         })),
     });
 
