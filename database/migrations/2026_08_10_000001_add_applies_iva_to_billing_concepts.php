@@ -34,7 +34,7 @@ return new class extends Migration
     {
         Schema::table('billing.concept_club_amounts', function (Blueprint $table) {
             $table->dropColumn('applies_iva');
-            $table->decimal('amount', 12, 2)->nullable(false)->change();
+            // $table->decimal('amount', 12, 2)->nullable(false)->change();
         });
 
         Schema::table('billing.concepts', function (Blueprint $table) {

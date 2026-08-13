@@ -2,8 +2,6 @@
 
 namespace App\Http\Controllers\Web\AdminClub;
 
-use App\Models\Billing\Charge;
-use App\Models\Billing\ChargeConcept;
 use App\Models\Memberships\AccountReactivation;
 use App\Models\Memberships\Membership;
 use App\Models\Memberships\MembershipAccountMember;
@@ -165,16 +163,15 @@ class AccountReactivationController extends Controller
         }
 
         $request->validate([
-            'requires_documentation' => ['required', 'boolean'],
             'apply_enrollment_fee' => ['required', 'boolean'],
             'enrollment_fee_amount' => ['required_if:apply_enrollment_fee,true', 'nullable', 'numeric', 'min:0.01'],
+            'enrollment_fee_installment_months' => ['nullable', 'integer', 'min:2', 'max:12'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'confirmed' => ['accepted'],
         ], [
-            'requires_documentation.required' => 'Indica si se requiere nueva documentación.',
-            'apply_enrollment_fee.required' => 'Indica si aplica cobro de inscripción.',
-            'enrollment_fee_amount.required_if' => 'El monto de inscripción es requerido cuando se aplica el cobro.',
-            'enrollment_fee_amount.min' => 'El monto de inscripción debe ser mayor a cero.',
+            'apply_enrollment_fee.required' => 'Indica si aplica cobro de reinscripción.',
+            'enrollment_fee_amount.required_if' => 'El monto de reinscripción es requerido cuando se aplica el cobro.',
+            'enrollment_fee_amount.min' => 'El monto de reinscripción debe ser mayor a cero.',
             'confirmed.accepted' => 'Debes confirmar la reactivación antes de continuar.',
         ]);
 
@@ -256,35 +253,21 @@ class AccountReactivationController extends Controller
                 }
             }
 
-            // Apply enrollment fee charge if requested
+            // Apply reinscripción fee charge if requested. Uses createInstallmentCharge
+            // (extracted from createInitialCharges) so it never touches the monthly-fee
+            // reconciliation logic already run above for this same transaction.
             if ($request->boolean('apply_enrollment_fee') && $request->filled('enrollment_fee_amount')) {
-                $inscriptionConcept = ChargeConcept::query()
-                    ->where('code', 'INSCRIPTION')
-                    ->where('is_active', true)
-                    ->first();
-
-                if ($inscriptionConcept) {
-                    Charge::create([
-                        'membership_account_id' => $account->id,
-                        'membership_id' => $membership->id,
-                        'member_id' => $primaryHolder->id,
-                        'concept_id' => $inscriptionConcept->id,
-                        'description' => "Inscripción por reactivación de cuenta #{$account->membership_number}",
-                        'amount' => (float) $request->input('enrollment_fee_amount'),
-                        'balance' => (float) $request->input('enrollment_fee_amount'),
-                        'issue_date' => $now->toDateString(),
-                        'due_date' => $now->toDateString(),
-                        'period_year' => null,
-                        'period_month' => null,
-                        'allows_partial_payments' => (bool) $inscriptionConcept->allows_partial_payments,
-                        'status' => 'pending',
-                        'metadata' => [
-                            'concept_code' => $inscriptionConcept->code,
-                            'origin' => 'account_reactivation',
-                            'reactivated_at' => $now->toDateTimeString(),
-                        ],
-                    ]);
-                }
+                $this->membershipChargeService->createInstallmentCharge(
+                    membership: $membership,
+                    conceptCode: 'CUOTA_REINSCRIPCION',
+                    totalAmount: (float) $request->input('enrollment_fee_amount'),
+                    installmentMonths: $request->integer('enrollment_fee_installment_months') ?: null,
+                    metadata: [
+                        'origin' => 'account_reactivation',
+                        'reactivated_at' => $now->toDateTimeString(),
+                    ],
+                    chargeDate: $now
+                );
             }
 
             // Log the reactivation event
@@ -292,7 +275,7 @@ class AccountReactivationController extends Controller
                 'membership_account_id' => $account->id,
                 'reactivated_by' => auth()->id(),
                 'reactivated_at' => $now,
-                'requires_documentation' => $request->boolean('requires_documentation'),
+                'requires_documentation' => false,
                 'enrollment_fee_applied' => $request->boolean('apply_enrollment_fee'),
                 'enrollment_fee_amount' => $request->boolean('apply_enrollment_fee')
                     ? (float) $request->input('enrollment_fee_amount')

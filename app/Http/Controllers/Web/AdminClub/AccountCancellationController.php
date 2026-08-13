@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Web\AdminClub;
 
+use App\Models\Billing\Charge;
 use App\Models\Catalogs\DocumentType;
 use App\Models\Members\LockerAssignment;
 use App\Models\Members\MemberDocument;
 use App\Models\Memberships\Membership;
+use App\Models\Memberships\MembershipAccount;
 use App\Models\Memberships\MembershipAccountMember;
 use App\Services\Billing\MembershipChargeService;
 use App\Services\Billing\MembershipPricingService;
@@ -15,6 +17,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Spatie\Permission\PermissionRegistrar;
 
@@ -100,13 +103,15 @@ class AccountCancellationController extends Controller
             ]);
         }
 
-        $request->validate([
+        $validated = $request->validate([
             'cancellation_letter' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+            'waive_pending_charges' => ['sometimes', 'boolean'],
         ], [
             'cancellation_letter.required' => 'La carta de baja firmada es obligatoria para continuar.',
             'cancellation_letter.mimes' => 'La carta debe ser un archivo PDF, JPG o PNG.',
             'cancellation_letter.max' => 'La carta no debe superar los 5 MB.',
         ]);
+        $waivePendingCharges = (bool) ($validated['waive_pending_charges'] ?? false);
 
         $membership->load([
             'account.primaryHolder.member',
@@ -217,9 +222,27 @@ class AccountCancellationController extends Controller
                 $this->membershipChargeService
             );
 
+            // Condonar adeudo pendiente: solo si el encargado lo marcó
+            // explícitamente Y esta baja deja al socio sin NINGUNA membresía
+            // activa en ningún parque (si todavía tiene una en otro parque,
+            // ese adeudo sigue siendo cobrable ahí, así que se rechaza toda
+            // la baja para que el encargado decida qué hacer primero).
+            if ($waivePendingCharges) {
+                if ($this->accountGroupHasRemainingActiveMemberships($account)) {
+                    throw ValidationException::withMessages([
+                        'waive_pending_charges' => 'No se puede condonar el adeudo: el socio todavía tiene una membresía activa en otro parque.',
+                    ]);
+                }
+
+                $this->waivePendingCharges($account, $now);
+            }
+
             DB::commit();
 
             return redirect()->route('members.index')->with('success', 'La cuenta ha sido dada de baja correctamente.');
+        } catch (ValidationException $e) {
+            DB::rollBack();
+            return back()->withErrors($e->errors());
         } catch (\Throwable $e) {
             DB::rollBack();
             Log::error('Error al procesar baja de cuenta', [
@@ -231,5 +254,63 @@ class AccountCancellationController extends Controller
                 'exception' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * True si, después de esta baja, el socio se queda sin ninguna
+     * membresía activa/suspendida en ningún parque — el mismo criterio que
+     * ya usa MembershipPricingService::recalculateGroupFeesAfterCancellation
+     * para saber si el grupo interclub sigue vivo en algún otro parque.
+     */
+    protected function accountGroupHasRemainingActiveMemberships(MembershipAccount $account): bool
+    {
+        $query = Membership::query()
+            ->where('is_primary', true)
+            ->whereIn('status', ['active', 'suspended']);
+
+        if ($account->account_group_id) {
+            $query->whereHas('account', fn ($q) => $q->where('account_group_id', $account->account_group_id));
+        } else {
+            $query->where('membership_account_id', $account->id);
+        }
+
+        return $query->exists();
+    }
+
+    /**
+     * Condona (cancela) todos los cargos pendientes/parciales de TODAS las
+     * cuentas del grupo del socio (todos sus parques) — no solo mensualidad,
+     * cualquier concepto. Se deja mapeado en el propio cargo (cancelled_at,
+     * cancelled_by, cancellation_reason) en vez de solo desaparecer de los
+     * pendientes: billing.charges.status ya tenía 'cancelled' en su enum, y
+     * ya se excluye en todos los reportes/cobros existentes que filtran por
+     * status pendiente/parcial — no hacía falta un estado nuevo.
+     */
+    protected function waivePendingCharges(MembershipAccount $account, \Illuminate\Support\Carbon $now): void
+    {
+        $groupAccountIds = $account->account_group_id
+            ? MembershipAccount::query()->where('account_group_id', $account->account_group_id)->pluck('id')->all()
+            : [$account->id];
+
+        Charge::query()
+            ->whereIn('membership_account_id', $groupAccountIds)
+            ->whereIn('status', ['pending', 'partial'])
+            ->update([
+                'status' => 'cancelled',
+                'cancelled_at' => $now,
+                'cancelled_by' => auth()->id(),
+                'cancellation_reason' => 'Condonado por baja de cuenta',
+                'updated_at' => $now,
+            ]);
+
+        // Además de cancelar lo que ya existía como cargo, marca a partir de
+        // cuándo puede volver a rellenarse mensualidad faltante (ver
+        // MembershipChargeService::ensureMonthlyChargesUpToToday) — sin esto,
+        // al reactivar la cuenta el backfill automático volvía a generar
+        // mensualidad de meses previos a la baja que nunca se habían
+        // facturado, como si el adeudo condonado no hubiera aplicado a ellos.
+        MembershipAccount::query()
+            ->whereIn('id', $groupAccountIds)
+            ->update(['billing_backfill_floor' => $now->toDateString()]);
     }
 }

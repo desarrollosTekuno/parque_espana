@@ -2,6 +2,7 @@
 import BaseButton from "@/Components/BaseButton.vue";
 import { computed, ref, watch } from "vue";
 import { nowAsLocalInput } from "@/constants/formatDates";
+import Swal from "sweetalert2";
 
 interface PaymentMethodItem {
     id: number;
@@ -74,12 +75,19 @@ const round2 = (value: number) => Math.round(value * 100) / 100;
 
 interface PaymentLineForm {
     option_key: string;
+    // A qué método del catálogo (paymentMethods) corresponde esta fila —
+    // igual a option_key en las filas base, pero distinto en las filas
+    // "extra" (ver addExtraLine): permite tener dos filas de "Tarjeta de
+    // débito (PE1)" con montos y referencias independientes cuando una sola
+    // tarjeta no alcanza a cubrir lo que le toca a ese parque.
+    source_option_key: string;
     payment_method_id: number;
     checked: boolean;
     amount: number | null;
     reference: string;
     bank_name: string;
     check_number: string;
+    is_extra?: boolean;
 }
 
 // Dos filas distintas (una por parque) pueden compartir el mismo
@@ -97,10 +105,13 @@ const methodLabel = (key: string): string => {
 
 const paidAt = ref(nowAsLocalInput());
 const lines = ref<PaymentLineForm[]>([]);
+const formRef = ref<{ validate(): Promise<{ valid: boolean }>; resetValidation(): void } | null>(null);
+let extraLineCounter = 0;
 
 const buildLines = (): PaymentLineForm[] =>
     props.paymentMethods.map((m) => ({
         option_key: m.option_key ?? String(m.id),
+        source_option_key: m.option_key ?? String(m.id),
         payment_method_id: m.id,
         checked: false,
         amount: null,
@@ -108,6 +119,40 @@ const buildLines = (): PaymentLineForm[] =>
         bank_name: "",
         check_number: "",
     }));
+
+// Agrega otra fila del MISMO método (p. ej. una segunda "Tarjeta de débito
+// (PE1)") para cuando un solo instrumento no alcanza a cubrir lo que le
+// toca pagar al cajero — se identifica y captura por separado, pero para
+// efectos de qué método representa (referencia, banco, etc.) y de emparejado
+// con el otro parque, se resuelve a través de source_option_key.
+const addExtraLine = (line: PaymentLineForm) => {
+    extraLineCounter += 1;
+    const newLine: PaymentLineForm = {
+        option_key: `${line.source_option_key}__extra${extraLineCounter}`,
+        source_option_key: line.source_option_key,
+        payment_method_id: line.payment_method_id,
+        checked: true,
+        amount: null,
+        reference: "",
+        bank_name: "",
+        check_number: "",
+        is_extra: true,
+    };
+
+    // Se inserta justo después de la última fila de este mismo método (la
+    // base o, si ya había otra extra agregada antes, después de esa) en vez
+    // de al final de toda la tabla — así quedan agrupadas visualmente bajo
+    // el método al que pertenecen.
+    let insertAt = lines.value.findIndex((l) => l.option_key === line.option_key) + 1;
+    while (lines.value[insertAt]?.source_option_key === line.source_option_key) {
+        insertAt += 1;
+    }
+    lines.value.splice(insertAt, 0, newLine);
+};
+
+const removeExtraLine = (line: PaymentLineForm) => {
+    lines.value = lines.value.filter((l) => l.option_key !== line.option_key);
+};
 
 // Por default se propone pagar todo en efectivo (el método de pago
 // predeterminado del mostrador); el cajero puede desmarcarlo y elegir otros.
@@ -120,24 +165,43 @@ const resetForm = () => {
         cashLine.checked = true;
         cashLine.amount = round2(props.total);
     }
+
+    formRef.value?.resetValidation();
 };
+
+// El componente permanece montado aunque el diálogo esté cerrado (solo su
+// v-dialog interno se oculta/muestra vía modelValue), así que `lines` no se
+// pierde entre una apertura y otra. Por eso NO se reinicia cada vez que se
+// abre — si ya se había configurado algo, se conserva para que el cajero lo
+// revise o corrija en vez de encontrarse el formulario limpio otra vez. Solo
+// se reinicia la primera vez, o si el total cambió desde la última vez que
+// se preparó (montos viejos que ya no cuadran con el nuevo total).
+const lastPreparedTotal = ref<number | null>(null);
 
 watch(
     () => props.modelValue,
     (open) => {
-        if (open) resetForm();
+        if (!open) return;
+        if (lastPreparedTotal.value === null || lastPreparedTotal.value !== props.total) {
+            resetForm();
+            lastPreparedTotal.value = props.total;
+        }
     },
 );
 
 const isSplit = computed(() => props.clubBreakdown.length > 1);
 
-// Qué proporción del total le toca a cada parque (mensualidad dividida) —
-// se usa para repartir automáticamente lo que se asigne a un método de pago
-// entre la fila del parque de la sesión y su pareja del otro parque.
-const ratioForClubCode = (clubCode: string | null | undefined): number => {
+// Monto real que le toca a cada parque según el desglose del cobro (p. ej.
+// la mensualidad combo repartida 50/50) — NO una proporción sobre el total
+// del diálogo, que puede incluir además otros conceptos que no se dividen
+// (p. ej. un concepto nuevo capturado a mano, propio del parque de la
+// sesión). Antes se usaba `entry.amount / props.total`, lo que daba una
+// proporción incorrecta en cuanto el total incluía algo más que el
+// desglosable, y además hacía que escribir un monto distinto en la fila de
+// la sesión (para cubrir ese extra) recalculara también la fila pareja.
+const clubBreakdownAmount = (clubCode: string | null | undefined): number => {
     if (!clubCode) return 0;
-    const entry = props.clubBreakdown.find((c) => c.club_code === clubCode);
-    return entry && props.total > 0 ? entry.amount / props.total : 0;
+    return props.clubBreakdown.find((c) => c.club_code === clubCode)?.amount ?? 0;
 };
 
 // Empareja cada método del parque de la sesión con su equivalente en el
@@ -165,8 +229,8 @@ const pairedKey = computed<Map<string, string>>(() => {
 // emparejada con una del parque de la sesión y el cobro está dividido: su
 // estado se controla desde la fila de la sesión, no se captura dos veces.
 const isMirrored = (line: PaymentLineForm): boolean => {
-    const method = methodByKey(line.option_key);
-    return !!method && method.is_session_club === false && isSplit.value && pairedKey.value.has(line.option_key);
+    const method = methodByKey(line.source_option_key);
+    return !!method && method.is_session_club === false && isSplit.value && pairedKey.value.has(line.source_option_key);
 };
 
 const checkedLines = computed(() => lines.value.filter((l) => l.checked));
@@ -176,32 +240,40 @@ const assignedTotal = computed(() =>
 );
 const remaining = computed(() => round2(props.total - assignedTotal.value));
 
-// Recalcula la fila pareja (del otro parque) a partir de lo que se tecleó
-// en la fila del parque de la sesión, según la proporción real de cada
-// parque en el total — no un 50/50 fijo, por si el reparto no fuera exacto.
+// Fija la fila pareja (del otro parque) a su monto real del desglose,
+// independiente de lo que traiga tecleado la fila de la sesión — así el
+// cajero puede agregar de más en su propia fila (para cubrir otros
+// conceptos no divididos) sin que se altere lo que le toca al otro parque.
 const syncPair = (line: PaymentLineForm) => {
-    const partnerKey = pairedKey.value.get(line.option_key);
+    const partnerKey = pairedKey.value.get(line.source_option_key);
     if (!partnerKey) return;
     const partner = lines.value.find((l) => l.option_key === partnerKey);
     if (!partner) return;
 
     partner.checked = line.checked;
-
-    if (!line.checked) {
-        partner.amount = null;
-        return;
-    }
-
-    const lineRatio = ratioForClubCode(methodByKey(line.option_key)?.club_code);
-    const partnerRatio = ratioForClubCode(methodByKey(partnerKey)?.club_code);
-
-    partner.amount = lineRatio > 0
-        ? round2(Number(line.amount ?? 0) * (partnerRatio / lineRatio))
+    partner.amount = line.checked
+        ? (clubBreakdownAmount(methodByKey(partnerKey)?.club_code) || null)
         : null;
 };
 
+// True si ya hay algún método con pareja marcado (y su pareja ya calculada)
+// — sirve para saber si un SEGUNDO método (p. ej. porque una sola tarjeta no
+// alcanzó para cubrir la parte de este parque) debe volver a marcar/rellenar
+// su propia pareja del otro parque o no: si ya se cubrió, no debe.
+const anySplitPartnerAlreadyClaimed = computed(() =>
+    lines.value.some((l) => {
+        if (!l.checked) return false;
+        const partnerKey = pairedKey.value.get(l.source_option_key);
+        if (!partnerKey) return false;
+        return !!lines.value.find((p) => p.option_key === partnerKey)?.checked;
+    }),
+);
+
 const onToggle = (line: PaymentLineForm) => {
-    const isPairedSplit = isSplit.value && pairedKey.value.has(line.option_key);
+    // Las filas "extra" (ver addExtraLine) nunca controlan la pareja del
+    // otro parque — esa ya quedó fija con la fila base del mismo método;
+    // una extra solo captura otro monto/referencia del mismo lado.
+    const isPairedSplit = isSplit.value && !line.is_extra && pairedKey.value.has(line.source_option_key);
 
     if (!line.checked) {
         line.amount = null;
@@ -213,12 +285,22 @@ const onToggle = (line: PaymentLineForm) => {
     }
 
     if (isPairedSplit) {
-        // Lo que falta por asignar (antes de marcar este método) se reparte
-        // entre la fila de este parque y la de su pareja, en la proporción
-        // real de cada uno dentro del total.
-        const ratio = ratioForClubCode(methodByKey(line.option_key)?.club_code);
-        const totalForPair = remaining.value > 0 ? remaining.value : 0;
-        line.amount = ratio > 0 ? round2(totalForPair * ratio) : null;
+        if (anySplitPartnerAlreadyClaimed.value) {
+            // La parte del otro parque ya quedó cubierta por otro método
+            // (p. ej. se marcó Tarjeta de débito y ahora se agrega Tarjeta
+            // de crédito porque la primera no alcanzó): este método
+            // adicional solo cubre lo que falte de ESTE parque, sin volver
+            // a marcar ni duplicar su propia pareja.
+            line.amount = remaining.value > 0 ? remaining.value : null;
+            return;
+        }
+
+        // Primer método con pareja que se marca: por default se propone lo
+        // que le toca a este parque según el desglose real del cobro; si
+        // sobra algo más (otros conceptos no divididos), el cajero lo
+        // agrega escribiendo encima — no se recalcula la fila pareja a
+        // partir de eso (ver syncPair).
+        line.amount = clubBreakdownAmount(methodByKey(line.source_option_key)?.club_code) || null;
         syncPair(line);
         return;
     }
@@ -228,13 +310,9 @@ const onToggle = (line: PaymentLineForm) => {
     }
 };
 
-const onAmountChange = (line: PaymentLineForm) => {
-    if (isSplit.value) syncPair(line);
-};
-
 const isLineValid = (line: PaymentLineForm): boolean => {
     if (!line.amount || line.amount <= 0) return false;
-    const m = methodByKey(line.option_key);
+    const m = methodByKey(line.source_option_key);
     if (m?.requires_reference && !line.reference) return false;
     if (m?.requires_bank_name && !line.bank_name) return false;
     if (m?.requires_check_number && !line.check_number) return false;
@@ -247,8 +325,48 @@ const canConfirm = computed(() => {
     return checkedLines.value.every(isLineValid);
 });
 
-const confirmPayment = () => {
+// Reglas Vuetify por campo — un campo no marcado/deshabilitado siempre pasa
+// (no debe bloquear el formulario por un método que ni siquiera se está
+// usando). El cuadre exacto del total (canConfirm) es una validación
+// cruzada entre filas, no de un campo individual, así que se sigue
+// mostrando aparte en "Restante por asignar".
+const paidAtRules = [(v: string) => !!v || "La fecha y hora del pago son requeridas"];
+
+const amountRules = (line: PaymentLineForm) => [
+    (v: number | null) => !line.checked || (v !== null && Number(v) > 0) || "El importe debe ser mayor a cero",
+];
+
+const referenceRules = (line: PaymentLineForm) => [
+    (v: string) => {
+        if (!line.checked || isMirrored(line)) return true;
+        if (!methodByKey(line.source_option_key)?.requires_reference) return true;
+        return !!v || "La referencia es requerida para este método";
+    },
+];
+
+const bankNameRules = [(v: string) => !!v || "El banco es requerido"];
+const checkNumberRules = [(v: string) => !!v || "El número de cheque es requerido"];
+
+// Este botón solo CONFIGURA con qué formas de pago se va a cobrar — no
+// registra nada todavía (eso pasa hasta que el cajero de clic en "Registrar
+// cobro" afuera del diálogo, con su propia confirmación). Por eso pide
+// confirmación aquí también: una vez que se acepta y se cierra el diálogo,
+// revisar/corregir la forma de pago implica volver a abrirlo desde cero.
+const confirmPayment = async () => {
+    const result = await formRef.value?.validate();
+    if (!result?.valid) return;
     if (!canConfirm.value) return;
+
+    const swalResult = await Swal.fire({
+        icon: "question",
+        title: "¿Confirmar formas de pago?",
+        html: `Se configuraron ${checkedLines.value.length} forma(s) de pago por un total de ${formatCurrency(assignedTotal.value)}. Después de aceptar podrás revisar todo antes de registrar el cobro.`,
+        showCancelButton: true,
+        confirmButtonText: "Sí, aceptar",
+        cancelButtonText: "Revisar de nuevo",
+    });
+
+    if (!swalResult.isConfirmed) return;
 
     emit("confirm", {
         paid_at: paidAt.value,
@@ -260,6 +378,8 @@ const confirmPayment = () => {
             check_number: l.check_number,
         })),
     });
+
+    dialogModel.value = false;
 };
 
 const close = () => {
@@ -268,8 +388,8 @@ const close = () => {
 </script>
 
 <template>
-    <v-dialog v-model="dialogModel" max-width="820" persistent>
-        <v-card>
+    <v-dialog v-model="dialogModel" max-width="1200" persistent scrollable>
+        <v-card style="max-height: 90vh;">
             <v-card-title class="d-flex justify-space-between align-center">
                 <span>Método de pago</span>
                 <BaseButton
@@ -289,8 +409,9 @@ const close = () => {
                     type="info"
                     variant="tonal"
                     density="compact"
+                    style="flex: none;"
                 >
-                    <div class="text-body-2 mb-1">
+                    <div class="text-body-2 mb-1" style="white-space: normal;">
                         Este cobro corresponde a una mensualidad dividida
                         entre parques. Todo el dinero se registrará en este
                         parque, pero quedará el detalle de cómo se reparte:
@@ -313,11 +434,13 @@ const close = () => {
                     </span>
                 </div>
 
+                <v-form ref="formRef">
                 <v-text-field
                     v-model="paidAt"
                     label="Fecha y hora del pago"
                     type="datetime-local"
                     hide-details="auto"
+                    :rules="paidAtRules"
                 />
 
                 <div>
@@ -342,13 +465,15 @@ const close = () => {
                         Este parque no tiene métodos de pago habilitados.
                     </v-alert>
 
-                    <v-table v-else density="comfortable">
+                    <v-table v-else density="comfortable" style="table-layout: fixed; width: 100%;">
                         <thead>
                             <tr>
                                 <th style="width: 40px;" />
-                                <th>Método</th>
-                                <th style="min-width: 150px;">Cantidad</th>
+                                <th style="width: 70px;">Clave</th>
+                                <th style="width: 190px;">Método</th>
+                                <th style="width: 150px;">Cantidad</th>
                                 <th>Referencia</th>
+                                <th style="width: 40px;" />
                             </tr>
                         </thead>
                         <tbody>
@@ -363,14 +488,20 @@ const close = () => {
                                             @update:model-value="onToggle(line)"
                                         />
                                     </td>
+                                    <td class="text-medium-emphasis">
+                                        {{ methodByKey(line.source_option_key)?.internal_key ?? "" }}
+                                    </td>
                                     <td>
-                                        {{ methodLabel(line.option_key) }}
+                                        {{ methodLabel(line.source_option_key) }}
                                         <v-icon
                                             v-if="isMirrored(line)"
                                             icon="mdi-link-variant"
                                             size="14"
                                             class="text-medium-emphasis ml-1"
                                         />
+                                        <span v-if="line.is_extra" class="text-caption text-medium-emphasis">
+                                            (otro pago)
+                                        </span>
                                     </td>
                                     <td>
                                         <v-text-field
@@ -381,7 +512,7 @@ const close = () => {
                                             density="compact"
                                             hide-details="auto"
                                             :disabled="!line.checked || isMirrored(line)"
-                                            @update:model-value="onAmountChange(line)"
+                                            :rules="amountRules(line)"
                                         />
                                     </td>
                                     <td>
@@ -389,29 +520,59 @@ const close = () => {
                                             v-model="line.reference"
                                             density="compact"
                                             hide-details="auto"
-                                            :disabled="!line.checked || !methodByKey(line.option_key)?.requires_reference"
+                                            :disabled="!line.checked || !methodByKey(line.source_option_key)?.requires_reference"
+                                            :rules="referenceRules(line)"
+                                        />
+                                    </td>
+                                    <td>
+                                        <BaseButton
+                                            v-if="line.is_extra"
+                                            :icon-only="true"
+                                            action="delete"
+                                            icon="mdi-close"
+                                            variant="text"
+                                            size="x-small"
+                                            tooltip="Quitar este pago"
+                                            @click="removeExtraLine(line)"
+                                        />
+                                        <BaseButton
+                                            v-else-if="!isMirrored(line)"
+                                            :icon-only="true"
+                                            action="add"
+                                            icon="mdi-plus"
+                                            variant="text"
+                                            size="x-small"
+                                            tooltip="Agregar otro pago con este método (p. ej. otra tarjeta)"
+                                            @click="addExtraLine(line)"
                                         />
                                     </td>
                                 </tr>
-                                <tr v-if="line.checked && (methodByKey(line.option_key)?.requires_bank_name || methodByKey(line.option_key)?.requires_check_number)">
+                                <tr v-if="line.checked && (methodByKey(line.source_option_key)?.requires_bank_name || methodByKey(line.source_option_key)?.requires_check_number)">
                                     <td />
-                                    <td colspan="3" class="pb-3">
+                                    <td />
+                                    <td colspan="4" class="pb-2 pt-0">
                                         <div class="d-flex flex-wrap ga-3">
                                             <v-text-field
-                                                v-if="methodByKey(line.option_key)?.requires_bank_name"
+                                                v-if="methodByKey(line.source_option_key)?.requires_bank_name"
                                                 v-model="line.bank_name"
                                                 label="Banco"
                                                 density="compact"
+                                                variant="outlined"
                                                 hide-details="auto"
+                                                prepend-inner-icon="mdi-bank-outline"
                                                 style="max-width: 220px;"
+                                                :rules="bankNameRules"
                                             />
                                             <v-text-field
-                                                v-if="methodByKey(line.option_key)?.requires_check_number"
+                                                v-if="methodByKey(line.source_option_key)?.requires_check_number"
                                                 v-model="line.check_number"
                                                 label="Número de cheque"
                                                 density="compact"
+                                                variant="outlined"
                                                 hide-details="auto"
+                                                prepend-inner-icon="mdi-pound"
                                                 style="max-width: 220px;"
+                                                :rules="checkNumberRules"
                                             />
                                         </div>
                                     </td>
@@ -420,6 +581,7 @@ const close = () => {
                         </tbody>
                     </v-table>
                 </div>
+                </v-form>
             </v-card-text>
 
             <v-card-actions class="justify-end">
@@ -434,8 +596,8 @@ const close = () => {
                 <BaseButton
                     :icon-only="false"
                     action="save"
-                    icon="mdi-cash-check"
-                    text="Confirmar pago"
+                    icon="mdi-check"
+                    text="Aceptar"
                     :loading="loading"
                     :disabled="!canConfirm"
                     @click="confirmPayment"
@@ -444,3 +606,12 @@ const close = () => {
         </v-card>
     </v-dialog>
 </template>
+
+<style>
+/* El v-dialog de Vuetify queda por encima del swal2 por default (mismo
+   ajuste que ya se usa en Amenities/Index.vue y Members/Show.vue) — sin
+   esto, la confirmación de "Aceptar" aparece detrás de este modal. */
+.swal2-container {
+    z-index: 9999 !important;
+}
+</style>

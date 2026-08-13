@@ -36,6 +36,7 @@ const props = defineProps<Props>();
 
 const form = useForm({
     cancellation_letter: null as File | null,
+    waive_pending_charges: false,
 });
 
 const letterFiles = ref<File[] | null>(null);
@@ -192,6 +193,32 @@ const submit = async () => {
                                         {{ form.errors.cancellation_letter }}
                                     </div>
                                 </div>
+
+                                <!-- Condonación de adeudo -->
+                                <v-checkbox
+                                    v-model="form.waive_pending_charges"
+                                    color="warning"
+                                    class="mb-0"
+                                    hide-details="auto"
+                                    :error-messages="form.errors.waive_pending_charges"
+                                >
+                                    <template #label>
+                                        <span class="text-body-2">
+                                            Condonar el adeudo pendiente del socio (mensualidades u otros cargos sin pagar).
+                                            Solo aplica si esta baja lo deja sin ninguna membresía activa en ningún parque.
+                                        </span>
+                                    </template>
+                                </v-checkbox>
+                                <v-alert
+                                    v-if="form.waive_pending_charges"
+                                    type="warning"
+                                    variant="tonal"
+                                    density="compact"
+                                    class="mb-4"
+                                >
+                                    Se cancelará todo el adeudo pendiente del socio en todos sus parques — esta acción
+                                    también es irreversible.
+                                </v-alert>
 
                                 <!-- Confirmación -->
                                 <v-checkbox

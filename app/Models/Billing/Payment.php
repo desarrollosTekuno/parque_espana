@@ -22,6 +22,7 @@ class Payment extends Model
         'subtotal' => 'float',
         'iva' => 'float',
         'paid_at' => 'datetime',
+        'cancelled_at' => 'datetime',
         'metadata' => 'array',
     ];
 
@@ -45,8 +46,23 @@ class Payment extends Model
         return $this->belongsTo(User::class, 'received_by');
     }
 
+    public function canceller()
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
     public function applications()
     {
         return $this->hasMany(PaymentApplication::class, 'payment_id');
+    }
+
+    /**
+     * Las demás formas de pago (Payment) del mismo cobro dividido — ver
+     * PaymentRegistrationService::registerSplit, que les asigna el mismo
+     * payment_group_id. Incluye este mismo registro.
+     */
+    public function groupPayments()
+    {
+        return $this->hasMany(Payment::class, 'payment_group_id', 'payment_group_id');
     }
 }

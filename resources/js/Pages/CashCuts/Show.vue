@@ -32,6 +32,11 @@ interface MethodTotal {
     total: number;
 }
 
+interface CancelledPaymentItem extends PaymentItem {
+    cancelled_at: string | null;
+    cancellation_reason: string | null;
+}
+
 interface CashCutDetail {
     id: number;
     date: string;
@@ -51,6 +56,7 @@ interface Props {
     cashCut: CashCutDetail;
     payments: PaymentItem[];
     totalsPerMethod: MethodTotal[];
+    cancelledPayments: CancelledPaymentItem[];
     denominations: Denomination[];
 }
 
@@ -336,6 +342,29 @@ const isClosed = computed(() => props.cashCut.status === "closed");
                                 <div class="pa-4 text-center text-medium-emphasis">Sin cobros registrados.</div>
                             </template>
                         </v-data-table>
+                    </v-card>
+
+                    <!-- Pagos cancelados: ya no cuentan en los totales de arriba
+                         (ver CashCutController::getPaymentsForCut), se muestran
+                         aparte para que quede claro por qué falta ese dinero en
+                         vez de que el pago desaparezca sin dejar rastro. -->
+                    <v-card v-if="cancelledPayments.length" class="mt-4" variant="outlined">
+                        <v-card-title class="text-error">Pagos cancelados</v-card-title>
+                        <v-card-subtitle>
+                            {{ cancelledPayments.length }} pago(s) cancelado(s) ese día — ya no cuentan en los totales.
+                        </v-card-subtitle>
+                        <v-list density="compact">
+                            <v-list-item
+                                v-for="item in cancelledPayments"
+                                :key="item.id"
+                                :title="`${item.payment_method_name || '-'} · ${formatCurrency(item.amount)}`"
+                            >
+                                <template #subtitle>
+                                    <div>{{ item.membership_number || "-" }} — {{ item.cancellation_reason || "Sin motivo capturado" }}</div>
+                                    <div class="text-caption">Cancelado: {{ utcToLocalDisplay(item.cancelled_at) }}</div>
+                                </template>
+                            </v-list-item>
+                        </v-list>
                     </v-card>
                 </v-col>
             </v-row>

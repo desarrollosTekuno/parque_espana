@@ -265,10 +265,19 @@ class MembershipChargeService
             return;
         }
 
-        $cursor = Carbon::create((int) $earliestCharge->period_year, (int) $earliestCharge->period_month, 1);
+        $earliestChargePeriod = Carbon::create((int) $earliestCharge->period_year, (int) $earliestCharge->period_month, 1);
+        $cursor = $this->resolveMonthlyBackfillStart($billableMembership, $earliestChargePeriod);
         $safetyLimit = 240; // ~20 años, para nunca quedar en un ciclo infinito por un dato inesperado.
+        $cancelledPeriods = $this->resolveCancelledPeriods($billableMembership);
 
         while ($cursor->lte($currentPeriod) && $safetyLimit-- > 0) {
+            $wasCancelledThisPeriod = $this->periodFallsWithin($cursor, $cancelledPeriods);
+
+            if ($wasCancelledThisPeriod) {
+                $cursor->addMonthNoOverflow();
+                continue;
+            }
+
             $existsForPeriod = Charge::query()
                 ->where('concept_id', $monthlyConcept->id)
                 ->whereIn('membership_account_id', $groupAccountIds)
@@ -285,6 +294,90 @@ class MembershipChargeService
 
             $cursor->addMonthNoOverflow();
         }
+    }
+
+    /**
+     * Meses en los que la membresía estuvo dada de baja, reconstruidos a
+     * partir de memberships.membership_history. Sin esto, ensureMonthlyChargesUpToToday
+     * rellenaba mensualidad para TODO el hueco entre el cargo más antiguo y hoy,
+     * incluyendo los meses en que la cuenta estuvo cancelada — generando adeudo
+     * por periodos en los que el socio no tenía membresía activa.
+     *
+     * @return array<int, array{0: Carbon, 1: ?Carbon}> pares [inicio, fin) del mes en que se dio de baja / reactivó
+     */
+    public function resolveCancelledPeriods(Membership $membership): array
+    {
+        $events = DB::table('memberships.membership_history')
+            ->where('membership_id', $membership->id)
+            ->whereIn('reason', ['Baja voluntaria de cuenta', 'Reactivación de cuenta'])
+            ->orderBy('created_at')
+            ->get(['reason', 'effective_date']);
+
+        $periods = [];
+        $cancelledFrom = null;
+
+        foreach ($events as $event) {
+            $effectiveMonth = Carbon::parse($event->effective_date)->startOfMonth();
+
+            if ($event->reason === 'Baja voluntaria de cuenta') {
+                $cancelledFrom ??= $effectiveMonth;
+            } elseif ($event->reason === 'Reactivación de cuenta' && $cancelledFrom) {
+                $periods[] = [$cancelledFrom, $effectiveMonth];
+                $cancelledFrom = null;
+            }
+        }
+
+        if ($cancelledFrom) {
+            $periods[] = [$cancelledFrom, null];
+        }
+
+        return $periods;
+    }
+
+    /**
+     * @param array<int, array{0: Carbon, 1: ?Carbon}> $periods
+     */
+    public function periodFallsWithin(Carbon $month, array $periods): bool
+    {
+        foreach ($periods as [$start, $end]) {
+            if ($month->gte($start) && ($end === null || $month->lt($end))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Mes a partir del cual se puede volver a rellenar mensualidad faltante
+     * para esta membresía — null si nunca se condonó adeudo. Ver
+     * memberships.accounts.billing_backfill_floor y
+     * AccountCancellationController::waivePendingCharges.
+     */
+    public function resolveBackfillFloorMonth(Membership $membership): ?Carbon
+    {
+        $floor = $membership->account?->billing_backfill_floor;
+
+        return $floor ? $floor->copy()->startOfMonth() : null;
+    }
+
+    /**
+     * Punto de partida para recorrer mes a mes al rellenar mensualidad
+     * faltante: el periodo del cargo más antiguo existente, nunca antes del
+     * piso de condonación (si aplica). Compartido entre el backfill
+     * automático (ensureMonthlyChargesUpToToday) y el de "Agregar concepto
+     * de cobro" en Collections (CollectionController::resolveMonthlyFeeMonths).
+     */
+    public function resolveMonthlyBackfillStart(Membership $membership, ?Carbon $earliestChargePeriod): Carbon
+    {
+        $cursor = ($earliestChargePeriod ?? now())->copy()->startOfMonth();
+        $floor = $this->resolveBackfillFloorMonth($membership);
+
+        if ($floor && $cursor->lt($floor)) {
+            return $floor;
+        }
+
+        return $cursor;
     }
 
     public function createInitialCharges(
@@ -370,43 +463,73 @@ class MembershipChargeService
         }
 
         if ($inscriptionFee > 0) {
-            $inscriptionConcept = $this->resolveConcept('INSCRIPTION');
-            $months = ($installmentMonths !== null && $installmentMonths > 1) ? $installmentMonths : 1;
-            $baseAmount = round($inscriptionFee / $months, 2);
-            $remainder = round($inscriptionFee - ($baseAmount * $months), 2);
+            $this->createInstallmentCharge(
+                membership: $membership,
+                conceptCode: 'INSCRIPTION',
+                totalAmount: $inscriptionFee,
+                installmentMonths: $installmentMonths,
+                metadata: $metadata,
+                chargeDate: $chargeDate
+            );
+        }
+    }
 
-            $commonFields = [
-                'membership_account_id' => $membership->membership_account_id,
-                'membership_id'         => $membership->id,
-                'member_id'             => $membership->account?->primaryHolder?->member_id,
-                'concept_id'            => $inscriptionConcept->id,
-                'period_year'           => null,
-                'period_month'          => null,
-                'allows_partial_payments' => (bool) $inscriptionConcept->allows_partial_payments,
-                'status'                => 'pending',
-            ];
+    /**
+     * Crea un cargo (o varios, si $installmentMonths > 1) para un concepto
+     * de una sola vez, independiente de la lógica de mensualidad. Extraído
+     * de createInitialCharges para poder reutilizarse con otros conceptos
+     * de una sola vez (p. ej. CUOTA_REINSCRIPCION en reactivación de cuenta)
+     * sin volver a disparar la creación/reconciliación del cargo mensual.
+     */
+    public function createInstallmentCharge(
+        Membership $membership,
+        string $conceptCode,
+        float $totalAmount,
+        ?int $installmentMonths = null,
+        array $metadata = [],
+        ?Carbon $chargeDate = null
+    ): void {
+        if ($totalAmount <= 0) {
+            return;
+        }
 
-            for ($i = 0; $i < $months; $i++) {
-                $dueDate = $chargeDate->copy()->addMonthsNoOverflow($i);
-                $amount  = $i === $months - 1
-                    ? round($baseAmount + $remainder, 2)
-                    : $baseAmount;
+        $chargeDate = ($chargeDate ?? now())->copy()->startOfDay();
+        $concept = $this->resolveConcept($conceptCode);
+        $months = ($installmentMonths !== null && $installmentMonths > 1) ? $installmentMonths : 1;
+        $baseAmount = round($totalAmount / $months, 2);
+        $remainder = round($totalAmount - ($baseAmount * $months), 2);
 
-                Charge::create(array_merge($commonFields, [
-                    'description' => $months > 1
-                        ? $this->buildInscriptionInstallmentDescription($membership, $i + 1, $months)
-                        : $this->buildInscriptionChargeDescription($membership),
-                    'amount'     => $amount,
-                    'balance'    => $amount,
-                    'issue_date' => $chargeDate->toDateString(),
-                    'due_date'   => $dueDate->toDateString(),
-                    'metadata'   => array_merge($metadata, [
-                        'concept_code'       => $inscriptionConcept->code,
-                        'installment_months' => $months > 1 ? $months : null,
-                        'installment_index'  => $months > 1 ? $i + 1 : null,
-                    ]),
-                ]));
-            }
+        $commonFields = [
+            'membership_account_id' => $membership->membership_account_id,
+            'membership_id'         => $membership->id,
+            'member_id'             => $membership->account?->primaryHolder?->member_id,
+            'concept_id'            => $concept->id,
+            'period_year'           => null,
+            'period_month'          => null,
+            'allows_partial_payments' => (bool) $concept->allows_partial_payments,
+            'status'                => 'pending',
+        ];
+
+        for ($i = 0; $i < $months; $i++) {
+            $dueDate = $chargeDate->copy()->addMonthsNoOverflow($i);
+            $amount  = $i === $months - 1
+                ? round($baseAmount + $remainder, 2)
+                : $baseAmount;
+
+            Charge::create(array_merge($commonFields, [
+                'description' => $months > 1
+                    ? $this->buildInstallmentChargeDescription($concept, $membership, $i + 1, $months)
+                    : $this->buildSingleChargeDescription($concept, $membership),
+                'amount'     => $amount,
+                'balance'    => $amount,
+                'issue_date' => $chargeDate->toDateString(),
+                'due_date'   => $dueDate->toDateString(),
+                'metadata'   => array_merge($metadata, [
+                    'concept_code'       => $concept->code,
+                    'installment_months' => $months > 1 ? $months : null,
+                    'installment_index'  => $months > 1 ? $i + 1 : null,
+                ]),
+            ]));
         }
     }
 
@@ -482,18 +605,18 @@ class MembershipChargeService
         );
     }
 
-    protected function buildInscriptionChargeDescription(Membership $membership): string
+    protected function buildSingleChargeDescription(ChargeConcept $concept, Membership $membership): string
     {
         $membershipTypeName = $membership->membershipType?->name ?? 'Membresía';
 
-        return sprintf('Inscripción - %s', $membershipTypeName);
+        return sprintf('%s - %s', $concept->name, $membershipTypeName);
     }
 
-    protected function buildInscriptionInstallmentDescription(Membership $membership, int $index, int $total): string
+    protected function buildInstallmentChargeDescription(ChargeConcept $concept, Membership $membership, int $index, int $total): string
     {
         $membershipTypeName = $membership->membershipType?->name ?? 'Membresía';
 
-        return sprintf('Inscripción - %s (Parcialidad %d de %d)', $membershipTypeName, $index, $total);
+        return sprintf('%s - %s (Parcialidad %d de %d)', $concept->name, $membershipTypeName, $index, $total);
     }
 
     protected function resolveExistingPeriodMonthlyAmount(

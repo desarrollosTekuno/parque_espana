@@ -216,6 +216,7 @@ class AdminClubSeeder extends Seeder
             'payment-methods.update',
             'payment-methods.destroy',
             'tickets.index',
+            'payments.cancel',
 
             // cortes de caja
             'cash-cuts.index',
