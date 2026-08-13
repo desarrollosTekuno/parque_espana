@@ -15,6 +15,7 @@ import { Head, usePage } from "@inertiajs/vue3";
 import { computed, ref, watch } from "vue";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import { nowAsLocalInput } from "@/constants/formatDates";
+import { isLoading } from "@/loading";
 import Swal from "sweetalert2";
 
 interface ConceptOption {
@@ -1540,6 +1541,22 @@ watch(cobrosTotal, () => {
     manualPaymentOverride.value = null;
 });
 
+const cancelCobros = async () => {
+    if (!cobros.value.length) return;
+
+    const result = await customConfirmSwal({
+        title: "¿Cancelar cobro?",
+        text: "Se vaciará la lista de conceptos agregados. Tendrás que volver a capturarlos si te arrepientes.",
+        icon: "warning",
+        confirmText: "Sí, vaciar lista",
+        cancelText: "Seguir capturando",
+        showLoaderOnConfirm: false,
+    });
+    if (!result?.isConfirmed) return;
+
+    cobros.value = [];
+};
+
 const registerPayment = async () => {
     if (!account.value || !cobroClub.value || !configuredPayment.value) return;
 
@@ -1573,6 +1590,7 @@ const registerPayment = async () => {
         }));
 
     paying.value = true;
+    isLoading.value = true;
     try {
         const { data } = await window.axios.post(route("collections.payment.store"), {
             membership_account_id: account.value.id,
@@ -1583,6 +1601,11 @@ const registerPayment = async () => {
             new_items,
             cafeteria_checkouts,
         });
+
+        // El loader compartido solo cubre la petición en sí; lo que sigue
+        // (Swal de éxito, pregunta de imprimir ticket) ya tiene su propio
+        // overlay modal, no hace falta encimar los dos.
+        isLoading.value = false;
 
         const isCardPayment = payload.payments.some((p) => {
             const method = paymentMethodOptions.value.find(
@@ -1632,6 +1655,7 @@ const registerPayment = async () => {
         });
     } finally {
         paying.value = false;
+        isLoading.value = false;
     }
 };
 
@@ -2582,6 +2606,16 @@ const saveNote = async () => {
                                                     :loading="paying"
                                                     :disabled="!configuredPayment"
                                                     @click="registerPayment"
+                                                />
+                                                <BaseButton
+                                                    :icon-only="false"
+                                                    action="cancel"
+                                                    icon="mdi-close-circle-outline"
+                                                    text="Cancelar"
+                                                    variant="text"
+                                                    color="error"
+                                                    :disabled="!cobros.length || paying"
+                                                    @click="cancelCobros"
                                                 />
                                             </div>
                                         </div>

@@ -461,6 +461,7 @@ watch(
                                     label="Código"
                                     :rules="[(value: unknown) => !!value || 'Campo requerido']"
                                     :error-messages="form.errors.code"
+                                    :disabled="form.id !== null"
                                 />
                             </v-col>
 

@@ -45,17 +45,23 @@ class PaymentTicketService {
         $holder = $account?->primaryHolder?->member;
         $addressLines = $this->addressLines($payment);
         $total = round((float) $groupPayments->sum('amount'), 2);
-        $subtotal = $total;
-        $iva = null;
         $ticketSeries = $this->cashierInitial($payment->receiver);
         $ticketFolio = $this->shortFolio($payment->folio);
 
-        if ($club?->applies_iva) {
-            $subtotal = round($total / 1.16, 2);
-            $iva = round($total - $subtotal, 2);
-        }
-
         $groupApplications = $groupPayments->flatMap(fn (Payment $p) => $p->applications);
+
+        // El subtotal/IVA real se guarda por línea (PaymentApplication, ver
+        // PaymentRegistrationService::resolveApplicationSubtotalAndIva) desde
+        // que un mismo pago puede cubrir cargos de conceptos distintos —
+        // unos con IVA, otros sin — así que no se puede calcular con un
+        // porcentaje parejo sobre el total del pago (eso daba resultados
+        // incorrectos en cobros mixtos). Aplicaciones de antes de que
+        // existiera este campo (subtotal/iva null) se asumen sin IVA.
+        $subtotal = round((float) $groupApplications->sum(
+            fn ($application) => $application->subtotal ?? (float) $application->applied_amount
+        ), 2);
+        $iva = round((float) $groupApplications->sum(fn ($application) => $application->iva ?? 0.0), 2);
+        $iva = $iva > 0 ? $iva : null;
 
         return [
             'payment_id' => $payment->id,
@@ -85,10 +91,10 @@ class PaymentTicketService {
             'receptor_regimen_fiscal' => $account?->fiscalData?->fiscal_regime,
             'receptor_codigo_postal' => $account?->fiscalData?->postal_code,
             'casilleros' => $this->lockerCodes($account),
-            'conceptos' => $groupApplications->map(function ($application) use ($club) {
+            'conceptos' => $groupApplications->map(function ($application) {
                 $charge = $application->charge;
                 $amount = (float) $application->applied_amount;
-                $unitPrice = $club?->applies_iva ? round($amount / 1.16, 2) : $amount;
+                $unitPrice = $application->subtotal ?? $amount;
 
                 return [
                     'charge_id' => $charge?->id,

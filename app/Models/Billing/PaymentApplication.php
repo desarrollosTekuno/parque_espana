@@ -16,6 +16,8 @@ class PaymentApplication extends Model
 
     protected $casts = [
         'applied_amount' => 'float',
+        'subtotal' => 'float',
+        'iva' => 'float',
     ];
 
     public function payment()
