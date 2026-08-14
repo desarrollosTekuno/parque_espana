@@ -92,6 +92,7 @@ class BillingConceptController extends Controller
                         'applies_iva' => (bool) $concept->applies_iva,
                         'club_applies_iva' => $clubAmount?->applies_iva,
                         'is_active' => (bool) $concept->is_active,
+                        'requires_account' => (bool) $concept->requires_account,
                     ];
                 })
                 ->appends($request->all());
@@ -221,6 +222,7 @@ class BillingConceptController extends Controller
             // parque en sesión.
             'club_applies_iva' => ['nullable', 'boolean'],
             'is_active' => ['required', 'boolean'],
+            'requires_account' => ['required', 'boolean'],
         ]);
     }
 
@@ -238,6 +240,7 @@ class BillingConceptController extends Controller
             'splits_between_parks' => (bool) $validated['splits_between_parks'],
             'applies_iva' => (bool) $validated['applies_iva'],
             'is_active' => (bool) $validated['is_active'],
+            'requires_account' => (bool) $validated['requires_account'],
         ];
     }
 

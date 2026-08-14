@@ -24,6 +24,7 @@ class ChargeConcept extends Model
         'splits_between_parks' => 'boolean',
         'applies_iva' => 'boolean',
         'is_active' => 'boolean',
+        'requires_account' => 'boolean',
     ];
 
     public function charges()

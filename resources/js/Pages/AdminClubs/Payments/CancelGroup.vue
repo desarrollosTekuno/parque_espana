@@ -45,6 +45,7 @@ const props = defineProps<Props>();
 
 const form = useForm({
     reason: "",
+    also_cancel_charge: false,
     confirmed: false,
 });
 
@@ -171,7 +172,12 @@ const submit = async () => {
                                 <strong>Esta acción es irreversible.</strong> Al cancelar el ticket completo:
                                 <ul class="mt-1 ml-4">
                                     <li>TODAS las formas de pago pendientes de este ticket se cancelan (rollback completo del cobro).</li>
-                                    <li>Los cargos que cubrieron vuelven a quedar pendientes.</li>
+                                    <li v-if="form.also_cancel_charge">
+                                        Los cargos que cubrieron se cancelan por completo — NO vuelven a quedar pendientes.
+                                    </li>
+                                    <li v-else>
+                                        Los cargos que cubrieron vuelven a quedar pendientes.
+                                    </li>
                                     <li>Los pagos quedan marcados como cancelados, conservando el historial.</li>
                                 </ul>
                                 <div class="mt-1">
@@ -191,6 +197,26 @@ const submit = async () => {
                                         :rules="[(v: string) => !!v?.trim() || 'El motivo es requerido']"
                                         :error-messages="form.errors.reason"
                                     />
+
+                                    <!-- Cancelar también los cargos -->
+                                    <v-card variant="outlined" class="pa-3 mb-4">
+                                        <v-checkbox
+                                            v-model="form.also_cancel_charge"
+                                            color="error"
+                                            hide-details
+                                        >
+                                            <template #label>
+                                                <div>
+                                                    <div class="font-weight-medium">
+                                                        Cancelar también los cargos
+                                                    </div>
+                                                    <div class="text-caption text-medium-emphasis">
+                                                        Los cargos que cubrió cada forma de pago se anulan por completo, en vez de volver a quedar pendientes. Útil para pruebas o cobros capturados por error.
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </v-checkbox>
+                                    </v-card>
 
                                     <!-- Confirmación -->
                                     <v-checkbox

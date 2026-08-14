@@ -21,15 +21,21 @@ class PaymentCancellationService
      * Payment::payment_group_id para las demás del mismo cobro, que NO se
      * tocan aquí) y lo marca como cancelado.
      *
-     * - Cancelación normal (no cheque rebotado): revierte el efecto que tuvo
-     *   sobre los cargos que cubrió (regresa balance/status) — no queda
-     *   ningún registro de que se haya cobrado.
+     * - Cancelación normal (no cheque rebotado, sin $alsoCancelCharge):
+     *   revierte el efecto que tuvo sobre los cargos que cubrió (regresa
+     *   balance/status a pending/partial) — vuelven a quedar como adeudo,
+     *   no queda ningún registro de que se haya cobrado.
+     * - Cancelación con $alsoCancelCharge=true: además de cancelar el pago,
+     *   el/los cargo(s) que cubrió se marcan como 'cancelled' (no vuelven a
+     *   quedar pendientes) — para cuando el cargo tampoco debía existir (p.
+     *   ej. una prueba, o un error de captura), no solo el pago.
      * - Cheque rebotado: el cargo original (p. ej. la mensualidad) se deja
      *   TAL CUAL estaba (no se revierte) — la deuda no se resucita ahí, se
      *   re-cobra mediante dos cargos NUEVOS sobre la misma cuenta: uno por el
      *   monto original que rebotó (concepto CHEQUE_REBOTADO) y otro por el
      *   10% de recargo (concepto COMISION_CHEQUE_REBOTADO). Revertir el cargo
      *   original A LA VEZ que se crea el nuevo dejaría la deuda duplicada.
+     *   Mutuamente excluyente con $alsoCancelCharge.
      *
      * @return array{payment: Payment, bounced_check_charge: ?Charge, bounced_check_commission_charge: ?Charge}
      */
@@ -37,7 +43,8 @@ class PaymentCancellationService
         Payment $payment,
         string $reason,
         ?int $cancelledBy,
-        bool $isBouncedCheck = false
+        bool $isBouncedCheck = false,
+        bool $alsoCancelCharge = false
     ): array {
         if ($payment->status === 'cancelled') {
             throw ValidationException::withMessages([
@@ -45,7 +52,15 @@ class PaymentCancellationService
             ]);
         }
 
-        return DB::transaction(fn () => $this->applyCancellation($payment, $reason, $cancelledBy, $isBouncedCheck));
+        if ($isBouncedCheck && $alsoCancelCharge) {
+            throw ValidationException::withMessages([
+                'payment' => 'No puedes marcar cheque rebotado y cancelar el cargo al mismo tiempo.',
+            ]);
+        }
+
+        return DB::transaction(
+            fn () => $this->applyCancellation($payment, $reason, $cancelledBy, $isBouncedCheck, $alsoCancelCharge)
+        );
     }
 
     /**
@@ -60,7 +75,7 @@ class PaymentCancellationService
      * @param  Collection<int, Payment>  $payments
      * @return array{payments: Collection<int, Payment>}
      */
-    public function cancelGroup(Collection $payments, string $reason, ?int $cancelledBy): array
+    public function cancelGroup(Collection $payments, string $reason, ?int $cancelledBy, bool $alsoCancelCharge = false): array
     {
         $pending = $payments->reject(fn (Payment $payment) => $payment->status === 'cancelled');
 
@@ -70,9 +85,9 @@ class PaymentCancellationService
             ]);
         }
 
-        return DB::transaction(function () use ($pending, $reason, $cancelledBy) {
+        return DB::transaction(function () use ($pending, $reason, $cancelledBy, $alsoCancelCharge) {
             $cancelled = $pending->map(
-                fn (Payment $payment) => $this->applyCancellation($payment, $reason, $cancelledBy, false)['payment']
+                fn (Payment $payment) => $this->applyCancellation($payment, $reason, $cancelledBy, false, $alsoCancelCharge)['payment']
             );
 
             return ['payments' => $cancelled];
@@ -83,7 +98,8 @@ class PaymentCancellationService
         Payment $payment,
         string $reason,
         ?int $cancelledBy,
-        bool $isBouncedCheck
+        bool $isBouncedCheck,
+        bool $alsoCancelCharge = false
     ): array {
         $now = now();
 
@@ -96,6 +112,10 @@ class PaymentCancellationService
             $membership = $this->resolveBouncedCheckTargetMembership($payment);
             $bouncedCheckCharge = $this->createBouncedCheckCharge($payment, $membership, $now);
             $commissionCharge = $this->createBouncedCheckCommissionCharge($payment, $membership, $now);
+        } elseif ($alsoCancelCharge) {
+            foreach ($payment->applications as $application) {
+                $this->cancelCharge($application->charge, $reason, $cancelledBy, $now);
+            }
         } else {
             foreach ($payment->applications as $application) {
                 $this->reverseApplication($application);
@@ -139,6 +159,27 @@ class PaymentCancellationService
         $charge->update([
             'balance' => $restoredBalance,
             'status' => $restoredBalance >= (float) $charge->amount ? 'pending' : 'partial',
+        ]);
+    }
+
+    /**
+     * Anula por completo el cargo que este pago cubría — a diferencia de
+     * reverseApplication(), no regresa balance/status a pending: lo deja
+     * 'cancelled' (usa las mismas columnas de rastreo que Payment). Se usa
+     * cuando el cargo tampoco debía existir (prueba, error de captura), no
+     * solo el pago. Si ya estaba cancelado (p. ej. por otra vía) no se toca.
+     */
+    private function cancelCharge(?Charge $charge, string $reason, ?int $cancelledBy, Carbon $now): void
+    {
+        if (!$charge || $charge->status === 'cancelled') {
+            return;
+        }
+
+        $charge->update([
+            'status' => 'cancelled',
+            'cancelled_at' => $now,
+            'cancelled_by' => $cancelledBy,
+            'cancellation_reason' => $reason,
         ]);
     }
 

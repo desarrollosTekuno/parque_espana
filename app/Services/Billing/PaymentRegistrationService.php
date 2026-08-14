@@ -17,7 +17,7 @@ use Illuminate\Validation\ValidationException;
 class PaymentRegistrationService
 {
     public function register(
-        MembershipAccount $account,
+        ?MembershipAccount $account,
         int $clubId,
         PaymentMethod $paymentMethod,
         array $applications,
@@ -31,7 +31,7 @@ class PaymentRegistrationService
         array $accountClubIds = [],
         array $groupAccountIds = []
     ): Payment {
-        $charges = $this->resolveCharges($groupAccountIds ?: [$account->id], $applications);
+        $charges = $this->resolveCharges($groupAccountIds ?: ($account ? [$account->id] : []), $applications);
 
         $this->ensureChargesBelongToClub($charges, $clubId, $accountClubIds);
         $this->ensurePaymentMethodAllowedForClub($paymentMethod->id, $clubId);
@@ -60,7 +60,7 @@ class PaymentRegistrationService
 
             $payment = Payment::create([
                 'payment_group_id' => (string) Str::uuid(),
-                'membership_account_id' => $account->id,
+                'membership_account_id' => $account?->id,
                 'club_id' => $clubId,
                 'payment_method_id' => $paymentMethod->id,
                 'amount' => $totalAmount,
@@ -117,7 +117,7 @@ class PaymentRegistrationService
      * la colección de Payment creados (uno por línea).
      */
     public function registerSplit(
-        MembershipAccount $account,
+        ?MembershipAccount $account,
         int $clubId,
         array $applications,
         array $payments,
@@ -134,7 +134,7 @@ class PaymentRegistrationService
             ]);
         }
 
-        $charges = $this->resolveCharges($groupAccountIds ?: [$account->id], $applications);
+        $charges = $this->resolveCharges($groupAccountIds ?: ($account ? [$account->id] : []), $applications);
         $this->ensureChargesBelongToClub($charges, $clubId, $accountClubIds);
         $normalizedApplications = $this->normalizeApplications($charges, $applications);
 
@@ -275,7 +275,7 @@ class PaymentRegistrationService
 
                 $payment = Payment::create([
                     'payment_group_id' => $paymentGroupId,
-                    'membership_account_id' => $account->id,
+                    'membership_account_id' => $account?->id,
                     'club_id' => $clubId,
                     'payment_method_id' => $paymentMethod->id,
                     'amount' => $line['amount'],
@@ -337,9 +337,10 @@ class PaymentRegistrationService
      * parque, las demás cuentas de su mismo account_group_id (ver
      * CollectionController::resolveGroupAccountIds). Solo los cargos de
      * MONTHLY_FEE pueden venir de una cuenta distinta a la que cobra (ver
-     * ensureChargesBelongToClub). Los de CAFETERIA_PASS no tienen cuenta
-     * (son de un visitante anónimo, ver CafeteriaVisitController::checkout),
-     * así que se incluyen aparte por id.
+     * ensureChargesBelongToClub). Los de un concepto marcado
+     * requires_account=false (p. ej. CAFETERIA_PASS, o una venta "sin
+     * cuenta" desde Collections/Index.vue) no tienen cuenta — son de un
+     * visitante anónimo — así que se incluyen aparte por id.
      */
     protected function resolveCharges(array $accountIds, array $applications): Collection
     {
@@ -357,7 +358,7 @@ class PaymentRegistrationService
                 $scope->whereIn('membership_account_id', $accountIds)
                     ->orWhere(function (Builder $anonymous) {
                         $anonymous->whereNull('membership_account_id')
-                            ->whereHas('concept', fn (Builder $c) => $c->where('code', 'CAFETERIA_PASS'));
+                            ->whereHas('concept', fn (Builder $c) => $c->where('requires_account', false));
                     });
             })
             ->whereIn('status', ['pending', 'partial'])
@@ -380,14 +381,15 @@ class PaymentRegistrationService
      * parque donde el socio tenga membresía (ver $accountClubIds, que el
      * controlador arma a partir de las membresías reales del socio, nunca
      * de un club arbitrario) para poder cobrarse juntos en un solo pago; y
-     * los de CAFETERIA_PASS, que no tienen membresía/club ligado (son de un
-     * visitante anónimo) y siempre se cobran en el parque donde se registró
-     * la salida.
+     * los de un concepto requires_account=false (p. ej. CAFETERIA_PASS, o
+     * una venta "sin cuenta"), que no tienen membresía/club ligado (son de
+     * un visitante anónimo) y siempre se cobran en el parque donde se
+     * registró la venta.
      */
     protected function ensureChargesBelongToClub(Collection $charges, int $clubId, array $accountClubIds = []): void
     {
         $invalidCharge = $charges->first(function (Charge $charge) use ($clubId, $accountClubIds) {
-            if ($charge->membership_account_id === null && $charge->concept?->code === 'CAFETERIA_PASS') {
+            if ($charge->membership_account_id === null && $charge->concept?->requires_account === false) {
                 return false;
             }
 
