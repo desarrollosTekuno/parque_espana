@@ -186,6 +186,10 @@ class PaymentRegistrationService
                 // esas líneas se apliquen primero al cargo que se reparte
                 // entre parques, antes de mezclarse con cualquier otro cargo.
                 'is_park_split' => (bool) ($line['is_park_split'] ?? false),
+                // A qué parque representa esta línea específica (puede ser
+                // distinto al parque donde se registra el dinero — ver
+                // represents_club_id abajo en Payment::create).
+                'represents_club_id' => isset($line['club_id']) ? (int) $line['club_id'] : null,
             ];
         });
 
@@ -290,6 +294,14 @@ class PaymentRegistrationService
                         'affects_cash_cut' => (bool) $paymentMethod->affects_cash_cut,
                         'park_split' => $parkSplit,
                         'split_payment' => $paymentLines->count() > 1,
+                        // Parque que representa ESTA línea específica (p. ej.
+                        // "Cheque (PE1)" cobrado desde una sesión en PE2) —
+                        // puede ser distinto a club_id (dónde se registra el
+                        // dinero). Null cuando la línea no es de un parque
+                        // específico (p. ej. Efectivo) o no vino del diálogo
+                        // de método de pago con parques (compatibilidad).
+                        // Ver PaymentCancellationService::resolveBouncedCheckConceptCode.
+                        'represents_club_id' => $line['represents_club_id'],
                     ],
                 ]);
 

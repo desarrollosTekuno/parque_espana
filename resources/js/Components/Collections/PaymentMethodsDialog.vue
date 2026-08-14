@@ -38,6 +38,13 @@ export interface PaymentLinePayload {
     // reparte entre parques (p. ej. la mensualidad combo), antes de usarla
     // para cualquier otro cargo. Ver PaymentRegistrationService::registerSplit.
     is_park_split: boolean;
+    // A qué parque representa esta línea específica — normalmente el de la
+    // sesión, pero para la fila espejo ("Cheque (PE1)" cobrado desde una
+    // sesión en PE2) es el del OTRO parque, aunque el dinero se registre
+    // completo en el de la sesión. Se guarda para saber, si este pago se
+    // cancela después como cheque rebotado, a qué parque pertenece el
+    // concepto CHEQUE_REBOTADO_PARQUEn — ver PaymentCancellationService.
+    club_id: number | null;
 }
 
 export interface PaymentConfirmPayload {
@@ -383,6 +390,7 @@ const confirmPayment = async () => {
             bank_name: l.bank_name,
             check_number: l.check_number,
             is_park_split: isSplit.value && pairedKey.value.has(l.source_option_key),
+            club_id: methodByKey(l.source_option_key)?.club_id ?? null,
         })),
     });
 

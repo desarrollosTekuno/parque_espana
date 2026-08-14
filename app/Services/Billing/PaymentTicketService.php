@@ -3,6 +3,7 @@
 namespace App\Services\Billing;
 
 use App\Models\Administrator\Club;
+use App\Models\Billing\ClubPaymentMethod;
 use App\Models\Billing\Payment;
 use App\Models\Billing\PaymentApplication;
 use App\Models\Memberships\MembershipAccount;
@@ -285,13 +286,14 @@ class PaymentTicketService
                     'ticket_serie' => $this->cashierInitial($payment->receiver),
                     'ticket_folio' => $this->shortFolio($payment->folio),
                     'nombre' => $payment->paymentMethod?->name,
-                    'codigo' => $payment->paymentMethod?->code,
+                    'codigo' => $this->resolveInternalKey($payment),
                     'codigo_ticket' => $this->paymentMethodTicketCode($payment->paymentMethod?->code),
                     'monto' => round((float) $paymentAllocations->sum('amount'), 2),
                     'referencia' => $payment->reference,
                     'banco' => $payment->bank_name,
                     'numero_cheque' => $payment->check_number,
                     'es_este_ticket' => $payment->id === $representative->id,
+                    'status' => $payment->status,
                 ];
             })
             ->values()
@@ -435,6 +437,20 @@ class PaymentTicketService
             ->filter()
             ->values()
             ->all();
+    }
+
+    private function resolveInternalKey(Payment $payment): ?string
+    {
+        if (! $payment->payment_method_id) {
+            return $payment->paymentMethod?->code;
+        }
+
+        $clubId = $payment->metadata['represents_club_id'] ?? $payment->club_id;
+
+        return ClubPaymentMethod::query()
+            ->where('club_id', $clubId)
+            ->where('payment_method_id', $payment->payment_method_id)
+            ->value('internal_key') ?: $payment->paymentMethod?->code;
     }
 
     private function paymentMethodTicketCode(?string $code): ?string

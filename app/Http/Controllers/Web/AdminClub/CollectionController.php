@@ -713,7 +713,7 @@ class CollectionController extends Controller
         $validated = $request->validate([
             'membership_account_id' => ['required', new ExistsInSchema('memberships', 'accounts', 'id')],
             'quantity' => ['required', 'integer', 'min:1'],
-            'concept_code' => ['sometimes', 'string', Rule::in(['INSCRIPTION', 'CUOTA_REINSCRIPCION'])],
+            'concept_code' => ['sometimes', 'string', Rule::in(['INSCRIPTION', 'CUOTA_REINSCRIPCION', 'CHEQUE_REBOTADO_PARQUE2', 'CHEQUE_REBOTADO_PARQUE1', 'COMISION_CHEQUE_REBOTADO'])],
         ]);
 
         $conceptCode = $validated['concept_code'] ?? 'INSCRIPTION';
@@ -776,6 +776,7 @@ class CollectionController extends Controller
                 'payments.*.bank_name' => ['nullable', 'string', 'max:255'],
                 'payments.*.check_number' => ['nullable', 'string', 'max:255'],
                 'payments.*.is_park_split' => ['sometimes', 'boolean'],
+                'payments.*.club_id' => ['sometimes', 'nullable', new ExistsInSchema('clubs', 'clubs', 'id')],
 
                 // Cargos existentes seleccionados
                 'existing_charges' => ['array'],

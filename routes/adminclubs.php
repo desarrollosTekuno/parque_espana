@@ -145,6 +145,10 @@ Route::get('/payments/{payment}/cancel/create', [PaymentCancellationController::
     ->name('payments.cancel.create');
 Route::post('/payments/{payment}/cancel', [PaymentCancellationController::class, 'store'])
     ->name('payments.cancel.store');
+Route::get('/payments/group/{paymentGroupId}/cancel/create', [PaymentCancellationController::class, 'groupCreate'])
+    ->name('payments.cancel-group.create');
+Route::post('/payments/group/{paymentGroupId}/cancel', [PaymentCancellationController::class, 'groupStore'])
+    ->name('payments.cancel-group.store');
 Route::resource('/pricing-rules', PricingRuleController::class)
     ->only(['index', 'store', 'update', 'destroy'])
     ->names('pricing-rules');

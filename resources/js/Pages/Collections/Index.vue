@@ -616,7 +616,7 @@ watch(monthlyFeeMonthsCount, (value) => {
 // antiguos primero) se van a cobrar ahora — mismo mecanismo que "Cantidad de
 // meses" en la mensualidad, pero sin crear nada nuevo (los cargos ya
 // existen). Ver CollectionController::resolveInscriptionInstallments.
-const INSCRIPTION_LIKE_CONCEPT_CODES = ["INSCRIPTION", "CUOTA_REINSCRIPCION"];
+const INSCRIPTION_LIKE_CONCEPT_CODES = ["INSCRIPTION", "CUOTA_REINSCRIPCION", "CHEQUE_REBOTADO_PARQUE2", "CHEQUE_REBOTADO_PARQUE1", "COMISION_CHEQUE_REBOTADO"];
 const isInscriptionConcept = computed(
     () => INSCRIPTION_LIKE_CONCEPT_CODES.includes(selectedConcept.value?.code?.toUpperCase() ?? ""),
 );
@@ -1432,9 +1432,17 @@ const paymentMethodOptions = computed<PaymentMethodOption[]>(() => {
         option_key: `${sessionClub.id}-${m.id}`,
     }));
 
-    const otherClubIds = clubMemberships.value
-        .map((cm) => cm.club_id)
-        .filter((id): id is number => id !== null && id !== sessionClub.id);
+    // Los métodos del otro parque solo tienen sentido cuando el cobro ACTUAL
+    // incluye algo que se reparte entre parques (p. ej. la mensualidad
+    // combo) — no solo porque el socio sea interclub. Si el socio tiene
+    // cuenta en ambos parques pero lo que se está cobrando ahora es de un
+    // solo parque (p. ej. un cheque rebotado), no tiene caso ofrecer
+    // "Tarjeta de crédito (PE1)": no hay nada que emparejar con ella.
+    const otherClubIds = dialogClubBreakdown.value.length > 1
+        ? clubMemberships.value
+            .map((cm) => cm.club_id)
+            .filter((id): id is number => id !== null && id !== sessionClub.id)
+        : [];
 
     // Cheque, Tarjeta de crédito y Tarjeta de débito se pueden repartir
     // entre parques; no hay caja física del otro parque (efectivo) ni
@@ -1832,6 +1840,26 @@ const saveNote = async () => {
                         </template>
                         <template #item.balance="{ item }">
                             <span class="font-weight-bold">{{ formatCurrency(item.balance) }}</span>
+                        </template>
+                        <template #item.actions="{ item }">
+                            <BaseButton
+                                v-if="isConceptOtherClub(item)"
+                                :icon-only="true"
+                                icon="mdi-lock-outline"
+                                variant="text"
+                                disabled
+                                :tooltip="`Este cargo pertenece a ${item.charges[0]?.club_code ?? 'otro parque'}. Cambia el parque de la sesión para cobrarlo.`"
+                            />
+                            <BaseButton
+                                v-else
+                                :icon-only="false"
+                                action="add"
+                                icon="mdi-plus"
+                                text="Agregar"
+                                variant="tonal"
+                                :disabled="isChargesInCobros(item.charges[0]?.id ?? null)"
+                                @click="addPendingToCobros(item)"
+                            />
                         </template>
 
                     </v-data-table>
