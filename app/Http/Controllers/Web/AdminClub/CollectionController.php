@@ -71,7 +71,7 @@ class CollectionController extends Controller
         // el criterio anterior de decidirlo por clubs.clubs.applies_iva a
         // nivel global — ver ChargeConcept::resolveAppliesIvaForClub.
         $conceptOptions = ChargeConcept::query()
-            ->select('id', 'code', 'internal_key', 'name', 'default_amount', 'is_recurring', 'allows_partial_payments', 'applies_iva')
+            ->select('id', 'code', 'internal_key', 'name', 'default_amount', 'is_recurring', 'allows_partial_payments', 'applies_iva', 'requires_account')
             ->with(['clubAmounts' => fn ($query) => $query->where('is_active', true)])
             ->where('is_active', true)
             ->orderBy('code')
@@ -85,6 +85,7 @@ class CollectionController extends Controller
                 'is_recurring' => $concept->is_recurring,
                 'allows_partial_payments' => $concept->allows_partial_payments,
                 'applies_iva' => $concept->applies_iva,
+                'requires_account' => $concept->requires_account,
                 'club_amounts' => $concept->clubAmounts
                     ->map(fn (ChargeConceptClubAmount $ca) => [
                         'club_id' => $ca->club_id,
@@ -761,7 +762,10 @@ class CollectionController extends Controller
     {
         try {
             $validated = $request->validate([
-                'membership_account_id' => ['required', new ExistsInSchema('memberships', 'accounts', 'id')],
+                // Nulo para una venta "sin cuenta" (ver abajo): un concepto
+                // marcado billing.concepts.requires_account=false, cobrado a
+                // un visitante sin socio ligado (p. ej. un pase diario).
+                'membership_account_id' => ['nullable', new ExistsInSchema('memberships', 'accounts', 'id')],
                 'club_id' => ['required', new ExistsInSchema('clubs', 'clubs', 'id')],
                 'paid_at' => ['required', 'date'],
                 'notes' => ['nullable', 'string', 'max:1000'],
@@ -807,10 +811,8 @@ class CollectionController extends Controller
                 ]);
             }
 
-            $account = MembershipAccount::query()
-                ->with('primaryHolder.member')
-                ->findOrFail($validated['membership_account_id']);
             $clubId = (int) $validated['club_id'];
+            $accountId = $validated['membership_account_id'] ?? null;
 
             $paymentMethodIds = collect($validated['payments'])->pluck('payment_method_id')->unique()->values();
             $activePaymentMethodCount = PaymentMethod::whereIn('id', $paymentMethodIds)->where('is_active', true)->count();
@@ -821,53 +823,86 @@ class CollectionController extends Controller
                 ]);
             }
 
-            // Todas las cuentas del grupo del socio (una por parque, ver
-            // resolveGroupAccountIds) y los parques donde tiene membresía
-            // activa en cualquiera de ellas: permite que la mensualidad se
-            // liquide en un solo pago aunque abarque más de un club (ver
-            // PaymentRegistrationService::ensureChargesBelongToClub).
-            $groupAccountIds = $this->resolveGroupAccountIds($account);
+            if ($accountId === null) {
+                // Venta "sin cuenta": no hay socio de por medio, así que no
+                // tiene sentido traer cargos ya existentes (son propios de
+                // una cuenta) ni salidas de cafetería (tienen su propio
+                // flujo de visita) — solo conceptos nuevos, y únicamente los
+                // marcados requires_account=false.
+                if ($existing->isNotEmpty() || $cafeteriaCheckouts->isNotEmpty()) {
+                    throw ValidationException::withMessages([
+                        'membership_account_id' => 'Una venta sin cuenta solo puede incluir conceptos nuevos que no requieran cuenta.',
+                    ]);
+                }
 
-            // No se puede saldar una mensualidad si queda una anterior
-            // pendiente (de cualquier parque del socio) que no se está
-            // incluyendo en este mismo pago: p. ej. no se puede pagar mayo
-            // sin haber cubierto abril. El frontend ya bloquea esto en la
-            // interfaz; esta es la validación real en el servidor.
-            $this->ensureMonthlyChargesArePaidInOrder(
-                $existing->pluck('charge_id')->map(fn ($id) => (int) $id),
-                $groupAccountIds
-            );
+                $invalidConceptId = $newItems->pluck('concept_id')->unique()->first(
+                    fn ($conceptId) => !ChargeConcept::where('id', $conceptId)->where('requires_account', false)->exists()
+                );
 
-            // Sin filtrar por status: aunque una de las membresías del grupo
-            // ya se haya dado de baja, sus cargos de mensualidad pendientes
-            // de ANTES de la baja siguen siendo cobrables — si aquí solo se
-            // consideraran las membresías activas, ensureChargesBelongToClub
-            // rechazaría esos cargos viejos por "pertenecer a otro parque"
-            // en cuanto se cancelara cualquiera de los dos lados del combo.
-            $accountClubIds = Membership::query()
-                ->whereIn('membership_account_id', $groupAccountIds)
-                ->where('is_primary', true)
-                ->pluck('club_id')
-                ->filter()
-                ->unique()
-                ->values()
-                ->all();
+                if ($invalidConceptId !== null) {
+                    throw ValidationException::withMessages([
+                        'new_items' => 'Uno o más conceptos seleccionados requieren una cuenta de socio.',
+                    ]);
+                }
 
-            // Membresía del socio en ese parque para colgar los cargos nuevos.
-            $membership = Membership::query()
-                ->where('membership_account_id', $account->id)
-                ->where('club_id', $clubId)
-                ->where('is_primary', true)
-                ->whereIn('status', ['active', 'suspended'])
-                ->first();
+                $account = null;
+                $groupAccountIds = [];
+                $accountClubIds = [];
+                $membership = null;
+                $memberId = null;
+            } else {
+                $account = MembershipAccount::query()
+                    ->with('primaryHolder.member')
+                    ->findOrFail($accountId);
 
-            if ($newItems->isNotEmpty() && !$membership) {
-                throw ValidationException::withMessages([
-                    'new_items' => 'El socio no tiene una membresía activa en este parque para generar cargos nuevos.',
-                ]);
+                // Todas las cuentas del grupo del socio (una por parque, ver
+                // resolveGroupAccountIds) y los parques donde tiene membresía
+                // activa en cualquiera de ellas: permite que la mensualidad se
+                // liquide en un solo pago aunque abarque más de un club (ver
+                // PaymentRegistrationService::ensureChargesBelongToClub).
+                $groupAccountIds = $this->resolveGroupAccountIds($account);
+
+                // No se puede saldar una mensualidad si queda una anterior
+                // pendiente (de cualquier parque del socio) que no se está
+                // incluyendo en este mismo pago: p. ej. no se puede pagar mayo
+                // sin haber cubierto abril. El frontend ya bloquea esto en la
+                // interfaz; esta es la validación real en el servidor.
+                $this->ensureMonthlyChargesArePaidInOrder(
+                    $existing->pluck('charge_id')->map(fn ($id) => (int) $id),
+                    $groupAccountIds
+                );
+
+                // Sin filtrar por status: aunque una de las membresías del grupo
+                // ya se haya dado de baja, sus cargos de mensualidad pendientes
+                // de ANTES de la baja siguen siendo cobrables — si aquí solo se
+                // consideraran las membresías activas, ensureChargesBelongToClub
+                // rechazaría esos cargos viejos por "pertenecer a otro parque"
+                // en cuanto se cancelara cualquiera de los dos lados del combo.
+                $accountClubIds = Membership::query()
+                    ->whereIn('membership_account_id', $groupAccountIds)
+                    ->where('is_primary', true)
+                    ->pluck('club_id')
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                // Membresía del socio en ese parque para colgar los cargos nuevos.
+                $membership = Membership::query()
+                    ->where('membership_account_id', $account->id)
+                    ->where('club_id', $clubId)
+                    ->where('is_primary', true)
+                    ->whereIn('status', ['active', 'suspended'])
+                    ->first();
+
+                if ($newItems->isNotEmpty() && !$membership) {
+                    throw ValidationException::withMessages([
+                        'new_items' => 'El socio no tiene una membresía activa en este parque para generar cargos nuevos.',
+                    ]);
+                }
+
+                $memberId = $account->primaryHolder?->member_id;
             }
-
-            $memberId = $account->primaryHolder?->member_id;
 
             $payments = DB::transaction(function () use (
                 $account, $clubId, $existing, $newItems, $cafeteriaCheckouts,
@@ -912,7 +947,7 @@ class CollectionController extends Controller
                     $concept = ChargeConcept::find($item['concept_id']);
 
                     $charge = Charge::create([
-                        'membership_account_id' => $account->id,
+                        'membership_account_id' => $account?->id,
                         'membership_id' => $membership?->id,
                         'member_id' => $memberId,
                         'concept_id' => $item['concept_id'],

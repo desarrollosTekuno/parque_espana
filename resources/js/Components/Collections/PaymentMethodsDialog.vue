@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import BaseButton from "@/Components/BaseButton.vue";
-import { computed, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import { nowAsLocalInput } from "@/constants/formatDates";
 import Swal from "sweetalert2";
 
@@ -121,6 +121,24 @@ const lines = ref<PaymentLineForm[]>([]);
 const formRef = ref<{ validate(): Promise<{ valid: boolean }>; resetValidation(): void } | null>(null);
 let extraLineCounter = 0;
 
+// El body del diálogo (v-card-text) es el contenedor con scroll real (lo
+// activa la prop `scrollable` del v-dialog). Cuando la tabla de métodos no
+// cabe completa, muestra un indicador pegado abajo para que el cajero no
+// se quede sin ver "Aceptar" pensando que ya vio todos los métodos.
+const cardTextRef = ref<any>(null);
+const hasMoreBelow = ref(false);
+
+const scrollEl = (): HTMLElement | null => {
+    const el = cardTextRef.value;
+    if (!el) return null;
+    return (el.$el ?? el) as HTMLElement;
+};
+
+const checkScroll = () => {
+    const el = scrollEl();
+    hasMoreBelow.value = !!el && el.scrollHeight - el.scrollTop - el.clientHeight > 4;
+};
+
 const buildLines = (): PaymentLineForm[] =>
     props.paymentMethods.map((m) => ({
         option_key: m.option_key ?? String(m.id),
@@ -161,10 +179,12 @@ const addExtraLine = (line: PaymentLineForm) => {
         insertAt += 1;
     }
     lines.value.splice(insertAt, 0, newLine);
+    nextTick(checkScroll);
 };
 
 const removeExtraLine = (line: PaymentLineForm) => {
     lines.value = lines.value.filter((l) => l.option_key !== line.option_key);
+    nextTick(checkScroll);
 };
 
 // Por default se propone pagar todo en efectivo (el método de pago
@@ -180,6 +200,7 @@ const resetForm = () => {
     }
 
     formRef.value?.resetValidation();
+    nextTick(checkScroll);
 };
 
 // El componente permanece montado aunque el diálogo esté cerrado (solo su
@@ -198,6 +219,8 @@ watch(
         if (lastPreparedTotal.value === null || lastPreparedTotal.value !== props.total) {
             resetForm();
             lastPreparedTotal.value = props.total;
+        } else {
+            nextTick(checkScroll);
         }
     },
 );
@@ -283,6 +306,13 @@ const anySplitPartnerAlreadyClaimed = computed(() =>
 );
 
 const onToggle = (line: PaymentLineForm) => {
+    onToggleInner(line);
+    // Marcar/desmarcar un método puede revelar o esconder los campos de
+    // banco/cheque, cambiando cuánto contenido hay que scrollear.
+    nextTick(checkScroll);
+};
+
+const onToggleInner = (line: PaymentLineForm) => {
     // Las filas "extra" (ver addExtraLine) nunca controlan la pareja del
     // otro parque — esa ya quedó fija con la fila base del mismo método;
     // una extra solo captura otro monto/referencia del mismo lado.
@@ -322,6 +352,11 @@ const onToggle = (line: PaymentLineForm) => {
         line.amount = remaining.value > 0 ? remaining.value : null;
     }
 };
+
+// Marca cuándo la referencia realmente hace falta capturarla — una fila
+// espejo (isMirrored) no se llena aquí, se controla desde su pareja.
+const isReferenceRequired = (line: PaymentLineForm): boolean =>
+    line.checked && !isMirrored(line) && !!methodByKey(line.source_option_key)?.requires_reference;
 
 const isLineValid = (line: PaymentLineForm): boolean => {
     if (!line.amount || line.amount <= 0) return false;
@@ -418,7 +453,7 @@ const close = () => {
                 />
             </v-card-title>
 
-            <v-card-text class="d-flex flex-column ga-4">
+            <v-card-text ref="cardTextRef" class="d-flex flex-column ga-4" @scroll="checkScroll">
                 <v-alert
                     v-if="isSplit"
                     type="info"
@@ -426,27 +461,35 @@ const close = () => {
                     density="compact"
                     style="flex: none;"
                 >
-                    <div class="text-body-2 mb-1" style="white-space: normal;">
+                    <div class="text-body-2" style="white-space: normal;">
                         Este cobro corresponde a una mensualidad dividida
                         entre parques. Todo el dinero se registrará en este
-                        parque, pero quedará el detalle de cómo se reparte:
-                    </div>
-                    <div class="d-flex flex-wrap ga-4">
-                        <div v-for="club in clubBreakdown" :key="club.club_id ?? club.club_code">
-                            <span class="font-weight-bold">
-                                {{ club.club_code ?? club.club_name ?? "Parque" }}
-                            </span>
-                            ·
-                            {{ formatCurrency(club.amount) }}
-                        </div>
+                        parque, pero quedará el detalle de cómo se reparte.
                     </div>
                 </v-alert>
 
-                <div class="d-flex justify-space-between align-center">
-                    <span class="text-subtitle-1 font-weight-bold">Total a pagar</span>
-                    <span class="text-h5 font-weight-bold text-primary">
-                        {{ formatCurrency(total) }}
-                    </span>
+                <div class="d-flex flex-wrap justify-space-between align-start ga-4">
+                    <div>
+                        <span class="text-subtitle-1 font-weight-bold">Total a pagar</span>
+                        <div class="text-h5 font-weight-bold text-primary">
+                            {{ formatCurrency(total) }}
+                        </div>
+                    </div>
+
+                    <div v-if="isSplit" class="d-flex flex-wrap ga-3">
+                        <div
+                            v-for="club in clubBreakdown"
+                            :key="club.club_id ?? club.club_code"
+                            class="summary-box"
+                        >
+                            <div class="text-caption text-medium-emphasis">
+                                Pago a {{ club.club_code ?? club.club_name ?? "Parque" }}
+                            </div>
+                            <div class="text-subtitle-1 font-weight-bold">
+                                {{ formatCurrency(club.amount) }}
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <v-form ref="formRef">
@@ -462,12 +505,6 @@ const close = () => {
                     <div class="d-flex justify-space-between align-center mb-2">
                         <span class="text-caption text-medium-emphasis">
                             Formas de pago
-                        </span>
-                        <span
-                            class="text-caption font-weight-bold"
-                            :class="Math.abs(remaining) >= 0.01 ? 'text-error' : 'text-success'"
-                        >
-                            Restante por asignar: {{ formatCurrency(remaining) }}
                         </span>
                     </div>
 
@@ -525,18 +562,23 @@ const close = () => {
                                             min="0"
                                             prefix="$"
                                             density="compact"
+                                            variant="outlined"
                                             hide-details="auto"
                                             :disabled="!line.checked || isMirrored(line)"
                                             :rules="amountRules(line)"
+                                            :bg-color="line.checked && !line.amount ? 'amber-lighten-4' : undefined"
                                         />
                                     </td>
                                     <td>
                                         <v-text-field
                                             v-model="line.reference"
+                                            :label="isReferenceRequired(line) ? 'Referencia *' : 'Referencia'"
                                             density="compact"
+                                            variant="outlined"
                                             hide-details="auto"
                                             :disabled="!line.checked || !methodByKey(line.source_option_key)?.requires_reference"
                                             :rules="referenceRules(line)"
+                                            :bg-color="isReferenceRequired(line) && !line.reference ? 'amber-lighten-4' : undefined"
                                         />
                                     </td>
                                     <td>
@@ -570,24 +612,26 @@ const close = () => {
                                             <v-text-field
                                                 v-if="methodByKey(line.source_option_key)?.requires_bank_name"
                                                 v-model="line.bank_name"
-                                                label="Banco"
+                                                label="Banco *"
                                                 density="compact"
                                                 variant="outlined"
                                                 hide-details="auto"
                                                 prepend-inner-icon="mdi-bank-outline"
                                                 style="max-width: 220px;"
                                                 :rules="bankNameRules"
+                                                :bg-color="!line.bank_name ? 'amber-lighten-4' : undefined"
                                             />
                                             <v-text-field
                                                 v-if="methodByKey(line.source_option_key)?.requires_check_number"
                                                 v-model="line.check_number"
-                                                label="Número de cheque"
+                                                label="Número de cheque *"
                                                 density="compact"
                                                 variant="outlined"
                                                 hide-details="auto"
                                                 prepend-inner-icon="mdi-pound"
                                                 style="max-width: 220px;"
                                                 :rules="checkNumberRules"
+                                                :bg-color="!line.check_number ? 'amber-lighten-4' : undefined"
                                             />
                                         </div>
                                     </td>
@@ -597,26 +641,51 @@ const close = () => {
                     </v-table>
                 </div>
                 </v-form>
+
+                <div class="scroll-more-indicator" :class="{ 'scroll-more-indicator--visible': hasMoreBelow }">
+                    <v-icon icon="mdi-chevron-double-down" size="16" />
+                    <span class="text-caption font-weight-medium">Hay más métodos de pago abajo</span>
+                </div>
             </v-card-text>
 
-            <v-card-actions class="justify-end">
-                <BaseButton
-                    :icon-only="false"
-                    action="cancel"
-                    text="Cancelar"
-                    variant="text"
-                    :disabled="loading"
-                    @click="close"
-                />
-                <BaseButton
-                    :icon-only="false"
-                    action="save"
-                    icon="mdi-check"
-                    text="Aceptar"
-                    :loading="loading"
-                    :disabled="!canConfirm"
-                    @click="confirmPayment"
-                />
+            <v-card-actions class="d-flex justify-space-between align-center flex-wrap ga-3">
+                <div class="d-flex ga-3">
+                    <div class="summary-box">
+                        <div class="text-caption text-medium-emphasis">Pago</div>
+                        <div class="text-subtitle-1 font-weight-bold">
+                            {{ formatCurrency(assignedTotal) }}
+                        </div>
+                    </div>
+                    <div
+                        class="summary-box"
+                        :class="Math.abs(remaining) >= 0.01 ? 'text-error' : 'text-success'"
+                    >
+                        <div class="text-caption text-medium-emphasis">Diferencia</div>
+                        <div class="text-subtitle-1 font-weight-bold">
+                            {{ formatCurrency(remaining) }}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex ga-2">
+                    <BaseButton
+                        :icon-only="false"
+                        action="cancel"
+                        text="Cancelar"
+                        variant="text"
+                        :disabled="loading"
+                        @click="close"
+                    />
+                    <BaseButton
+                        :icon-only="false"
+                        action="save"
+                        icon="mdi-check"
+                        text="Aceptar"
+                        :loading="loading"
+                        :disabled="!canConfirm"
+                        @click="confirmPayment"
+                    />
+                </div>
             </v-card-actions>
         </v-card>
     </v-dialog>
@@ -628,5 +697,43 @@ const close = () => {
    esto, la confirmación de "Aceptar" aparece detrás de este modal. */
 .swal2-container {
     z-index: 9999 !important;
+}
+
+/* Homologado con el sistema anterior: "Pago a Parque N" en la esquina
+   superior y "Pago" / "Diferencia" en la parte inferior se mostraban como
+   cajas de solo lectura junto al total. */
+.summary-box {
+    min-width: 140px;
+    padding: 6px 12px;
+    border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+    border-radius: 4px;
+    background: rgba(var(--v-theme-on-surface), 0.04);
+    text-align: right;
+}
+
+/* Pegado al fondo del área con scroll (v-card-text) — no al final del
+   contenido — para que avise mientras todavía falte algo por ver, y se
+   desvanezca solo cuando ya se llegó al final (ver checkScroll). */
+.scroll-more-indicator {
+    position: sticky;
+    bottom: -16px;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    height: 32px;
+    margin: 0 -16px -16px;
+    padding-bottom: 4px;
+    background: linear-gradient(to bottom, transparent, rgba(var(--v-theme-surface), 0.97) 55%);
+    color: rgba(var(--v-theme-on-surface), 0.7);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.scroll-more-indicator--visible {
+    opacity: 1;
 }
 </style>
