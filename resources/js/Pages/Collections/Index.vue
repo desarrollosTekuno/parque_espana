@@ -134,6 +134,14 @@ interface Signal {
     label: string;
     color: string;
 }
+interface RelatedAccount {
+    id: number;
+    membership_number: string | null;
+    internal_account_number: string | null;
+    holder_name: string;
+    club_code: string | null;
+    status: string | null;
+}
 interface SearchResult {
     found: boolean;
     message?: string;
@@ -147,6 +155,7 @@ interface SearchResult {
     incidents?: Incident[];
     notes?: NoteItem[];
     signals?: Signal[];
+    related_accounts?: RelatedAccount[];
 }
 
 /** Renglón de la lista de cobros (mezcla cargos existentes, conceptos nuevos
@@ -237,6 +246,32 @@ const summary = computed(() => result.value?.summary ?? null);
 const incidents = computed(() => result.value?.incidents ?? []);
 const notes = ref<NoteItem[]>([]);
 const paymentDialog = ref(false);
+
+// Cuentas relacionadas por el árbol de origen/derivadas (ver
+// CollectionController::resolveRelatedAccounts — mismo mecanismo que la
+// pestaña "Árbol" de Members/Show.vue, distinto al account_group_id del
+// mismo socio en varios parques). Frecuente que quien llega a pagar termine
+// cubriendo también cargos de esas cuentas — este modal deja elegir una y
+// vuelve a buscar directo con ella, sin que el cajero tenga que anotar la
+// clave e ir a teclearla de nuevo.
+const relatedAccounts = computed(() => result.value?.related_accounts ?? []);
+const showRelatedAccountsDialog = ref(false);
+const selectedRelatedAccountId = ref<number | null>(null);
+
+const openRelatedAccountsDialog = () => {
+    selectedRelatedAccountId.value = null;
+    showRelatedAccountsDialog.value = true;
+};
+
+const goToRelatedAccount = () => {
+    const selected = relatedAccounts.value.find((a) => a.id === selectedRelatedAccountId.value);
+    if (!selected) return;
+
+    searchTerm.value = selected.membership_number || selected.internal_account_number || "";
+    showRelatedAccountsDialog.value = false;
+    runSearch();
+};
+
 const runSearch = async () => {
     if (!searchTerm.value || searchTerm.value.trim().length < 2) {
         customToastSwal({
@@ -1818,8 +1853,18 @@ const saveNote = async () => {
                             </v-col>
                             <v-col>
                                 <div class="text-caption text-medium-emphasis">Titular</div>
-                                <div class="text-h6 font-weight-bold">
+                                <div class="text-h6 font-weight-bold d-flex align-center ga-2">
                                     {{ account.holder_name }}
+                                    <BaseButton
+                                        v-if="relatedAccounts.length"
+                                        :icon-only="false"
+                                        icon="mdi-family-tree"
+                                        text="Cuentas relacionadas"
+                                        variant="flat"
+                                        color="primary"
+                                        size="small"
+                                        @click="openRelatedAccountsDialog"
+                                    />
                                 </div>
                             </v-col>
                         </v-row>
@@ -2727,6 +2772,65 @@ const saveNote = async () => {
                     :loading="paying"
                     @confirm="handlePaymentMethodsConfigured"
                 />
+
+                <!-- Cuentas relacionadas (árbol de origen/derivadas) -->
+                <v-dialog v-model="showRelatedAccountsDialog" max-width="520">
+                    <v-card>
+                        <v-card-title>Cuentas relacionadas</v-card-title>
+                        <v-card-text>
+                            <div class="text-body-2 text-medium-emphasis mb-3">
+                                Elige una cuenta para buscarla directamente.
+                            </div>
+                            <v-radio-group v-model="selectedRelatedAccountId" hide-details>
+                                <v-list density="compact">
+                                    <v-list-item
+                                        v-for="related in relatedAccounts"
+                                        :key="related.id"
+                                        :active="selectedRelatedAccountId === related.id"
+                                        @click="selectedRelatedAccountId = related.id"
+                                    >
+                                        <template #prepend>
+                                            <v-radio :value="related.id" density="compact" />
+                                        </template>
+                                        <template #title>
+                                            {{ related.membership_number || related.internal_account_number || `Cuenta #${related.id}` }}
+                                            — {{ related.holder_name }}
+                                        </template>
+                                        <template #subtitle>
+                                            <span v-if="related.club_code">{{ related.club_code }}</span>
+                                            <v-chip
+                                                size="x-small"
+                                                class="ml-1"
+                                                :color="related.status === 'active' ? 'success' : 'default'"
+                                                variant="tonal"
+                                            >
+                                                {{ related.status === 'active' ? 'Activa' : (related.status || 'Sin estado') }}
+                                            </v-chip>
+                                        </template>
+                                    </v-list-item>
+                                </v-list>
+                            </v-radio-group>
+                        </v-card-text>
+                        <v-card-actions>
+                            <v-spacer />
+                            <BaseButton
+                                action="close"
+                                :icon-only="false"
+                                text="Cerrar"
+                                variant="text"
+                                @click="showRelatedAccountsDialog = false"
+                            />
+                            <BaseButton
+                                action="save"
+                                :icon-only="false"
+                                icon="mdi-check"
+                                text="Aceptar"
+                                :disabled="!selectedRelatedAccountId"
+                                @click="goToRelatedAccount"
+                            />
+                        </v-card-actions>
+                    </v-card>
+                </v-dialog>
 
                 <!-- Comentarios / incidencias — no aplica en venta sin cuenta. -->
                 <v-card v-if="!walkInMode">

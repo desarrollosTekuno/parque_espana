@@ -518,7 +518,65 @@ class CollectionController extends Controller
             'incidents' => $incidents,
             'notes' => $notes,
             'signals' => $signals,
+            'related_accounts' => $this->resolveRelatedAccounts($account),
         ]);
+    }
+
+    /**
+     * Cuentas relacionadas con la que se está cobrando por el árbol de
+     * origen/derivadas (memberships.accounts.origin_account_id — mismo
+     * mecanismo que la pestaña "Árbol" de Members/Show.vue, ver
+     * MemberController::buildAccountTree). Es un mecanismo DISTINTO al de
+     * account_group_id (mismo socio en varios parques, ver
+     * resolveGroupAccountIds): aquí se trata de cuentas separadas que salieron
+     * una de otra (p. ej. un hijo que se independizó a su propia cuenta),
+     * frecuente que quien llega a pagar en mostrador termine cubriendo
+     * también los cargos de esas cuentas. Se regresa aplanado (no como árbol
+     * anidado) porque aquí solo hace falta elegir una cuenta para volver a
+     * buscarla, no visualizar la jerarquía completa.
+     *
+     * @return array<int, array{id:int, membership_number:?string, internal_account_number:?string, holder_name:string, club_code:?string, status:?string}>
+     */
+    protected function resolveRelatedAccounts(MembershipAccount $account): array
+    {
+        $account->loadMissing(['originAccount.primaryHolder.member', 'originAccount.club']);
+
+        $related = collect();
+
+        if ($account->originAccount) {
+            $related->push($account->originAccount);
+        }
+
+        $flatten = function (MembershipAccount $node) use (&$flatten, &$related) {
+            $node->loadMissing(['derivedAccounts.primaryHolder.member', 'derivedAccounts.club']);
+
+            foreach ($node->derivedAccounts as $child) {
+                $related->push($child);
+                $flatten($child);
+            }
+        };
+        $flatten($account);
+
+        return $related
+            ->unique('id')
+            ->map(function (MembershipAccount $related) {
+                $holder = $related->primaryHolder?->member;
+
+                return [
+                    'id' => $related->id,
+                    'membership_number' => $related->membership_number,
+                    'internal_account_number' => $related->internal_account_number,
+                    'holder_name' => trim(collect([
+                        $holder?->first_name,
+                        $holder?->last_name,
+                        $holder?->second_last_name,
+                    ])->filter()->implode(' ')) ?: '—',
+                    'club_code' => $related->club?->code,
+                    'status' => $related->status,
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     /**
