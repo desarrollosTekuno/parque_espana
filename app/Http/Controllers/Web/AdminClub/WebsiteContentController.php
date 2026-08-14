@@ -19,9 +19,9 @@ use Inertia\Inertia;
 class WebsiteContentController extends Controller {
 
     private const EVENT_TYPES = [
-        ['value' => 'activity', 'title' => 'Actividad', 'color' => '#0097A7'],
-        ['value' => 'celebration', 'title' => 'Celebración', 'color' => '#EC659C'],
-        ['value' => 'holiday', 'title' => 'Día festivo', 'color' => '#F4B400'],
+        ['value' => 'summer_course', 'title' => 'Curso de verano', 'color' => '#5AA2B8'],
+        ['value' => 'pilgrimage', 'title' => 'Romería', 'color' => '#D676A5'],
+        ['value' => 'holidays', 'title' => 'Días festivos', 'color' => '#E8B72C'],
     ];
 
     public function __construct() {
@@ -352,7 +352,7 @@ class WebsiteContentController extends Controller {
             'title' => ['required', 'string', 'max:100'],
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
-            'type' => ['required', 'in:activity,celebration,holiday'],
+            'type' => ['required', 'in:summer_course,pilgrimage,holidays'],
         ], [
             'title.required' => 'Escribe el título del evento.',
             'title.max' => 'El título debe tener máximo 100 caracteres.',
