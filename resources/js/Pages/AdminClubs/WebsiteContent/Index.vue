@@ -59,7 +59,7 @@ const eventForm = useForm<{ id: number | null; title: string; start_date: string
     title: "",
     start_date: "",
     end_date: "",
-    type: "activity",
+    type: "summer_course",
 });
 
 /* ====================== Computed ====================== */
