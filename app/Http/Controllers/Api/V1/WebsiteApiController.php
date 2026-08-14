@@ -14,9 +14,9 @@ use Illuminate\Http\Request;
 
 class WebsiteApiController extends Controller {
     private const EVENT_TYPES = [
-        'activity' => ['label' => 'Actividad', 'color' => '#0097A7'],
-        'celebration' => ['label' => 'Celebración', 'color' => '#EC659C'],
-        'holiday' => ['label' => 'Día festivo', 'color' => '#F4B400'],
+        'summer_course' => ['label' => 'Curso de verano', 'color' => '#5AA2B8'],
+        'pilgrimage' => ['label' => 'Romería', 'color' => '#D676A5'],
+        'holidays' => ['label' => 'Días festivos', 'color' => '#E8B72C'],
     ];
 
     public function carousel(Club $club) {

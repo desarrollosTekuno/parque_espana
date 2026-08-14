@@ -151,6 +151,7 @@ const routes: Routing[] = [
     {
         name: [
             "member-access.index",
+            "app-variables.index",
         ],
         title: "App móvil",
         icon: "mdi-cellphone-key",
@@ -163,13 +164,12 @@ const routes: Routing[] = [
                 icon: "mdi-cellphone-key",
                 value: "accesos-app",
             },
-            // Configuración de variables de la app móvil
-            // {
-            //     name: "app-variables.index",
-            //     title: "Variables de la App",
-            //     icon: "mdi-cog-outline",
-            //     value: "variables-app",
-            // }
+            {
+                name: "app-variables.index",
+                title: "Variables de App Móvil",
+                icon: "mdi-cellphone-cog",
+                value: "variables-app-movil",
+            },
         ],
     },
 
@@ -373,12 +373,6 @@ const routes: Routing[] = [
                 icon: "mdi-cog",
                 value: "variables-sistema",
             },
-            {
-                name: "app-variables.index",
-                title: "Variables de App Móvil",
-                icon: "mdi-cellphone-cog",
-                value: "variables-app-movil",
-            }
         ]
     },
     // Listas de invitados

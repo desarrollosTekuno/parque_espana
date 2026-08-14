@@ -56,6 +56,9 @@ class DatabaseSeeder extends Seeder
 
             GuestListVariableSeeder::class,
             PhysicalAdSizeSeeder::class,
+
+            //  php artisan migrate:data "C:\Apache24\htdocs\ParquesEsp\public\Plantilla_Migracion_Casos_Prueba_tmp.xlsx" --only=usuarios,membresias,integrantes
+
         ]);
     }
 }

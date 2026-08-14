@@ -26,13 +26,8 @@ const ticketDate = (value: string | null) => {
     });
 };
 
-const paymentDetail = (ticket: TicketData) => {
-    return [
-        ticket.forma_pago_ticket_codigo,
-        Number(ticket.total).toFixed(2),
-        ticket.pago_identificacion,
-        ticket.banco,
-    ].filter(Boolean).join(" ");
+const paymentFolio = (series: string | null, folio: string | null) => {
+    return [series, folio].filter(Boolean).join(" ");
 };
 </script>
 
@@ -102,8 +97,10 @@ const paymentDetail = (ticket: TicketData) => {
         <div v-if="props.ticket.conceptos.length">
             <div v-for="concept in props.ticket.conceptos" :key="`${concept.charge_id}-${concept.monto}`" class="concept-item">
                 <div class="concept-description">
-                    <strong v-if="concept.codigo">{{ concept.codigo }}</strong>
-                    {{ concept.descripcion || concept.concepto || `Cargo #${concept.charge_id}` }}
+                    <strong>{{ concept.concepto || `Cargo #${concept.charge_id}` }}</strong>
+                    <div v-if="concept.descripcion && concept.descripcion !== concept.concepto">
+                        {{ concept.descripcion }}
+                    </div>
                 </div>
                 <div class="concept-values">
                     <span>{{ concept.cantidad }}</span>
@@ -120,7 +117,21 @@ const paymentDetail = (ticket: TicketData) => {
         <div v-if="props.ticket.iva !== null" class="ticket-row"><span>IVA {{ props.ticket.iva_porcentaje || 16 }}%</span><strong>{{ money(props.ticket.iva) }}</strong></div>
         <div class="ticket-row ticket-total"><span>Total</span><strong>{{ money(props.ticket.total) }}</strong></div>
 
-        <div class="payment-detail">{{ paymentDetail(props.ticket) }}</div>
+        <div class="payment-detail">
+            <div class="concept-title">Formas de pago</div>
+            <div v-for="payment in props.ticket.formas_de_pago" :key="payment.payment_id" class="payment-method">
+                <div class="ticket-row">
+                    <span>{{ payment.codigo_ticket || payment.nombre }}</span>
+                    <strong>{{ money(payment.monto) }}</strong>
+                </div>
+                <div v-if="paymentFolio(payment.ticket_serie, payment.ticket_folio)" class="payment-extra">
+                    Folio: {{ paymentFolio(payment.ticket_serie, payment.ticket_folio) }}
+                </div>
+                <div v-if="payment.referencia || payment.banco || payment.numero_cheque" class="payment-extra">
+                    {{ [payment.referencia, payment.banco, payment.numero_cheque].filter(Boolean).join(" · ") }}
+                </div>
+            </div>
+        </div>
         <div class="institution-legend">{{ props.ticket.leyenda_institucion }}</div>
 
         <div class="ticket-footer">
@@ -266,6 +277,14 @@ const paymentDetail = (ticket: TicketData) => {
 
 .payment-detail {
     margin: 6px 0;
+}
+
+.payment-method {
+    margin: 5px 0;
+}
+
+.payment-extra {
+    font-size: 10px;
 }
 
 .institution-legend {

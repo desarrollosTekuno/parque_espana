@@ -189,6 +189,7 @@ class AdminClubSeeder extends Seeder
 
             'member-access.index',
             'member-access.store',
+            'member-access.reset-password',
             'member-access.destroy',
 
             // casilleros
