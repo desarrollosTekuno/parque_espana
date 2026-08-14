@@ -637,7 +637,7 @@ class BillingConceptSeeder extends Seeder
                 'internal_key' => '15',
             ],
             [
-                'code' => '16',
+                'code' => 'COMISION_CHEQUE_REBOTADO',
                 'name' => 'Comision ch. rebot',
                 'description' => null,
                 'default_amount' => null,
@@ -1443,7 +1443,7 @@ class BillingConceptSeeder extends Seeder
                 'internal_key' => 'CP',
             ],
             [
-                'code' => 'CR',
+                'code' => 'CHEQUE_REBOTADO_PARQUE2',
                 'name' => 'Cheque rebotado',
                 'description' => null,
                 'default_amount' => null,
@@ -1453,13 +1453,13 @@ class BillingConceptSeeder extends Seeder
                 'internal_key' => 'CR',
             ],
             [
-                'code' => 'CR1',
+                'code' => 'CHEQUE_REBOTADO_PARQUE1',
                 'name' => 'Cheque rebotado parque 1',
                 'description' => null,
                 'default_amount' => null,
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
-                'is_active' => true,
+                'is_active' => false,
                 'internal_key' => 'CR1',
             ],
             [

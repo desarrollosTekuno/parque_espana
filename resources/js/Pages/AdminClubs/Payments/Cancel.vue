@@ -23,6 +23,7 @@ interface PaymentInfo {
     check_number: string | null;
     metodo_pago: string | null;
     metodo_pago_codigo: string | null;
+    metodo_pago_clave: string | null;
     cajero: string | null;
     cuenta_numero: string | null;
     titular: string | null;
@@ -136,7 +137,7 @@ const submit = async () => {
                                     </v-col>
                                     <v-col cols="12" sm="6">
                                         <p><strong>Monto:</strong> {{ formatCurrency(payment.amount) }}</p>
-                                        <p><strong>Método:</strong> {{ payment.metodo_pago || "-" }}</p>
+                                        <p><strong>Método:</strong> {{ payment.metodo_pago_clave ?? "-" }} · {{ payment.metodo_pago || "-" }}</p>
                                         <p v-if="payment.bank_name"><strong>Banco:</strong> {{ payment.bank_name }}</p>
                                         <p v-if="payment.check_number"><strong>No. cheque:</strong> {{ payment.check_number }}</p>
                                         <p><strong>Cajero:</strong> {{ payment.cajero || "-" }}</p>

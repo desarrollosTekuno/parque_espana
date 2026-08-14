@@ -2,6 +2,7 @@
 
 namespace App\Services\Billing;
 
+use App\Models\Billing\ClubPaymentMethod;
 use App\Models\Billing\Payment;
 use App\Models\Memberships\MembershipAccount;
 use App\Models\User;
@@ -137,13 +138,14 @@ class PaymentTicketService {
                 return [
                     'payment_id' => $p->id,
                     'nombre' => $p->paymentMethod?->name,
-                    'codigo' => $p->paymentMethod?->code,
+                    'codigo' => $this->resolveInternalKey($p),
                     'codigo_ticket' => $this->paymentMethodTicketCode($p->paymentMethod?->code),
                     'monto' => (float) $p->amount,
                     'referencia' => $p->reference,
                     'banco' => $p->bank_name,
                     'numero_cheque' => $p->check_number,
                     'es_este_ticket' => $p->id === $payment->id,
+                    'status' => $p->status,
                 ];
             })->values()->all(),
             'notas' => $payment->notes,
@@ -301,6 +303,32 @@ class PaymentTicketService {
             ->filter()
             ->values()
             ->all();
+    }
+
+    /**
+     * La "clave interna" real de un método de pago es POR PARQUE (ver
+     * billing.club_payment_methods.internal_key, p. ej. CHP1/CHP2 para
+     * cheque en parque 1/2) — no el code genérico del catálogo
+     * (billing.payment_methods.code, p. ej. CHECK). Se resuelve contra el
+     * parque que esta línea representa (metadata.represents_club_id en
+     * pagos cruzados de un cobro dividido, o el club_id del pago si no
+     * aplica) — igual que el resto de la atribución por parque de esta
+     * clase. Si no hay configuración para esa combinación, se cae al code
+     * genérico para no dejar la clave vacía.
+     */
+    private function resolveInternalKey(Payment $p): ?string {
+        if (!$p->payment_method_id) {
+            return $p->paymentMethod?->code;
+        }
+
+        $clubId = $p->metadata['represents_club_id'] ?? $p->club_id;
+
+        $internalKey = ClubPaymentMethod::query()
+            ->where('club_id', $clubId)
+            ->where('payment_method_id', $p->payment_method_id)
+            ->value('internal_key');
+
+        return $internalKey ?: $p->paymentMethod?->code;
     }
 
     private function paymentMethodTicketCode(?string $code): ?string {

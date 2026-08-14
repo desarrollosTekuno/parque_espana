@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web\AdminClub;
 
+use App\Models\Billing\ClubPaymentMethod;
 use App\Models\Billing\Payment;
 use App\Services\Billing\PaymentCancellationService;
 use Illuminate\Http\Request;
@@ -49,6 +50,7 @@ class PaymentCancellationController extends Controller
                 'check_number' => $payment->check_number,
                 'metodo_pago' => $payment->paymentMethod?->name,
                 'metodo_pago_codigo' => $payment->paymentMethod?->code,
+                'metodo_pago_clave' => $this->resolveInternalKey($payment),
                 'cajero' => $payment->receiver?->name,
                 'cuenta_numero' => $payment->membershipAccount?->membership_number,
                 'titular' => $payment->membershipAccount?->primaryHolder?->member?->full_name,
@@ -62,6 +64,116 @@ class PaymentCancellationController extends Controller
             ],
             'alreadyCancelled' => false,
         ]);
+    }
+
+    public function groupCreate(string $paymentGroupId): Response
+    {
+        $clubId = (int) session('club_id');
+
+        $payments = Payment::query()
+            ->where('payment_group_id', $paymentGroupId)
+            ->where('club_id', $clubId)
+            ->with(['paymentMethod', 'receiver', 'membershipAccount.primaryHolder.member', 'applications.charge.concept'])
+            ->orderBy('id')
+            ->get();
+
+        abort_if($payments->isEmpty(), 404);
+
+        $allCancelled = $payments->every(fn (Payment $payment) => $payment->status === 'cancelled');
+        $first = $payments->first();
+
+        return Inertia::render('AdminClubs/Payments/CancelGroup', [
+            'group' => [
+                'payment_group_id' => $paymentGroupId,
+                'folio' => $first->folio,
+                'paid_at' => $first->paid_at,
+                'total' => (float) $payments->sum('amount'),
+                'cuenta_numero' => $first->membershipAccount?->membership_number,
+                'titular' => $first->membershipAccount?->primaryHolder?->member?->full_name,
+                'cajero' => $first->receiver?->name,
+                'payments' => $payments->map(fn (Payment $payment) => [
+                    'id' => $payment->id,
+                    'metodo_pago' => $payment->paymentMethod?->name,
+                    'metodo_pago_codigo' => $this->resolveInternalKey($payment),
+                    'amount' => (float) $payment->amount,
+                    'reference' => $payment->reference,
+                    'bank_name' => $payment->bank_name,
+                    'check_number' => $payment->check_number,
+                    'status' => $payment->status,
+                    'conceptos' => $payment->applications->map(fn ($application) => [
+                        'charge_id' => $application->charge_id,
+                        'concepto' => $application->charge?->concept?->name,
+                        'monto_aplicado' => (float) $application->applied_amount,
+                    ])->values(),
+                ])->values(),
+            ],
+            'alreadyCancelled' => $allCancelled,
+        ]);
+    }
+
+    public function groupStore(Request $request, string $paymentGroupId)
+    {
+        $clubId = (int) session('club_id');
+
+        $payments = Payment::query()
+            ->where('payment_group_id', $paymentGroupId)
+            ->where('club_id', $clubId)
+            ->get();
+
+        abort_if($payments->isEmpty(), 404);
+
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:500'],
+            'confirmed' => ['accepted'],
+        ], [
+            'reason.required' => 'Indica el motivo de la cancelación.',
+            'confirmed.accepted' => 'Debes confirmar la cancelación antes de continuar.',
+        ]);
+
+        try {
+            $this->cancellationService->cancelGroup(
+                payments: $payments,
+                reason: $validated['reason'],
+                cancelledBy: auth()->id()
+            );
+
+            return redirect()->route('tickets.index')->with('success', 'Ticket cancelado correctamente.');
+        } catch (ValidationException $e) {
+            return back()->withErrors($e->errors());
+        } catch (\Throwable $e) {
+            Log::error('Error al cancelar ticket agrupado', [
+                'payment_group_id' => $paymentGroupId,
+                'error' => $e->getMessage(),
+            ]);
+            return back()->withErrors([
+                'messageError' => 'Ocurrió un error al cancelar el ticket. Intente de nuevo.',
+                'exception' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * La clave interna real de un método de pago es por parque (ver
+     * billing.club_payment_methods.internal_key, p. ej. CHP1/CHP2 para
+     * cheque) — se resuelve contra el parque que la línea representa
+     * (metadata.represents_club_id en pagos cruzados de un cobro dividido,
+     * o el club_id del pago). Si no hay configuración, cae al code genérico
+     * del catálogo (billing.payment_methods.code).
+     */
+    private function resolveInternalKey(Payment $payment): ?string
+    {
+        if (!$payment->payment_method_id) {
+            return $payment->paymentMethod?->code;
+        }
+
+        $clubId = $payment->metadata['represents_club_id'] ?? $payment->club_id;
+
+        $internalKey = ClubPaymentMethod::query()
+            ->where('club_id', $clubId)
+            ->where('payment_method_id', $payment->payment_method_id)
+            ->value('internal_key');
+
+        return $internalKey ?: $payment->paymentMethod?->code;
     }
 
     public function store(Request $request, Payment $payment)
@@ -102,8 +214,8 @@ class PaymentCancellationController extends Controller
                 isBouncedCheck: $isBouncedCheck
             );
 
-            $message = $result['penalty_charge']
-                ? 'Pago cancelado. Se generó el cargo por cheque rebotado.'
+            $message = $result['bounced_check_charge']
+                ? 'Pago cancelado. Se generaron los cargos de cheque rebotado y su comisión.'
                 : 'Pago cancelado correctamente.';
 
             return redirect()->route('tickets.index')->with('success', $message);

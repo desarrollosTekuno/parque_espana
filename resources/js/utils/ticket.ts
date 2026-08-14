@@ -22,6 +22,7 @@ export interface TicketPaymentMethod {
     banco: string | null;
     numero_cheque: string | null;
     es_este_ticket: boolean;
+    status: string | null;
 }
 
 export interface TicketData {
