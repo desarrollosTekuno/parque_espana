@@ -168,6 +168,12 @@ Route::resource('/interclub-package-rules', InterclubPackageRuleController::clas
 Route::get('/fee-schedules', [FeeScheduleController::class, 'index'])->name('fee-schedules.index');
 Route::post('/fee-schedules', [FeeScheduleController::class, 'store'])->name('fee-schedules.store');
 Route::get('/fee-schedules/preview', [FeeScheduleController::class, 'preview'])->name('fee-schedules.preview');
+Route::post('/fee-schedules/annual-discount-rules', [FeeScheduleController::class, 'storeAnnualDiscountRule'])
+    ->name('fee-schedules.annual-discount-rules.store');
+Route::put('/fee-schedules/annual-discount-rules/{annualDiscountRule}', [FeeScheduleController::class, 'updateAnnualDiscountRule'])
+    ->name('fee-schedules.annual-discount-rules.update');
+Route::delete('/fee-schedules/annual-discount-rules/{annualDiscountRule}', [FeeScheduleController::class, 'destroyAnnualDiscountRule'])
+    ->name('fee-schedules.annual-discount-rules.destroy');
 
 Route::resource('/email-configs', EmailConfigController::class)
     ->only(['index', 'store', 'update', 'destroy'])
