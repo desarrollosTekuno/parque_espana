@@ -127,8 +127,7 @@ class PaymentTicketService {
             ->all();
     }
 
-    private function ticketAllocations(Collection $payments, Payment $requestedPayment): Collection
-    {
+    private function ticketAllocations(Collection $payments, Payment $requestedPayment): Collection {
         $actualMonthlyClubIds = $payments
             ->flatMap(fn (Payment $item) => $item->applications)
             ->filter(fn (PaymentApplication $application) => $application->charge?->concept?->code === 'MONTHLY_FEE')
@@ -178,11 +177,7 @@ class PaymentTicketService {
         return $allocations;
     }
 
-    private function applicationClubIds(
-        PaymentApplication $application,
-        Payment $payment,
-        Collection $actualMonthlyClubIds
-    ): Collection {
+    private function applicationClubIds(PaymentApplication $application, Payment $payment, Collection $actualMonthlyClubIds): Collection {
         $charge = $application->charge;
         $chargeClubId = (int) ($charge?->membership?->club_id ?: $payment->club_id);
 
@@ -215,8 +210,7 @@ class PaymentTicketService {
         return $clubIds->count() > 1 ? $clubIds : collect([$chargeClubId]);
     }
 
-    private function splitStoredAmount(float $amount, int $parts): array
-    {
+    private function splitStoredAmount(float $amount, int $parts): array {
         if ($parts <= 1) {
             return [round($amount, 2)];
         }
@@ -233,8 +227,7 @@ class PaymentTicketService {
         return $result;
     }
 
-    private function concepts(Collection $allocations): array
-    {
+    private function concepts(Collection $allocations): array {
         return $allocations
             ->filter(fn (array $allocation) => $allocation['application'] !== null)
             ->map(function (array $allocation) {
@@ -269,8 +262,7 @@ class PaymentTicketService {
             ->all();
     }
 
-    private function paymentMethods(Collection $allocations, Payment $representative): array
-    {
+    private function paymentMethods(Collection $allocations, Payment $representative): array {
         return $allocations
             ->groupBy('payment_id')
             ->map(function (Collection $paymentAllocations) use ($representative) {
@@ -296,8 +288,7 @@ class PaymentTicketService {
             ->all();
     }
 
-    private function clubForTicket(int $clubId, Payment $payment): ?Club
-    {
+    private function clubForTicket(int $clubId, Payment $payment): ?Club {
         if ((int) $payment->club_id === $clubId) {
             return $payment->club;
         }
@@ -308,8 +299,7 @@ class PaymentTicketService {
             ?? Club::query()->with(['clubAddress.city', 'clubAddress.state', 'clubAddress.country'])->find($clubId);
     }
 
-    private function accountForClub(?MembershipAccount $account, int $clubId): ?MembershipAccount
-    {
+    private function accountForClub(?MembershipAccount $account, int $clubId): ?MembershipAccount {
         if (! $account) {
             return null;
         }
@@ -323,8 +313,7 @@ class PaymentTicketService {
             : $account;
     }
 
-    private function addressLines(?Club $club): array
-    {
+    private function addressLines(?Club $club): array {
         $address = $club?->clubAddress;
 
         if (! $address) {
@@ -369,8 +358,7 @@ class PaymentTicketService {
         return $lines;
     }
 
-    private function logoUrl(?string $clubCode, ?string $configuredLogo): ?string
-    {
+    private function logoUrl(?string $clubCode, ?string $configuredLogo): ?string {
         return match (strtoupper((string) $clubCode)) {
             'PE1' => '/assets/images/LogoP1.png',
             'PE2' => '/assets/images/LogoP2.png',
@@ -378,8 +366,7 @@ class PaymentTicketService {
         };
     }
 
-    private function institutionName(?string $clubCode, ?string $fallback): string
-    {
+    private function institutionName(?string $clubCode, ?string $fallback): string {
         return match (strtoupper((string) $clubCode)) {
             'PE1' => 'FUNDACIÓN DEPORTIVO PARQUE ESPAÑA I',
             'PE2' => 'FUNDACIÓN DEPORTIVO PARQUE ESPAÑA II',
@@ -387,15 +374,13 @@ class PaymentTicketService {
         };
     }
 
-    private function cashierInitial(?User $cashier): ?string
-    {
+    private function cashierInitial(?User $cashier): ?string {
         $name = trim((string) $cashier?->name);
 
         return $name === '' ? null : strtoupper(Str::ascii(mb_substr($name, 0, 1)));
     }
 
-    private function cashierCode(?User $cashier): ?string
-    {
+    private function cashierCode(?User $cashier): ?string {
         $code = trim((string) $cashier?->code);
 
         if ($code !== '') {
@@ -414,8 +399,7 @@ class PaymentTicketService {
         return $initials !== '' ? $initials : null;
     }
 
-    private function lockerCodes(?MembershipAccount $account, int $clubId): array
-    {
+    private function lockerCodes(?MembershipAccount $account, int $clubId): array {
         if (! $account) {
             return [];
         }
@@ -435,8 +419,7 @@ class PaymentTicketService {
             ->all();
     }
 
-    private function paymentMethodTicketCode(?string $code): ?string
-    {
+    private function paymentMethodTicketCode(?string $code): ?string {
         return match ($code) {
             'CASH' => 'EF',
             'BANK_TRANSFER' => 'TR',
@@ -448,8 +431,7 @@ class PaymentTicketService {
         };
     }
 
-    private function shortFolio(?string $folio): ?string
-    {
+    private function shortFolio(?string $folio): ?string {
         if (! $folio) {
             return null;
         }
