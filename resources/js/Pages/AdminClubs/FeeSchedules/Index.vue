@@ -44,7 +44,6 @@ interface CurrentClub {
 
 interface AnnualDiscountRuleRow {
     id: number;
-    year: number;
     pay_by_month: number;
     discount_months: number;
     free_month: number;
@@ -109,7 +108,14 @@ const monthOptions = [
     { title: "Julio", value: 7 }, { title: "Agosto", value: 8 }, { title: "Septiembre", value: 9 },
     { title: "Octubre", value: 10 }, { title: "Noviembre", value: 11 }, { title: "Diciembre", value: 12 },
 ];
-const monthName = (month: number) => monthOptions.find((m) => m.value === month)?.title ?? String(month);
+// Solo para "Pagando hasta": la anualidad de un año ya se puede empezar a
+// cubrir desde diciembre del año ANTERIOR (ver CollectionController::
+// resolveAnnualDiscountPaymentMonth) — 0 representa ese caso. No aplica a
+// "Mes que recibe el descuento" (free_month), que siempre es un mes real
+// dentro del año que se está cubriendo.
+const payByMonthOptions = [{ title: "Diciembre (año anterior)", value: 0 }, ...monthOptions];
+const monthName = (month: number) =>
+    (month === 0 ? "Diciembre (año anterior)" : monthOptions.find((m) => m.value === month)?.title) ?? String(month);
 
 const showAnnualDiscountDialog = ref(false);
 const annualDiscountSaving = ref(false);
@@ -148,14 +154,16 @@ const openEditAnnualDiscountDialog = (rule: AnnualDiscountRuleRow) => {
 };
 
 const saveAnnualDiscountRule = () => {
-    if (!annualDiscountForm.value.pay_by_month || annualDiscountForm.value.discount_months === null || !annualDiscountForm.value.free_month) {
+    // ojo: 0 (Diciembre año anterior) es un valor válido para pay_by_month
+    // y es "falsy" en JS — hay que comparar explícito contra null, no usar
+    // negación directa, o esa opción quedaba imposible de guardar.
+    if (annualDiscountForm.value.pay_by_month === null || annualDiscountForm.value.discount_months === null || annualDiscountForm.value.free_month === null) {
         customToastSwal({ title: "Completa mes límite de pago, meses de descuento y mes que se libera.", icon: "warning" });
         return;
     }
 
     annualDiscountSaving.value = true;
     const payload = {
-        year: selectedYear.value,
         pay_by_month: annualDiscountForm.value.pay_by_month,
         discount_months: annualDiscountForm.value.discount_months,
         free_month: annualDiscountForm.value.free_month,
@@ -191,7 +199,7 @@ const saveAnnualDiscountRule = () => {
 const deleteAnnualDiscountRule = async (rule: AnnualDiscountRuleRow) => {
     const result = await customConfirmSwal({
         title: "¿Eliminar esta regla?",
-        text: `Se eliminará el descuento configurado para pagos hechos hasta ${monthName(rule.pay_by_month)} de ${rule.year}.`,
+        text: `Se eliminará el descuento configurado para pagos hechos hasta ${monthName(rule.pay_by_month)}.`,
         icon: "warning",
         confirmText: "Sí, eliminar",
         cancelText: "Cancelar",
@@ -483,11 +491,10 @@ const save = () => {
                 </v-col>
             </v-row>
 
-            <v-card variant="outlined" class="mb-6">
+            <v-card v-if="can.includes('fee-schedules.annual-discount-rules')" variant="outlined" class="mb-6">
                 <v-card-title class="d-flex justify-space-between align-center">
-                    <span>Descuento por pago de anualidad ({{ selectedYear }})</span>
+                    <span>Descuento por pago de anualidad</span>
                     <BaseButton
-                        v-if="can.includes('fee-schedules.store')"
                         :icon-only="false"
                         text="Agregar regla"
                         icon="mdi-plus"
@@ -498,9 +505,10 @@ const save = () => {
                 </v-card-title>
                 <v-card-text>
                     <p class="text-body-2 text-medium-emphasis mb-3">
-                        Si el socio paga la anualidad completa (hasta diciembre de {{ selectedYear }}) antes o durante
-                        el mes indicado, se le descuentan los meses configurados — aplica a cualquier parque, no es
-                        por club. Ver Collections → "¿Es pago de anualidad?".
+                        Si el socio paga la anualidad completa (hasta diciembre del año que se está cubriendo) antes o
+                        durante el mes indicado, se le descuentan los meses configurados — aplica igual todos los
+                        años (el patrón no cambia), a cualquier parque, no es por club. Ver Collections → "¿Es pago de
+                        anualidad?".
                     </p>
 
                     <v-table density="compact" v-if="annualDiscountRules.length">
@@ -525,13 +533,11 @@ const save = () => {
                                 </td>
                                 <td class="text-end">
                                     <BaseButton
-                                        v-if="can.includes('fee-schedules.store')"
                                         action="edit"
                                         tooltip="Editar"
                                         @click="openEditAnnualDiscountDialog(rule)"
                                     />
                                     <BaseButton
-                                        v-if="can.includes('fee-schedules.store')"
                                         action="delete"
                                         tooltip="Eliminar"
                                         @click="deleteAnnualDiscountRule(rule)"
@@ -541,7 +547,7 @@ const save = () => {
                         </tbody>
                     </v-table>
                     <p v-else class="text-body-2 text-medium-emphasis mb-0">
-                        No hay reglas de descuento configuradas para {{ selectedYear }} — la anualidad se cobrará sin descuento.
+                        No hay reglas de descuento configuradas — la anualidad se cobrará sin descuento.
                     </p>
                 </v-card-text>
             </v-card>
@@ -901,7 +907,7 @@ const save = () => {
                 <v-card-text>
                     <v-select
                         v-model="annualDiscountForm.pay_by_month"
-                        :items="monthOptions"
+                        :items="payByMonthOptions"
                         label="Pagando hasta (mes límite)"
                         hide-details="auto"
                         class="mb-3"

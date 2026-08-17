@@ -776,12 +776,16 @@ class CollectionController extends Controller
         $validated = $request->validate([
             'membership_account_id' => ['required', new ExistsInSchema('memberships', 'accounts', 'id')],
             'paid_at' => ['required', 'date'],
+            // Año que se quiere cubrir — normalmente se infiere de paid_at,
+            // pero en diciembre la anualidad del año SIGUIENTE ya se puede
+            // ir cubriendo por adelantado (ver resolveAnnualCoverageYear).
+            'year' => ['sometimes', 'nullable', 'integer', 'min:2000', 'max:2100'],
         ]);
 
         $account = MembershipAccount::findOrFail($validated['membership_account_id']);
         $groupAccountIds = $this->resolveGroupAccountIds($account);
         $paidAt = Carbon::parse($validated['paid_at']);
-        $year = $paidAt->year;
+        $year = $this->resolveAnnualCoverageYear($paidAt, $validated['year'] ?? null);
 
         $billableMembership = $this->resolveBillableGroupMembership($groupAccountIds);
 
@@ -827,7 +831,7 @@ class CollectionController extends Controller
         $currentYearBalance = round($currentYearBalance, 2);
 
         $monthlyFee = round((float) ($billableMembership->monthly_fee_share ?? $billableMembership->monthly_fee ?? 0), 2);
-        $rule = AnnualDiscountRule::findApplicable($year, $paidAt->month);
+        $rule = AnnualDiscountRule::findApplicable($this->resolveAnnualDiscountPaymentMonth($paidAt, $year));
         $discountAmount = $rule ? round($monthlyFee * (float) $rule->discount_months, 2) : 0.0;
         $totalBalance = round($priorYearsBalance + $currentYearBalance, 2);
         $paymentAmount = round(max($totalBalance - $discountAmount, 0), 2);
@@ -842,6 +846,11 @@ class CollectionController extends Controller
 
         return response()->json([
             'year' => $year,
+            // Años que se pueden cubrir con esta fecha de pago — solo trae
+            // más de uno en diciembre (el actual, por si falta cerrarlo, y
+            // el siguiente, para adelantar su anualidad). El frontend usa
+            // esto para decidir si debe mostrar el selector de año.
+            'coverage_year_options' => $this->resolveAnnualCoverageYearOptions($paidAt),
             'months' => $months,
             'prior_years_balance' => $priorYearsBalance,
             'current_year_balance' => $currentYearBalance,
@@ -885,13 +894,14 @@ class CollectionController extends Controller
                 'payments.*.check_number' => ['nullable', 'string', 'max:255'],
                 'payments.*.is_park_split' => ['sometimes', 'boolean'],
                 'payments.*.club_id' => ['sometimes', 'nullable', new ExistsInSchema('clubs', 'clubs', 'id')],
+                'year' => ['sometimes', 'nullable', 'integer', 'min:2000', 'max:2100'],
             ]);
 
             $account = MembershipAccount::with('primaryHolder.member')->findOrFail($validated['membership_account_id']);
             $clubId = (int) $validated['club_id'];
             $groupAccountIds = $this->resolveGroupAccountIds($account);
             $paidAt = Carbon::parse($validated['paid_at']);
-            $year = $paidAt->year;
+            $year = $this->resolveAnnualCoverageYear($paidAt, $validated['year'] ?? null);
 
             $paymentMethodIds = collect($validated['payments'])->pluck('payment_method_id')->unique()->values();
             $paymentMethods = PaymentMethod::whereIn('id', $paymentMethodIds)->where('is_active', true)->get()->keyBy('id');
@@ -949,7 +959,7 @@ class CollectionController extends Controller
             }
 
             $monthlyFee = round((float) ($billableMembership->monthly_fee_share ?? $billableMembership->monthly_fee ?? 0), 2);
-            $rule = AnnualDiscountRule::findApplicable($year, $paidAt->month);
+            $rule = AnnualDiscountRule::findApplicable($this->resolveAnnualDiscountPaymentMonth($paidAt, $year));
             $discountAmount = $rule ? round($monthlyFee * (float) $rule->discount_months, 2) : 0.0;
             $paymentAmount = round((float) $charges->sum('balance') - $discountAmount, 2);
 
@@ -1012,7 +1022,7 @@ class CollectionController extends Controller
                     ]);
                 });
 
-                $this->annualPaymentService->processAnnualPayment($account, $groupAccountIds, $year, $payments);
+                $this->annualPaymentService->processAnnualPayment($account, $groupAccountIds, $year, $payments, $rule);
 
                 return $payments;
             });
@@ -1056,6 +1066,58 @@ class CollectionController extends Controller
             ->whereIn('status', ['active', 'suspended'])
             ->where('is_billable', true)
             ->first();
+    }
+
+    /**
+     * Año que se cubre con la anualidad. Normalmente el de la fecha de
+     * pago, pero si se paga en diciembre, la anualidad del año SIGUIENTE ya
+     * se puede ir cubriendo por adelantado (empieza a venderse desde
+     * diciembre del año anterior) — el cajero puede elegir explícitamente
+     * cuál de los dos quiere cubrir vía $requestedYear (por si en diciembre
+     * todavía falta cerrar el año en curso en vez de adelantar el próximo);
+     * si no indica nada, se asume el siguiente (lo más común en diciembre).
+     */
+    protected function resolveAnnualCoverageYear(Carbon $paidAt, ?int $requestedYear): int
+    {
+        $options = $this->resolveAnnualCoverageYearOptions($paidAt);
+        $defaultYear = $options[count($options) - 1]; // el más reciente: el siguiente en diciembre, si no el actual.
+
+        if ($requestedYear === null) {
+            return $defaultYear;
+        }
+
+        return in_array($requestedYear, $options, true) ? $requestedYear : $defaultYear;
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    protected function resolveAnnualCoverageYearOptions(Carbon $paidAt): array
+    {
+        return $paidAt->month === 12
+            ? [$paidAt->year, $paidAt->year + 1]
+            : [$paidAt->year];
+    }
+
+    /**
+     * Mes que se usa para buscar la regla de descuento
+     * (AnnualDiscountRule::findApplicable) — normalmente el mes calendario
+     * del pago, salvo cuando se paga en diciembre del año ANTERIOR al que
+     * se está cubriendo: ahí se usa 0 ("antes de que empiece el año"), que
+     * por construcción de la regla (pay_by_month >= mes de pago, ordenado
+     * ascendente) automáticamente califica para AL MENOS el descuento de
+     * enero, sin necesidad de una regla explícita para el mes 0 — a menos
+     * que se quiera dar un descuento todavía mejor por pagar con tanta
+     * anticipación, en cuyo caso sí se puede capturar una regla con
+     * pay_by_month=0 desde Cuotas por año.
+     */
+    protected function resolveAnnualDiscountPaymentMonth(Carbon $paidAt, int $year): int
+    {
+        if ($paidAt->year === $year - 1 && $paidAt->month === 12) {
+            return 0;
+        }
+
+        return $paidAt->month;
     }
 
     /**

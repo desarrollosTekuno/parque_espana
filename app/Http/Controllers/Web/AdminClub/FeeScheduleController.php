@@ -31,8 +31,12 @@ class FeeScheduleController extends Controller
     public function __construct()
     {
         $this->middleware('permission:fee-schedules.index')->only(['index', 'preview']);
-        $this->middleware('permission:fee-schedules.store')->only([
-            'store',
+        $this->middleware('permission:fee-schedules.store')->only('store');
+        // Permiso aparte de fee-schedules.store: el patrón de descuento por
+        // anualidad casi nunca cambia, así que se restringe a quien
+        // explícitamente lo necesite en vez de dárselo automáticamente a
+        // cualquiera que pueda capturar cuotas por año.
+        $this->middleware('permission:fee-schedules.annual-discount-rules')->only([
             'storeAnnualDiscountRule',
             'updateAnnualDiscountRule',
             'destroyAnnualDiscountRule',
@@ -53,7 +57,7 @@ class FeeScheduleController extends Controller
                 'pricingRules' => $rules['pricingRules'],
                 'interclubRules' => $rules['interclubRules'],
                 'familyGroups' => $rules['familyGroups'],
-                'annualDiscountRules' => $this->resolveAnnualDiscountRules($year),
+                'annualDiscountRules' => $this->resolveAnnualDiscountRules(),
                 'year' => $year,
                 'currentClub' => $currentClub ? [
                     'id' => $currentClub->id,
@@ -312,20 +316,18 @@ class FeeScheduleController extends Controller
 
     /**
      * Reglas de descuento por pago de anualidad (billing.annual_discount_rules)
-     * vigentes para $year — no están ligadas a un club (aplican a cualquier
-     * parque, ver AnnualPaymentService::processAnnualPayment /
-     * CollectionController::previewAnnualPayment), así que se muestran igual
-     * sin importar el parque de la sesión.
+     * — no están ligadas a un año ni a un club (el patrón de descuento no
+     * cambia de un año a otro, ver AnnualDiscountRule::findApplicable /
+     * AnnualPaymentService::processAnnualPayment), así que se muestran
+     * igual sin importar el año o el parque de la sesión.
      */
-    protected function resolveAnnualDiscountRules(int $year): Collection
+    protected function resolveAnnualDiscountRules(): Collection
     {
         return AnnualDiscountRule::query()
-            ->where('year', $year)
             ->orderBy('pay_by_month')
             ->get()
             ->map(fn (AnnualDiscountRule $rule) => [
                 'id' => $rule->id,
-                'year' => $rule->year,
                 'pay_by_month' => $rule->pay_by_month,
                 'discount_months' => (float) $rule->discount_months,
                 'free_month' => $rule->free_month,
@@ -399,11 +401,14 @@ class FeeScheduleController extends Controller
     protected function validateAnnualDiscountRule(Request $request, ?AnnualDiscountRule $rule = null): array
     {
         return $request->validate([
-            'year' => ['required', 'integer', 'min:2000', 'max:2100'],
+            // 0 = "antes de que empiece el año" (diciembre del año anterior,
+            // ver CollectionController::resolveAnnualDiscountPaymentMonth) —
+            // opcional: sin esta regla, un pago de diciembre anticipado ya
+            // califica solo para el descuento de enero (la más generosa que
+            // exista), esto solo sirve para darle uno todavía mejor.
             'pay_by_month' => [
-                'required', 'integer', 'min:1', 'max:12',
+                'required', 'integer', 'min:0', 'max:12',
                 Rule::unique(AnnualDiscountRule::class, 'pay_by_month')
-                    ->where(fn ($query) => $query->where('year', $request->input('year')))
                     ->ignore($rule?->id),
             ],
             'discount_months' => ['required', 'numeric', 'min:0', 'max:12'],

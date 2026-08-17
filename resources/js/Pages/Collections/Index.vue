@@ -312,11 +312,20 @@ interface AnnualPaymentPreview {
     // mensualidades".
     is_multi_club: boolean;
     club_breakdown: ClubBreakdownItem[];
+    // Años que se pueden cubrir con esta fecha de pago — solo trae más de
+    // uno en diciembre (el actual, por si falta cerrarlo, y el siguiente,
+    // para adelantar su anualidad). Ver annualCoverageYear.
+    coverage_year_options: number[];
 }
 
 const annualPaymentLoading = ref(false);
 const annualPaymentPreview = ref<AnnualPaymentPreview | null>(null);
 const annualPaymentDate = ref(nowAsLocalInput());
+// Año que se quiere cubrir — normalmente null (deja que el backend decida
+// solo, ver resolveAnnualCoverageYear); en diciembre se puede elegir
+// explícitamente entre el año en curso o el siguiente (adelantar la
+// anualidad), ver el selector "Año a cubrir" que aparece solo entonces.
+const annualCoverageYear = ref<number | null>(null);
 
 const loadAnnualPaymentPreview = async () => {
     if (!account.value) return;
@@ -326,8 +335,10 @@ const loadAnnualPaymentPreview = async () => {
         const { data } = await window.axios.post(route("collections.annual-payment.preview"), {
             membership_account_id: account.value.id,
             paid_at: annualPaymentDate.value,
+            year: annualCoverageYear.value,
         });
         annualPaymentPreview.value = data;
+        annualCoverageYear.value = data.year;
     } catch (e: any) {
         customToastSwal({
             title: e?.response?.data?.message || "No se pudo calcular la anualidad.",
@@ -607,6 +618,7 @@ const isAnnualFeePayment = ref(false);
 const loadInlineAnnualPreview = () => {
     if (!isAnnualFeePayment.value || !account.value) return;
     annualPaymentDate.value = nowAsLocalInput();
+    annualCoverageYear.value = null;
     loadAnnualPaymentPreview();
 };
 
@@ -1832,6 +1844,11 @@ const registerPayment = async () => {
                 club_id: cobroClub.value.id,
                 paid_at: payload.paid_at,
                 payments: payload.payments,
+                // Mismo año que ya se calculó y se le mostró al cajero al
+                // agregar el renglón — evita que un paid_at distinto (p. ej.
+                // si corrigió la fecha ya en el diálogo de método de pago)
+                // recalcule un año distinto al que en verdad se cotizó.
+                year: annualLine.annual_year,
             })
             : await window.axios.post(route("collections.payment.store"), {
                 membership_account_id: walkInMode.value ? null : account.value?.id,
@@ -2281,6 +2298,15 @@ const saveNote = async () => {
                                         min="1"
                                         :max="monthlyFeeMaxMonths ?? undefined"
                                         hide-details="auto"
+                                    />
+                                    <v-select
+                                        v-else-if="(annualPaymentPreview?.coverage_year_options.length ?? 0) > 1"
+                                        v-model="annualCoverageYear"
+                                        :items="annualPaymentPreview!.coverage_year_options.map((y) => ({ title: `Hasta diciembre ${y}`, value: y }))"
+                                        label="Año a cubrir"
+                                        hide-details="auto"
+                                        :loading="annualPaymentLoading"
+                                        @update:model-value="loadAnnualPaymentPreview"
                                     />
                                     <v-text-field
                                         v-else

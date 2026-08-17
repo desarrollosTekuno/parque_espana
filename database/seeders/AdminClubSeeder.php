@@ -99,6 +99,7 @@ class AdminClubSeeder extends Seeder
             'interclub-package-rules.destroy',
             'fee-schedules.index',
             'fee-schedules.store',
+            'fee-schedules.annual-discount-rules',
 
             // tipos de documento y de membresía
             'document-types.index',

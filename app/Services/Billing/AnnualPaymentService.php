@@ -10,7 +10,6 @@ use App\Models\Billing\Payment;
 use App\Models\Billing\PaymentApplication;
 use App\Models\Memberships\Membership;
 use App\Models\Memberships\MembershipAccount;
-use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -39,14 +38,23 @@ class AnnualPaymentService
      * @param int                 $year       Año hasta el que se cubre la anualidad (inclusive).
      * @param Collection<int, Payment> $payments Pagos ya registrados en la BD (uno por forma de
      *                                        pago), en el orden en que se deben aplicar.
+     * @param ?AnnualDiscountRule $rule       Regla YA resuelta por el llamador (ver
+     *                                        CollectionController::resolveAnnualDiscountPaymentMonth) — no
+     *                                        se vuelve a calcular aquí a partir de $payments->first()->paid_at,
+     *                                        porque en un pago de diciembre que adelanta el año siguiente el mes
+     *                                        calendario crudo del pago (diciembre) no es el mes que hay que
+     *                                        usar para buscar la regla (mes 0, "antes de que empiece el año") —
+     *                                        recalcularlo aquí con el mes crudo daba una regla distinta (o
+     *                                        ninguna) a la que ya se le había cobrado al socio.
      */
     public function processAnnualPayment(
         MembershipAccount $account,
         array $accountIds,
         int $year,
-        Collection $payments
+        Collection $payments,
+        ?AnnualDiscountRule $rule = null
     ): void {
-        DB::transaction(function () use ($account, $accountIds, $year, $payments) {
+        DB::transaction(function () use ($account, $accountIds, $year, $payments, $rule) {
             // 1. Cargos de mensualidad pendientes de este año o anteriores,
             // ordenados cronológicamente (más viejo primero).
             $charges = Charge::query()
@@ -65,9 +73,8 @@ class AnnualPaymentService
 
             $firstPayment = $payments->first();
 
-            // 2. Regla de descuento aplicable según el mes en que se realiza el pago
-            $paymentMonth = Carbon::parse($firstPayment->paid_at)->month;
-            $rule         = AnnualDiscountRule::findApplicable($year, $paymentMonth);
+            // 2. La regla de descuento ya viene resuelta por el llamador — ver
+            // el docblock de este método.
 
             // Cuota mensual de la membresía facturable (base para el cálculo
             // del crédito) — la del propio año $year, sin importar en qué
