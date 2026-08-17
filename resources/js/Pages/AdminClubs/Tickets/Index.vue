@@ -2,12 +2,11 @@
 import BaseButton from "@/Components/BaseButton.vue";
 import TicketPreview from "@/Components/TicketPreview.vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
-import { escapeHtml, getTicketBundle, getTicketData, printTicket, type TicketData } from "@/utils/ticket";
+import { getTicketBundle, getTicketData, printTicket, type TicketData } from "@/utils/ticket";
 import { customToastSwal } from "@/utils/swal";
 import { Head, router, usePage } from "@inertiajs/vue3";
 import { debounce } from "lodash";
-import { ref, watch } from "vue";
-import Swal from "sweetalert2";
+import { computed, ref, watch } from "vue";
 
 interface TicketListItem {
     id: number;
@@ -63,6 +62,11 @@ const showPreview = ref(false);
 const previewLoading = ref(false);
 const selectedTickets = ref<TicketData[]>([]);
 
+const showCancelDialog = ref(false);
+const cancelDialogLoading = ref(false);
+const cancelDialogItem = ref<TicketListItem | null>(null);
+const cancelDialogTicket = ref<TicketData | null>(null);
+
 /* ====================== Funciones ====================== */
 const fetchItems = () => {
     loading.value = true;
@@ -112,48 +116,43 @@ const sendToPrint = async (item: TicketListItem | null = null, duplicate = true)
     }
 };
 
-// Cancela UNA forma de pago específica (un Payment) — no todo el cobro
-// agrupado. El renglón de la tabla solo representa el cobro completo (el
-// pago con menor id del grupo, ver TicketController::index), así que si
-// hubo más de una forma de pago hay que dejar elegir cuál se quiere
-// cancelar en vez de asumir siempre la representante.
+// El renglón de la tabla solo representa el cobro completo (el pago con
+// menor id del grupo, ver TicketController::index). Si se pagó con una sola
+// forma de pago no hay nada que elegir: se va directo a cancelar ese pago.
+// Si hubo varias, se abre un diálogo para elegir entre cancelar el ticket
+// completo (rollback de todas las formas de pago) o solo una en particular.
 const goToCancelPayment = async (item: TicketListItem) => {
     if (item.formas_de_pago_count <= 1) {
         router.visit(route("payments.cancel.create", item.id));
         return;
     }
 
+    cancelDialogItem.value = item;
+    cancelDialogTicket.value = null;
+    showCancelDialog.value = true;
+    cancelDialogLoading.value = true;
+
     try {
-        const ticket = await getTicketData(item.id);
-        const options = ticket.formas_de_pago
-            .map((fp) => `<option value="${fp.payment_id}">${escapeHtml(fp.codigo_ticket ?? fp.nombre)} — ${escapeHtml(money(fp.monto))}${fp.referencia ? ` (${escapeHtml(fp.referencia)})` : ""}</option>`)
-            .join("");
-
-        const { value: selectedId, isConfirmed } = await Swal.fire({
-            title: "¿Cuál forma de pago deseas cancelar?",
-            html: `
-                <p class="swal2-html-container" style="margin-bottom: 8px;">
-                    Este cobro se pagó con ${item.formas_de_pago_count} formas de pago. Elige cuál cancelar.
-                </p>
-                <select id="swal-payment-select" class="swal2-select" style="display: block; width: 100%;">
-                    ${options}
-                </select>
-            `,
-            showCancelButton: true,
-            confirmButtonText: "Continuar",
-            cancelButtonText: "Cancelar",
-            preConfirm: () => {
-                const select = document.getElementById("swal-payment-select") as HTMLSelectElement | null;
-                return select?.value ?? null;
-            },
-        });
-
-        if (!isConfirmed || !selectedId) return;
-
-        router.visit(route("payments.cancel.create", selectedId));
+        cancelDialogTicket.value = await getTicketData(item.id);
     } catch (error) {
+        showCancelDialog.value = false;
         customToastSwal({ title: "No fue posible cargar las formas de pago de este cobro.", icon: "error" });
+    } finally {
+        cancelDialogLoading.value = false;
     }
+};
+
+const hasCancellablePayments = computed(() =>
+    (cancelDialogTicket.value?.formas_de_pago ?? []).some((fp) => fp.status !== "cancelled")
+);
+
+const goToCancelWholeTicket = () => {
+    if (!cancelDialogItem.value?.payment_group_id) return;
+    router.visit(route("payments.cancel-group.create", cancelDialogItem.value.payment_group_id));
+};
+
+const goToCancelSinglePayment = (paymentId: number) => {
+    router.visit(route("payments.cancel.create", paymentId));
 };
 
 const money = (value: number) => {
@@ -294,6 +293,67 @@ watch(() => page.props.auth.currentClub, () => {
                         :disabled="!selectedTickets.length"
                         @click="sendToPrint()"
                     />
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
+        <v-dialog v-model="showCancelDialog" max-width="560">
+            <v-card>
+                <v-card-title>Cancelar cobro</v-card-title>
+                <v-card-text>
+                    <div v-if="cancelDialogLoading" class="text-center pa-8">
+                        <v-progress-circular indeterminate color="primary" />
+                    </div>
+                    <template v-else-if="cancelDialogTicket">
+                        <v-alert type="info" variant="tonal" density="compact" class="mb-4">
+                            Este cobro se pagó con {{ cancelDialogItem?.formas_de_pago_count }} formas de pago.
+                            Puedes cancelar el ticket completo o solo una forma de pago en particular.
+                        </v-alert>
+
+                        <v-btn
+                            v-if="hasCancellablePayments"
+                            color="error"
+                            variant="flat"
+                            block
+                            class="mb-4"
+                            prepend-icon="mdi-cash-remove"
+                            @click="goToCancelWholeTicket"
+                        >
+                            Cancelar ticket completo ({{ money(cancelDialogTicket.total) }})
+                        </v-btn>
+                        <v-alert v-else type="warning" variant="tonal" density="compact" class="mb-4">
+                            Todas las formas de pago de este ticket ya están canceladas.
+                        </v-alert>
+
+                        <div class="text-subtitle-2 font-weight-medium mb-2">
+                            O cancelar solo una forma de pago:
+                        </div>
+                        <v-list density="compact" lines="two">
+                            <v-list-item
+                                v-for="fp in cancelDialogTicket.formas_de_pago"
+                                :key="fp.payment_id"
+                                :title="`${fp.codigo ?? '-'} · ${fp.nombre ?? '-'} — ${money(fp.monto)}`"
+                            >
+                                <template #subtitle>
+                                    <span v-if="fp.status === 'cancelled'" class="text-error">Ya cancelado</span>
+                                    <span v-else>{{ [fp.referencia, fp.banco, fp.numero_cheque].filter(Boolean).join(" · ") || undefined }}</span>
+                                </template>
+                                <template #append>
+                                    <BaseButton
+                                        v-if="fp.status !== 'cancelled'"
+                                        icon="mdi-cash-remove"
+                                        color="error"
+                                        tooltip="Cancelar esta forma de pago"
+                                        @click="goToCancelSinglePayment(fp.payment_id)"
+                                    />
+                                </template>
+                            </v-list-item>
+                        </v-list>
+                    </template>
+                </v-card-text>
+                <v-card-actions>
+                    <v-spacer />
+                    <BaseButton action="close" :icon-only="false" text="Cerrar" @click="showCancelDialog = false" />
                 </v-card-actions>
             </v-card>
         </v-dialog>

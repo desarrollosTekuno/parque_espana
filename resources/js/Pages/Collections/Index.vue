@@ -27,6 +27,7 @@ interface ConceptOption {
     is_recurring: boolean;
     allows_partial_payments: boolean;
     applies_iva: boolean;
+    requires_account: boolean;
     club_amounts: { club_id: number; amount: number | null; applies_iva: boolean | null }[];
 }
 interface PaymentMethodItem {
@@ -133,6 +134,14 @@ interface Signal {
     label: string;
     color: string;
 }
+interface RelatedAccount {
+    id: number;
+    membership_number: string | null;
+    internal_account_number: string | null;
+    holder_name: string;
+    club_code: string | null;
+    status: string | null;
+}
 interface SearchResult {
     found: boolean;
     message?: string;
@@ -146,6 +155,7 @@ interface SearchResult {
     incidents?: Incident[];
     notes?: NoteItem[];
     signals?: Signal[];
+    related_accounts?: RelatedAccount[];
 }
 
 /** Renglón de la lista de cobros (mezcla cargos existentes, conceptos nuevos
@@ -192,8 +202,40 @@ const searchTerm = ref("");
 const searching = ref(false);
 const result = ref<SearchResult | null>(null);
 
+// Venta "sin cuenta": conceptos marcados requires_account=false (p. ej. un
+// pase diario a un visitante sin socio ligado) se pueden cobrar sin buscar
+// ni encontrar una cuenta — ver CollectionController::storePayment. En este
+// modo no hay socio ni cargos pendientes, solo la captura de conceptos
+// nuevos (reutilizando el mismo panel "Agregar concepto de cobro" y el
+// mismo flujo de Método de pago/Registrar cobro).
+const walkInMode = ref(false);
+
+const setWalkInMode = (value: boolean) => {
+    walkInMode.value = value;
+    searchTerm.value = "";
+    result.value = null;
+    notes.value = [];
+    cobros.value = [];
+    resetNewItem();
+    paymentDialog.value = false;
+    manualPaymentOverride.value = null;
+};
+
 const account = computed(() => result.value?.account ?? null);
-const cobroClub = computed(() => result.value?.cobro_club ?? null);
+
+// En modo sin cuenta no hay resultado de búsqueda del que sacar el parque:
+// se usa el parque de la sesión actual (ver page.props.auth.currentClub,
+// que en este proyecto es solo el id del club) contra el catálogo de
+// métodos de pago por parque que ya llega en props.
+const sessionClubInfo = computed<ClubInfo | null>(() => {
+    const sessionClubId = page.props.auth?.currentClub;
+    const club = props.clubPaymentMethods.find((c) => c.id === sessionClubId);
+    return club ? { id: club.id, code: club.code, name: club.name } : null;
+});
+
+const cobroClub = computed(() =>
+    walkInMode.value ? sessionClubInfo.value : (result.value?.cobro_club ?? null),
+);
 const clubMemberships = computed(() => result.value?.club_memberships ?? []);
 const accountMembers = computed(() => result.value?.account_members ?? []);
 const billingMembershipId = computed(
@@ -204,6 +246,32 @@ const summary = computed(() => result.value?.summary ?? null);
 const incidents = computed(() => result.value?.incidents ?? []);
 const notes = ref<NoteItem[]>([]);
 const paymentDialog = ref(false);
+
+// Cuentas relacionadas por el árbol de origen/derivadas (ver
+// CollectionController::resolveRelatedAccounts — mismo mecanismo que la
+// pestaña "Árbol" de Members/Show.vue, distinto al account_group_id del
+// mismo socio en varios parques). Frecuente que quien llega a pagar termine
+// cubriendo también cargos de esas cuentas — este modal deja elegir una y
+// vuelve a buscar directo con ella, sin que el cajero tenga que anotar la
+// clave e ir a teclearla de nuevo.
+const relatedAccounts = computed(() => result.value?.related_accounts ?? []);
+const showRelatedAccountsDialog = ref(false);
+const selectedRelatedAccountId = ref<number | null>(null);
+
+const openRelatedAccountsDialog = () => {
+    selectedRelatedAccountId.value = null;
+    showRelatedAccountsDialog.value = true;
+};
+
+const goToRelatedAccount = () => {
+    const selected = relatedAccounts.value.find((a) => a.id === selectedRelatedAccountId.value);
+    if (!selected) return;
+
+    searchTerm.value = selected.membership_number || selected.internal_account_number || "";
+    showRelatedAccountsDialog.value = false;
+    runSearch();
+};
+
 const runSearch = async () => {
     if (!searchTerm.value || searchTerm.value.trim().length < 2) {
         customToastSwal({
@@ -350,8 +418,18 @@ const resetNewItem = () => {
     newItem.value = emptyNewItem();
 };
 
+// En modo "sin cuenta" solo se pueden elegir conceptos que no requieran una
+// cuenta de socio (billing.concepts.requires_account=false) — ver
+// PaymentRegistrationService::ensureChargesBelongToClub, que rechaza
+// cualquier otro cargo sin cuenta.
+const availableConceptOptions = computed(() =>
+    walkInMode.value
+        ? props.conceptOptions.filter((c) => !c.requires_account)
+        : props.conceptOptions,
+);
+
 const conceptSelectItems = computed(() =>
-    props.conceptOptions.map((c) => ({
+    availableConceptOptions.value.map((c) => ({
         title: `${c.internal_key} - ${c.name}`,
         value: c.id,
     })),
@@ -395,7 +473,7 @@ watch(
     (code) => {
         if (!code) return;
 
-        const match = props.conceptOptions.find(
+        const match = availableConceptOptions.value.find(
             c => c.code.toLowerCase() === code.trim().toLowerCase()
         );
 
@@ -406,7 +484,7 @@ watch(
 watch(
     () => newItem.value.concept_id,
     (id) => {
-        const match = props.conceptOptions.find(c => c.id === id);
+        const match = availableConceptOptions.value.find(c => c.id === id);
 
         applyConcept(match);
     },
@@ -616,7 +694,7 @@ watch(monthlyFeeMonthsCount, (value) => {
 // antiguos primero) se van a cobrar ahora — mismo mecanismo que "Cantidad de
 // meses" en la mensualidad, pero sin crear nada nuevo (los cargos ya
 // existen). Ver CollectionController::resolveInscriptionInstallments.
-const INSCRIPTION_LIKE_CONCEPT_CODES = ["INSCRIPTION", "CUOTA_REINSCRIPCION"];
+const INSCRIPTION_LIKE_CONCEPT_CODES = ["INSCRIPTION", "CUOTA_REINSCRIPCION", "CHEQUE_REBOTADO_PARQUE2", "CHEQUE_REBOTADO_PARQUE1", "COMISION_CHEQUE_REBOTADO"];
 const isInscriptionConcept = computed(
     () => INSCRIPTION_LIKE_CONCEPT_CODES.includes(selectedConcept.value?.code?.toUpperCase() ?? ""),
 );
@@ -1338,7 +1416,7 @@ const newTotal = computed(() =>
 );
 
 const addNewItemToCobros = () => {
-    const concept = props.conceptOptions.find(
+    const concept = availableConceptOptions.value.find(
         (c) => c.id === newItem.value.concept_id,
     );
     if (!concept) {
@@ -1432,9 +1510,17 @@ const paymentMethodOptions = computed<PaymentMethodOption[]>(() => {
         option_key: `${sessionClub.id}-${m.id}`,
     }));
 
-    const otherClubIds = clubMemberships.value
-        .map((cm) => cm.club_id)
-        .filter((id): id is number => id !== null && id !== sessionClub.id);
+    // Los métodos del otro parque solo tienen sentido cuando el cobro ACTUAL
+    // incluye algo que se reparte entre parques (p. ej. la mensualidad
+    // combo) — no solo porque el socio sea interclub. Si el socio tiene
+    // cuenta en ambos parques pero lo que se está cobrando ahora es de un
+    // solo parque (p. ej. un cheque rebotado), no tiene caso ofrecer
+    // "Tarjeta de crédito (PE1)": no hay nada que emparejar con ella.
+    const otherClubIds = dialogClubBreakdown.value.length > 1
+        ? clubMemberships.value
+            .map((cm) => cm.club_id)
+            .filter((id): id is number => id !== null && id !== sessionClub.id)
+        : [];
 
     // Cheque, Tarjeta de crédito y Tarjeta de débito se pueden repartir
     // entre parques; no hay caja física del otro parque (efectivo) ni
@@ -1481,7 +1567,7 @@ const dialogClubBreakdown = computed<ClubBreakdownItem[]>(() => {
 });
 
 const openPaymentDialog = () => {
-    if (!account.value || !cobroClub.value) {
+    if ((!walkInMode.value && !account.value) || !cobroClub.value) {
         customToastSwal({ title: "Busca primero un socio.", icon: "warning" });
         return;
     }
@@ -1558,7 +1644,7 @@ const cancelCobros = async () => {
 };
 
 const registerPayment = async () => {
-    if (!account.value || !cobroClub.value || !configuredPayment.value) return;
+    if ((!walkInMode.value && !account.value) || !cobroClub.value || !configuredPayment.value) return;
 
     const payload = configuredPayment.value;
 
@@ -1593,7 +1679,7 @@ const registerPayment = async () => {
     isLoading.value = true;
     try {
         const { data } = await window.axios.post(route("collections.payment.store"), {
-            membership_account_id: account.value.id,
+            membership_account_id: walkInMode.value ? null : account.value?.id,
             club_id: cobroClub.value.id,
             paid_at: payload.paid_at,
             payments: payload.payments,
@@ -1616,8 +1702,11 @@ const registerPayment = async () => {
 
         manualPaymentOverride.value = null;
         cobros.value = [];
-        // Refresca el estado de cuenta del socio.
-        await runSearch();
+        // Refresca el estado de cuenta del socio — no aplica en una venta
+        // sin cuenta, aquí no hay ningún socio que buscar.
+        if (!walkInMode.value) {
+            await runSearch();
+        }
 
         await Swal.fire({
             icon: "success",
@@ -1703,7 +1792,22 @@ const saveNote = async () => {
             <!-- Buscador -->
             <v-card>
                 <v-card-text>
-                    <v-row align="center">
+                    <v-row align="center" no-gutters class="mb-2">
+                        <v-col cols="12">
+                            <v-btn-toggle
+                                :model-value="walkInMode ? 'walk_in' : 'account'"
+                                color="primary"
+                                density="comfortable"
+                                mandatory
+                                @update:model-value="(v) => setWalkInMode(v === 'walk_in')"
+                            >
+                                <v-btn value="account">Buscar socio</v-btn>
+                                <v-btn value="walk_in">Venta sin cuenta</v-btn>
+                            </v-btn-toggle>
+                        </v-col>
+                    </v-row>
+
+                    <v-row v-if="!walkInMode" align="center">
                         <v-col cols="12" md="8">
                             <v-text-field
                                 v-model="searchTerm"
@@ -1726,14 +1830,18 @@ const saveNote = async () => {
                             />
                         </v-col>
                     </v-row>
+                    <v-alert v-else type="info" variant="tonal" density="compact">
+                        Solo se pueden agregar conceptos que no requieren cuenta de socio (p. ej. un pase diario a un visitante).
+                    </v-alert>
                 </v-card-text>
             </v-card>
 
-            <template v-if="account">
+            <template v-if="account || walkInMode">
                 <!-- Encabezado del socio: solo foto + nombre, lo más limpio
                      posible — el resto (cuentas, contacto, parques, avisos)
-                     se quitó por pedido explícito, ya no se muestra aquí. -->
-                <v-card color="primary" variant="tonal">
+                     se quitó por pedido explícito, ya no se muestra aquí.
+                     No aplica en una venta sin cuenta, no hay socio. -->
+                <v-card v-if="account" color="primary" variant="tonal">
                     <v-card-text>
                         <v-row align="center" no-gutters>
                             <v-col cols="auto" class="mr-4">
@@ -1749,16 +1857,26 @@ const saveNote = async () => {
                             </v-col>
                             <v-col>
                                 <div class="text-caption text-medium-emphasis">Titular</div>
-                                <div class="text-h6 font-weight-bold">
+                                <div class="text-h6 font-weight-bold d-flex align-center ga-2">
                                     {{ account.holder_name }}
+                                    <BaseButton
+                                        v-if="relatedAccounts.length"
+                                        :icon-only="false"
+                                        icon="mdi-family-tree"
+                                        text="Cuentas relacionadas"
+                                        variant="flat"
+                                        color="primary"
+                                        size="small"
+                                        @click="openRelatedAccountsDialog"
+                                    />
                                 </div>
                             </v-col>
                         </v-row>
                     </v-card-text>
                 </v-card>
 
-                <!-- Tabla 1: cargos pendientes -->
-                <v-card>
+                <!-- Tabla 1: cargos pendientes — no aplica en venta sin cuenta. -->
+                <v-card v-if="!walkInMode">
                     <v-card-title>Cargos </v-card-title>
                     <v-data-table
                         :headers="pendingHeaders"
@@ -1832,6 +1950,26 @@ const saveNote = async () => {
                         </template>
                         <template #item.balance="{ item }">
                             <span class="font-weight-bold">{{ formatCurrency(item.balance) }}</span>
+                        </template>
+                        <template #item.actions="{ item }">
+                            <BaseButton
+                                v-if="isConceptOtherClub(item)"
+                                :icon-only="true"
+                                icon="mdi-lock-outline"
+                                variant="text"
+                                disabled
+                                :tooltip="`Este cargo pertenece a ${item.charges[0]?.club_code ?? 'otro parque'}. Cambia el parque de la sesión para cobrarlo.`"
+                            />
+                            <BaseButton
+                                v-else
+                                :icon-only="false"
+                                action="add"
+                                icon="mdi-plus"
+                                text="Agregar"
+                                variant="tonal"
+                                :disabled="isChargesInCobros(item.charges[0]?.id ?? null)"
+                                @click="addPendingToCobros(item)"
+                            />
                         </template>
 
                     </v-data-table>
@@ -2639,8 +2777,67 @@ const saveNote = async () => {
                     @confirm="handlePaymentMethodsConfigured"
                 />
 
-                <!-- Comentarios / incidencias -->
-                <v-card>
+                <!-- Cuentas relacionadas (árbol de origen/derivadas) -->
+                <v-dialog v-model="showRelatedAccountsDialog" max-width="520">
+                    <v-card>
+                        <v-card-title>Cuentas relacionadas</v-card-title>
+                        <v-card-text>
+                            <div class="text-body-2 text-medium-emphasis mb-3">
+                                Elige una cuenta para buscarla directamente.
+                            </div>
+                            <v-radio-group v-model="selectedRelatedAccountId" hide-details>
+                                <v-list density="compact">
+                                    <v-list-item
+                                        v-for="related in relatedAccounts"
+                                        :key="related.id"
+                                        :active="selectedRelatedAccountId === related.id"
+                                        @click="selectedRelatedAccountId = related.id"
+                                    >
+                                        <template #prepend>
+                                            <v-radio :value="related.id" density="compact" />
+                                        </template>
+                                        <template #title>
+                                            {{ related.membership_number || related.internal_account_number || `Cuenta #${related.id}` }}
+                                            — {{ related.holder_name }}
+                                        </template>
+                                        <template #subtitle>
+                                            <span v-if="related.club_code">{{ related.club_code }}</span>
+                                            <v-chip
+                                                size="x-small"
+                                                class="ml-1"
+                                                :color="related.status === 'active' ? 'success' : 'default'"
+                                                variant="tonal"
+                                            >
+                                                {{ related.status === 'active' ? 'Activa' : (related.status || 'Sin estado') }}
+                                            </v-chip>
+                                        </template>
+                                    </v-list-item>
+                                </v-list>
+                            </v-radio-group>
+                        </v-card-text>
+                        <v-card-actions>
+                            <v-spacer />
+                            <BaseButton
+                                action="close"
+                                :icon-only="false"
+                                text="Cerrar"
+                                variant="text"
+                                @click="showRelatedAccountsDialog = false"
+                            />
+                            <BaseButton
+                                action="save"
+                                :icon-only="false"
+                                icon="mdi-check"
+                                text="Aceptar"
+                                :disabled="!selectedRelatedAccountId"
+                                @click="goToRelatedAccount"
+                            />
+                        </v-card-actions>
+                    </v-card>
+                </v-dialog>
+
+                <!-- Comentarios / incidencias — no aplica en venta sin cuenta. -->
+                <v-card v-if="!walkInMode">
                     <v-card-title>Comentarios e incidencias</v-card-title>
                     <v-card-text>
                         <v-row>

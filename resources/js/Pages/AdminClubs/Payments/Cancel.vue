@@ -3,7 +3,7 @@ import BaseButton from "@/Components/BaseButton.vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { customToastSwal } from "@/utils/swal";
 import { Head, router, useForm, usePage } from "@inertiajs/vue3";
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 
 const page = usePage<any>();
 
@@ -23,6 +23,7 @@ interface PaymentInfo {
     check_number: string | null;
     metodo_pago: string | null;
     metodo_pago_codigo: string | null;
+    metodo_pago_clave: string | null;
     cajero: string | null;
     cuenta_numero: string | null;
     titular: string | null;
@@ -42,7 +43,17 @@ const isCheck = computed(() => props.payment?.metodo_pago_codigo === "CHECK");
 const form = useForm({
     reason: "",
     is_bounced_check: false,
+    also_cancel_charge: false,
     confirmed: false,
+});
+
+// Mutuamente excluyentes: cheque rebotado re-cobra el cargo con recargo,
+// cancelar el cargo lo anula por completo — no tiene sentido marcar ambos.
+watch(() => form.is_bounced_check, (checked) => {
+    if (checked) form.also_cancel_charge = false;
+});
+watch(() => form.also_cancel_charge, (checked) => {
+    if (checked) form.is_bounced_check = false;
 });
 
 const confirmed = ref(false);
@@ -89,7 +100,7 @@ const submit = async () => {
         },
         onError: () => {
             customToastSwal({
-                title: `Error: ${form.errors.messageError || form.errors.is_bounced_check || "No se pudo cancelar el pago"}`,
+                title: `Error: ${form.errors.messageError || form.errors.is_bounced_check || form.errors.also_cancel_charge || "No se pudo cancelar el pago"}`,
                 text: `${form.errors.exception || ""}`,
                 icon: "error",
             });
@@ -136,7 +147,7 @@ const submit = async () => {
                                     </v-col>
                                     <v-col cols="12" sm="6">
                                         <p><strong>Monto:</strong> {{ formatCurrency(payment.amount) }}</p>
-                                        <p><strong>Método:</strong> {{ payment.metodo_pago || "-" }}</p>
+                                        <p><strong>Método:</strong> {{ payment.metodo_pago_clave ?? "-" }} · {{ payment.metodo_pago || "-" }}</p>
                                         <p v-if="payment.bank_name"><strong>Banco:</strong> {{ payment.bank_name }}</p>
                                         <p v-if="payment.check_number"><strong>No. cheque:</strong> {{ payment.check_number }}</p>
                                         <p><strong>Cajero:</strong> {{ payment.cajero || "-" }}</p>
@@ -174,7 +185,12 @@ const submit = async () => {
                             <v-alert type="error" variant="tonal" class="mb-4">
                                 <strong>Esta acción es irreversible.</strong> Al cancelar:
                                 <ul class="mt-1 ml-4">
-                                    <li>Los cargos que cubrió este pago vuelven a quedar pendientes.</li>
+                                    <li v-if="form.also_cancel_charge">
+                                        Los cargos que cubrió este pago se cancelan por completo — NO vuelven a quedar pendientes.
+                                    </li>
+                                    <li v-else>
+                                        Los cargos que cubrió este pago vuelven a quedar pendientes.
+                                    </li>
                                     <li>El pago queda marcado como cancelado, conservando el historial.</li>
                                 </ul>
                             </v-alert>
@@ -229,6 +245,36 @@ const submit = async () => {
                                             class="text-error text-caption mt-1"
                                         >
                                             {{ form.errors.is_bounced_check }}
+                                        </div>
+                                    </v-card>
+
+                                    <!-- Cancelar también el cargo -->
+                                    <v-card
+                                        v-if="!form.is_bounced_check"
+                                        variant="outlined"
+                                        class="pa-3 mb-4"
+                                    >
+                                        <v-checkbox
+                                            v-model="form.also_cancel_charge"
+                                            color="error"
+                                            hide-details
+                                        >
+                                            <template #label>
+                                                <div>
+                                                    <div class="font-weight-medium">
+                                                        Cancelar también el cargo
+                                                    </div>
+                                                    <div class="text-caption text-medium-emphasis">
+                                                        El/los cargo(s) que cubrió este pago se anulan por completo, en vez de volver a quedar pendientes. Útil para pagos de prueba o cargos capturados por error.
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </v-checkbox>
+                                        <div
+                                            v-if="form.errors.also_cancel_charge"
+                                            class="text-error text-caption mt-1"
+                                        >
+                                            {{ form.errors.also_cancel_charge }}
                                         </div>
                                     </v-card>
 

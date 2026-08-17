@@ -2,6 +2,7 @@
 
 namespace App\Services\Billing;
 
+use App\Models\Billing\ClubPaymentMethod;
 use App\Models\Administrator\Club;
 use App\Models\Billing\Payment;
 use App\Models\Billing\PaymentApplication;
@@ -275,13 +276,14 @@ class PaymentTicketService {
                     'ticket_serie' => $this->cashierInitial($payment->receiver),
                     'ticket_folio' => $this->shortFolio($payment->folio),
                     'nombre' => $payment->paymentMethod?->name,
-                    'codigo' => $payment->paymentMethod?->code,
+                    'codigo' => $this->resolveInternalKey($payment),
                     'codigo_ticket' => $this->paymentMethodTicketCode($payment->paymentMethod?->code),
                     'monto' => round((float) $paymentAllocations->sum('amount'), 2),
                     'referencia' => $payment->reference,
                     'banco' => $payment->bank_name,
                     'numero_cheque' => $payment->check_number,
                     'es_este_ticket' => $payment->id === $representative->id,
+                    'status' => $payment->status,
                 ];
             })
             ->values()
@@ -418,6 +420,80 @@ class PaymentTicketService {
             ->values()
             ->all();
     }
+
+    /**
+     * La "clave interna" real de un método de pago es POR PARQUE (ver
+     * billing.club_payment_methods.internal_key, p. ej. CHP1/CHP2 para
+     * cheque en parque 1/2) — no el code genérico del catálogo
+     * (billing.payment_methods.code, p. ej. CHECK). Se resuelve contra el
+     * parque que esta línea representa (metadata.represents_club_id en
+     * pagos cruzados de un cobro dividido, o el club_id del pago si no
+     * aplica) — igual que el resto de la atribución por parque de esta
+     * clase. Si no hay configuración para esa combinación, se cae al code
+     * genérico para no dejar la clave vacía.
+     */
+    private function resolveInternalKey(Payment $p): ?string {
+        if (!$p->payment_method_id) {
+            return $p->paymentMethod?->code;
+        }
+
+        $clubId = $payment->metadata['represents_club_id'] ?? $payment->club_id;
+
+        return ClubPaymentMethod::query()
+            ->where('club_id', $clubId)
+            ->where('payment_method_id', $payment->payment_method_id)
+            ->value('internal_key') ?: $payment->paymentMethod?->code;
+    }
+
+    /**
+     * La "clave interna" real de un método de pago es POR PARQUE (ver
+     * billing.club_payment_methods.internal_key, p. ej. CHP1/CHP2 para
+     * cheque en parque 1/2) — no el code genérico del catálogo
+     * (billing.payment_methods.code, p. ej. CHECK). Se resuelve contra el
+     * parque que esta línea representa (metadata.represents_club_id en
+     * pagos cruzados de un cobro dividido, o el club_id del pago si no
+     * aplica) — igual que el resto de la atribución por parque de esta
+     * clase. Si no hay configuración para esa combinación, se cae al code
+     * genérico para no dejar la clave vacía.
+     */
+
+
+    /**
+     * La "clave interna" real de un método de pago es POR PARQUE (ver
+     * billing.club_payment_methods.internal_key, p. ej. CHP1/CHP2 para
+     * cheque en parque 1/2) — no el code genérico del catálogo
+     * (billing.payment_methods.code, p. ej. CHECK). Se resuelve contra el
+     * parque que esta línea representa (metadata.represents_club_id en
+     * pagos cruzados de un cobro dividido, o el club_id del pago si no
+     * aplica) — igual que el resto de la atribución por parque de esta
+     * clase. Si no hay configuración para esa combinación, se cae al code
+     * genérico para no dejar la clave vacía.
+     */
+    private function resolveInternalKey(Payment $p): ?string {
+        if (!$p->payment_method_id) {
+            return $p->paymentMethod?->code;
+        }
+
+        $clubId = $payment->metadata['represents_club_id'] ?? $payment->club_id;
+
+        return ClubPaymentMethod::query()
+            ->where('club_id', $clubId)
+            ->where('payment_method_id', $payment->payment_method_id)
+            ->value('internal_key') ?: $payment->paymentMethod?->code;
+    }
+
+    /**
+     * La "clave interna" real de un método de pago es POR PARQUE (ver
+     * billing.club_payment_methods.internal_key, p. ej. CHP1/CHP2 para
+     * cheque en parque 1/2) — no el code genérico del catálogo
+     * (billing.payment_methods.code, p. ej. CHECK). Se resuelve contra el
+     * parque que esta línea representa (metadata.represents_club_id en
+     * pagos cruzados de un cobro dividido, o el club_id del pago si no
+     * aplica) — igual que el resto de la atribución por parque de esta
+     * clase. Si no hay configuración para esa combinación, se cae al code
+     * genérico para no dejar la clave vacía.
+     */
+
 
     private function paymentMethodTicketCode(?string $code): ?string {
         return match ($code) {

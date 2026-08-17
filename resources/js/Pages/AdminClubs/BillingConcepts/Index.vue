@@ -21,6 +21,7 @@ interface BillingConceptItem {
     applies_iva: boolean;
     club_applies_iva: boolean | null;
     is_active: boolean;
+    requires_account: boolean;
 }
 
 interface CurrentClub {
@@ -101,6 +102,7 @@ interface BillingConceptForm {
     applies_iva: boolean;
     club_applies_iva: boolean | null;
     is_active: boolean;
+    requires_account: boolean;
 }
 
 const form = useForm<BillingConceptForm>({
@@ -118,6 +120,7 @@ const form = useForm<BillingConceptForm>({
     applies_iva: false,
     club_applies_iva: null,
     is_active: true,
+    requires_account: true,
 });
 
 const resetForm = () => {
@@ -137,6 +140,7 @@ const resetForm = () => {
     form.applies_iva = false;
     form.club_applies_iva = null;
     form.is_active = true;
+    form.requires_account = true;
 };
 
 const openCreate = () => {
@@ -160,6 +164,7 @@ const openEdit = (item: BillingConceptItem) => {
     form.applies_iva = item.applies_iva;
     form.club_applies_iva = item.club_applies_iva;
     form.is_active = item.is_active;
+    form.requires_account = item.requires_account;
     showModal.value = true;
 };
 
@@ -417,6 +422,14 @@ watch(
                                     {{ resolveConceptAppliesIva(item) ? "Facturable" : "No facturable" }}
                                     <span v-if="item.club_applies_iva !== null" class="ml-1">({{ currentClub?.code }})</span>
                                 </v-chip>
+                                <v-chip
+                                    v-if="!item.requires_account"
+                                    size="small"
+                                    color="warning"
+                                    variant="tonal"
+                                >
+                                    Sin cuenta
+                                </v-chip>
                             </div>
                         </template>
 
@@ -581,6 +594,16 @@ watch(
                                     v-model="form.is_active"
                                     color="success"
                                     label="Activo"
+                                />
+                            </v-col>
+
+                            <v-col cols="12" md="4">
+                                <v-switch
+                                    v-model="form.requires_account"
+                                    color="warning"
+                                    :label="form.requires_account ? 'Requiere cuenta de socio' : 'Se puede vender sin cuenta'"
+                                    hint="Apágalo para conceptos que se venden a cualquiera sin ligarlos a un socio (p. ej. un pase diario a un visitante)."
+                                    persistent-hint
                                 />
                             </v-col>
                         </v-row>
