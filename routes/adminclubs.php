@@ -112,6 +112,8 @@ Route::get('/collections/search', [CollectionController::class, 'search'])->name
 Route::post('/collections/monthly-fee/resolve', [CollectionController::class, 'resolveMonthlyFeeMonths'])->name('collections.monthly-fee.resolve');
 Route::post('/collections/inscription/resolve', [CollectionController::class, 'resolveInscriptionInstallments'])->name('collections.inscription.resolve');
 Route::post('/collections/payment', [CollectionController::class, 'storePayment'])->name('collections.payment.store');
+Route::post('/collections/annual-payment/preview', [CollectionController::class, 'previewAnnualPayment'])->name('collections.annual-payment.preview');
+Route::post('/collections/annual-payment', [CollectionController::class, 'storeAnnualPayment'])->name('collections.annual-payment.store');
 Route::post('/collections/notes', [CollectionController::class, 'storeNote'])->name('collections.notes.store');
 
 // cash cuts
@@ -147,6 +149,8 @@ Route::post('/payments/{payment}/cancel', [PaymentCancellationController::class,
     ->name('payments.cancel.store');
 Route::get('/payments/group/{paymentGroupId}/cancel/create', [PaymentCancellationController::class, 'groupCreate'])
     ->name('payments.cancel-group.create');
+Route::get('/payments/group/{paymentGroupId}/summary', [PaymentCancellationController::class, 'groupSummary'])
+    ->name('payments.cancel-group.summary');
 Route::post('/payments/group/{paymentGroupId}/cancel', [PaymentCancellationController::class, 'groupStore'])
     ->name('payments.cancel-group.store');
 Route::resource('/pricing-rules', PricingRuleController::class)

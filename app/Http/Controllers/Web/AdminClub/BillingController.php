@@ -812,7 +812,7 @@ class BillingController extends Controller
                     ],
                 ]);
 
-                app(AnnualPaymentService::class)->processAnnualPayment($account, $year, $payment, $clubId);
+                app(AnnualPaymentService::class)->processAnnualPayment($account, [$account->id], $year, collect([$payment]));
 
                 return $payment;
             });

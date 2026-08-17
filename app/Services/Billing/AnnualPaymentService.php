@@ -11,36 +11,51 @@ use App\Models\Billing\PaymentApplication;
 use App\Models\Memberships\Membership;
 use App\Models\Memberships\MembershipAccount;
 use Carbon\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class AnnualPaymentService
 {
     /**
      * Procesa un pago de anualidad:
-     *  1. Aplica el pago a los cargos mensuales del año en orden (ene → dic).
+     *  1. Aplica los pagos (puede ser más de uno — cobro dividido en varias
+     *     formas de pago, ver CollectionController::storeAnnualPayment) a
+     *     los cargos mensuales pendientes de CUALQUIER año hasta $year
+     *     inclusive (adeudo de años anteriores + todo lo que falte del año
+     *     en curso), en orden cronológico y en el orden en que llegan las
+     *     formas de pago (waterfall, igual que
+     *     PaymentRegistrationService::registerSplit).
      *  2. Si aplica una regla de descuento, genera saldo a favor.
      *  3. Si el descuento es de mes completo, aplica el crédito al mes libre (diciembre).
      *
-     * @param MembershipAccount $account
-     * @param int               $year    Año que cubre la anualidad.
-     * @param Payment           $payment Pago ya registrado en la BD con el monto real cobrado.
-     * @param int               $clubId  Club al que pertenecen los cargos.
+     * El descuento SIEMPRE se calcula sobre la cuota de $year (no se
+     * prorratea sobre adeudo de años anteriores, que se cobra completo) —
+     * ver CollectionController::storeAnnualPayment.
+     *
+     * @param MembershipAccount   $account    Cuenta sobre la que se registra el saldo a favor.
+     * @param array               $accountIds Cuentas del socio a considerar para juntar los cargos
+     *                                        (la propia y, si aplica, las de su combo interclub —
+     *                                        ver CollectionController::resolveGroupAccountIds).
+     * @param int                 $year       Año hasta el que se cubre la anualidad (inclusive).
+     * @param Collection<int, Payment> $payments Pagos ya registrados en la BD (uno por forma de
+     *                                        pago), en el orden en que se deben aplicar.
      */
     public function processAnnualPayment(
         MembershipAccount $account,
+        array $accountIds,
         int $year,
-        Payment $payment,
-        int $clubId
+        Collection $payments
     ): void {
-        DB::transaction(function () use ($account, $year, $payment, $clubId) {
-            // 1. Cargos de mensualidad pendientes del año, ordenados por mes
+        DB::transaction(function () use ($account, $accountIds, $year, $payments) {
+            // 1. Cargos de mensualidad pendientes de este año o anteriores,
+            // ordenados cronológicamente (más viejo primero).
             $charges = Charge::query()
                 ->with('concept')
-                ->where('membership_account_id', $account->id)
-                ->where('period_year', $year)
+                ->whereIn('membership_account_id', $accountIds)
+                ->where('period_year', '<=', $year)
                 ->whereIn('status', ['pending', 'partial'])
                 ->whereHas('concept', fn ($q) => $q->where('code', 'MONTHLY_FEE'))
-                ->whereHas('membership', fn ($q) => $q->where('club_id', $clubId))
+                ->orderBy('period_year')
                 ->orderBy('period_month')
                 ->get();
 
@@ -48,14 +63,20 @@ class AnnualPaymentService
                 return;
             }
 
+            $firstPayment = $payments->first();
+
             // 2. Regla de descuento aplicable según el mes en que se realiza el pago
-            $paymentMonth = Carbon::parse($payment->paid_at)->month;
+            $paymentMonth = Carbon::parse($firstPayment->paid_at)->month;
             $rule         = AnnualDiscountRule::findApplicable($year, $paymentMonth);
 
-            // Cuota mensual de la membresía (base para el cálculo del crédito)
-            $membership = Membership::where('membership_account_id', $account->id)
-                ->where('club_id', $clubId)
+            // Cuota mensual de la membresía facturable (base para el cálculo
+            // del crédito) — la del propio año $year, sin importar en qué
+            // cuenta del grupo viva (combo interclub).
+            $membership = Membership::query()
+                ->whereIn('membership_account_id', $accountIds)
                 ->where('is_primary', true)
+                ->whereIn('status', ['active', 'suspended'])
+                ->where('is_billable', true)
                 ->first();
             $monthlyFee = round((float) ($membership?->monthly_fee_share ?? $membership?->monthly_fee ?? 0), 2);
 
@@ -64,35 +85,51 @@ class AnnualPaymentService
 
             if ($rule && $monthlyFee > 0) {
                 $creditAmount    = round($monthlyFee * (float) $rule->discount_months, 2);
-                $freeMonthCharge = $charges->firstWhere('period_month', $rule->free_month);
+                // El mes libre siempre es de $year (el año que se está
+                // cubriendo con la anualidad) — con adeudo de años
+                // anteriores mezclado en $charges, un firstWhere sin filtrar
+                // el año podía emparejar diciembre del año viejo por error.
+                $freeMonthCharge = $charges->first(
+                    fn (Charge $charge) => (int) $charge->period_month === (int) $rule->free_month
+                        && (int) $charge->period_year === $year
+                );
             }
 
-            // 3. Aplicar el pago a los cargos en orden
-            $remaining = round((float) $payment->amount, 2);
+            // 3. Aplicar los pagos a los cargos en orden — waterfall: cada
+            // cargo se cubre con la(s) forma(s) de pago necesarias, en el
+            // orden en que llegaron (igual que registerSplit, pero sin la
+            // prioridad de reparto entre parques: aquí todo es MONTHLY_FEE
+            // en orden cronológico).
+            $remainingPerPayment = $payments->map(fn (Payment $p) => round((float) $p->amount, 2))->all();
 
             foreach ($charges as $charge) {
-                if ($remaining <= 0) {
-                    break;
+                $remainingForCharge = round((float) $charge->balance, 2);
+
+                foreach ($payments as $index => $payment) {
+                    if ($remainingForCharge <= 0.001) {
+                        break;
+                    }
+                    if ($remainingPerPayment[$index] <= 0.001) {
+                        continue;
+                    }
+
+                    $toApply = round(min($remainingForCharge, $remainingPerPayment[$index]), 2);
+
+                    PaymentApplication::create([
+                        'payment_id'     => $payment->id,
+                        'charge_id'      => $charge->id,
+                        'applied_amount' => $toApply,
+                    ]);
+
+                    $remainingPerPayment[$index] = round($remainingPerPayment[$index] - $toApply, 2);
+                    $remainingForCharge = round($remainingForCharge - $toApply, 2);
                 }
 
-                $toApply = min($remaining, round((float) $charge->balance, 2));
-                if ($toApply <= 0) {
-                    continue;
-                }
-
-                PaymentApplication::create([
-                    'payment_id'     => $payment->id,
-                    'charge_id'      => $charge->id,
-                    'applied_amount' => $toApply,
-                ]);
-
-                $newBalance = round((float) $charge->balance - $toApply, 2);
+                $newBalance = round($remainingForCharge, 2);
                 $charge->update([
                     'balance' => $newBalance,
                     'status'  => $newBalance <= 0 ? 'paid' : 'partial',
                 ]);
-
-                $remaining = round($remaining - $toApply, 2);
             }
 
             // 4. Generar saldo a favor por el descuento
@@ -104,7 +141,7 @@ class AnnualPaymentService
                     'membership_account_id' => $account->id,
                     'amount'                => $creditAmount,
                     'concept'               => 'annual_discount',
-                    'payment_id'            => $payment->id,
+                    'payment_id'            => $firstPayment->id,
                     'notes'                 => "Descuento anualidad {$year} ({$rule->discount_months} mes(es) libres)",
                 ]);
 

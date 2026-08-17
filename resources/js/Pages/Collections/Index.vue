@@ -162,7 +162,7 @@ interface SearchResult {
  *  y salidas de cafetería aún no confirmadas). */
 interface CobroLine {
     key: string;
-    type: "existing" | "new" | "cafeteria_checkout";
+    type: "existing" | "new" | "cafeteria_checkout" | "annual";
     concept_label: string;
     detail: string;
     amount: number;
@@ -173,6 +173,12 @@ interface CobroLine {
     club_breakdown?: ClubBreakdownItem[];
     cafeteria_visit_id?: number;
     cafeteria_consumption_amount?: number;
+    // Solo para type "annual" — ver confirmAnnualFeePaymentFromPanel /
+    // registerPayment: el registro no pasa por storePayment (cargos +
+    // conceptos nuevos genéricos), sino por su propio endpoint
+    // (collections.annual-payment.store), porque el descuento/saldo a
+    // favor de la anualidad no encaja en ese modelo genérico.
+    annual_year?: number;
 }
 
 interface Props {
@@ -272,6 +278,66 @@ const goToRelatedAccount = () => {
     runSearch();
 };
 
+// ── Pagar anualidad ──
+// Cubre desde el mes vencido más viejo (aunque sea de un año anterior)
+// hasta diciembre del año en que se paga, con el descuento vigente según
+// billing.annual_discount_rules (ver CollectionController::previewAnnualPayment/
+// storeAnnualPayment). El cálculo se hace aquí (mismo panel "Agregar
+// concepto de cobro" que ya usa cobranza, con el checkbox "¿Es pago de
+// anualidad?"), pero el renglón se agrega a la MISMA lista de cobros que
+// todo lo demás, para que el método de pago se configure con el mismo
+// diálogo (incluyendo pago dividido) — ver registerPayment(), que detecta
+// este renglón y lo manda al endpoint de anualidad en vez de storePayment.
+interface AnnualMonthPreview {
+    month: number;
+    period_label: string;
+    balance: number;
+    is_virtual: boolean;
+    is_paid: boolean;
+}
+interface AnnualPaymentPreview {
+    year: number;
+    months: AnnualMonthPreview[];
+    prior_years_balance: number;
+    current_year_balance: number;
+    total_balance: number;
+    monthly_fee: number;
+    discount_rule: { pay_by_month: number; discount_months: number; free_month: number } | null;
+    discount_amount: number;
+    payment_amount: number;
+    // La anualidad es, en el fondo, una colección de mensualidades — si la
+    // membresía facturable es un combo interclub, también debe poder
+    // repartirse entre los métodos de pago de ambos parques (ver
+    // dialogClubBreakdown / paymentMethodOptions), igual que "Agregar
+    // mensualidades".
+    is_multi_club: boolean;
+    club_breakdown: ClubBreakdownItem[];
+}
+
+const annualPaymentLoading = ref(false);
+const annualPaymentPreview = ref<AnnualPaymentPreview | null>(null);
+const annualPaymentDate = ref(nowAsLocalInput());
+
+const loadAnnualPaymentPreview = async () => {
+    if (!account.value) return;
+    annualPaymentLoading.value = true;
+    annualPaymentPreview.value = null;
+    try {
+        const { data } = await window.axios.post(route("collections.annual-payment.preview"), {
+            membership_account_id: account.value.id,
+            paid_at: annualPaymentDate.value,
+        });
+        annualPaymentPreview.value = data;
+    } catch (e: any) {
+        customToastSwal({
+            title: e?.response?.data?.message || "No se pudo calcular la anualidad.",
+            icon: "error",
+        });
+    } finally {
+        annualPaymentLoading.value = false;
+    }
+};
+
 const runSearch = async () => {
     if (!searchTerm.value || searchTerm.value.trim().length < 2) {
         customToastSwal({
@@ -349,6 +415,19 @@ const isConceptOtherClub = (concept: PendingConcept) => {
     return conceptClubId !== null && !!cobroClub.value && conceptClubId !== cobroClub.value.id;
 };
 
+// La anualidad se paga sola (ver confirmAnnualFeePaymentFromPanel) — si el
+// cajero agrega cualquier otra cosa mientras ese renglón especial sigue en
+// la lista, se quita primero para no mezclar dos mecanismos de cobro
+// distintos en un mismo pago.
+const clearAnnualLineIfPresent = () => {
+    if (!cobros.value.some((l) => l.type === "annual")) return;
+    cobros.value = [];
+    customToastSwal({
+        title: "Se quitó la anualidad de la lista de cobros: no se puede combinar con otros conceptos.",
+        icon: "info",
+    });
+};
+
 /** El renglón de mensualidad ya trae TODOS los meses vencidos agrupados (ver
  *  CollectionController::search) con sus cargos en orden cronológico, así que
  *  agregarlo aquí ya respeta "pagar en orden" sin necesidad de bloquear
@@ -360,6 +439,7 @@ const addPendingToCobros = (concept: PendingConcept) => {
     if (concept.concept_id === null || isChargesInCobros(firstChargeId)) {
         return;
     }
+    clearAnnualLineIfPresent();
 
     // Solo la mensualidad puede repartirse entre parques (is_multi_club);
     // cualquier otro cargo se cobra en el parque al que pertenece, así que
@@ -514,6 +594,30 @@ const isLockerConcept = computed(
 const isMonthlyFeeConcept = computed(
     () => selectedConcept.value?.code?.toUpperCase() === "MONTHLY_FEE",
 );
+
+// Checkbox "¿Es pago de anualidad?" dentro de la misma captura de
+// Mensualidad — se decidió así (en vez de un botón aparte en otro lugar de
+// la pantalla) porque cobranza ya está acostumbrada a este panel; marcarlo
+// solo cambia qué calcula/hace "Agregar", reutilizando el mismo diálogo y
+// endpoints de anualidad (ver confirmAnnualFeePaymentFromPanel/
+// annualPaymentPreview más abajo), no la lista de cobros genérica — el
+// descuento/saldo a favor de la anualidad no encaja ahí.
+const isAnnualFeePayment = ref(false);
+
+const loadInlineAnnualPreview = () => {
+    if (!isAnnualFeePayment.value || !account.value) return;
+    annualPaymentDate.value = nowAsLocalInput();
+    loadAnnualPaymentPreview();
+};
+
+watch(isAnnualFeePayment, (checked) => {
+    if (checked) {
+        loadInlineAnnualPreview();
+    } else {
+        annualPaymentPreview.value = null;
+    }
+});
+
 const monthlyFeeMonthsCount = ref<number | null>(1);
 const monthlyFeeCalculating = ref(false);
 const monthlyFeeAdding = ref(false);
@@ -551,6 +655,8 @@ const resetMonthlyFeeForm = () => {
     monthlyFeeMonthsCount.value = 1;
     monthlyFeePreviewTotal.value = null;
     monthlyFeeMaxMonths.value = null;
+    isAnnualFeePayment.value = false;
+    annualPaymentPreview.value = null;
 };
 
 const probeMonthlyFeeMaxMonths = async () => {
@@ -593,7 +699,7 @@ const calculateMonthlyFeePreview = async () => {
 };
 
 watch(monthlyFeeMonthsCount, () => {
-    if (!isMonthlyFeeConcept.value) return;
+    if (!isMonthlyFeeConcept.value || isAnnualFeePayment.value) return;
     if (monthlyFeeDebounceTimer) clearTimeout(monthlyFeeDebounceTimer);
     monthlyFeeDebounceTimer = setTimeout(calculateMonthlyFeePreview, 400);
 });
@@ -605,6 +711,7 @@ const addMonthlyFeeMonths = async () => {
         return;
     }
 
+    clearAnnualLineIfPresent();
     monthlyFeeAdding.value = true;
     try {
         const { data } = await window.axios.post(route("collections.monthly-fee.resolve"), {
@@ -667,6 +774,41 @@ const addMonthlyFeeMonths = async () => {
     } finally {
         monthlyFeeAdding.value = false;
     }
+};
+
+// "Agregar" con la anualidad marcada agrega un único renglón especial a la
+// lista de cobros (reemplazando cualquier otra cosa que hubiera — la
+// anualidad se paga sola, no mezclada con otros cargos/conceptos, ver
+// registerPayment) con el monto NETO ya con el descuento aplicado. El
+// método de pago se configura después con el mismo diálogo de siempre.
+const confirmAnnualFeePaymentFromPanel = () => {
+    const preview = annualPaymentPreview.value;
+    if (!preview || preview.payment_amount <= 0) return;
+
+    const hadOtherItems = cobros.value.length > 0;
+
+    cobros.value = [{
+        key: `annual-${preview.year}-${Date.now()}`,
+        type: "annual",
+        concept_id: selectedConcept.value?.id,
+        concept_label: `${selectedConcept.value?.internal_key ?? ""} ${selectedConcept.value?.name ?? "Mensualidad"}`.trim(),
+        detail: `Anualidad ${preview.year}` + (preview.discount_rule
+            ? ` — descuento ${preview.discount_rule.discount_months} mes(es)`
+            : " — sin descuento"),
+        amount: preview.payment_amount,
+        annual_year: preview.year,
+        is_multi_club: preview.is_multi_club,
+        club_breakdown: preview.club_breakdown,
+    }];
+
+    customToastSwal({
+        title: hadOtherItems
+            ? "Se reemplazó la lista de cobros: la anualidad se paga sola."
+            : "Anualidad agregada a la lista de cobros.",
+        icon: hadOtherItems ? "info" : "success",
+    });
+    resetNewItem();
+    resetMonthlyFeeForm();
 };
 
 watch(isMonthlyFeeConcept, (isMonthly) => {
@@ -1434,6 +1576,7 @@ const addNewItemToCobros = () => {
         return;
     }
 
+    clearAnnualLineIfPresent();
     cobros.value.push({
         key: `new-${concept.id}-${Date.now()}`,
         type: "new",
@@ -1550,7 +1693,7 @@ const dialogClubBreakdown = computed<ClubBreakdownItem[]>(() => {
     const byClub = new Map<string, ClubBreakdownItem>();
 
     cobros.value
-        .filter((line) => line.type === "existing" && line.club_breakdown?.length)
+        .filter((line) => (line.type === "existing" || line.type === "annual") && line.club_breakdown?.length)
         .forEach((line) => {
             line.club_breakdown!.forEach((club) => {
                 const key = String(club.club_id ?? club.club_code ?? "");
@@ -1658,6 +1801,11 @@ const registerPayment = async () => {
     });
     if (!result?.isConfirmed) return;
 
+    // La anualidad se registra por su propio endpoint (descuento/saldo a
+    // favor especial, ver AnnualPaymentService) — nunca se mezcla con
+    // cargos/conceptos normales en la misma lista (ver clearAnnualLineIfPresent).
+    const annualLine = cobros.value.find((l) => l.type === "annual");
+
     const existing_charges = cobros.value
         .filter((l) => l.type === "existing")
         .flatMap((l) => l.charges ?? []);
@@ -1678,15 +1826,22 @@ const registerPayment = async () => {
     paying.value = true;
     isLoading.value = true;
     try {
-        const { data } = await window.axios.post(route("collections.payment.store"), {
-            membership_account_id: walkInMode.value ? null : account.value?.id,
-            club_id: cobroClub.value.id,
-            paid_at: payload.paid_at,
-            payments: payload.payments,
-            existing_charges,
-            new_items,
-            cafeteria_checkouts,
-        });
+        const { data } = annualLine
+            ? await window.axios.post(route("collections.annual-payment.store"), {
+                membership_account_id: account.value!.id,
+                club_id: cobroClub.value.id,
+                paid_at: payload.paid_at,
+                payments: payload.payments,
+            })
+            : await window.axios.post(route("collections.payment.store"), {
+                membership_account_id: walkInMode.value ? null : account.value?.id,
+                club_id: cobroClub.value.id,
+                paid_at: payload.paid_at,
+                payments: payload.payments,
+                existing_charges,
+                new_items,
+                cafeteria_checkouts,
+            });
 
         // El loader compartido solo cubre la petición en sí; lo que sigue
         // (Swal de éxito, pregunta de imprimir ticket) ya tiene su propio
@@ -2107,8 +2262,19 @@ const saveNote = async () => {
                                  lista de cobros al confirmar "Agregar" (ver
                                  CollectionController::resolveMonthlyFeeMonths). -->
                             <template v-else-if="isMonthlyFeeConcept">
+                                <v-col cols="12">
+                                    <v-checkbox
+                                        v-model="isAnnualFeePayment"
+                                        label="¿Es pago de anualidad?"
+                                        color="primary"
+                                        density="compact"
+                                        hide-details
+                                    />
+                                </v-col>
+
                                 <v-col cols="6" md="2">
                                     <v-text-field
+                                        v-if="!isAnnualFeePayment"
                                         v-model.number="monthlyFeeMonthsCount"
                                         label="Cantidad de meses"
                                         type="number"
@@ -2116,44 +2282,60 @@ const saveNote = async () => {
                                         :max="monthlyFeeMaxMonths ?? undefined"
                                         hide-details="auto"
                                     />
+                                    <v-text-field
+                                        v-else
+                                        :model-value="annualPaymentPreview ? `Hasta diciembre ${annualPaymentPreview.year}` : '—'"
+                                        label="Cubre"
+                                        readonly
+                                        :loading="annualPaymentLoading"
+                                        hide-details="auto"
+                                    />
                                 </v-col>
                                 <v-col cols="6" md="1">
                                     <v-text-field
-                                        :model-value="monthlyFeeSubtotal !== null ? formatCurrency(monthlyFeeSubtotal) : '—'"
+                                        :model-value="isAnnualFeePayment
+                                            ? (annualPaymentPreview ? formatCurrency(annualPaymentPreview.total_balance) : '—')
+                                            : (monthlyFeeSubtotal !== null ? formatCurrency(monthlyFeeSubtotal) : '—')"
                                         label="Subtotal"
                                         readonly
-                                        :loading="monthlyFeeCalculating"
+                                        :loading="isAnnualFeePayment ? annualPaymentLoading : monthlyFeeCalculating"
                                         hide-details="auto"
                                     />
                                 </v-col>
                                 <v-col cols="6" md="1">
                                     <v-text-field
-                                        model-value="$ 0"
+                                        :model-value="isAnnualFeePayment
+                                            ? (annualPaymentPreview ? formatCurrency(annualPaymentPreview.discount_amount) : '$ 0')
+                                            : '$ 0'"
                                         label="Descuento ($)"
                                         readonly
+                                        :loading="isAnnualFeePayment && annualPaymentLoading"
                                         hide-details="auto"
                                     />
                                 </v-col>
                                 <v-col cols="6" md="1">
                                     <v-text-field
-                                        :model-value="monthlyFeeIva !== null ? formatCurrency(monthlyFeeIva) : '—'"
+                                        :model-value="isAnnualFeePayment ? '$ 0' : (monthlyFeeIva !== null ? formatCurrency(monthlyFeeIva) : '—')"
                                         label="IVA ($)"
                                         readonly
-                                        :loading="monthlyFeeCalculating"
+                                        :loading="!isAnnualFeePayment && monthlyFeeCalculating"
                                         hide-details="auto"
                                     />
                                 </v-col>
                                 <v-col cols="6" md="1">
                                     <v-text-field
-                                        :model-value="monthlyFeePreviewTotal !== null ? formatCurrency(monthlyFeePreviewTotal) : '—'"
+                                        :model-value="isAnnualFeePayment
+                                            ? (annualPaymentPreview ? formatCurrency(annualPaymentPreview.payment_amount) : '—')
+                                            : (monthlyFeePreviewTotal !== null ? formatCurrency(monthlyFeePreviewTotal) : '—')"
                                         label="Total"
                                         readonly
-                                        :loading="monthlyFeeCalculating"
+                                        :loading="isAnnualFeePayment ? annualPaymentLoading : monthlyFeeCalculating"
                                         hide-details="auto"
                                     />
                                 </v-col>
                                 <v-col cols="12" md="2" class="d-flex align-center">
                                     <BaseButton
+                                        v-if="!isAnnualFeePayment"
                                         :icon-only="false"
                                         action="add"
                                         icon="mdi-calendar-plus"
@@ -2163,12 +2345,28 @@ const saveNote = async () => {
                                         :disabled="monthlyFeeCalculating || monthlyFeePreviewTotal === null"
                                         @click="addMonthlyFeeMonths"
                                     />
+                                    <BaseButton
+                                        v-else
+                                        :icon-only="false"
+                                        action="add"
+                                        icon="mdi-calendar-check"
+                                        text="Agregar"
+                                        variant="tonal"
+                                        :disabled="annualPaymentLoading || !annualPaymentPreview || annualPaymentPreview.payment_amount <= 0"
+                                        @click="confirmAnnualFeePaymentFromPanel"
+                                    />
                                 </v-col>
                                 <v-col cols="12">
-                                    <p class="text-caption text-medium-emphasis mb-0">
+                                    <p v-if="!isAnnualFeePayment" class="text-caption text-medium-emphasis mb-0">
                                         Se agregan empezando por el mes más antiguo pendiente. Si algún
                                         mes de en medio no se ha generado todavía, se crea automáticamente
                                         al confirmar "Agregar".
+                                    </p>
+                                    <p v-else class="text-caption text-medium-emphasis mb-0">
+                                        Cubre desde el mes más antiguo pendiente (aunque sea de un año
+                                        anterior) hasta diciembre de {{ annualPaymentPreview?.year ?? "este año" }}.
+                                        Al darle clic en "Agregar" se abre el diálogo para elegir el método
+                                        de pago y confirmar.
                                     </p>
                                 </v-col>
                             </template>
@@ -2734,7 +2932,7 @@ const saveNote = async () => {
                                                     :icon-only="false"
                                                     action="save"
                                                     icon="mdi-cash-check"
-                                                    text="Configurar método(s) de pago"
+                                                    :text="manualPaymentOverride ? 'Corregir métodos de pago' : 'Configurar método(s) de pago'"
                                                     variant="tonal"
                                                     :disabled="!cobros.length || paying"
                                                     @click="openPaymentDialog"
