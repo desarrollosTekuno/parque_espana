@@ -157,8 +157,8 @@ const ticketSection = (ticket: TicketData, duplicate: boolean, copyLabel: string
     const concepts = ticket.conceptos.map((concept) => `
         <div class="concept-item">
             <div class="concept-description">
-                ${concept.concepto ? `<strong>${escapeHtml(concept.concepto)}</strong>` : ""}
-                ${concept.descripcion && concept.descripcion !== concept.concepto ? `<div>${escapeHtml(concept.descripcion)}</div>` : ""}
+                ${concept.codigo ? `<strong>${escapeHtml(concept.codigo)}</strong>` : ""}
+                <span>${escapeHtml(concept.descripcion ?? concept.concepto)}</span>
             </div>
             <div class="concept-values">
                 <span>${escapeHtml(concept.cantidad)}</span>
@@ -222,10 +222,10 @@ const ticketSection = (ticket: TicketData, duplicate: boolean, copyLabel: string
 };
 
 const bundleHtml = (bundle: TicketBundle, duplicate: boolean): string => {
-    const sections = bundle.tickets.flatMap((ticket) => [
-        ticketSection(ticket, duplicate, "COPIA SOCIO"),
-        ticketSection(ticket, duplicate, "COPIA INSTITUCIÓN"),
-    ]).join("");
+    // Temporalmente se imprime una sola copia por parque para las pruebas.
+    const sections = bundle.tickets
+        .map((ticket) => ticketSection(ticket, duplicate, "COPIA SOCIO"))
+        .join("");
 
     return `<!doctype html>
 <html lang="es">
@@ -255,7 +255,8 @@ const bundleHtml = (bundle: TicketBundle, duplicate: boolean): string => {
         .concept-header { margin: 3px 0; font-weight: bold; }
         .concept-header span:nth-child(n+2), .concept-values span:nth-child(n+2), .concept-values strong { text-align: right; }
         .concept-item, .payment-method { margin: 5px 0; }
-        .concept-description { margin-bottom: 2px; }
+        .concept-description { display: flex; gap: 4px; margin-bottom: 2px; font-size: 10px; line-height: 1.15; }
+        .concept-description strong { flex: 0 0 auto; }
         .concept-discount { text-align: right; }
         .account-name, .receiver-tax-data, .institution-legend { margin: 3px 0; text-transform: uppercase; }
         .locker-data, .payment-detail { margin: 6px 0; }
