@@ -10,15 +10,13 @@ use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
-class PaymentTicketService
-{
-    public function data(Payment $payment): array
-    {
+class PaymentTicketService {
+
+    public function data(Payment $payment): array {
         return $this->tickets($payment)[0];
     }
 
-    public function tickets(Payment $payment): array
-    {
+    public function tickets(Payment $payment): array {
         $relations = [
             'club.clubAddress.city',
             'club.clubAddress.state',
