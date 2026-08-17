@@ -117,6 +117,7 @@ class PaymentTicketServiceTest extends TestCase
 
         $concept = (new ChargeConcept)->forceFill([
             'code' => 'MONTHLY_FEE',
+            'internal_key' => '01',
             'name' => 'Mensualidad',
         ]);
 
@@ -196,6 +197,7 @@ class PaymentTicketServiceTest extends TestCase
         $this->assertSame('DOS MESES SIN APORTACIÓN GENERAN SUSPENSIÓN', $data['leyenda_institucion']);
         $this->assertSame('Este comprobante no tiene validez fiscal.', $data['leyenda_no_fiscal']);
         $this->assertSame('Mensualidad agosto', $data['conceptos'][0]['descripcion']);
+        $this->assertSame('01', $data['conceptos'][0]['codigo']);
         $this->assertSame(1, $data['conceptos'][0]['cantidad']);
         $this->assertSame(100.0, $data['conceptos'][0]['importe_unitario']);
         $this->assertSame(100.0, $data['conceptos'][0]['total']);
@@ -211,6 +213,25 @@ class PaymentTicketServiceTest extends TestCase
         $this->assertSame(16, $naturalData['iva_porcentaje']);
         $this->assertSame(116.0, $naturalData['total']);
         $this->assertSame(100.0, $naturalData['conceptos'][0]['importe_unitario']);
+
+        $clubTwo = (new Club)->forceFill([
+            'code' => 'PE2',
+            'name' => 'Parque España II',
+        ]);
+        $clubTwo->id = 2;
+        $clubTwo->setRelation('clubAddress', null);
+        $secondAccount->setRelation('club', $clubTwo);
+        $secondAccount->setRelation('primaryHolder', null);
+        $secondAccount->setRelation('fiscalData', null);
+        $secondAccount->setRelation('currentLockerAssignments', new Collection);
+        $payment->metadata = ['represents_club_id' => 2];
+
+        $representedData = (new PaymentTicketService)->data($payment);
+
+        $this->assertSame(2, $representedData['club_id']);
+        $this->assertSame('M-200', $representedData['cuenta_numero']);
+        $this->assertSame('FUNDACIÓN DEPORTIVO PARQUE ESPAÑA II', $representedData['club_nombre_institucion']);
+        $this->assertSame(116.0, $representedData['total']);
     }
 
     public function test_it_builds_one_ticket_per_park_for_an_interclub_monthly_fee(): void

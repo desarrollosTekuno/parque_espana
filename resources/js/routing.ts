@@ -93,7 +93,7 @@ const routes: Routing[] = [
                 icon: "mdi-swap-horizontal",
                 value: "paquetes-intermedios",
             },
-            
+
         ],
     },
     {
@@ -145,7 +145,7 @@ const routes: Routing[] = [
                 value: "transiciones-edad",
                 showBadge: true,
             },
-            
+
         ],
     },
     {
@@ -373,6 +373,12 @@ const routes: Routing[] = [
                 icon: "mdi-cog",
                 value: "variables-sistema",
             },
+            {
+                name: "app-variables.index",
+                title: "Variables de App Móvil",
+                icon: "mdi-cellphone-cog",
+                value: "variables-app-movil",
+            }
         ]
     },
     // Listas de invitados

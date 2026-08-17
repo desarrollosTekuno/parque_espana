@@ -11,15 +11,13 @@ use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
-class PaymentTicketService
-{
-    public function data(Payment $payment): array
-    {
+class PaymentTicketService {
+
+    public function data(Payment $payment): array {
         return $this->tickets($payment)[0];
     }
 
-    public function tickets(Payment $payment): array
-    {
+    public function tickets(Payment $payment): array {
         $relations = [
             'club.clubAddress.city',
             'club.clubAddress.state',
@@ -60,7 +58,7 @@ class PaymentTicketService
         return $allocations
             ->groupBy('club_id')
             ->map(function (Collection $clubAllocations, int|string $clubId) use ($groupPayments, $payment, $isMultiPark) {
-                $representative = $groupPayments->first() ?? $payment;
+                $representative = $clubAllocations->pluck('payment')->first() ?? $payment;
                 $club = $this->clubForTicket((int) $clubId, $payment);
                 $account = $this->accountForClub($payment->membershipAccount, (int) $clubId);
                 $holder = $account?->primaryHolder?->member
@@ -130,12 +128,16 @@ class PaymentTicketService
             ->all();
     }
 
-    private function ticketAllocations(Collection $payments, Payment $requestedPayment): Collection
-    {
+    private function ticketAllocations(Collection $payments, Payment $requestedPayment): Collection {
         $actualMonthlyClubIds = $payments
             ->flatMap(fn (Payment $item) => $item->applications)
             ->filter(fn (PaymentApplication $application) => $application->charge?->concept?->code === 'MONTHLY_FEE')
             ->map(fn (PaymentApplication $application) => $application->charge?->membership?->club_id)
+            ->filter()
+            ->unique()
+            ->values();
+        $representedClubIds = $payments
+            ->map(fn (Payment $item) => $this->representedClubId($item))
             ->filter()
             ->unique()
             ->values();
@@ -145,7 +147,7 @@ class PaymentTicketService
         foreach ($payments as $payment) {
             if ($payment->applications->isEmpty()) {
                 $allocations->push([
-                    'club_id' => (int) $payment->club_id,
+                    'club_id' => $this->representedClubId($payment) ?: (int) $payment->club_id,
                     'payment_id' => $payment->id,
                     'payment' => $payment,
                     'application' => null,
@@ -156,6 +158,11 @@ class PaymentTicketService
             } else {
                 foreach ($payment->applications as $application) {
                     $clubIds = $this->applicationClubIds($application, $requestedPayment, $actualMonthlyClubIds);
+
+                    if ($this->representedClubId($payment) && ($clubIds->count() === 1 || $representedClubIds->count() > 1)) {
+                        $clubIds = collect([$this->representedClubId($payment)]);
+                    }
+
                     $amounts = $this->splitStoredAmount((float) $application->applied_amount, $clubIds->count());
                     $subtotals = $this->splitStoredAmount(
                         (float) ($application->subtotal ?? $application->applied_amount),
@@ -181,11 +188,7 @@ class PaymentTicketService
         return $allocations;
     }
 
-    private function applicationClubIds(
-        PaymentApplication $application,
-        Payment $payment,
-        Collection $actualMonthlyClubIds
-    ): Collection {
+    private function applicationClubIds(PaymentApplication $application, Payment $payment, Collection $actualMonthlyClubIds): Collection {
         $charge = $application->charge;
         $chargeClubId = (int) ($charge?->membership?->club_id ?: $payment->club_id);
 
@@ -218,8 +221,13 @@ class PaymentTicketService
         return $clubIds->count() > 1 ? $clubIds : collect([$chargeClubId]);
     }
 
-    private function splitStoredAmount(float $amount, int $parts): array
-    {
+    private function representedClubId(Payment $payment): ?int {
+        $clubId = $payment->metadata['represents_club_id'] ?? null;
+
+        return $clubId ? (int) $clubId : null;
+    }
+
+    private function splitStoredAmount(float $amount, int $parts): array {
         if ($parts <= 1) {
             return [round($amount, 2)];
         }
@@ -236,8 +244,7 @@ class PaymentTicketService
         return $result;
     }
 
-    private function concepts(Collection $allocations): array
-    {
+    private function concepts(Collection $allocations): array {
         return $allocations
             ->filter(fn (array $allocation) => $allocation['application'] !== null)
             ->map(function (array $allocation) {
@@ -245,7 +252,7 @@ class PaymentTicketService
 
                 return [
                     'charge_id' => $charge?->id,
-                    'codigo' => $charge?->concept?->code,
+                    'codigo' => $charge?->concept?->internal_key ?: $charge?->concept?->code,
                     'concepto' => $charge?->concept?->name,
                     'descripcion' => $charge?->description,
                     'cantidad' => 1,
@@ -272,8 +279,7 @@ class PaymentTicketService
             ->all();
     }
 
-    private function paymentMethods(Collection $allocations, Payment $representative): array
-    {
+    private function paymentMethods(Collection $allocations, Payment $representative): array {
         return $allocations
             ->groupBy('payment_id')
             ->map(function (Collection $paymentAllocations) use ($representative) {
@@ -286,21 +292,21 @@ class PaymentTicketService
                     'ticket_serie' => $this->cashierInitial($payment->receiver),
                     'ticket_folio' => $this->shortFolio($payment->folio),
                     'nombre' => $payment->paymentMethod?->name,
-                    'codigo' => $payment->paymentMethod?->code,
+                    'codigo' => $this->resolveInternalKey($payment),
                     'codigo_ticket' => $this->paymentMethodTicketCode($payment->paymentMethod?->code),
                     'monto' => round((float) $paymentAllocations->sum('amount'), 2),
                     'referencia' => $payment->reference,
                     'banco' => $payment->bank_name,
                     'numero_cheque' => $payment->check_number,
                     'es_este_ticket' => $payment->id === $representative->id,
+                    'status' => $payment->status,
                 ];
             })
             ->values()
             ->all();
     }
 
-    private function clubForTicket(int $clubId, Payment $payment): ?Club
-    {
+    private function clubForTicket(int $clubId, Payment $payment): ?Club {
         if ((int) $payment->club_id === $clubId) {
             return $payment->club;
         }
@@ -311,8 +317,7 @@ class PaymentTicketService
             ?? Club::query()->with(['clubAddress.city', 'clubAddress.state', 'clubAddress.country'])->find($clubId);
     }
 
-    private function accountForClub(?MembershipAccount $account, int $clubId): ?MembershipAccount
-    {
+    private function accountForClub(?MembershipAccount $account, int $clubId): ?MembershipAccount {
         if (! $account) {
             return null;
         }
@@ -326,8 +331,7 @@ class PaymentTicketService
             : $account;
     }
 
-    private function addressLines(?Club $club): array
-    {
+    private function addressLines(?Club $club): array {
         $address = $club?->clubAddress;
 
         if (! $address) {
@@ -372,8 +376,7 @@ class PaymentTicketService
         return $lines;
     }
 
-    private function logoUrl(?string $clubCode, ?string $configuredLogo): ?string
-    {
+    private function logoUrl(?string $clubCode, ?string $configuredLogo): ?string {
         return match (strtoupper((string) $clubCode)) {
             'PE1' => '/assets/images/LogoP1.png',
             'PE2' => '/assets/images/LogoP2.png',
@@ -381,8 +384,7 @@ class PaymentTicketService
         };
     }
 
-    private function institutionName(?string $clubCode, ?string $fallback): string
-    {
+    private function institutionName(?string $clubCode, ?string $fallback): string {
         return match (strtoupper((string) $clubCode)) {
             'PE1' => 'FUNDACIÓN DEPORTIVO PARQUE ESPAÑA I',
             'PE2' => 'FUNDACIÓN DEPORTIVO PARQUE ESPAÑA II',
@@ -390,15 +392,13 @@ class PaymentTicketService
         };
     }
 
-    private function cashierInitial(?User $cashier): ?string
-    {
+    private function cashierInitial(?User $cashier): ?string {
         $name = trim((string) $cashier?->name);
 
         return $name === '' ? null : strtoupper(Str::ascii(mb_substr($name, 0, 1)));
     }
 
-    private function cashierCode(?User $cashier): ?string
-    {
+    private function cashierCode(?User $cashier): ?string {
         $code = trim((string) $cashier?->code);
 
         if ($code !== '') {
@@ -417,8 +417,7 @@ class PaymentTicketService
         return $initials !== '' ? $initials : null;
     }
 
-    private function lockerCodes(?MembershipAccount $account, int $clubId): array
-    {
+    private function lockerCodes(?MembershipAccount $account, int $clubId): array {
         if (! $account) {
             return [];
         }
@@ -438,47 +437,20 @@ class PaymentTicketService
             ->all();
     }
 
-    /**
-     * La "clave interna" real de un método de pago es POR PARQUE (ver
-     * billing.club_payment_methods.internal_key, p. ej. CHP1/CHP2 para
-     * cheque en parque 1/2) — no el code genérico del catálogo
-     * (billing.payment_methods.code, p. ej. CHECK). Se resuelve contra el
-     * parque que esta línea representa (metadata.represents_club_id en
-     * pagos cruzados de un cobro dividido, o el club_id del pago si no
-     * aplica) — igual que el resto de la atribución por parque de esta
-     * clase. Si no hay configuración para esa combinación, se cae al code
-     * genérico para no dejar la clave vacía.
-     */
     private function resolveInternalKey(Payment $p): ?string {
         if (!$p->payment_method_id) {
             return $p->paymentMethod?->code;
         }
 
-        $clubId = $p->metadata['represents_club_id'] ?? $p->club_id;
+        $clubId = $this->representedClubId($p) ?: $p->club_id;
 
-        $internalKey = ClubPaymentMethod::query()
+        return ClubPaymentMethod::query()
             ->where('club_id', $clubId)
             ->where('payment_method_id', $p->payment_method_id)
-            ->value('internal_key');
-
-        return $internalKey ?: $p->paymentMethod?->code;
+            ->value('internal_key') ?: $p->paymentMethod?->code;
     }
 
-    /**
-     * La "clave interna" real de un método de pago es POR PARQUE (ver
-     * billing.club_payment_methods.internal_key, p. ej. CHP1/CHP2 para
-     * cheque en parque 1/2) — no el code genérico del catálogo
-     * (billing.payment_methods.code, p. ej. CHECK). Se resuelve contra el
-     * parque que esta línea representa (metadata.represents_club_id en
-     * pagos cruzados de un cobro dividido, o el club_id del pago si no
-     * aplica) — igual que el resto de la atribución por parque de esta
-     * clase. Si no hay configuración para esa combinación, se cae al code
-     * genérico para no dejar la clave vacía.
-     */
-   
-
-    private function paymentMethodTicketCode(?string $code): ?string
-    {
+    private function paymentMethodTicketCode(?string $code): ?string {
         return match ($code) {
             'CASH' => 'EF',
             'BANK_TRANSFER' => 'TR',
@@ -490,8 +462,7 @@ class PaymentTicketService
         };
     }
 
-    private function shortFolio(?string $folio): ?string
-    {
+    private function shortFolio(?string $folio): ?string {
         if (! $folio) {
             return null;
         }
