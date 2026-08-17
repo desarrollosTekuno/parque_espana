@@ -1079,16 +1079,45 @@ class CollectionController extends Controller
      * MemberController/MembershipChargeService para repartir la cuota
      * interclub.
      */
+    /**
+     * Cuentas del mismo account_group_id que la dada — PERO solo cuando ese
+     * grupo representa un combo interclub real (algún paquete específico,
+     * interclub_package_rule_id, o una regla genérica marcada
+     * requires_multiple_clubs — mismo criterio que
+     * MemberController::resolveGroupBillingSummary). Dos cuentas pueden
+     * compartir grupo sin que exista esa relación de precio (p. ej. el
+     * mismo titular con un Individual en un parque y un Pase Mensual
+     * Individual en otro, cada uno con su propio pricing_rule
+     * independiente) — ahí cada cuenta debe cobrarse por su lado, no
+     * mezclarse: antes esto hacía que la mensualidad de ambas cuentas se
+     * juntara en un solo renglón (y un solo total) en Cobranza aunque no
+     * hubiera ningún paquete que las combinara de verdad.
+     */
     protected function resolveGroupAccountIds(MembershipAccount $account): array
     {
         if (!$account->account_group_id) {
             return [$account->id];
         }
 
-        return MembershipAccount::query()
+        $groupAccountIds = MembershipAccount::query()
             ->where('account_group_id', $account->account_group_id)
             ->pluck('id')
             ->all();
+
+        if (count($groupAccountIds) <= 1) {
+            return $groupAccountIds;
+        }
+
+        $representsCombo = Membership::query()
+            ->whereIn('membership_account_id', $groupAccountIds)
+            ->where('is_primary', true)
+            ->where(function (Builder $scope) {
+                $scope->whereNotNull('interclub_package_rule_id')
+                    ->orWhereHas('pricingRule', fn (Builder $pricingRule) => $pricingRule->where('requires_multiple_clubs', true));
+            })
+            ->exists();
+
+        return $representsCombo ? $groupAccountIds : [$account->id];
     }
 
     /**

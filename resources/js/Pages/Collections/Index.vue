@@ -1802,7 +1802,7 @@ const saveNote = async () => {
                                 @update:model-value="(v) => setWalkInMode(v === 'walk_in')"
                             >
                                 <v-btn value="account">Buscar socio</v-btn>
-                                <v-btn value="walk_in">Venta sin cuenta</v-btn>
+                                <v-btn value="walk_in">Cobro sin cuenta</v-btn>
                             </v-btn-toggle>
                         </v-col>
                     </v-row>

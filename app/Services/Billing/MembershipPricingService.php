@@ -33,6 +33,19 @@ class MembershipPricingService
             ->where('is_primary', true)
             ->whereIn('status', ['active', 'suspended'])
             ->whereHas('account', fn (Builder $q) => $q->where('account_group_id', $accountGroupId))
+            // Solo las que YA representaban un combo interclub real (un
+            // paquete específico, interclub_package_rule_id, o la regla
+            // genérica marcada requires_multiple_clubs — mismo criterio que
+            // CollectionController::resolveGroupAccountIds) — una membresía
+            // que comparte grupo pero siempre fue independiente (p. ej. el
+            // mismo titular con un Individual en un parque y un Pase
+            // Mensual en otro, sin relación de precio real entre ambos)
+            // nunca tuvo tarifa de grupo que "revertir": recalcularla aquí
+            // solo arriesga sobreescribir su pricing_rule_id con uno
+            // distinto al que ya tenía, sin ninguna razón real.
+            ->where(fn (Builder $scope) => $scope
+                ->whereNotNull('interclub_package_rule_id')
+                ->orWhereHas('pricingRule', fn (Builder $pricingRule) => $pricingRule->where('requires_multiple_clubs', true)))
             ->get();
 
         if ($remainingMemberships->isEmpty()) {
@@ -210,6 +223,27 @@ class MembershipPricingService
                     age: $age,
                     hasMultipleClubs: true
                 );
+
+                // resolvePricingRule puede devolver la regla "comodín"
+                // (from_membership_type_id nulo — aplica sin importar el
+                // tipo del hermano, ver buildPricingRuleQuery). Esa solo se
+                // acepta si el tipo del HERMANO también está pensado para
+                // combos interclub (tiene al menos una regla propia
+                // requires_multiple_clubs=true) — si no, dos productos sin
+                // relación real (p. ej. Individual + Pase Mensual
+                // Individual) terminaban combinándose solo porque este lado
+                // sí tiene tarifa combo genérica, sin importar con qué se
+                // esté emparejando.
+                if ($comboRule && $comboRule->from_membership_type_id === null) {
+                    $siblingIsComboCapable = PricingRule::query()
+                        ->where('membership_type_id', $sibling->membership_type_id)
+                        ->where('requires_multiple_clubs', true)
+                        ->exists();
+
+                    if (!$siblingIsComboCapable) {
+                        $comboRule = null;
+                    }
+                }
 
                 $comboFee = $comboRule?->resolveMonthlyFee();
 

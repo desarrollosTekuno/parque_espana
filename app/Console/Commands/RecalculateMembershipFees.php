@@ -76,17 +76,25 @@ class RecalculateMembershipFees extends Command
             return self::SUCCESS;
         }
 
-        // Agrupar para no procesar dos veces membresías del mismo grupo interclub
+        // Agrupar para no procesar dos veces membresías del mismo grupo
+        // interclub — pero SOLO cuando ese grupo realmente representa un
+        // combo (interclub_package_rule_id o un pricing_rule con
+        // requires_multiple_clubs=true en alguna de sus membresías). Dos
+        // cuentas pueden compartir account_group_id sin ser un combo real
+        // (mismo titular con productos independientes en cada parque) —
+        // ahí cada una debe recalcularse por su cuenta; antes, la segunda
+        // se saltaba por completo solo por compartir grupo con la primera.
         $processedGroups = [];
 
         foreach ($memberships as $membership) {
             $groupId = $membership->account?->account_group_id;
+            $isComboGroup = $groupId && $this->groupRepresentsCombo($groupId);
 
-            if ($groupId && in_array($groupId, $processedGroups, true)) {
+            if ($isComboGroup && in_array($groupId, $processedGroups, true)) {
                 continue;
             }
 
-            if ($groupId) {
+            if ($isComboGroup) {
                 $processedGroups[] = $groupId;
             }
 
@@ -186,21 +194,35 @@ class RecalculateMembershipFees extends Command
         $this->updated++;
     }
 
+    /**
+     * Si esta membresía representa un combo interclub: se toma de su
+     * PROPIA clasificación ya asignada (interclub_package_rule_id, o su
+     * pricing_rule actual con requires_multiple_clubs=true) — no se
+     * re-deriva "¿el mismo titular tiene membresía activa en otro parque?",
+     * porque eso da falso positivo con dos membresías independientes del
+     * mismo socio (p. ej. un Individual en un parque y un Pase Mensual en
+     * otro, sin combo real entre ambos): con la derivación vieja, esta
+     * función las marcaba a las dos como "interclub" y buscaba una regla de
+     * combo que no debía aplicarles. Este comando solo debe refrescar el
+     * monto según la clasificación vigente, no decidir quién es combo.
+     */
     protected function resolveHasMultipleClubs(Membership $membership): bool
     {
-        $primaryMemberId = $membership->account?->primaryHolder?->member_id;
+        return (bool) $membership->interclub_package_rule_id
+            || (bool) ($membership->pricingRule?->requires_multiple_clubs ?? false);
+    }
 
-        if (!$primaryMemberId) {
-            return false;
-        }
+    /** @var array<int, bool> */
+    protected array $comboGroupCache = [];
 
-        return Membership::query()
-            ->where('status', 'active')
+    protected function groupRepresentsCombo(int $accountGroupId): bool
+    {
+        return $this->comboGroupCache[$accountGroupId] ??= Membership::query()
             ->where('is_primary', true)
-            ->where('club_id', '!=', $membership->club_id)
-            ->whereHas('account.accountMembers', function (Builder $query) use ($primaryMemberId) {
-                $query->where('member_id', $primaryMemberId)
-                      ->where('is_primary_holder', true);
+            ->whereHas('account', fn (Builder $q) => $q->where('account_group_id', $accountGroupId))
+            ->where(function (Builder $scope) {
+                $scope->whereNotNull('interclub_package_rule_id')
+                    ->orWhereHas('pricingRule', fn (Builder $pricingRule) => $pricingRule->where('requires_multiple_clubs', true));
             })
             ->exists();
     }

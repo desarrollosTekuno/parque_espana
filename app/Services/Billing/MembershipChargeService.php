@@ -8,6 +8,7 @@ use App\Models\Billing\ChargeConcept;
 use App\Models\Memberships\Membership;
 use App\Models\Memberships\MembershipAccount;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -226,6 +227,70 @@ class MembershipChargeService
             monthlyFee: $monthlyFee,
             chargeDate: $chargeDate
         );
+    }
+
+    /**
+     * Recalcula los cargos de mensualidad YA EXISTENTES que caigan dentro
+     * del rango de un permiso por ausencia (al registrarlo o al
+     * cancelarlo) — sin esto, un cargo generado ANTES de registrar el
+     * permiso (p. ej. por el backfill automático al buscar al socio en
+     * Cobranza) se queda con el monto completo para siempre, aunque el
+     * permiso ya esté vigente para ese mes: previewMonthlyFeeAmount /
+     * createRecurringMonthlyCharge solo aplican el descuento a cargos que
+     * TODAVÍA no existen.
+     *
+     * Solo toca cargos en status 'pending' (balance == amount, nada
+     * aplicado todavía) — uno 'partial' o 'paid' ya tiene dinero real de
+     * por medio, ajustarlo ahí correspondería a una cancelación de pago,
+     * no a esto.
+     */
+    public function reconcilePendingMonthlyChargesForAbsencePermit(
+        ?int $accountGroupId,
+        ?int $membershipAccountId,
+        Carbon $startDate,
+        Carbon $endDate
+    ): void {
+        $accountIds = $accountGroupId
+            ? MembershipAccount::where('account_group_id', $accountGroupId)->pluck('id')->all()
+            : array_filter([$membershipAccountId]);
+
+        if (empty($accountIds)) {
+            return;
+        }
+
+        $monthlyConcept = $this->resolveConcept('MONTHLY_FEE');
+        $periodStart = $startDate->copy()->startOfMonth();
+        $periodEnd = $endDate->copy()->startOfMonth();
+
+        Charge::query()
+            ->with('membership')
+            ->where('concept_id', $monthlyConcept->id)
+            ->whereIn('membership_account_id', $accountIds)
+            ->where('status', 'pending')
+            ->whereNotNull('period_year')
+            ->whereNotNull('period_month')
+            ->get()
+            ->each(function (Charge $charge) use ($periodStart, $periodEnd) {
+                $period = Carbon::create((int) $charge->period_year, (int) $charge->period_month, 1);
+
+                if ($period->lt($periodStart) || $period->gt($periodEnd) || !$charge->membership) {
+                    return;
+                }
+
+                $newAmount = $this->previewMonthlyFeeAmount($charge->membership, $period);
+
+                if (round($newAmount, 2) === round((float) $charge->amount, 2)) {
+                    return;
+                }
+
+                $charge->update([
+                    'amount' => $newAmount,
+                    'balance' => $newAmount,
+                    'metadata' => array_merge($charge->metadata ?? [], [
+                        'absence_permit_reconciled_at' => now()->toDateTimeString(),
+                    ]),
+                ]);
+            });
     }
 
     public function hasMonthlyChargeForPeriod(
@@ -639,13 +704,7 @@ class MembershipChargeService
         int $conceptId,
         Carbon $chargeDate
     ): float {
-        $accountIds = MembershipAccount::query()
-            ->when(
-                $membership->account?->account_group_id,
-                fn ($query) => $query->where('account_group_id', $membership->account->account_group_id),
-                fn ($query) => $query->where('id', $membership->membership_account_id)
-            )
-            ->pluck('id');
+        $accountIds = $this->resolveComboAwareAccountIds($membership);
 
         return (float) Charge::query()
             ->whereIn('membership_account_id', $accountIds)
@@ -654,6 +713,48 @@ class MembershipChargeService
             ->where('period_month', (int) $chargeDate->format('m'))
             ->where('status', '!=', 'cancelled')
             ->sum('amount');
+    }
+
+    /**
+     * Cuentas del mismo account_group_id que la membresía dada — solo
+     * cuando ese grupo representa un combo interclub real
+     * (interclub_package_rule_id o un pricing_rule con
+     * requires_multiple_clubs=true en alguna membresía primaria del
+     * grupo). Mismo criterio que CollectionController::resolveGroupAccountIds
+     * y MemberController::resolveGroupBillingSummary — dos cuentas pueden
+     * compartir grupo (mismo titular) sin que exista esa relación de
+     * precio, y ahí cada una debe tratarse por separado. Sin este filtro,
+     * resolveExistingPeriodMonthlyAmount sumaba el cargo del periodo de
+     * CUALQUIER cuenta hermana, aunque no tuviera nada que ver con la
+     * mensualidad de esta membresía — restando de más al calcular el
+     * ajuste de reactivación/transición.
+     */
+    protected function resolveComboAwareAccountIds(Membership $membership): Collection
+    {
+        $accountGroupId = $membership->account?->account_group_id;
+
+        if (!$accountGroupId) {
+            return collect([$membership->membership_account_id]);
+        }
+
+        $groupAccountIds = MembershipAccount::query()
+            ->where('account_group_id', $accountGroupId)
+            ->pluck('id');
+
+        if ($groupAccountIds->count() <= 1) {
+            return $groupAccountIds;
+        }
+
+        $representsCombo = Membership::query()
+            ->whereIn('membership_account_id', $groupAccountIds)
+            ->where('is_primary', true)
+            ->where(function (Builder $scope) {
+                $scope->whereNotNull('interclub_package_rule_id')
+                    ->orWhereHas('pricingRule', fn (Builder $pricingRule) => $pricingRule->where('requires_multiple_clubs', true));
+            })
+            ->exists();
+
+        return $representsCombo ? $groupAccountIds : collect([$membership->membership_account_id]);
     }
 
     protected function resolveGroupPrimaryMemberships(Membership $membership, Carbon $chargeDate): Collection
@@ -887,18 +988,35 @@ class MembershipChargeService
         return round($monthlyFee * ((float) $absencePermit->charge_percentage / 100), 2);
     }
 
+    /**
+     * Por account_group_id cuando la cuenta pertenece a un grupo — así
+     * aplica también a las cuentas hermanas del socio en otros parques
+     * (p. ej. un socio con cuenta en PE1 y PE2, ver
+     * MemberController::storeAbsencePermit). Si la cuenta no tiene grupo
+     * (frecuente en datos migrados), se resuelve por membership_account_id
+     * directo — aplica solo a esta cuenta, que es lo correcto para un socio
+     * de un solo parque.
+     */
     protected function resolveApplicableAbsencePermit(
         Membership $membership,
         Carbon $chargeDate
     ): ?AbsencePermit {
         $accountGroupId = $membership->account?->account_group_id;
+        $accountId = $membership->membership_account_id;
 
-        if (!$accountGroupId) {
+        if (!$accountGroupId && !$accountId) {
             return null;
         }
 
         return AbsencePermit::query()
-            ->where('account_group_id', $accountGroupId)
+            ->where(function ($scope) use ($accountGroupId, $accountId) {
+                if ($accountGroupId) {
+                    $scope->where('account_group_id', $accountGroupId);
+                }
+                if ($accountId) {
+                    $scope->orWhere('membership_account_id', $accountId);
+                }
+            })
             ->whereIn('status', ['approved', 'active'])
             ->whereDate('start_date', '<=', $chargeDate->toDateString())
             ->whereDate('end_date', '>=', $chargeDate->toDateString())
