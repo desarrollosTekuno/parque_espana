@@ -3155,10 +3155,15 @@ class MemberController extends Controller
             }
 
             $validated = $request->validate([
-                'member_id'        => ['required', 'integer'],
-                'document_type_id' => ['required', 'integer'],
-                'files'            => ['required', 'array', 'min:1'],
-                'files.*'          => ['file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+                'member_id'            => ['required', 'integer'],
+                'document_type_id'     => ['required', 'integer'],
+                'files'                => ['required', 'array', 'min:1'],
+                'files.*'              => ['file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+                // Presente cuando el cajero le dio "Reemplazar" a un
+                // archivo ya cargado en particular (ver
+                // Members/Show.vue::openDocumentModal) — solo se puede
+                // reemplazar UN archivo a la vez.
+                'replace_document_id'  => ['nullable', 'integer', new \App\Rules\ExistsInSchema('members', 'documents', 'id')],
             ], [
                 'files.required'   => 'El documento es obligatorio.',
                 'files.*.mimes'    => 'El documento debe ser PDF, JPG o PNG.',
@@ -3173,6 +3178,21 @@ class MemberController extends Controller
 
             if (!$isMemberOfAccount) {
                 abort(403, 'El integrante no pertenece a esta cuenta.');
+            }
+
+            $replacedDocument = null;
+
+            if (!empty($validated['replace_document_id'])) {
+                $replacedDocument = MemberDocument::where('id', $validated['replace_document_id'])
+                    ->where('member_id', $memberId)
+                    ->where('document_type_id', $documentTypeId)
+                    ->firstOrFail();
+
+                if (count($request->file('files')) !== 1) {
+                    throw ValidationException::withMessages([
+                        'files' => 'Para reemplazar un documento solo puedes subir un archivo.',
+                    ]);
+                }
             }
 
             $docType     = DocumentType::findOrFail($documentTypeId);
@@ -3198,9 +3218,17 @@ class MemberController extends Controller
                 ]);
             }
 
+            // El archivo viejo solo se borra DESPUÉS de que el nuevo ya
+            // quedó guardado correctamente (líneas arriba) — si la subida
+            // fallara, no se pierde el documento anterior.
+            if ($replacedDocument) {
+                \Illuminate\Support\Facades\Storage::disk('spaces')->delete($replacedDocument->file_path);
+                $replacedDocument->delete();
+            }
+
             return redirect()
                 ->route('members.manage.show', $membership)
-                ->with('success', 'Documento cargado correctamente.');
+                ->with('success', $replacedDocument ? 'Documento reemplazado correctamente.' : 'Documento cargado correctamente.');
         } catch (ValidationException $e) {
             return $this->validationExceptionResponse($e);
         } catch (\Exception $e) {
