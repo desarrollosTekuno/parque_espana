@@ -84,13 +84,15 @@ class PaymentRegistrationService
             $normalizedApplications->each(function (array $application) use ($payment, $clubId) {
                 $charge = $application['charge'];
                 $amount = $application['amount'];
-                $newBalance = round((float) $charge->balance - $amount, 2);
+                $discount = (float) ($application['discount'] ?? 0);
+                $newBalance = round((float) $charge->balance - $amount - $discount, 2);
                 $breakdown = $this->resolveApplicationSubtotalAndIva($application, $clubId);
 
                 PaymentApplication::create([
                     'payment_id' => $payment->id,
                     'charge_id' => $charge->id,
                     'applied_amount' => $amount,
+                    'discount' => $discount > 0 ? $discount : null,
                     'subtotal' => $breakdown['subtotal'],
                     'iva' => $breakdown['iva'],
                 ]);
@@ -230,6 +232,8 @@ class PaymentRegistrationService
 
         foreach ($orderedApplications as $application) {
             $remainingForCharge = $application['amount'];
+            $discountForCharge = (float) ($application['discount'] ?? 0);
+            $lastTouchedIdx = null;
 
             foreach ($paymentLineIndexes as $idx) {
                 if ($remainingForCharge <= 0.001) {
@@ -240,9 +244,27 @@ class PaymentRegistrationService
                 }
 
                 $take = round(min($remainingForCharge, $remainingPerLine[$idx]), 2);
-                $allocationsPerLine[$idx][] = ['charge' => $application['charge'], 'amount' => $take];
+                $allocationsPerLine[$idx][] = ['charge' => $application['charge'], 'amount' => $take, 'discount' => 0.0];
+                $lastTouchedIdx = $idx;
                 $remainingPerLine[$idx] = round($remainingPerLine[$idx] - $take, 2);
                 $remainingForCharge = round($remainingForCharge - $take, 2);
+            }
+
+            if ($discountForCharge > 0.001) {
+                // El descuento no consume dinero de ninguna forma de pago —
+                // se adjunta al último renglón que sí cubrió este cargo con
+                // dinero real (para no crear un renglón de más), o si el
+                // cargo se cubre COMPLETO con descuento (mes libre), a un
+                // renglón nuevo sin dinero en la primera forma de pago —
+                // así siempre queda un billing.payment_applications que el
+                // ticket pueda mostrar (ver PaymentTicketService::concepts).
+                if ($lastTouchedIdx !== null) {
+                    $lastIndex = array_key_last($allocationsPerLine[$lastTouchedIdx]);
+                    $allocationsPerLine[$lastTouchedIdx][$lastIndex]['discount'] += $discountForCharge;
+                } else {
+                    $targetIdx = $paymentLineIndexes->first();
+                    $allocationsPerLine[$targetIdx][] = ['charge' => $application['charge'], 'amount' => 0.0, 'discount' => $discountForCharge];
+                }
             }
         }
 
@@ -308,13 +330,15 @@ class PaymentRegistrationService
                 $lineAllocations->each(function (array $allocation) use ($payment, $clubId) {
                     $charge = $allocation['charge'];
                     $amount = $allocation['amount'];
-                    $newBalance = round((float) $charge->balance - $amount, 2);
+                    $discount = (float) ($allocation['discount'] ?? 0);
+                    $newBalance = round((float) $charge->balance - $amount - $discount, 2);
                     $breakdown = $this->resolveApplicationSubtotalAndIva($allocation, $clubId);
 
                     PaymentApplication::create([
                         'payment_id' => $payment->id,
                         'charge_id' => $charge->id,
                         'applied_amount' => $amount,
+                        'discount' => $discount > 0 ? $discount : null,
                         'subtotal' => $breakdown['subtotal'],
                         'iva' => $breakdown['iva'],
                     ]);
@@ -454,7 +478,11 @@ class PaymentRegistrationService
     protected function resolveApplicationSubtotalAndIva(array $application, int $clubId): array
     {
         $charge = $application['charge'];
-        $amount = (float) $application['amount'];
+        // La base del desglose es el valor BRUTO cubierto por este renglón
+        // (dinero real + el descuento que le tocó, si trae uno — ver
+        // registerSplit) para que el Subtotal/IVA del ticket reflejen el
+        // valor completo del cargo, no solo lo que en verdad se cobró.
+        $amount = (float) $application['amount'] + (float) ($application['discount'] ?? 0);
         $appliesIva = (bool) $charge->concept?->resolveAppliesIvaForClub($clubId);
 
         if ($appliesIva) {
@@ -490,7 +518,9 @@ class PaymentRegistrationService
                 'club_id' => $clubId ?: null,
                 'club_code' => $club?->code,
                 'club_name' => $club?->name,
-                'amount' => round($apps->sum('amount'), 2),
+                // Bruto (dinero real + descuento) para que el reparto por
+                // parque siga sumando el valor completo del cargo.
+                'amount' => round($apps->sum(fn (array $a) => (float) $a['amount'] + (float) ($a['discount'] ?? 0)), 2),
             ];
         })->values()->all();
     }
@@ -558,25 +588,41 @@ class PaymentRegistrationService
         $normalizedApplications = collect($applications)
             ->map(function (array $application) use ($charges) {
                 $charge = $charges->get((int) $application['charge_id']);
+                // 'amount' es SOLO la parte que se cobra con dinero real
+                // (lo que hay que repartir entre las formas de pago);
+                // 'discount' es la parte que se le perdona al cargo sin que
+                // salga de ninguna forma de pago (p. ej. mes libre de una
+                // anualidad, ver CollectionController::resolveAnnualApplications).
+                // Juntas ('coverage') son lo que de verdad libera el saldo
+                // del cargo.
                 $amount = round((float) ($application['amount'] ?? 0), 2);
+                $discount = round((float) ($application['discount'] ?? 0), 2);
 
                 if (!$charge) {
                     return null;
                 }
 
-                if ($amount <= 0) {
+                if ($amount < 0 || $discount < 0) {
+                    throw ValidationException::withMessages([
+                        'applications' => 'Los importes aplicados no pueden ser negativos.',
+                    ]);
+                }
+
+                if ($amount <= 0 && $discount <= 0) {
                     throw ValidationException::withMessages([
                         'applications' => 'Todos los importes aplicados deben ser mayores a cero.',
                     ]);
                 }
 
-                if ($amount > (float) $charge->balance) {
+                $coverage = round($amount + $discount, 2);
+
+                if ($coverage > (float) $charge->balance) {
                     throw ValidationException::withMessages([
                         'applications' => 'No puedes aplicar un importe mayor al saldo pendiente del cargo.',
                     ]);
                 }
 
-                if (!$charge->allows_partial_payments && $amount !== round((float) $charge->balance, 2)) {
+                if (!$charge->allows_partial_payments && $coverage !== round((float) $charge->balance, 2)) {
                     throw ValidationException::withMessages([
                         'applications' => 'Los cargos que no admiten parcialidades deben liquidarse completos.',
                     ]);
@@ -585,6 +631,7 @@ class PaymentRegistrationService
                 return [
                     'charge' => $charge,
                     'amount' => $amount,
+                    'discount' => $discount,
                 ];
             })
             ->filter()

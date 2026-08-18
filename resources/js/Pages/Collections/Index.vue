@@ -169,16 +169,24 @@ interface CobroLine {
     charges?: { charge_id: number; amount: number }[];
     concept_id?: number;
     description?: string | null;
+    // Solo para type "new" — cantidad/importe unitario capturados en el
+    // panel, para que el ticket pueda mostrar "3 x $300.00" en vez de "1 x
+    // $900.00" (ver PaymentTicketService::concepts, que los lee de
+    // Charge.metadata).
+    quantity?: number;
+    unit_amount?: number;
     is_multi_club?: boolean;
     club_breakdown?: ClubBreakdownItem[];
     cafeteria_visit_id?: number;
     cafeteria_consumption_amount?: number;
     // Solo para type "annual" — ver confirmAnnualFeePaymentFromPanel /
-    // registerPayment: el registro no pasa por storePayment (cargos +
-    // conceptos nuevos genéricos), sino por su propio endpoint
-    // (collections.annual-payment.store), porque el descuento/saldo a
-    // favor de la anualidad no encaja en ese modelo genérico.
+    // registerPayment: se manda como bloque `annual` dentro del mismo
+    // storePayment (junto con cargos/conceptos normales), y el backend
+    // resuelve sus propios cargos/descuento a partir del año (ver
+    // CollectionController::storePayment / AnnualPaymentService::resolveApplications).
     annual_year?: number;
+    annual_subtotal?: number;
+    annual_discount_amount?: number;
 }
 
 interface Props {
@@ -426,15 +434,17 @@ const isConceptOtherClub = (concept: PendingConcept) => {
     return conceptClubId !== null && !!cobroClub.value && conceptClubId !== cobroClub.value.id;
 };
 
-// La anualidad se paga sola (ver confirmAnnualFeePaymentFromPanel) — si el
-// cajero agrega cualquier otra cosa mientras ese renglón especial sigue en
-// la lista, se quita primero para no mezclar dos mecanismos de cobro
-// distintos en un mismo pago.
+// La anualidad SÍ se puede combinar con otros conceptos en el mismo cobro
+// (p. ej. un pase diario, ver registerPayment) pero no con una mensualidad
+// suelta (existing/nueva captura de meses) — son dos formas de cobrar lo
+// mismo (el mes a mes vs. el año completo con descuento) y mezclarlas no
+// tiene sentido. Se llama al agregar mensualidad suelta para quitar
+// cualquier renglón de anualidad que ya estuviera en la lista.
 const clearAnnualLineIfPresent = () => {
     if (!cobros.value.some((l) => l.type === "annual")) return;
-    cobros.value = [];
+    cobros.value = cobros.value.filter((l) => l.type !== "annual");
     customToastSwal({
-        title: "Se quitó la anualidad de la lista de cobros: no se puede combinar con otros conceptos.",
+        title: "Se quitó la anualidad de la lista: no se puede combinar con mensualidades sueltas.",
         icon: "info",
     });
 };
@@ -789,17 +799,20 @@ const addMonthlyFeeMonths = async () => {
 };
 
 // "Agregar" con la anualidad marcada agrega un único renglón especial a la
-// lista de cobros (reemplazando cualquier otra cosa que hubiera — la
-// anualidad se paga sola, no mezclada con otros cargos/conceptos, ver
-// registerPayment) con el monto NETO ya con el descuento aplicado. El
-// método de pago se configura después con el mismo diálogo de siempre.
+// lista de cobros, con el monto NETO ya con el descuento aplicado — se
+// puede combinar con otros conceptos ya agregados (pase diario, casillero,
+// etc., ver registerPayment/CollectionController::storePayment), pero
+// reemplaza cualquier mensualidad suelta que hubiera (son dos formas de
+// cobrar lo mismo) y cualquier otro renglón de anualidad previo. El método
+// de pago se configura después con el mismo diálogo de siempre.
 const confirmAnnualFeePaymentFromPanel = () => {
     const preview = annualPaymentPreview.value;
     if (!preview || preview.payment_amount <= 0) return;
 
-    const hadOtherItems = cobros.value.length > 0;
+    const hadExistingMonthly = cobros.value.some((l) => l.type === "annual" || l.type === "existing");
 
-    cobros.value = [{
+    cobros.value = cobros.value.filter((l) => l.type !== "annual" && l.type !== "existing");
+    cobros.value.push({
         key: `annual-${preview.year}-${Date.now()}`,
         type: "annual",
         concept_id: selectedConcept.value?.id,
@@ -809,15 +822,17 @@ const confirmAnnualFeePaymentFromPanel = () => {
             : " — sin descuento"),
         amount: preview.payment_amount,
         annual_year: preview.year,
+        annual_subtotal: preview.total_balance,
+        annual_discount_amount: preview.discount_amount,
         is_multi_club: preview.is_multi_club,
         club_breakdown: preview.club_breakdown,
-    }];
+    });
 
     customToastSwal({
-        title: hadOtherItems
-            ? "Se reemplazó la lista de cobros: la anualidad se paga sola."
+        title: hadExistingMonthly
+            ? "Se reemplazó la mensualidad suelta: la anualidad la cubre completa."
             : "Anualidad agregada a la lista de cobros.",
-        icon: hadOtherItems ? "info" : "success",
+        icon: hadExistingMonthly ? "info" : "success",
     });
     resetNewItem();
     resetMonthlyFeeForm();
@@ -1588,7 +1603,6 @@ const addNewItemToCobros = () => {
         return;
     }
 
-    clearAnnualLineIfPresent();
     cobros.value.push({
         key: `new-${concept.id}-${Date.now()}`,
         type: "new",
@@ -1597,6 +1611,8 @@ const addNewItemToCobros = () => {
         description: newItem.value.description || concept.name,
         detail: `${newItem.value.cantidad} x ${formatCurrency(newItem.value.importe)}`,
         amount: Number(newTotal.value.toFixed(2)),
+        quantity: Number(newItem.value.cantidad ?? 1),
+        unit_amount: Number(newItem.value.importe ?? 0),
     });
 
     resetNewItem();
@@ -1622,14 +1638,21 @@ const resolveCobroConcept = (line: CobroLine): ConceptOption | null =>
     props.conceptOptions.find((c) => c.id === line.concept_id) ?? null;
 
 const cobroSubtotal = (line: CobroLine): number =>
-    resolveConceptAppliesIva(resolveCobroConcept(line))
-        ? round2((Number(line.amount ?? 0) * 100) / 116)
-        : round2(Number(line.amount ?? 0));
+    line.type === "annual"
+        ? round2(Number(line.annual_subtotal ?? line.amount ?? 0))
+        : resolveConceptAppliesIva(resolveCobroConcept(line))
+            ? round2((Number(line.amount ?? 0) * 100) / 116)
+            : round2(Number(line.amount ?? 0));
+
+const cobroDescuento = (line: CobroLine): number =>
+    line.type === "annual" ? round2(Number(line.annual_discount_amount ?? 0)) : 0;
 
 const cobroIva = (line: CobroLine): number =>
-    resolveConceptAppliesIva(resolveCobroConcept(line))
-        ? round2((cobroSubtotal(line) * 16) / 100)
-        : 0;
+    line.type === "annual"
+        ? 0
+        : resolveConceptAppliesIva(resolveCobroConcept(line))
+            ? round2((cobroSubtotal(line) * 16) / 100)
+            : 0;
 
 const removeCobro = (key: string) => {
     cobros.value = cobros.value.filter((line) => line.key !== key);
@@ -1813,9 +1836,11 @@ const registerPayment = async () => {
     });
     if (!result?.isConfirmed) return;
 
-    // La anualidad se registra por su propio endpoint (descuento/saldo a
-    // favor especial, ver AnnualPaymentService) — nunca se mezcla con
-    // cargos/conceptos normales en la misma lista (ver clearAnnualLineIfPresent).
+    // La anualidad se manda como un bloque más del mismo storePayment (ver
+    // CollectionController::storePayment) — el backend resuelve sus propios
+    // cargos/descuento a partir del año, se combina en un solo Payment con
+    // lo demás (pase diario, casillero, etc., ver clearAnnualLineIfPresent
+    // para lo único que sigue sin poder mezclarse: mensualidad suelta).
     const annualLine = cobros.value.find((l) => l.type === "annual");
 
     const existing_charges = cobros.value
@@ -1827,6 +1852,8 @@ const registerPayment = async () => {
             concept_id: l.concept_id,
             description: l.description,
             total: l.amount,
+            quantity: l.quantity,
+            unit_amount: l.unit_amount,
         }));
     const cafeteria_checkouts = cobros.value
         .filter((l) => l.type === "cafeteria_checkout")
@@ -1838,27 +1865,25 @@ const registerPayment = async () => {
     paying.value = true;
     isLoading.value = true;
     try {
-        const { data } = annualLine
-            ? await window.axios.post(route("collections.annual-payment.store"), {
-                membership_account_id: account.value!.id,
-                club_id: cobroClub.value.id,
-                paid_at: payload.paid_at,
-                payments: payload.payments,
-                // Mismo año que ya se calculó y se le mostró al cajero al
-                // agregar el renglón — evita que un paid_at distinto (p. ej.
-                // si corrigió la fecha ya en el diálogo de método de pago)
-                // recalcule un año distinto al que en verdad se cotizó.
-                year: annualLine.annual_year,
-            })
-            : await window.axios.post(route("collections.payment.store"), {
-                membership_account_id: walkInMode.value ? null : account.value?.id,
-                club_id: cobroClub.value.id,
-                paid_at: payload.paid_at,
-                payments: payload.payments,
-                existing_charges,
-                new_items,
-                cafeteria_checkouts,
-            });
+        const { data } = await window.axios.post(route("collections.payment.store"), {
+            membership_account_id: walkInMode.value ? null : account.value?.id,
+            club_id: cobroClub.value.id,
+            paid_at: payload.paid_at,
+            payments: payload.payments,
+            existing_charges,
+            new_items,
+            cafeteria_checkouts,
+            annual: annualLine
+                ? {
+                    // Mismo año que ya se calculó y se le mostró al cajero
+                    // al agregar el renglón — evita que un paid_at distinto
+                    // (p. ej. si corrigió la fecha ya en el diálogo de
+                    // método de pago) recalcule un año distinto al que en
+                    // verdad se cotizó.
+                    year: annualLine.annual_year,
+                }
+                : null,
+        });
 
         // El loader compartido solo cubre la petición en sí; lo que sigue
         // (Swal de éxito, pregunta de imprimir ticket) ya tiene su propio
@@ -2886,6 +2911,7 @@ const saveNote = async () => {
                                     <v-data-table
                                         :headers="cobrosHeaders"
                                         :items="cobros"
+                                        item-value="key"
                                         :items-per-page="-1"
                                         hide-default-footer
                                         no-data-text="Aún no has agregado cobros."
@@ -2905,8 +2931,8 @@ const saveNote = async () => {
                                         <template #item.subtotal="{ item }">
                                             {{ formatCurrency(cobroSubtotal(item)) }}
                                         </template>
-                                        <template #item.descuento>
-                                            $ 0
+                                        <template #item.descuento="{ item }">
+                                            {{ formatCurrency(cobroDescuento(item)) }}
                                         </template>
                                         <template #item.iva="{ item }">
                                             {{ formatCurrency(cobroIva(item)) }}

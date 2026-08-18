@@ -8,9 +8,7 @@ use App\Models\Billing\AnnualDiscountRule;
 use App\Models\Billing\Charge;
 use App\Models\Billing\ChargeConcept;
 use App\Models\Billing\ChargeConceptClubAmount;
-use App\Models\Billing\ClubPaymentMethod;
 use App\Models\Billing\CollectionNote;
-use App\Models\Billing\Payment;
 use App\Models\Billing\PaymentMethod;
 use App\Models\Members\Act;
 use App\Models\Members\LockerAssignment;
@@ -28,7 +26,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -869,191 +866,6 @@ class CollectionController extends Controller
     }
 
     /**
-     * Registra el pago de anualidad: genera los cargos faltantes hasta
-     * diciembre del año, aplica el pago a todo lo pendiente (este año y
-     * cualquier adeudo anterior) vía AnnualPaymentService y, si aplica,
-     * genera el saldo a favor / lo aplica al mes libre.
-     */
-    public function storeAnnualPayment(Request $request): JsonResponse
-    {
-        try {
-            $validated = $request->validate([
-                'membership_account_id' => ['required', new ExistsInSchema('memberships', 'accounts', 'id')],
-                'club_id' => ['required', new ExistsInSchema('clubs', 'clubs', 'id')],
-                'paid_at' => ['required', 'date'],
-                'notes' => ['nullable', 'string', 'max:1000'],
-
-                // Igual que storePayment(): puede ser más de una forma de
-                // pago (efectivo + tarjeta, etc.), la suma debe cubrir
-                // exacto el total ya calculado con el descuento aplicado.
-                'payments' => ['required', 'array', 'min:1'],
-                'payments.*.payment_method_id' => ['required', new ExistsInSchema('billing', 'payment_methods', 'id')],
-                'payments.*.amount' => ['required', 'numeric', 'gt:0'],
-                'payments.*.reference' => ['nullable', 'string', 'max:255'],
-                'payments.*.bank_name' => ['nullable', 'string', 'max:255'],
-                'payments.*.check_number' => ['nullable', 'string', 'max:255'],
-                'payments.*.is_park_split' => ['sometimes', 'boolean'],
-                'payments.*.club_id' => ['sometimes', 'nullable', new ExistsInSchema('clubs', 'clubs', 'id')],
-                'year' => ['sometimes', 'nullable', 'integer', 'min:2000', 'max:2100'],
-            ]);
-
-            $account = MembershipAccount::with('primaryHolder.member')->findOrFail($validated['membership_account_id']);
-            $clubId = (int) $validated['club_id'];
-            $groupAccountIds = $this->resolveGroupAccountIds($account);
-            $paidAt = Carbon::parse($validated['paid_at']);
-            $year = $this->resolveAnnualCoverageYear($paidAt, $validated['year'] ?? null);
-
-            $paymentMethodIds = collect($validated['payments'])->pluck('payment_method_id')->unique()->values();
-            $paymentMethods = PaymentMethod::whereIn('id', $paymentMethodIds)->where('is_active', true)->get()->keyBy('id');
-
-            if ($paymentMethods->count() !== $paymentMethodIds->count()) {
-                throw ValidationException::withMessages([
-                    'payments' => 'Una o más formas de pago seleccionadas no están activas.',
-                ]);
-            }
-
-            $notAllowed = $paymentMethodIds->first(fn ($id) => !ClubPaymentMethod::where('club_id', $clubId)
-                ->where('payment_method_id', $id)
-                ->where('is_active', true)
-                ->exists());
-
-            if ($notAllowed) {
-                throw ValidationException::withMessages([
-                    'payments' => 'Una o más formas de pago seleccionadas no están habilitadas para este parque.',
-                ]);
-            }
-
-            $billableMembership = $this->resolveBillableGroupMembership($groupAccountIds);
-
-            if (!$billableMembership) {
-                throw ValidationException::withMessages([
-                    'membership_account_id' => 'El socio no tiene una membresía facturable activa.',
-                ]);
-            }
-
-            // Rellena cualquier mes faltante hasta diciembre del año que se
-            // está cubriendo — createRecurringMonthlyCharge ya es idempotente
-            // (no duplica si el periodo ya tiene cargo, ver hasMonthlyChargeForPeriod).
-            for ($month = 1; $month <= 12; $month++) {
-                $this->membershipChargeService->createRecurringMonthlyCharge(
-                    $billableMembership,
-                    Carbon::create($year, $month, 1),
-                    ['charge_origin' => 'annual_payment']
-                );
-            }
-
-            $monthlyConcept = ChargeConcept::where('code', 'MONTHLY_FEE')->firstOrFail();
-
-            $charges = Charge::query()
-                ->whereIn('membership_account_id', $groupAccountIds)
-                ->where('concept_id', $monthlyConcept->id)
-                ->where('period_year', '<=', $year)
-                ->whereIn('status', ['pending', 'partial'])
-                ->lockForUpdate()
-                ->get();
-
-            if ($charges->isEmpty()) {
-                throw ValidationException::withMessages([
-                    'year' => "No se encontraron cargos de mensualidad pendientes hasta {$year}.",
-                ]);
-            }
-
-            $monthlyFee = round((float) ($billableMembership->monthly_fee_share ?? $billableMembership->monthly_fee ?? 0), 2);
-            $rule = AnnualDiscountRule::findApplicable($this->resolveAnnualDiscountPaymentMonth($paidAt, $year));
-            $discountAmount = $rule ? round($monthlyFee * (float) $rule->discount_months, 2) : 0.0;
-            $paymentAmount = round((float) $charges->sum('balance') - $discountAmount, 2);
-
-            if ($paymentAmount <= 0) {
-                throw ValidationException::withMessages([
-                    'year' => 'El monto calculado es cero o negativo. Verifica los cargos y el descuento.',
-                ]);
-            }
-
-            $totalEntered = round(collect($validated['payments'])->sum('amount'), 2);
-
-            if (abs($totalEntered - $paymentAmount) > 0.01) {
-                throw ValidationException::withMessages([
-                    'payments' => 'La suma de las formas de pago debe coincidir con el total a cobrar (con el descuento ya aplicado).',
-                ]);
-            }
-
-            $payments = DB::transaction(function () use (
-                $account, $groupAccountIds, $validated, $paymentMethods,
-                $year, $clubId, $rule, $discountAmount, $request
-            ) {
-                $paymentGroupId = (string) Str::uuid();
-
-                $payments = collect($validated['payments'])->map(function (array $line) use (
-                    $account, $paymentGroupId, $validated, $paymentMethods, $year, $clubId, $rule, $discountAmount, $request
-                ) {
-                    $paymentMethod = $paymentMethods->get((int) $line['payment_method_id']);
-
-                    return Payment::create([
-                        'payment_group_id' => $paymentGroupId,
-                        'membership_account_id' => $account->id,
-                        'club_id' => $clubId,
-                        'payment_method_id' => $paymentMethod->id,
-                        'amount' => round((float) $line['amount'], 2),
-                        'paid_at' => $validated['paid_at'],
-                        'reference' => $line['reference'] ?? null,
-                        'bank_name' => $line['bank_name'] ?? null,
-                        'check_number' => $line['check_number'] ?? null,
-                        'notes' => $validated['notes'] ?? null,
-                        'received_by' => $request->user()?->id,
-                        'status' => 'registered',
-                        'metadata' => [
-                            'payment_type' => 'annual',
-                            'year' => $year,
-                            'session_club_id' => session('club_id'),
-                            'discount_rule_id' => $rule?->id,
-                            'discount_months' => $rule?->discount_months,
-                            'discount_amount' => $discountAmount,
-                            'split_payment' => count($validated['payments']) > 1,
-                            'affects_cash_cut' => (bool) $paymentMethod->affects_cash_cut,
-                            'settlement_channel' => $paymentMethod->affects_cash_cut ? 'cashier' : 'services',
-                            // Parque que representa esta línea específica
-                            // (p. ej. "Cheque (PE1)" cobrado desde una
-                            // sesión en PE2, cuando la mensualidad es combo)
-                            // — igual que PaymentRegistrationService::registerSplit,
-                            // usado si esta línea se cancela después como
-                            // cheque rebotado (ver PaymentCancellationService).
-                            'represents_club_id' => isset($line['club_id']) ? (int) $line['club_id'] : null,
-                        ],
-                    ]);
-                });
-
-                $this->annualPaymentService->processAnnualPayment($account, $groupAccountIds, $year, $payments, $rule);
-
-                return $payments;
-            });
-
-            return response()->json([
-                'success' => true,
-                'message' => sprintf(
-                    'Pago de anualidad %d registrado correctamente por $%s.',
-                    $year,
-                    number_format($paymentAmount, 2)
-                ),
-                'payment_ids' => $payments->pluck('id')->values(),
-            ]);
-        } catch (ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => collect($e->errors())->flatten()->first() ?? 'Error de validación.',
-                'errors' => $e->errors(),
-            ], 422);
-        } catch (\Exception $e) {
-            report($e);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Ocurrió un error al registrar el pago de anualidad.',
-                'exception' => $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    /**
      * La membresía primaria activa/suspendida y facturable dentro de las
      * cuentas dadas (propia + grupo combo si aplica) — la que realmente
      * carga la mensualidad real, sin importar en cuál de las cuentas viva.
@@ -1215,6 +1027,8 @@ class CollectionController extends Controller
                 'new_items.*.concept_id' => ['required', new ExistsInSchema('billing', 'concepts', 'id')],
                 'new_items.*.description' => ['nullable', 'string', 'max:255'],
                 'new_items.*.total' => ['required', 'numeric', 'gt:0'],
+                'new_items.*.quantity' => ['sometimes', 'nullable', 'integer', 'min:1'],
+                'new_items.*.unit_amount' => ['sometimes', 'nullable', 'numeric', 'min:0'],
 
                 // Salidas de cafetería capturadas en "Agregar concepto de
                 // cobro": la visita solo se da por cerrada (y el cargo, si
@@ -1222,13 +1036,24 @@ class CollectionController extends Controller
                 'cafeteria_checkouts' => ['array'],
                 'cafeteria_checkouts.*.visit_id' => ['required', new ExistsInSchema('guest_lists', 'cafeteria_visits', 'id')],
                 'cafeteria_checkouts.*.consumption_amount' => ['required', 'numeric', 'min:0'],
+
+                // Pago de anualidad (checkbox "¿Es pago de anualidad?" en
+                // el panel de mensualidad, ver Collections/Index.vue) — se
+                // puede combinar en el mismo cobro con cualquiera de los
+                // otros tres bloques (p. ej. junto con un pase diario), a
+                // diferencia de existing_charges de mensualidad suelta, que
+                // el frontend ya bloquea mezclar con esto (ver
+                // clearAnnualLineIfPresent).
+                'annual' => ['sometimes', 'nullable', 'array'],
+                'annual.year' => ['required_with:annual', 'integer', 'min:2000', 'max:2100'],
             ]);
 
             $existing = collect($validated['existing_charges'] ?? []);
             $newItems = collect($validated['new_items'] ?? []);
             $cafeteriaCheckouts = collect($validated['cafeteria_checkouts'] ?? []);
+            $annualRequest = $validated['annual'] ?? null;
 
-            if ($existing->isEmpty() && $newItems->isEmpty() && $cafeteriaCheckouts->isEmpty()) {
+            if ($existing->isEmpty() && $newItems->isEmpty() && $cafeteriaCheckouts->isEmpty() && !$annualRequest) {
                 throw ValidationException::withMessages([
                     'applications' => 'Agrega al menos un cargo o concepto a la lista de cobros.',
                 ]);
@@ -1252,7 +1077,7 @@ class CollectionController extends Controller
                 // una cuenta) ni salidas de cafetería (tienen su propio
                 // flujo de visita) — solo conceptos nuevos, y únicamente los
                 // marcados requires_account=false.
-                if ($existing->isNotEmpty() || $cafeteriaCheckouts->isNotEmpty()) {
+                if ($existing->isNotEmpty() || $cafeteriaCheckouts->isNotEmpty() || $annualRequest) {
                     throw ValidationException::withMessages([
                         'membership_account_id' => 'Una venta sin cuenta solo puede incluir conceptos nuevos que no requieran cuenta.',
                     ]);
@@ -1327,10 +1152,39 @@ class CollectionController extends Controller
                 $memberId = $account->primaryHolder?->member_id;
             }
 
+            $annualYear = null;
+            $annualRule = null;
+
+            if ($annualRequest) {
+                $billableMembership = $this->resolveBillableGroupMembership($groupAccountIds);
+
+                if (!$billableMembership) {
+                    throw ValidationException::withMessages([
+                        'annual' => 'El socio no tiene una membresía facturable activa.',
+                    ]);
+                }
+
+                $paidAt = Carbon::parse($validated['paid_at']);
+                $annualYear = $this->resolveAnnualCoverageYear($paidAt, $annualRequest['year']);
+                $annualRule = AnnualDiscountRule::findApplicable($this->resolveAnnualDiscountPaymentMonth($paidAt, $annualYear));
+
+                // Rellena cualquier mes faltante hasta diciembre del año que
+                // se está cubriendo — createRecurringMonthlyCharge ya es
+                // idempotente (no duplica si el periodo ya tiene cargo, ver
+                // hasMonthlyChargeForPeriod).
+                for ($month = 1; $month <= 12; $month++) {
+                    $this->membershipChargeService->createRecurringMonthlyCharge(
+                        $billableMembership,
+                        Carbon::create($annualYear, $month, 1),
+                        ['charge_origin' => 'annual_payment']
+                    );
+                }
+            }
+
             $payments = DB::transaction(function () use (
                 $account, $clubId, $existing, $newItems, $cafeteriaCheckouts,
                 $membership, $memberId, $validated, $request, $accountClubIds,
-                $groupAccountIds
+                $groupAccountIds, $annualYear, $annualRule
             ) {
                 $applications = $existing
                     ->map(fn ($item) => [
@@ -1386,6 +1240,14 @@ class CollectionController extends Controller
                         'metadata' => [
                             'charge_origin' => 'collections_desk',
                             'created_by' => $request->user()?->id,
+                            // Cantidad/importe unitario capturados en el
+                            // panel (p. ej. "3 x $300.00 = $900.00" de un
+                            // pase diario) — se guardan para que el ticket
+                            // los muestre desglosados (ver
+                            // PaymentTicketService::concepts) en vez de
+                            // solo "1 x $900.00".
+                            'quantity' => isset($item['quantity']) ? (int) $item['quantity'] : null,
+                            'unit_amount' => isset($item['unit_amount']) ? round((float) $item['unit_amount'], 2) : null,
                         ],
                     ]);
 
@@ -1393,6 +1255,25 @@ class CollectionController extends Controller
                         'charge_id' => $charge->id,
                         'amount' => $total,
                     ];
+                }
+
+                // Pago de anualidad: se agrega a la MISMA lista de
+                // aplicaciones que el resto (cargos existentes, conceptos
+                // nuevos, cafetería) — un solo Payment/payment_group_id
+                // cubre todo. El descuento (si aplica una regla) queda
+                // amarrado al cargo del "mes libre" vía la clave 'discount'
+                // (ver PaymentRegistrationService::registerSplit, que la
+                // guarda en billing.payment_applications.discount).
+                if ($annualYear !== null) {
+                    $annual = $this->annualPaymentService->resolveApplications($groupAccountIds, $annualYear, $annualRule);
+
+                    if (empty($annual['applications'])) {
+                        throw ValidationException::withMessages([
+                            'annual' => "No se encontraron cargos de mensualidad pendientes hasta {$annualYear}.",
+                        ]);
+                    }
+
+                    $applications = [...$applications, ...$annual['applications']];
                 }
 
                 return $this->paymentRegistrationService->registerSplit(

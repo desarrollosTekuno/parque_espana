@@ -97,7 +97,10 @@ const paymentFolio = (series: string | null, folio: string | null) => {
         <div v-if="props.ticket.conceptos.length">
             <div v-for="concept in props.ticket.conceptos" :key="`${concept.charge_id}-${concept.monto}`" class="concept-item">
                 <div class="concept-description">
-                    <strong>{{ concept.concepto || `Cargo #${concept.charge_id}` }}</strong>
+                    <strong>
+                        <span v-if="concept.codigo" class="concept-code">{{ concept.codigo }}</span>
+                        {{ concept.concepto || `Cargo #${concept.charge_id}` }}
+                    </strong>
                     <div v-if="concept.descripcion && concept.descripcion !== concept.concepto">
                         {{ concept.descripcion }}
                     </div>
@@ -251,6 +254,10 @@ const paymentFolio = (series: string | null, folio: string | null) => {
 
 .concept-description {
     margin-bottom: 2px;
+}
+
+.concept-code {
+    margin-right: 4px;
 }
 
 .concept-discount {

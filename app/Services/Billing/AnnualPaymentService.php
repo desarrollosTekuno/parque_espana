@@ -164,6 +164,97 @@ class AnnualPaymentService
     }
 
     /**
+     * Resuelve, SIN efectos secundarios (no crea Payment ni modifica
+     * cargos), las aplicaciones necesarias para cubrir la anualidad de
+     * $year en las cuentas dadas: junta los cargos de mensualidad
+     * pendientes de $year o anteriores y, si hay una regla de descuento
+     * aplicable, se lo asigna directo al cargo del "mes libre" de $year.
+     *
+     * A diferencia de processAnnualPayment() (que usa CreditBalance, ver
+     * ese método — sigue siendo el camino del módulo de Cobranza legado en
+     * Billing/Index.vue), aquí el descuento se devuelve como parte de cada
+     * aplicación para que CollectionController::storePayment las agregue
+     * a la lista general de conceptos de UN SOLO cobro (junto con pase
+     * diario, casillero, etc.) vía PaymentRegistrationService::registerSplit,
+     * que ya sabe guardar el descuento en billing.payment_applications.discount
+     * (visible en el ticket, ver PaymentTicketService).
+     *
+     * @param  array<int, int>  $accountIds
+     * @return array{
+     *     applications: array<int, array{charge_id:int, amount:float, discount:float}>,
+     *     payment_amount: float,
+     *     discount_amount: float,
+     *     monthly_fee: float,
+     * }
+     */
+    public function resolveApplications(array $accountIds, int $year, ?AnnualDiscountRule $rule): array
+    {
+        $charges = Charge::query()
+            ->whereIn('membership_account_id', $accountIds)
+            ->where('period_year', '<=', $year)
+            ->whereIn('status', ['pending', 'partial'])
+            ->whereHas('concept', fn ($q) => $q->where('code', 'MONTHLY_FEE'))
+            ->orderBy('period_year')
+            ->orderBy('period_month')
+            ->lockForUpdate()
+            ->get();
+
+        if ($charges->isEmpty()) {
+            return [
+                'applications' => [],
+                'payment_amount' => 0.0,
+                'discount_amount' => 0.0,
+                'monthly_fee' => 0.0,
+            ];
+        }
+
+        $membership = Membership::query()
+            ->whereIn('membership_account_id', $accountIds)
+            ->where('is_primary', true)
+            ->whereIn('status', ['active', 'suspended'])
+            ->where('is_billable', true)
+            ->first();
+        $monthlyFee = round((float) ($membership?->monthly_fee_share ?? $membership?->monthly_fee ?? 0), 2);
+
+        $freeMonthCharge = null;
+        $discountAmount = 0.0;
+
+        if ($rule && $monthlyFee > 0) {
+            $freeMonthCharge = $charges->first(
+                fn (Charge $charge) => (int) $charge->period_month === (int) $rule->free_month
+                    && (int) $charge->period_year === $year
+            );
+
+            if ($freeMonthCharge) {
+                // No se le puede perdonar al cargo más de lo que en verdad
+                // debe (p. ej. si ya traía un pago parcial previo).
+                $discountAmount = min(
+                    round($monthlyFee * (float) $rule->discount_months, 2),
+                    round((float) $freeMonthCharge->balance, 2)
+                );
+            }
+        }
+
+        $applications = $charges->map(function (Charge $charge) use ($freeMonthCharge, $discountAmount) {
+            $balance = round((float) $charge->balance, 2);
+            $discount = ($freeMonthCharge && $charge->id === $freeMonthCharge->id) ? $discountAmount : 0.0;
+
+            return [
+                'charge_id' => $charge->id,
+                'amount' => round($balance - $discount, 2),
+                'discount' => $discount,
+            ];
+        })->values()->all();
+
+        return [
+            'applications' => $applications,
+            'payment_amount' => round(collect($applications)->sum('amount'), 2),
+            'discount_amount' => $discountAmount,
+            'monthly_fee' => $monthlyFee,
+        ];
+    }
+
+    /**
      * Aplica saldo a favor de la cuenta a un cargo, solo si:
      *  - El crédito cubre el saldo completo del cargo.
      *  - El cargo no ha sido parcialmente pagado (el crédito no se mezcla con pagos en efectivo).

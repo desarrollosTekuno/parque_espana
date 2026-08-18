@@ -113,7 +113,6 @@ Route::post('/collections/monthly-fee/resolve', [CollectionController::class, 'r
 Route::post('/collections/inscription/resolve', [CollectionController::class, 'resolveInscriptionInstallments'])->name('collections.inscription.resolve');
 Route::post('/collections/payment', [CollectionController::class, 'storePayment'])->name('collections.payment.store');
 Route::post('/collections/annual-payment/preview', [CollectionController::class, 'previewAnnualPayment'])->name('collections.annual-payment.preview');
-Route::post('/collections/annual-payment', [CollectionController::class, 'storeAnnualPayment'])->name('collections.annual-payment.store');
 Route::post('/collections/notes', [CollectionController::class, 'storeNote'])->name('collections.notes.store');
 
 // cash cuts
