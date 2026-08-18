@@ -107,19 +107,13 @@ const routes: Routing[] = [
             "member-access.index",
             "members.cancellations.index",
             "members.age-transitions.index",
-            "fee-schedules.index"
         ],
         title: "Membresías",
         icon: "mdi-account-group-outline",
         value: "membresiasMenu",
         group: "Membresías",
         groupItems: [
-            {
-                name: "fee-schedules.index",
-                title: "Cuotas por año",
-                icon: "mdi-calendar-multiple",
-                value: "cuotas-por-anio",
-            },
+            
             {
                 name: "members.index",
                 title: "Membresías",
@@ -185,12 +179,19 @@ const routes: Routing[] = [
             "global-cash-cuts.index",
             "global-cash-cuts.show",
             "tickets.index",
+            "fee-schedules.index",
         ],
         title: "Cobranza",
         icon: "mdi-cash-multiple",
         value: "cobranzaMenu",
         group: "Cobranza",
         groupItems: [
+            {
+                name: "fee-schedules.index",
+                title: "Cuotas por año",
+                icon: "mdi-calendar-multiple",
+                value: "cuotas-por-anio",
+            },
             {
                 name: "collections.index",
                 title: "Registro de cobros",
@@ -235,8 +236,8 @@ const routes: Routing[] = [
             },
             {
                 name: "tickets.index",
-                title: "Tickets de pago",
-                icon: "mdi-printer-outline",
+                title: "Historial de pagos",
+                icon: "mdi-history",
                 value: "tickets-pago",
             },
         ],

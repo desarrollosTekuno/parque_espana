@@ -185,18 +185,19 @@ interface CobroLine {
     // resuelve sus propios cargos/descuento a partir del año (ver
     // CollectionController::storePayment / AnnualPaymentService::resolveApplications).
     annual_year?: number;
-    annual_subtotal?: number;
     annual_discount_amount?: number;
 }
 
 interface Props {
     conceptOptions?: ConceptOption[];
     clubPaymentMethods?: ClubPaymentMethodItem[];
+    annualDiscountRuleMonths?: number[];
 }
 
 const props = withDefaults(defineProps<Props>(), {
     conceptOptions: () => [],
     clubPaymentMethods: () => [],
+    annualDiscountRuleMonths: () => [],
 });
 
 const page = usePage<any>();
@@ -625,6 +626,20 @@ const isMonthlyFeeConcept = computed(
 // descuento/saldo a favor de la anualidad no encaja ahí.
 const isAnnualFeePayment = ref(false);
 
+// Mismo criterio que AnnualDiscountRule::findApplicable /
+// CollectionController::resolveAnnualDiscountPaymentMonth: diciembre
+// adelanta el año siguiente (se normaliza a "mes 0"), y aplica la regla
+// activa con el pay_by_month más chico que sea >= al mes de pago. Si no hay
+// ninguna regla activa que cubra el mes de HOY, no tiene caso ofrecer el
+// checkbox — no habría descuento ni motivo para pagar la anualidad
+// adelantada en ese periodo.
+const canOfferAnnualPayment = computed(() => {
+    const now = new Date();
+    const paymentMonth = now.getMonth() === 11 ? 0 : now.getMonth() + 1;
+
+    return props.annualDiscountRuleMonths.some((m) => m >= paymentMonth);
+});
+
 const loadInlineAnnualPreview = () => {
     if (!isAnnualFeePayment.value || !account.value) return;
     annualPaymentDate.value = nowAsLocalInput();
@@ -670,6 +685,26 @@ const monthlyFeeIva = computed(() =>
         ? null
         : resolveConceptAppliesIva(selectedConcept.value)
             ? round2((monthlyFeeSubtotal.value * 16) / 100)
+            : 0,
+);
+
+// La anualidad es, en el fondo, un grupo de mensualidades — el desglose
+// Subtotal/IVA se calcula igual (extraído del monto final que en verdad se
+// va a cobrar, payment_amount, que ya incluye IVA si el concepto lo
+// factura en este parque), no un "$0" fijo. El descuento se muestra aparte
+// como dato informativo, no participa en la cuenta Subtotal + IVA = Total.
+const annualSubtotal = computed(() => {
+    if (!annualPaymentPreview.value) return null;
+
+    return resolveConceptAppliesIva(selectedConcept.value)
+        ? round2((annualPaymentPreview.value.payment_amount * 100) / 116)
+        : round2(annualPaymentPreview.value.payment_amount);
+});
+const annualIva = computed(() =>
+    annualSubtotal.value === null
+        ? null
+        : resolveConceptAppliesIva(selectedConcept.value)
+            ? round2((annualSubtotal.value * 16) / 100)
             : 0,
 );
 
@@ -822,7 +857,6 @@ const confirmAnnualFeePaymentFromPanel = () => {
             : " — sin descuento"),
         amount: preview.payment_amount,
         annual_year: preview.year,
-        annual_subtotal: preview.total_balance,
         annual_discount_amount: preview.discount_amount,
         is_multi_club: preview.is_multi_club,
         club_breakdown: preview.club_breakdown,
@@ -1637,22 +1671,22 @@ const cobrosHeaders = [
 const resolveCobroConcept = (line: CobroLine): ConceptOption | null =>
     props.conceptOptions.find((c) => c.id === line.concept_id) ?? null;
 
+// La anualidad es un grupo de mensualidades — su Subtotal/IVA se extraen
+// del monto NETO que en verdad se cobra (line.amount, ya con el descuento
+// aplicado), igual que cualquier otro concepto que factura IVA; el
+// descuento se muestra aparte, solo informativo.
 const cobroSubtotal = (line: CobroLine): number =>
-    line.type === "annual"
-        ? round2(Number(line.annual_subtotal ?? line.amount ?? 0))
-        : resolveConceptAppliesIva(resolveCobroConcept(line))
-            ? round2((Number(line.amount ?? 0) * 100) / 116)
-            : round2(Number(line.amount ?? 0));
+    resolveConceptAppliesIva(resolveCobroConcept(line))
+        ? round2((Number(line.amount ?? 0) * 100) / 116)
+        : round2(Number(line.amount ?? 0));
 
 const cobroDescuento = (line: CobroLine): number =>
     line.type === "annual" ? round2(Number(line.annual_discount_amount ?? 0)) : 0;
 
 const cobroIva = (line: CobroLine): number =>
-    line.type === "annual"
-        ? 0
-        : resolveConceptAppliesIva(resolveCobroConcept(line))
-            ? round2((cobroSubtotal(line) * 16) / 100)
-            : 0;
+    resolveConceptAppliesIva(resolveCobroConcept(line))
+        ? round2((cobroSubtotal(line) * 16) / 100)
+        : 0;
 
 const removeCobro = (key: string) => {
     cobros.value = cobros.value.filter((line) => line.key !== key);
@@ -2304,7 +2338,7 @@ const saveNote = async () => {
                                  lista de cobros al confirmar "Agregar" (ver
                                  CollectionController::resolveMonthlyFeeMonths). -->
                             <template v-else-if="isMonthlyFeeConcept">
-                                <v-col cols="12">
+                                <v-col v-if="canOfferAnnualPayment" cols="12">
                                     <v-checkbox
                                         v-model="isAnnualFeePayment"
                                         label="¿Es pago de anualidad?"
@@ -2345,7 +2379,7 @@ const saveNote = async () => {
                                 <v-col cols="6" md="1">
                                     <v-text-field
                                         :model-value="isAnnualFeePayment
-                                            ? (annualPaymentPreview ? formatCurrency(annualPaymentPreview.total_balance) : '—')
+                                            ? (annualSubtotal !== null ? formatCurrency(annualSubtotal) : '—')
                                             : (monthlyFeeSubtotal !== null ? formatCurrency(monthlyFeeSubtotal) : '—')"
                                         label="Subtotal"
                                         readonly
@@ -2366,10 +2400,12 @@ const saveNote = async () => {
                                 </v-col>
                                 <v-col cols="6" md="1">
                                     <v-text-field
-                                        :model-value="isAnnualFeePayment ? '$ 0' : (monthlyFeeIva !== null ? formatCurrency(monthlyFeeIva) : '—')"
+                                        :model-value="isAnnualFeePayment
+                                            ? (annualIva !== null ? formatCurrency(annualIva) : '—')
+                                            : (monthlyFeeIva !== null ? formatCurrency(monthlyFeeIva) : '—')"
                                         label="IVA ($)"
                                         readonly
-                                        :loading="!isAnnualFeePayment && monthlyFeeCalculating"
+                                        :loading="isAnnualFeePayment ? annualPaymentLoading : monthlyFeeCalculating"
                                         hide-details="auto"
                                     />
                                 </v-col>

@@ -101,6 +101,13 @@ class CollectionController extends Controller
         return Inertia::render('Collections/Index', [
             'conceptOptions' => $conceptOptions,
             'clubPaymentMethods' => $this->resolveClubPaymentMethods(),
+            // Meses (pay_by_month) con regla de descuento activa — el
+            // frontend lo usa para solo mostrar el checkbox "¿Es pago de
+            // anualidad?" cuando el mes de pago (o diciembre, que cubre el
+            // año siguiente, ver resolveAnnualDiscountPaymentMonth) cae
+            // dentro de un periodo configurado en BD. Fuera de esos
+            // periodos no tiene caso ofrecer la anualidad.
+            'annualDiscountRuleMonths' => AnnualDiscountRule::where('is_active', true)->pluck('pay_by_month')->values(),
         ]);
     }
 
