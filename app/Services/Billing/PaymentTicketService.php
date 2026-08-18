@@ -108,7 +108,6 @@ class PaymentTicketService {
                     'conceptos' => $this->concepts($clubAllocations),
                     'forma_pago' => $representative->paymentMethod?->name,
                     'forma_pago_codigo' => $representative->paymentMethod?->code,
-                    'forma_pago_ticket_codigo' => $this->paymentMethodTicketCode($representative->paymentMethod?->code),
                     'pago_identificacion' => $representative->check_number ?: $representative->reference,
                     'referencia' => $representative->reference,
                     'banco' => $representative->bank_name,
@@ -150,6 +149,19 @@ class PaymentTicketService {
             ->unique()
             ->values();
 
+        // Solo tiene caso partir una mensualidad combo 50/50 entre los dos
+        // tickets si de verdad se usó una forma de pago que representa al
+        // OTRO parque (representedClubId, ver PaymentLinePayload.club_id en
+        // el diálogo de métodos de pago) — si el grupo completo se cobró
+        // con formas de pago sin esa etiqueta (p. ej. una sola
+        // transferencia genérica), no hay ningún dinero "del otro parque"
+        // que mostrar aparte.
+        $hasCrossParkPayment = $payments
+            ->map(fn (Payment $item) => $this->representedClubId($item))
+            ->filter()
+            ->unique()
+            ->count() > 1;
+
         $allocations = collect();
 
         foreach ($payments as $payment) {
@@ -165,21 +177,22 @@ class PaymentTicketService {
                 ]);
             } else {
                 foreach ($payment->applications as $application) {
-                    $clubIds = $this->applicationClubIds($application, $requestedPayment, $actualMonthlyClubIds);
+                    $clubIds = $this->applicationClubIds($application, $payment, $actualMonthlyClubIds, $hasCrossParkPayment);
 
                     // representedClubId (de dónde viene el dinero de ESTA
                     // forma de pago, ver PaymentLinePayload.club_id) solo
                     // decide el ticket de un cargo de UN solo parque — un
                     // cargo que de verdad se reparte entre dos parques
-                    // (combo interclub, ver applicationClubIds) SIEMPRE se
-                    // divide 50/50 por mes entre ambos tickets, sin
-                    // importar qué forma de pago específica cubrió cada
-                    // parte: de lo contrario, si el cajero no capturó los
-                    // montos exactamente parejos entre las formas de pago
-                    // de cada parque, un ticket terminaba con más meses (o
-                    // más dinero por mes) que el otro, aunque la
-                    // mensualidad combo en realidad es la misma para
-                    // ambos parques cada mes.
+                    // (combo interclub CON pago cruzado, ver
+                    // applicationClubIds/$hasCrossParkPayment) se divide
+                    // 50/50 por mes entre ambos tickets, sin importar qué
+                    // forma de pago específica cubrió cada parte: de lo
+                    // contrario, si el cajero no capturó los montos
+                    // exactamente parejos entre las formas de pago de cada
+                    // parque, un ticket terminaba con más meses (o más
+                    // dinero por mes) que el otro, aunque la mensualidad
+                    // combo en realidad es la misma para ambos parques cada
+                    // mes.
                     if ($clubIds->count() === 1 && $this->representedClubId($payment)) {
                         $clubIds = collect([$this->representedClubId($payment)]);
                     }
@@ -211,7 +224,12 @@ class PaymentTicketService {
         return $allocations;
     }
 
-    private function applicationClubIds(PaymentApplication $application, Payment $payment, Collection $actualMonthlyClubIds): Collection {
+    private function applicationClubIds(
+        PaymentApplication $application,
+        Payment $payment,
+        Collection $actualMonthlyClubIds,
+        bool $hasCrossParkPayment
+    ): Collection {
         $charge = $application->charge;
         $chargeClubId = (int) ($charge?->membership?->club_id ?: $payment->club_id);
 
@@ -225,6 +243,18 @@ class PaymentTicketService {
 
         if (! $representsCombo) {
             return collect([$chargeClubId]);
+        }
+
+        // Aunque la membresía sea un combo interclub, solo tiene sentido
+        // partir el ticket 50/50 entre los dos parques si de verdad hubo
+        // una forma de pago que representa al OTRO parque en este grupo
+        // (ver $hasCrossParkPayment arriba) — si todo se cobró con formas
+        // de pago sin esa etiqueta (p. ej. una sola transferencia
+        // genérica), el ticket se queda completo en el parque donde
+        // realmente se cobró (el de la sesión del pago), no en el parque
+        // "dueño" de la membresía en BD, que puede ser otro.
+        if (! $hasCrossParkPayment) {
+            return collect([(int) $payment->club_id]);
         }
 
         $account = $payment->membershipAccount;
@@ -416,7 +446,6 @@ class PaymentTicketService {
                 'ticket_folio' => $this->shortFolio($payment->folio),
                 'nombre' => $payment->paymentMethod?->name,
                 'codigo' => $this->resolveInternalKey($payment),
-                'codigo_ticket' => $this->paymentMethodTicketCode($payment->paymentMethod?->code),
                 'monto' => round((float) $payment->amount, 2),
                 'referencia' => $payment->reference,
                 'banco' => $payment->bank_name,
@@ -577,18 +606,6 @@ class PaymentTicketService {
             ->where('club_id', $clubId)
             ->where('payment_method_id', $p->payment_method_id)
             ->value('internal_key') ?: $p->paymentMethod?->code;
-    }
-
-    private function paymentMethodTicketCode(?string $code): ?string {
-        return match ($code) {
-            'CASH' => 'EF',
-            'BANK_TRANSFER' => 'TR',
-            'APP_PAYMENT' => 'AP',
-            'CHECK' => 'CH',
-            'CREDIT_CARD' => 'TC',
-            'DEBIT_CARD' => 'TD',
-            default => $code,
-        };
     }
 
     private function shortFolio(?string $folio): ?string {

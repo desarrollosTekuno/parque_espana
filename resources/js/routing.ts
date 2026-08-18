@@ -193,12 +193,6 @@ const routes: Routing[] = [
                 value: "cuotas-por-anio",
             },
             {
-                name: "collections.index",
-                title: "Registro de cobros",
-                icon: "mdi-cash-register",
-                value: "cobro-directo",
-            },
-            {
                 name: "billing-concepts.index",
                 title: "Conceptos de cobro",
                 icon: "mdi-receipt-text-outline",
@@ -211,6 +205,12 @@ const routes: Routing[] = [
                 value: "metodos-pago",
             },
             {
+                name: "collections.index",
+                title: "Registro de cobros",
+                icon: "mdi-cash-register",
+                value: "cobro-directo",
+            },
+            {
                 name: "billing.index",
                 title: "Cargos pendientes",
                 icon: "mdi-receipt-text-outline",
@@ -221,11 +221,11 @@ const routes: Routing[] = [
                 title: "Desglose de cargos",
                 icon: "mdi-format-list-bulleted",
                 value: "desglose-cargos",
-            },
+            }, 
             {
                 name: "cash-cuts.index",
                 title: "Cortes de caja",
-                icon: "mdi-cash-register",
+                icon: "mdi-cash-multiple",
                 value: "cortes-caja",
             },
             {

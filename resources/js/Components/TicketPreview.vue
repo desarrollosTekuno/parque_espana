@@ -124,7 +124,7 @@ const paymentFolio = (series: string | null, folio: string | null) => {
             <div class="concept-title">Formas de pago</div>
             <div v-for="payment in props.ticket.formas_de_pago" :key="payment.payment_id" class="payment-method">
                 <div class="ticket-row">
-                    <span>{{ payment.codigo_ticket || payment.nombre }}</span>
+                    <span>{{ payment.codigo || payment.nombre }}</span>
                     <strong>{{ money(payment.monto) }}</strong>
                 </div>
                 <div v-if="paymentFolio(payment.ticket_serie, payment.ticket_folio)" class="payment-extra">

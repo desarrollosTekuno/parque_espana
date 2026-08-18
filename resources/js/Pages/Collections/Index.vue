@@ -10,7 +10,8 @@ import {
     fileTypeRule,
     requiredFileRule,
 } from "@/constants/validationRules";
-import { printTicket } from "@/utils/ticket";
+import TicketPreview from "@/Components/TicketPreview.vue";
+import { getTicketBundle, printTicket, type TicketData } from "@/utils/ticket";
 import { Head, usePage } from "@inertiajs/vue3";
 import { computed, ref, watch } from "vue";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
@@ -1855,6 +1856,42 @@ const cancelCobros = async () => {
     cobros.value = [];
 };
 
+// Vista previa del ticket tras registrar un cobro — reutiliza el mismo
+// componente y endpoint que Tickets/Index.vue (TicketPreview.vue,
+// getTicketBundle/tickets.data), en vez de ir directo a la ventana de
+// impresión sin que el cajero vea antes lo que se va a imprimir.
+const showTicketPreview = ref(false);
+const ticketPreviewLoading = ref(false);
+const previewTickets = ref<TicketData[]>([]);
+const previewPaymentId = ref<number | null>(null);
+
+const openTicketPreview = async (paymentId: number) => {
+    previewPaymentId.value = paymentId;
+    showTicketPreview.value = true;
+    ticketPreviewLoading.value = true;
+    previewTickets.value = [];
+
+    try {
+        previewTickets.value = (await getTicketBundle(paymentId)).tickets;
+    } catch (error) {
+        showTicketPreview.value = false;
+        customToastSwal({ title: "No fue posible cargar el ticket.", icon: "error" });
+    } finally {
+        ticketPreviewLoading.value = false;
+    }
+};
+
+const printPreviewedTicket = async () => {
+    if (!previewPaymentId.value) return;
+
+    try {
+        await printTicket(previewPaymentId.value);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "No fue posible imprimir el ticket.";
+        customToastSwal({ title: message, icon: "error" });
+    }
+};
+
 const registerPayment = async () => {
     if ((!walkInMode.value && !account.value) || !cobroClub.value || !configuredPayment.value) return;
 
@@ -1920,7 +1957,7 @@ const registerPayment = async () => {
         });
 
         // El loader compartido solo cubre la petición en sí; lo que sigue
-        // (Swal de éxito, pregunta de imprimir ticket) ya tiene su propio
+        // (Swal de éxito, vista previa del ticket) ya tiene su propio
         // overlay modal, no hace falta encimar los dos.
         isLoading.value = false;
 
@@ -1946,30 +1983,22 @@ const registerPayment = async () => {
             confirmButtonText: "Continuar",
         });
 
-        const result = await customConfirmSwal({
-            title: "¿Desea imprimir ticket?",
-            text: "",
-            icon: "question",
-            confirmText: "Sí, imprimir",
-            cancelText: "No",
-            showLoaderOnConfirm: false,
-        });
+        // Un id representa todo el grupo del cobro. El módulo de tickets
+        // arma dentro los parques y métodos (ver PaymentTicketService).
+        const paymentId = data.payment_ids?.[0];
 
-        if (result.isConfirmed) {
-            try {
-                const paymentId = data.payment_ids?.[0];
+        if (paymentId) {
+            const wantsTicket = await customConfirmSwal({
+                title: "¿Desea imprimir ticket?",
+                text: "",
+                icon: "question",
+                confirmText: "Sí, imprimir",
+                cancelText: "No",
+                showLoaderOnConfirm: false,
+            });
 
-                if (paymentId) {
-                    // Un id representa todo el grupo del cobro. El módulo de
-                    // tickets arma dentro los parques, métodos y dos copias.
-                    await printTicket(paymentId);
-                }
-            } catch (error) {
-                const message = error instanceof Error
-                    ? error.message
-                    : "No fue posible imprimir el ticket.";
-
-                customToastSwal({ title: message, icon: "error" });
+            if (wantsTicket.isConfirmed) {
+                await openTicketPreview(paymentId);
             }
         }
     } catch (e: any) {
@@ -2191,7 +2220,7 @@ const saveNote = async () => {
                                 disabled
                                 :tooltip="`Este cargo pertenece a ${item.charges[0]?.club_code ?? 'otro parque'}. Cambia el parque de la sesión para cobrarlo.`"
                             />
-                            <BaseButton
+                            <!-- <BaseButton
                                 v-else
                                 :icon-only="false"
                                 action="add"
@@ -2200,7 +2229,7 @@ const saveNote = async () => {
                                 variant="tonal"
                                 :disabled="isChargesInCobros(item.charges[0]?.id ?? null)"
                                 @click="addPendingToCobros(item)"
-                            />
+                            /> -->
                         </template>
 
                     </v-data-table>
@@ -3062,6 +3091,39 @@ const saveNote = async () => {
                     :loading="paying"
                     @confirm="handlePaymentMethodsConfigured"
                 />
+
+                <!-- Vista previa del ticket tras registrar un cobro — mismo
+                     componente/diálogo que Tickets/Index.vue. -->
+                <v-dialog v-model="showTicketPreview" max-width="520">
+                    <v-card>
+                        <v-card-title>Vista previa del ticket</v-card-title>
+                        <v-card-text>
+                            <div v-if="ticketPreviewLoading" class="text-center pa-8">
+                                <v-progress-circular indeterminate color="primary" />
+                            </div>
+                            <div v-else-if="previewTickets.length">
+                                <TicketPreview
+                                    v-for="ticket in previewTickets"
+                                    :key="ticket.club_id"
+                                    :ticket="ticket"
+                                    class="mb-6"
+                                />
+                            </div>
+                        </v-card-text>
+                        <v-card-actions>
+                            <v-spacer />
+                            <BaseButton action="close" :icon-only="false" text="Cerrar" @click="showTicketPreview = false" />
+                            <BaseButton
+                                icon="mdi-printer-outline"
+                                text="Imprimir"
+                                tooltip="Imprimir"
+                                :icon-only="false"
+                                :disabled="!previewTickets.length"
+                                @click="printPreviewedTicket"
+                            />
+                        </v-card-actions>
+                    </v-card>
+                </v-dialog>
 
                 <!-- Cuentas relacionadas (árbol de origen/derivadas) -->
                 <v-dialog v-model="showRelatedAccountsDialog" max-width="520">

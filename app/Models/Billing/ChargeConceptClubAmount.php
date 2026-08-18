@@ -23,7 +23,7 @@ class ChargeConceptClubAmount extends Model
 
     public function concept()
     {
-        return $this->belongsTo(ChargeConcept::class, 'concept_id');
+        return $this->belongsTo(ChargeConcept::class, 'concept_id')->withTrashed();
     }
 
     public function club()

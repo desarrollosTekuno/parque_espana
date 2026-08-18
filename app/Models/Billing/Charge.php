@@ -41,7 +41,10 @@ class Charge extends Model
 
     public function concept()
     {
-        return $this->belongsTo(ChargeConcept::class, 'concept_id');
+        // withTrashed(): un concepto archivado (soft delete, ver
+        // BillingConceptController::destroy) no debe dejar sin nombre a los
+        // cargos históricos que ya lo usaban (tickets, reportes, etc.).
+        return $this->belongsTo(ChargeConcept::class, 'concept_id')->withTrashed();
     }
 
     public function paymentApplications()
