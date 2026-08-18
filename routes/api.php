@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\V1\ChargePaymentController;
 use App\Http\Controllers\Api\V1\ConektaConfigController;
 use App\Http\Controllers\Api\V1\PaymentSourceController;
 use App\Http\Controllers\Api\V1\ReservationController;
+use App\Http\Controllers\Api\V1\GardenReservationController;
 use App\Http\Controllers\Api\V1\BusinessAdController;
 use App\Http\Controllers\Api\V1\BusinessCategoryController;
 use App\Http\Controllers\Api\V1\ClubContactInfoController;
@@ -47,8 +48,14 @@ Route::prefix('v1')->name('api.')->group(function () {
     // GuestsList
     Route::apiResource('guests-list', ReservationGuestController::class)->only(['store'])->middleware('auth:sanctum');
 
+    // Garden Reservations
+    Route::get('garden-reservations/catalog', [GardenReservationController::class, 'catalog'])->middleware('auth:sanctum');
+    Route::post('garden-reservations', [GardenReservationController::class, 'store'])->middleware('auth:sanctum');
+
     // Amenities
     Route::get('/amenities/{amenityResource}/available-slots', [AmenityController::class, 'availableSlots'])->middleware('auth:sanctum');
+    Route::get('/amenities/{amenityResource}/teachers', [AmenityController::class, 'teachers'])->middleware('auth:sanctum');
+    Route::get('/amenities/{amenityResource}/classes', [AmenityController::class, 'classes'])->middleware('auth:sanctum');
     Route::get('/clubs/{club}/amenities', [AmenityController::class, 'amenitiesByClub'])->middleware('auth:sanctum');
 
     // =================================== Pagina web Test ================================

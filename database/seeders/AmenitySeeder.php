@@ -112,6 +112,41 @@ class AmenitySeeder extends Seeder
                                 'capacity' => null,
                                 'slot_duration_minutes' => null,
                             ],
+                            [
+                                'name' => 'Asador 1',
+                                'capacity' => null,
+                                'slot_duration_minutes' => null,
+                            ],
+                            [
+                                'name' => 'Asador 2',
+                                'capacity' => null,
+                                'slot_duration_minutes' => null,
+                            ],
+                            [
+                                'name' => 'Asador 3',
+                                'capacity' => null,
+                                'slot_duration_minutes' => null,
+                            ],
+                            [
+                                'name' => 'Asador 4',
+                                'capacity' => null,
+                                'slot_duration_minutes' => null,
+                            ],
+                            [
+                                'name' => 'Asador 5',
+                                'capacity' => null,
+                                'slot_duration_minutes' => null,
+                            ],
+                            [
+                                'name' => 'Asador 6',
+                                'capacity' => null,
+                                'slot_duration_minutes' => null,
+                            ],
+                            [
+                                'name' => 'Asador 7',
+                                'capacity' => null,
+                                'slot_duration_minutes' => null,
+                            ],
                         ],
                         'schedules' => [
                             [
