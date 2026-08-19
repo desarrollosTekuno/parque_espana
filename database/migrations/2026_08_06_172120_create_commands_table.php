@@ -28,8 +28,8 @@ return new class extends Migration
             $table->text('error_message')->nullable();
             $table->timestamp('processed_at')->nullable();
 
-            $table->foreignId('member_id')
-                ->constrained('members.members');
+            $table->foreignId('account_member_id')
+                ->constrained('memberships.account_members');
 
             $table->foreignId('device_id')
                 ->constrained('devices.devices');

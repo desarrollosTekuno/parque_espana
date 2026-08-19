@@ -21,23 +21,55 @@ class CommandController extends Controller {
 
     public function store(Request $request)
     {
-        try
-        {
-            $validator = Validator::make($request->all(), [
-                'action' => 'required|string|max:30',
-                'member_id' => ['required', new ExistsInSchema('members', 'members', 'id')],
-                'device_id' => ['required', new ExistsInSchema('devices', 'devices', 'id')],
-                'data' => 'required|array',
-                'data.users' => 'required|array|min:1',
-                'data.users.*.employee_id' => 'required|string',
-                'data.users.*.name' => 'required|string',
-                'data.users.*.user_type' => 'required|string|in:normal,visitor',
-                'data.users.*.is_active' => 'required|boolean',
-                'data.users.*.is_permanent' => 'required|boolean',
-                'data.users.*.valid_from' => 'required|date_format:Y-m-d H:i:s',
-                'data.users.*.valid_to' => 'required|date_format:Y-m-d H:i:s|after:data.users.*.validFrom',
-                'data.users.*.card_no' => 'required|string|max:32'
-            ]);
+        try {
+            $action = $request->input('action');
+
+            $rules = [
+                'action'             => 'required|string|max:30',
+                'account_member_id'  => ['required', new ExistsInSchema('memberships', 'account_members', 'id')],
+                'device_id'          => ['required', new ExistsInSchema('devices', 'devices', 'id')],
+                'data'               => 'required|array',
+            ];
+
+            switch ($action) {
+                case 'create_user':
+                case 'update_user':
+                    $rules += [
+                        'data.users'                 => 'required|array|min:1',
+                        'data.users.*.employee_id'    => 'required|string',
+                        'data.users.*.name'           => 'required|string',
+                        'data.users.*.user_type'      => 'required|string|in:normal,visitor',
+                        'data.users.*.is_active'      => 'required|boolean',
+                        'data.users.*.is_permanent'   => 'required|boolean',
+                        'data.users.*.valid_from'     => 'required|date_format:Y-m-d H:i:s',
+                        'data.users.*.valid_to'       => 'required|date_format:Y-m-d H:i:s|after:data.users.*.valid_from',
+                    ];
+                    break;
+
+                case 'delete_user':
+                    $rules += [
+                        'data.users'                => 'required|array|min:1',
+                        'data.users.*.employee_id'   => 'required|string',
+                    ];
+                    break;
+
+                case 'create_card':
+                case 'update_card':
+                    $rules += [
+                        'data.cards'                 => 'required|array|min:1',
+                        'data.cards.*.employee_id'    => 'required|string',
+                        'data.cards.*.card_no'        => 'required|string|max:32',
+                    ];
+                    break;
+
+                default:
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'La acción especificada no es válida',
+                    ], 422);
+            }
+
+            $validator = Validator::make($request->all(), $rules);
 
             if ($validator->fails()) {
                 return response()->json([
@@ -47,27 +79,14 @@ class CommandController extends Controller {
                 ], 422);
             }
 
-            $users = collect($request->input('data.users'))->map(function ($user) {
-                return [
-                    'employee_id' => $user['employee_id'],
-                    'name' => $user['name'],
-                    'user_type' => $user['user_type'],
-                    'is_active' => $user['is_active'],
-                    'is_permanent' => $user['is_permanent'],
-                    'valid_from' => Carbon::parse($user['valid_from'])->format('Y-m-d\TH:i:s'),
-                    'valid_to' => Carbon::parse($user['valid_to'])->format('Y-m-d\TH:i:s'),
-                    'card_no' => $user['card_no']
-                ];
-            });
+            $payload = $this->buildPayload($action, $request->input('data'));
 
             $command = Command::create([
-                'action' => $request->input('action'),
-                'status' => 'pending',
-                'device_id' => $request->input('device_id'),
-                'member_id' => $request->input('member_id'),
-                'data' => [
-                    'users' => $users->toArray()
-                ]
+                'action'             => $action,
+                'status'             => 'pending',
+                'device_id'          => $request->input('device_id'),
+                'account_member_id'  => $request->input('account_member_id'),
+                'data'               => $payload,
             ]);
 
             return response()->json([
@@ -76,12 +95,46 @@ class CommandController extends Controller {
                 'data' => $command
             ], 201);
 
-        }catch (\Exception $e) {
+        } catch (\Exception $e) {
             return response()->json([
-                'error' => 'Ocurrio un error al crear el comando',
+                'error' => 'Ocurrió un error al crear el comando',
                 'error_details' => $e->getMessage()
             ], 500);
         }
+    }
+
+    private function buildPayload(string $action, array $data): array
+    {
+        if (in_array($action, ['create_user', 'update_user'])) {
+            $users = collect($data['users'])->map(function ($user) {
+                return [
+                    'employee_id'  => $user['employee_id'],
+                    'name'         => $user['name'],
+                    'user_type'    => $user['user_type'],
+                    'is_active'    => $user['is_active'],
+                    'is_permanent' => $user['is_permanent'],
+                    'valid_from'   => Carbon::parse($user['valid_from'])->format('Y-m-d\TH:i:s'),
+                    'valid_to'     => Carbon::parse($user['valid_to'])->format('Y-m-d\TH:i:s'),
+                ];
+            });
+                    
+            return ['users' => $users->toArray()];
+        }
+                    
+        if ($action === 'delete_user') {
+            return ['users' => collect($data['users'])->map(fn($u) => [
+                'employee_id' => $u['employee_id'],
+            ])->toArray()];
+        }
+                    
+        if (in_array($action, ['create_card', 'update_card'])) {
+            return ['cards' => collect($data['cards'])->map(fn($c) => [
+                'employee_id' => $c['employee_id'],
+                'card_no'     => $c['card_no'],
+            ])->toArray()];
+        }
+                    
+        return $data;
     }
 
     public function show(Request $request)
