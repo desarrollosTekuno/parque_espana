@@ -349,14 +349,15 @@ class WebsiteContentController extends Controller {
     public function saveEvent(Request $request) {
         $validated = $request->validate([
             'id' => ['nullable', 'integer'],
-            'title' => ['required', 'string', 'max:100'],
-            'start_date' => ['required', 'date'],
+            'title' => ['required', 'string', 'max:50'],
+            'start_date' => ['required', 'date', 'after_or_equal:today'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'type' => ['required', 'in:summer_course,pilgrimage,holidays'],
         ], [
             'title.required' => 'Escribe el título del evento.',
-            'title.max' => 'El título debe tener máximo 100 caracteres.',
+            'title.max' => 'El título debe tener máximo 50 caracteres.',
             'start_date.required' => 'Selecciona la fecha de inicio del evento.',
+            'start_date.after_or_equal' => 'La fecha de inicio no puede ser anterior a hoy.',
             'end_date.required' => 'Selecciona la fecha de fin del evento.',
             'end_date.after_or_equal' => 'La fecha de fin debe ser igual o posterior a la fecha de inicio.',
             'type.required' => 'Selecciona el tipo de evento.',

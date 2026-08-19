@@ -39,6 +39,7 @@ const virtualTourPreview = ref<string | null>(null);
 const pendingVirtualTourImages = ref<PendingVirtualTourImage[]>([]);
 const savingVirtualTourImages = ref(false);
 const virtualTourImageError = ref("");
+const today = new Date().toLocaleDateString("en-CA");
 
 /* ====================== useForm ====================== */
 const form = useForm<{ images: File[]; descriptions: string[] }>({
@@ -512,7 +513,7 @@ onUnmounted(() => {
                                     v-model="form.descriptions[index]"
                                     label="Descripción corta"
                                     placeholder="Ej. Natación"
-                                    maxlength="100"
+                                    maxlength="50"
                                     counter="100"
                                     density="compact"
                                     hide-details="auto"
@@ -830,7 +831,7 @@ onUnmounted(() => {
                                     v-model="eventForm.title"
                                     label="Título"
                                     placeholder="Ej. Curso de verano"
-                                    maxlength="100"
+                                    maxlength="50"
                                     hide-details="auto"
                                     :error-messages="eventForm.errors.title"
                                 />
@@ -840,6 +841,7 @@ onUnmounted(() => {
                                     v-model="eventForm.start_date"
                                     label="Fecha de inicio"
                                     type="date"
+                                    :min="today"
                                     hide-details="auto"
                                     :error-messages="eventForm.errors.start_date"
                                 />
@@ -849,6 +851,7 @@ onUnmounted(() => {
                                     v-model="eventForm.end_date"
                                     label="Fecha de fin"
                                     type="date"
+                                    :min="eventForm.start_date || today"
                                     hide-details="auto"
                                     :error-messages="eventForm.errors.end_date"
                                 />
