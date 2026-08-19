@@ -3180,12 +3180,15 @@ class MemberController extends Controller
                 abort(403, 'El integrante no pertenece a esta cuenta.');
             }
 
+            $docType = DocumentType::findOrFail($documentTypeId);
+
             $replacedDocument = null;
 
             if (!empty($validated['replace_document_id'])) {
                 $replacedDocument = MemberDocument::where('id', $validated['replace_document_id'])
                     ->where('member_id', $memberId)
                     ->where('document_type_id', $documentTypeId)
+                    ->when($docType->is_club_specific, fn ($q) => $q->where('club_id', $clubId))
                     ->firstOrFail();
 
                 if (count($request->file('files')) !== 1) {
@@ -3195,7 +3198,6 @@ class MemberController extends Controller
                 }
             }
 
-            $docType     = DocumentType::findOrFail($documentTypeId);
             $docTypeSlug = \Illuminate\Support\Str::slug($docType->name);
             $directory   = "members/{$memberId}/{$docTypeSlug}";
             $userId      = $request->user()?->id;
@@ -3213,6 +3215,10 @@ class MemberController extends Controller
                 MemberDocument::create([
                     'member_id'        => $memberId,
                     'document_type_id' => $documentTypeId,
+                    // Documentos como la carta de recomendación o el formato de
+                    // solicitud son distintos por parque aunque el socio comparta
+                    // cuenta en varios; el resto se guarda sin club_id (compartido).
+                    'club_id'          => $docType->is_club_specific ? $clubId : null,
                     'file_path'        => "{$directory}/{$filename}",
                     'uploaded_by'      => $userId,
                 ]);
@@ -3270,6 +3276,7 @@ class MemberController extends Controller
         $uploadedDocs = $member?->documents ?? collect();
         $relationshipId = $accountMember->is_primary_holder ? 1 : $accountMember->relationship_id;
         $memberAge = $member?->birthdate ? Carbon::parse($member->birthdate)->age : null;
+        $clubId = session('club_id');
 
         $documents = collect($documentTypes ?? [])
             ->filter(fn ($docType) => $docType->relationships->contains('id', $relationshipId))
@@ -3279,12 +3286,17 @@ class MemberController extends Controller
                 if ($docType->max_age !== null && $memberAge > (int) $docType->max_age) return false;
                 return true;
             })
-            ->map(function ($docType) use ($uploadedDocs) {
+            ->map(function ($docType) use ($uploadedDocs, $clubId) {
                 $allowMultiple = (bool) $docType->pivot->allow_multiple;
                 $numberFiles   = (int) $docType->pivot->number_files;
 
+                // Los tipos marcados como is_club_specific (carta de recomendación,
+                // formato de solicitud) se cargan una vez por parque: aunque el
+                // socio tenga documentos de ese tipo subidos en otro club, no
+                // cuentan aquí.
                 $docsForType = $uploadedDocs
                     ->where('document_type_id', $docType->id)
+                    ->when($docType->is_club_specific, fn ($docs) => $docs->where('club_id', $clubId))
                     ->map(fn ($d) => [
                         'id'          => $d->id,
                         'uploaded_at' => $d->created_at?->toDateString(),
@@ -3302,6 +3314,7 @@ class MemberController extends Controller
                         : [],
                     'max_file_size_kb'   => $docType->max_file_size_kb !== null ? (int) $docType->max_file_size_kb : null,
                     'is_required'        => (bool) $docType->pivot->is_required,
+                    'is_club_specific'   => (bool) $docType->is_club_specific,
                     'allow_multiple'     => $allowMultiple,
                     'number_files'       => $numberFiles,
                     'already_uploaded'   => $alreadyUploaded,
@@ -3344,6 +3357,9 @@ class MemberController extends Controller
 
         $uploadedDocs
             ->whereNotIn('document_type_id', $coveredDocTypeIds)
+            // Documentos de tipo específico de parque, subidos desde otro club,
+            // no deben aparecer como "extra" aquí.
+            ->reject(fn ($d) => $d->documentType?->is_club_specific && (int) $d->club_id !== (int) $clubId)
             ->groupBy('document_type_id')
             ->each(function ($docs) use (&$documents) {
                 $docType = $docs->first()->documentType;

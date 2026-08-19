@@ -74,11 +74,12 @@ interface UploadedDoc {
 }
 
 interface MemberDocumentItem {
-    document_type_id: number;
+    document_type_id: number | string;
     name: string;
     allowed_extensions: string[];
     max_file_size_kb: number | null;
     is_required: boolean;
+    is_club_specific?: boolean;
     allow_multiple: boolean;
     number_files: number;
     already_uploaded: boolean;
@@ -1419,6 +1420,10 @@ console.log(can)
                                                             {{ doc.already_uploaded ? 'Completo' : 'Pendiente' }}
                                                         </v-chip>
                                                     </div>
+                                                    <v-chip v-if="doc.is_club_specific" size="x-small" color="info" variant="tonal"
+                                                        prepend-icon="mdi-map-marker-outline" class="align-self-start mb-2">
+                                                        Propio de este parque
+                                                    </v-chip>
                                                     <div class="text-caption text-medium-emphasis mb-2">
                                                         {{ doc.allowed_extensions.join(', ').toUpperCase() }}
                                                         <template v-if="doc.allow_multiple"> · {{ doc.uploaded_docs.length }}/{{ doc.number_files }} archivo(s)</template>
