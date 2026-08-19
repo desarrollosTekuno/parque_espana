@@ -15,6 +15,11 @@ class CapacityRule implements ReservationRule
         $amenity = $context->amenity;
         $amenityResource = $context->amenityResource;
 
+        // Si es un jardín, se permiten múltiples reservaciones el mismo día
+        if (strtolower($amenity->name) === 'jardines') {
+            return;
+        }
+    dd($amenity->name);
         // Valida que no exista una reservación en el mismo horario
         $reservations = Reservation::where('amenity_resource_id', $data['amenity_resource_id'])
             ->where('club_id', $data['club_id'])
@@ -27,7 +32,7 @@ class CapacityRule implements ReservationRule
 
         if ($amenity->reservation_type == 'daily' && $reservations >= 1)
         {
-            throw new ReservationException('Ya no hay capacidad disponible para esta amenidad en este horario');
+            throw new ReservationException('Ya no hay capacidad disponible para esta amenidad en este horario'); 
         }
 
         if ($amenity->reservation_type != 'daily' && $reservations >= $amenityResource->capacity)

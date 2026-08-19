@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\AdminClub\Amenity;
 use App\Models\AdminClub\Reservation;
+use App\Models\Classes\ClassSchedule;
+use App\Models\Classes\Coach;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class AmenityResource extends Model
@@ -48,6 +50,23 @@ class AmenityResource extends Model
         return $this->hasMany(
             AmenityResourceLocation::class,
             'amenity_resource_id'
+        );
+    }
+
+    public function classSchedules()
+    {
+        return $this->hasMany(ClassSchedule::class, 'amenity_resource_id');
+    }
+
+    public function coaches()
+    {
+        return $this->hasManyThrough(
+            Coach::class,
+            ClassSchedule::class,
+            'amenity_resource_id', // FK en class_schedules
+            'id',                  // FK en coaches
+            'id',                  // local key en amenity_resources
+            'coach_id'              // local key en class_schedules
         );
     }
 

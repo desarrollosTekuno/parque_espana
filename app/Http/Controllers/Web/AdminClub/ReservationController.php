@@ -21,6 +21,7 @@ use App\Services\Reservation\Rules\CancelReservationRule;
 use App\Services\Reservation\Rules\UserNoShowPenaltyRule;
 use App\Services\Reservation\Rules\ReservationsPerDayRule;
 use App\Services\Reservation\Rules\ConsecutiveReservationRule;
+use App\Services\Reservation\Rules\CapacityRule;
 use App\Exceptions\ReservationException;
 
 class ReservationController extends Controller {
@@ -87,7 +88,7 @@ class ReservationController extends Controller {
 
          $amenities = Amenity::where('club_id', $clubId)
         ->where('is_active', true)
-        ->select('id', 'name')
+        ->select('id', 'name', 'reservation_type')
         ->orderBy('name')
         ->get();
 
@@ -125,6 +126,24 @@ class ReservationController extends Controller {
             if (!$member) {
                 throw new \Exception('El miembro no existe');
             }
+
+            $amenityResource = AmenityResource::with('amenity')->find($request->amenity_resource_id);
+            $isGardenReservation = $amenityResource
+                && $amenityResource->amenity?->name === 'Jardines'
+                && str_starts_with($amenityResource->name, 'Jardín');
+
+            $grillResource = null;
+            if ($isGardenReservation && $request->filled('grill_resource_id')) {
+                $grillResource = AmenityResource::with('amenity')->find($request->grill_resource_id);
+
+                if (!$grillResource
+                    || $grillResource->amenity?->name !== 'Jardines'
+                    || !str_starts_with($grillResource->name, 'Asador')
+                ) {
+                    throw new \Exception('El asador seleccionado no es válido.');
+                }
+            }
+
             $context = new ReservationContext(
                 [
                     'amenity_resource_id' => $request->amenity_resource_id,
@@ -137,15 +156,55 @@ class ReservationController extends Controller {
             (new UserNoShowPenaltyRule())->validate($context);
             (new ConsecutiveReservationRule())->validate($context);
             (new ReservationsPerDayRule())->validate($context);
-            Reservation::create([
-                'member_id' => $request->member_id,
-                'club_id' => $clubId,
-                'amenity_id' => $request->amenity_id,
-                'amenity_resource_id' => $request->amenity_resource_id,
-                'start_datetime' => $request->start_datetime,
-                'end_datetime' => $request->end_datetime,
-                'reservation_status_id' => ReservationStatus::ACTIVA
-            ]);
+
+            if ($grillResource) {
+                $grillContext = new ReservationContext(
+                    [
+                        'amenity_resource_id' => $grillResource->id,
+                        'start_datetime' => $request->start_datetime,
+                        'end_datetime' => $request->end_datetime,
+                        'club_id' => $clubId,
+                    ],
+                    amenity: $grillResource->amenity,
+                    amenityResource: $grillResource,
+                    member: $member
+                );
+                (new UserNoShowPenaltyRule())->validate($grillContext);
+                (new ConsecutiveReservationRule())->validate($grillContext);
+                (new ReservationsPerDayRule())->validate($grillContext);
+                (new CapacityRule())->validate($grillContext);
+            }
+
+            DB::transaction(function () use ($request, $clubId, $isGardenReservation, $grillResource) {
+                $reservation = Reservation::create([
+                    'member_id' => $request->member_id,
+                    'club_id' => $clubId,
+                    'amenity_id' => $request->amenity_id,
+                    'amenity_resource_id' => $request->amenity_resource_id,
+                    'start_datetime' => $request->start_datetime,
+                    'end_datetime' => $request->end_datetime,
+                    'reservation_status_id' => ReservationStatus::ACTIVA,
+                    'requires_tent' => $isGardenReservation ? $request->boolean('requires_tent') : null,
+                    'tables_count' => $isGardenReservation ? $request->tables_count : null,
+                    'chairs_count' => $isGardenReservation ? $request->chairs_count : null,
+                    'notes' => $isGardenReservation ? $request->notes : null,
+                ]);
+
+                if ($grillResource) {
+                    $grillReservation = Reservation::create([
+                        'member_id' => $request->member_id,
+                        'club_id' => $clubId,
+                        'amenity_id' => $grillResource->amenity_id,
+                        'amenity_resource_id' => $grillResource->id,
+                        'start_datetime' => $request->start_datetime,
+                        'end_datetime' => $request->end_datetime,
+                        'reservation_status_id' => ReservationStatus::ACTIVA,
+                    ]);
+
+                    $reservation->update(['linked_reservation_id' => $grillReservation->id]);
+                    $grillReservation->update(['linked_reservation_id' => $reservation->id]);
+                }
+            });
 
             return back()->with('success', 'Reservación creada correctamente');
 

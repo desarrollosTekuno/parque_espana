@@ -26,9 +26,18 @@ class Reservation extends Model {
         'amenity_resource_id',
         'reservation_status_id',
         'reservation_date',
+        'requires_tent',
+        'tables_count',
+        'chairs_count',
+        'notes',
+        'linked_reservation_id',
         ];
     protected $dates = ['deleted_at'];
-    protected $casts = [ 'start_datetime' => 'datetime', 'end_datetime' => 'datetime' ];
+    protected $casts = [
+        'start_datetime' => 'datetime',
+        'end_datetime' => 'datetime',
+        'requires_tent' => 'boolean',
+    ];
 
     public function amenity()
     {
@@ -38,6 +47,11 @@ class Reservation extends Model {
     public function amenityResource()
     {
         return $this->belongsTo(AmenityResource::class, 'amenity_resource_id');
+    }
+
+    public function linkedReservation()
+    {
+        return $this->belongsTo(Reservation::class, 'linked_reservation_id');
     }
 
     public function user(){
