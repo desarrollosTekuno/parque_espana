@@ -18,6 +18,7 @@ class PaymentApplication extends Model
         'applied_amount' => 'float',
         'subtotal' => 'float',
         'iva' => 'float',
+        'discount' => 'float',
     ];
 
     public function payment()

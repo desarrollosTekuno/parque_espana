@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\AdminClub;
 
 use Illuminate\Routing\Controller;
 use App\Models\Administrator\Club;
+use App\Models\Billing\AnnualDiscountRule;
 use App\Models\Memberships\InterclubPackageRule;
 use App\Models\Memberships\InterclubPackageRuleFeeHistory;
 use App\Models\Memberships\MembershipType;
@@ -14,6 +15,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 /**
@@ -30,6 +32,15 @@ class FeeScheduleController extends Controller
     {
         $this->middleware('permission:fee-schedules.index')->only(['index', 'preview']);
         $this->middleware('permission:fee-schedules.store')->only('store');
+        // Permiso aparte de fee-schedules.store: el patrón de descuento por
+        // anualidad casi nunca cambia, así que se restringe a quien
+        // explícitamente lo necesite en vez de dárselo automáticamente a
+        // cualquiera que pueda capturar cuotas por año.
+        $this->middleware('permission:fee-schedules.annual-discount-rules')->only([
+            'storeAnnualDiscountRule',
+            'updateAnnualDiscountRule',
+            'destroyAnnualDiscountRule',
+        ]);
     }
 
     public function index(Request $request)
@@ -46,6 +57,7 @@ class FeeScheduleController extends Controller
                 'pricingRules' => $rules['pricingRules'],
                 'interclubRules' => $rules['interclubRules'],
                 'familyGroups' => $rules['familyGroups'],
+                'annualDiscountRules' => $this->resolveAnnualDiscountRules(),
                 'year' => $year,
                 'currentClub' => $currentClub ? [
                     'id' => $currentClub->id,
@@ -59,6 +71,7 @@ class FeeScheduleController extends Controller
             return Inertia::render('AdminClubs/FeeSchedules/Index', [
                 'pricingRules' => [],
                 'interclubRules' => [],
+                'annualDiscountRules' => [],
                 'year' => (int) ($request->input('year') ?? now()->year),
                 'messageError' => $e->getMessage(),
             ]);
@@ -299,6 +312,109 @@ class FeeScheduleController extends Controller
                 'exception' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Reglas de descuento por pago de anualidad (billing.annual_discount_rules)
+     * — no están ligadas a un año ni a un club (el patrón de descuento no
+     * cambia de un año a otro, ver AnnualDiscountRule::findApplicable /
+     * AnnualPaymentService::processAnnualPayment), así que se muestran
+     * igual sin importar el año o el parque de la sesión.
+     */
+    protected function resolveAnnualDiscountRules(): Collection
+    {
+        return AnnualDiscountRule::query()
+            ->orderBy('pay_by_month')
+            ->get()
+            ->map(fn (AnnualDiscountRule $rule) => [
+                'id' => $rule->id,
+                'pay_by_month' => $rule->pay_by_month,
+                'discount_months' => (float) $rule->discount_months,
+                'free_month' => $rule->free_month,
+                'is_active' => (bool) $rule->is_active,
+            ])
+            ->values();
+    }
+
+    public function storeAnnualDiscountRule(Request $request)
+    {
+        try {
+            $validated = $this->validateAnnualDiscountRule($request);
+
+            AnnualDiscountRule::create($validated);
+
+            return redirect()->back()->with('success', 'Regla de descuento por anualidad creada correctamente.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return redirect()->back()->withErrors(array_merge($e->errors(), [
+                'messageError' => collect($e->errors())->flatten()->first() ?? 'Ocurrió un error de validación.',
+                'exception' => '',
+            ]));
+        } catch (\Exception $e) {
+            report($e);
+
+            return redirect()->back()->withErrors([
+                'messageError' => 'Ocurrió un error al crear la regla.',
+                'exception' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public function updateAnnualDiscountRule(Request $request, AnnualDiscountRule $annualDiscountRule)
+    {
+        try {
+            $validated = $this->validateAnnualDiscountRule($request, $annualDiscountRule);
+
+            $annualDiscountRule->update($validated);
+
+            return redirect()->back()->with('success', 'Regla de descuento por anualidad actualizada correctamente.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return redirect()->back()->withErrors(array_merge($e->errors(), [
+                'messageError' => collect($e->errors())->flatten()->first() ?? 'Ocurrió un error de validación.',
+                'exception' => '',
+            ]));
+        } catch (\Exception $e) {
+            report($e);
+
+            return redirect()->back()->withErrors([
+                'messageError' => 'Ocurrió un error al actualizar la regla.',
+                'exception' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public function destroyAnnualDiscountRule(AnnualDiscountRule $annualDiscountRule)
+    {
+        try {
+            $annualDiscountRule->delete();
+
+            return redirect()->back()->with('success', 'Regla de descuento por anualidad eliminada correctamente.');
+        } catch (\Exception $e) {
+            report($e);
+
+            return redirect()->back()->withErrors([
+                'messageError' => 'Ocurrió un error al eliminar la regla.',
+                'exception' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    protected function validateAnnualDiscountRule(Request $request, ?AnnualDiscountRule $rule = null): array
+    {
+        return $request->validate([
+            // 0 = "antes de que empiece el año" (diciembre del año anterior,
+            // ver CollectionController::resolveAnnualDiscountPaymentMonth) —
+            // opcional: sin esta regla, un pago de diciembre anticipado ya
+            // califica solo para el descuento de enero (la más generosa que
+            // exista), esto solo sirve para darle uno todavía mejor.
+            'pay_by_month' => [
+                'required', 'integer', 'min:0', 'max:12',
+                Rule::unique(AnnualDiscountRule::class, 'pay_by_month')
+                    ->ignore($rule?->id),
+            ],
+            'discount_months' => ['required', 'numeric', 'min:0', 'max:12'],
+            'free_month' => ['required', 'integer', 'min:1', 'max:12'],
+            'is_active' => ['required', 'boolean'],
+        ]);
     }
 
     protected function mapPricingRule(PricingRule $rule, int $year): array

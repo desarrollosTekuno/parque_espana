@@ -22,6 +22,7 @@ class BillingConceptSeeder extends Seeder
                 'allows_partial_payments' => false,
                 'is_active' => true,
                 'internal_key' => '01',
+                'splits_between_parks' => true,
             ],
             [
                 'code' => 'INSCRIPTION',
@@ -70,7 +71,7 @@ class BillingConceptSeeder extends Seeder
                 'default_amount' => null,
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
-                'is_active' => true,
+                'is_active' => false,
                 'internal_key' => 'cafeteria_pass',
             ],
             [
@@ -187,7 +188,7 @@ class BillingConceptSeeder extends Seeder
                 'default_amount' => null,
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
-                'is_active' => true,
+                'is_active' => false,
                 'internal_key' => '06',
             ],
             [
@@ -197,7 +198,7 @@ class BillingConceptSeeder extends Seeder
                 'default_amount' => null,
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
-                'is_active' => true,
+                'is_active' => false,
                 'internal_key' => '061',
             ],
             // [
@@ -244,7 +245,7 @@ class BillingConceptSeeder extends Seeder
                 'default_amount' => null,
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
-                'is_active' => true,
+                'is_active' => false,
                 'internal_key' => '09',
             ],
             [
@@ -254,7 +255,7 @@ class BillingConceptSeeder extends Seeder
                 'default_amount' => null,
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
-                'is_active' => true,
+                'is_active' => false,
                 'internal_key' => '091',
             ],
             [
@@ -284,7 +285,7 @@ class BillingConceptSeeder extends Seeder
                 'default_amount' => null,
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
-                'is_active' => true,
+                'is_active' => false,
                 'internal_key' => '09I',
             ],
             [
@@ -432,7 +433,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota mantto.',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
                 'internal_key' => '12I',
@@ -442,7 +443,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota mantto.',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
                 'internal_key' => '12J',
@@ -452,7 +453,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota mantto.',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
                 'internal_key' => '12K',
@@ -462,7 +463,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota mantto.',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
                 'internal_key' => '12L',
@@ -472,7 +473,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota mantto.',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
                 'internal_key' => '12M',
@@ -482,7 +483,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota mantto.',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
                 'internal_key' => '12N',
@@ -492,7 +493,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota mantto.',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
                 'internal_key' => '12O',
@@ -502,7 +503,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota mantto.',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
                 'internal_key' => '12P',
@@ -512,7 +513,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota mantto.',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
                 'internal_key' => '12Q',
@@ -522,7 +523,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota mantto.',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
                 'internal_key' => '12R',
@@ -532,7 +533,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota mantto.',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
                 'internal_key' => '12S',
@@ -542,7 +543,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota mantto.',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
                 'internal_key' => '12T',
@@ -552,7 +553,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota mantto.',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
                 'internal_key' => '12U',
@@ -562,7 +563,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota mantto.',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
                 'internal_key' => '12V',
@@ -572,7 +573,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota mantto.',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
                 'internal_key' => '12W',
@@ -582,7 +583,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota mantto.',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
                 'internal_key' => '12X',
@@ -592,7 +593,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota mantto.',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
                 'internal_key' => '12Y',
@@ -602,7 +603,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota mantto.',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
                 'internal_key' => '12Z',
@@ -631,7 +632,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota % est. infantil',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
                 'internal_key' => '15',
@@ -731,7 +732,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota anuncio ofici',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
                 'internal_key' => '33',
@@ -741,7 +742,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota 2 anuncio ofici',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
                 'internal_key' => '332',
@@ -751,7 +752,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota 4 anuncio oficio',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
                 'internal_key' => '333',
@@ -761,7 +762,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota anuncio c carta',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
                 'internal_key' => '34',
@@ -771,7 +772,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota 2 anuncio c cart',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
                 'internal_key' => '342',
@@ -781,7 +782,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota 3 anuncio c cart',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
                 'internal_key' => '343',
@@ -791,7 +792,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota 4 anuncio c cart',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
                 'internal_key' => '344',
@@ -801,7 +802,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota 5 anuncio c cart',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
                 'internal_key' => '345',
@@ -811,7 +812,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota 6 anuncio c cart',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
                 'internal_key' => '346',
@@ -821,7 +822,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota anuncio c dcart',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
                 'internal_key' => '34D',
@@ -831,7 +832,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota 4 anuncio doble carta',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
                 'internal_key' => '34T',
@@ -841,7 +842,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota anuncio c 1/2c',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => true,
                 'internal_key' => '35',
@@ -871,7 +872,7 @@ class BillingConceptSeeder extends Seeder
                 'name' => 'Cuota act. dep.',
                 'description' => null,
                 'default_amount' => null,
-                'is_recurring' => true,
+                'is_recurring' => false,
                 'allows_partial_payments' => false,
                 'is_active' => false,
                 'internal_key' => '40',
@@ -1429,7 +1430,7 @@ class BillingConceptSeeder extends Seeder
                 'default_amount' => null,
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
-                'is_active' => true,
+                'is_active' => false,
                 'internal_key' => 'CM',
             ],
             [
@@ -1439,7 +1440,7 @@ class BillingConceptSeeder extends Seeder
                 'default_amount' => null,
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
-                'is_active' => false,
+                'is_active' => true,
                 'internal_key' => 'CP',
             ],
             [
@@ -1469,7 +1470,7 @@ class BillingConceptSeeder extends Seeder
                 'default_amount' => null,
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
-                'is_active' => true,
+                'is_active' => false,
                 'internal_key' => 'CTC',
             ],
             // [
@@ -1498,7 +1499,7 @@ class BillingConceptSeeder extends Seeder
                 'default_amount' => null,
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
-                'is_active' => true,
+                'is_active' => false,
                 'internal_key' => 'IF',
             ],
             [
@@ -1572,16 +1573,57 @@ class BillingConceptSeeder extends Seeder
                 'is_active' => true,
                 'internal_key' => 'X07',
             ],
+            // 
+            [
+                'code' => 'PHYSICAL_AD',
+                'name' => 'Anuncio Físico',
+                'description' => null,
+                'default_amount' => null,
+                'is_recurring' => false,
+                'allows_partial_payments' => false,
+                'is_active' => false,
+                'internal_key' => 'PHYSICAL_AD',
+            ]
         ];
 
         foreach ($concepts as $concept) {
             // $concept['internal_key'] = $concept['code'];
 
-            ChargeConcept::updateOrCreate(
+            // Varios conceptos legados del catálogo importado (import
+            // histórico) no traen 'is_active' explícito arriba — se
+            // mantiene el mismo default que la columna (true) para no
+            // cambiar su comportamiento.
+            $concept['is_active'] = $concept['is_active'] ?? true;
+            $concept['splits_between_parks'] = $concept['splits_between_parks'] ?? false;
+            // is mobile payable just a MONTHLY_FEE
+            $concept['is_mobile_payable'] = false;
+            if($concept['code'] === 'MONTHLY_FEE') {
+                $concept['is_mobile_payable'] = true;
+            }
+            
+
+            // withTrashed(): si este código ya se había archivado en una
+            // corrida anterior de este mismo seeder, hay que encontrarlo
+            // para actualizarlo/reactivarlo en vez de intentar crear uno
+            // nuevo con el mismo 'code' (violaría el unique).
+            $chargeConcept = ChargeConcept::withTrashed()->updateOrCreate(
                 ['code' => $concept['code']],
                 $concept
             );
-        }
 
+            // Los conceptos marcados is_active=false en este catálogo son
+            // legados que ya no se deben poder seleccionar ni ver en el
+            // listado — se archivan (soft delete) en vez de solo quedar
+            // "Inactivo", sin perder el historial de cargos que ya los
+            // usaron (ver Charge::concept()/ChargeConceptClubAmount::concept(),
+            // que los siguen resolviendo con withTrashed()).
+            if (!$concept['is_active']) {
+                if (!$chargeConcept->trashed()) {
+                    $chargeConcept->delete();
+                }
+            } elseif ($chargeConcept->trashed()) {
+                $chargeConcept->restore();
+            }
+        }
     }
 }

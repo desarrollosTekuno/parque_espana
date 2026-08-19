@@ -2,7 +2,7 @@
 import BaseButton from "@/Components/BaseButton.vue";
 import TicketPreview from "@/Components/TicketPreview.vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
-import { getTicketBundle, getTicketData, printTicket, type TicketData } from "@/utils/ticket";
+import { getTicketBundle, printTicket, type TicketData } from "@/utils/ticket";
 import { customToastSwal } from "@/utils/swal";
 import { Head, router, usePage } from "@inertiajs/vue3";
 import { debounce } from "lodash";
@@ -62,10 +62,37 @@ const showPreview = ref(false);
 const previewLoading = ref(false);
 const selectedTickets = ref<TicketData[]>([]);
 
+interface CancelGroupPaymentItem {
+    id: number;
+    metodo_pago: string | null;
+    metodo_pago_codigo: string | null;
+    amount: number;
+    reference: string | null;
+    bank_name: string | null;
+    check_number: string | null;
+    status: string;
+}
+// Resumen crudo del grupo (PaymentCancellationController::groupSummary) —
+// NO usa PaymentTicketService::tickets(), que a propósito reparte cada
+// aplicación de una mensualidad combo 50/50 entre parques para el ticket
+// físico de cada uno: si se usara aquí, este diálogo mostraría montos
+// partidos (la mitad de lo que en verdad se cobró) en vez del total real
+// del grupo.
+interface CancelGroupSummary {
+    payment_group_id: string;
+    folio: string | null;
+    paid_at: string | null;
+    total: number;
+    cuenta_numero: string | null;
+    titular: string | null;
+    cajero: string | null;
+    payments: CancelGroupPaymentItem[];
+}
+
 const showCancelDialog = ref(false);
 const cancelDialogLoading = ref(false);
 const cancelDialogItem = ref<TicketListItem | null>(null);
-const cancelDialogTicket = ref<TicketData | null>(null);
+const cancelDialogGroup = ref<CancelGroupSummary | null>(null);
 
 /* ====================== Funciones ====================== */
 const fetchItems = () => {
@@ -127,13 +154,16 @@ const goToCancelPayment = async (item: TicketListItem) => {
         return;
     }
 
+    if (!item.payment_group_id) return;
+
     cancelDialogItem.value = item;
-    cancelDialogTicket.value = null;
+    cancelDialogGroup.value = null;
     showCancelDialog.value = true;
     cancelDialogLoading.value = true;
 
     try {
-        cancelDialogTicket.value = await getTicketData(item.id);
+        const { data } = await window.axios.get(route("payments.cancel-group.summary", item.payment_group_id));
+        cancelDialogGroup.value = data.group;
     } catch (error) {
         showCancelDialog.value = false;
         customToastSwal({ title: "No fue posible cargar las formas de pago de este cobro.", icon: "error" });
@@ -143,7 +173,7 @@ const goToCancelPayment = async (item: TicketListItem) => {
 };
 
 const hasCancellablePayments = computed(() =>
-    (cancelDialogTicket.value?.formas_de_pago ?? []).some((fp) => fp.status !== "cancelled")
+    (cancelDialogGroup.value?.payments ?? []).some((p) => p.status !== "cancelled")
 );
 
 const goToCancelWholeTicket = () => {
@@ -304,7 +334,7 @@ watch(() => page.props.auth.currentClub, () => {
                     <div v-if="cancelDialogLoading" class="text-center pa-8">
                         <v-progress-circular indeterminate color="primary" />
                     </div>
-                    <template v-else-if="cancelDialogTicket">
+                    <template v-else-if="cancelDialogGroup">
                         <v-alert type="info" variant="tonal" density="compact" class="mb-4">
                             Este cobro se pagó con {{ cancelDialogItem?.formas_de_pago_count }} formas de pago.
                             Puedes cancelar el ticket completo o solo una forma de pago en particular.
@@ -319,7 +349,7 @@ watch(() => page.props.auth.currentClub, () => {
                             prepend-icon="mdi-cash-remove"
                             @click="goToCancelWholeTicket"
                         >
-                            Cancelar ticket completo ({{ money(cancelDialogTicket.total) }})
+                            Cancelar ticket completo ({{ money(cancelDialogGroup.total) }})
                         </v-btn>
                         <v-alert v-else type="warning" variant="tonal" density="compact" class="mb-4">
                             Todas las formas de pago de este ticket ya están canceladas.
@@ -330,21 +360,21 @@ watch(() => page.props.auth.currentClub, () => {
                         </div>
                         <v-list density="compact" lines="two">
                             <v-list-item
-                                v-for="fp in cancelDialogTicket.formas_de_pago"
-                                :key="fp.payment_id"
-                                :title="`${fp.codigo ?? '-'} · ${fp.nombre ?? '-'} — ${money(fp.monto)}`"
+                                v-for="p in cancelDialogGroup.payments"
+                                :key="p.id"
+                                :title="`${p.metodo_pago_codigo ?? '-'} · ${p.metodo_pago ?? '-'} — ${money(p.amount)}`"
                             >
                                 <template #subtitle>
-                                    <span v-if="fp.status === 'cancelled'" class="text-error">Ya cancelado</span>
-                                    <span v-else>{{ [fp.referencia, fp.banco, fp.numero_cheque].filter(Boolean).join(" · ") || undefined }}</span>
+                                    <span v-if="p.status === 'cancelled'" class="text-error">Ya cancelado</span>
+                                    <span v-else>{{ [p.reference, p.bank_name, p.check_number].filter(Boolean).join(" · ") || undefined }}</span>
                                 </template>
                                 <template #append>
                                     <BaseButton
-                                        v-if="fp.status !== 'cancelled'"
+                                        v-if="p.status !== 'cancelled'"
                                         icon="mdi-cash-remove"
                                         color="error"
                                         tooltip="Cancelar esta forma de pago"
-                                        @click="goToCancelSinglePayment(fp.payment_id)"
+                                        @click="goToCancelSinglePayment(p.id)"
                                     />
                                 </template>
                             </v-list-item>

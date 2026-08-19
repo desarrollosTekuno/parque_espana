@@ -68,8 +68,9 @@ interface MemberEmployment {
 }
 
 interface UploadedDoc {
-    id: number;
+    id: number | string;
     uploaded_at: string | null;
+    url?: string | null;
 }
 
 interface MemberDocumentItem {
@@ -376,12 +377,17 @@ const cancelAbsencePermit = (absencePermitId: number) => {
 const showDocumentModal = ref(false);
 const documentModalMember = ref<AccountMemberItem | null>(null);
 const documentModalDoc = ref<MemberDocumentItem | null>(null);
+// Id del archivo puntual que se está reemplazando (ver botón "Reemplazar"
+// junto a "Ver" en cada archivo ya cargado) — null cuando el modal se abrió
+// para subir uno nuevo (o el primero de un tipo aún no completo).
+const documentModalReplaceId = ref<number | null>(null);
 const documentFiles = ref<File[] | null>(null);
 const documentFormRef = ref<{ validate(): Promise<{ valid: boolean }> } | null>(null);
 const documentForm = useForm({
     member_id: null as number | null,
     document_type_id: null as number | null,
     files: [] as File[],
+    replace_document_id: null as number | null,
 });
 
 const DEFAULT_MAX_FILE_SIZE_KB = 2048;
@@ -393,24 +399,33 @@ const documentFileRules = computed(() => {
         fileTypeRule(doc?.allowed_extensions ?? ["pdf", "jpg", "jpeg", "png"]),
         fileMaxSizeRule((doc?.max_file_size_kb ?? DEFAULT_MAX_FILE_SIZE_KB) / 1024),
     ];
-    if (doc?.allow_multiple && (doc.number_files ?? 0) > 0) {
+    // Al reemplazar un archivo puntual siempre es 1 x 1, aunque el tipo de
+    // documento admita varios (ver openDocumentModal).
+    if (documentModalReplaceId.value === null && doc?.allow_multiple && (doc.number_files ?? 0) > 0) {
         rules.push(fileExactCountRule(doc.number_files));
+    } else if (documentModalReplaceId.value !== null) {
+        rules.push(fileExactCountRule(1));
     }
     return rules;
 });
 
 const viewDocument = async (docId: number) => {
     try {
-        const res = await axios.get(route("member-documents.url", docId)); 
+        const res = await axios.get(route("member-documents.url", docId));
         window.open(res.data.url, "_blank");
     } catch {
         customToastSwal({ title: "No se pudo obtener el documento.", icon: "error" });
     }
 };
 
-const openDocumentModal = (member: AccountMemberItem, doc: MemberDocumentItem) => {
+// replaceId: cuando se le da "Reemplazar" a un archivo YA cargado en
+// particular (ver el botón junto a "Ver" en cada archivo), en vez de
+// "Subir"/"Reemplazar" a nivel de tipo de documento (que solo agrega un
+// archivo más, ver storeDocument en el backend).
+const openDocumentModal = (member: AccountMemberItem, doc: MemberDocumentItem, replaceId: number | null = null) => {
     documentModalMember.value = member;
     documentModalDoc.value = doc;
+    documentModalReplaceId.value = replaceId;
     documentFiles.value = null;
     documentForm.reset();
     documentForm.clearErrors();
@@ -422,6 +437,7 @@ const closeDocumentModal = () => {
     showDocumentModal.value = false;
     documentModalMember.value = null;
     documentModalDoc.value = null;
+    documentModalReplaceId.value = null;
     documentFiles.value = null;
     documentForm.reset();
 };
@@ -433,12 +449,16 @@ const submitDocument = async () => {
     documentForm.member_id = documentModalMember.value?.member_id ?? null;
     documentForm.document_type_id = documentModalDoc.value?.document_type_id ?? null;
     documentForm.files = documentFiles.value ?? [];
+    documentForm.replace_document_id = documentModalReplaceId.value;
 
     documentForm.post(route("members.documents.store", props.membership.id), {
         forceFormData: true,
         preserveScroll: true,
         onSuccess: () => {
-            customToastSwal({ title: "Documento cargado correctamente.", icon: "success" });
+            customToastSwal({
+                title: documentModalReplaceId.value ? "Documento reemplazado correctamente." : "Documento cargado correctamente.",
+                icon: "success",
+            });
             closeDocumentModal();
         },
         onError: () => {
@@ -1410,21 +1430,32 @@ console.log(can)
                                                                 {{ doc.allow_multiple ? `Archivo ${idx + 1}` : 'Documento' }}
                                                                 <template v-if="uploaded.uploaded_at"> · {{ uploaded.uploaded_at }}</template>
                                                             </span>
-                                                            <v-btn v-if="uploaded.url" size="x-small" variant="text" color="primary" prepend-icon="mdi-eye" :href="uploaded.url" target="_blank">
-                                                                Ver
-                                                            </v-btn>
+                                                            <div class="d-flex align-center ga-1">
+                                                                <v-btn v-if="uploaded.url" size="x-small" variant="text" color="primary" prepend-icon="mdi-eye" :href="uploaded.url" target="_blank">
+                                                                    Ver
+                                                                </v-btn>
 
-                                                            <v-btn v-else size="x-small" variant="text" color="primary" prepend-icon="mdi-eye" @click="viewDocument(uploaded.id)">
-                                                                Ver
-                                                            </v-btn>
+                                                                <v-btn v-else size="x-small" variant="text" color="primary" prepend-icon="mdi-eye" @click="viewDocument(uploaded.id as number)">
+                                                                    Ver
+                                                                </v-btn>
+
+                                                                <!-- Solo documentos reales (no el comprobante de casillero,
+                                                                     que no vive en members.documents) se pueden reemplazar. -->
+                                                                <v-btn
+                                                                    v-if="can.includes('members.documents.store') && typeof uploaded.id === 'number'"
+                                                                    size="x-small" variant="text" color="default" prepend-icon="mdi-file-replace-outline"
+                                                                    @click="openDocumentModal(currentDocsMember, doc, uploaded.id as number)"
+                                                                >
+                                                                    Reemplazar
+                                                                </v-btn>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                     <v-spacer />
-                                                    <v-btn v-if="can.includes('members.documents.store')" size="small"
-                                                        :color="doc.already_uploaded ? 'default' : 'primary'" variant="tonal"
-                                                        :prepend-icon="doc.already_uploaded ? 'mdi-refresh' : 'mdi-upload'"
+                                                    <v-btn v-if="can.includes('members.documents.store') && !doc.already_uploaded" size="small"
+                                                        color="primary" variant="tonal" prepend-icon="mdi-upload"
                                                         @click="openDocumentModal(currentDocsMember, doc)">
-                                                        {{ doc.already_uploaded ? 'Reemplazar' : 'Subir' }}
+                                                        Subir
                                                     </v-btn>
                                                 </v-card>
                                             </v-col>
@@ -2326,7 +2357,7 @@ console.log(can)
                     </v-avatar>
                     <div>
                         <div class="text-h6 font-weight-bold">
-                            {{ documentModalDoc?.already_uploaded ? 'Reemplazar documento' : 'Subir documento' }}
+                            {{ documentModalReplaceId !== null ? 'Reemplazar documento' : 'Subir documento' }}
                         </div>
                         <div class="text-caption text-medium-emphasis">
                             {{ documentModalMember?.full_name }}
@@ -2347,10 +2378,12 @@ console.log(can)
                         v-model="documentFiles"
                         label="Documento"
                         :accept="(documentModalDoc?.allowed_extensions ?? ['pdf','jpg','jpeg','png']).map(e => `.${e}`).join(',')"
-                        :multiple="documentModalDoc?.allow_multiple ?? false"
-                        :hint="documentModalDoc?.allow_multiple
-                            ? `${(documentModalDoc.allowed_extensions ?? []).join(', ').toUpperCase()} · se requieren ${documentModalDoc.number_files ?? 1} archivo(s)`
-                            : `${(documentModalDoc?.allowed_extensions ?? []).join(', ').toUpperCase()} · 1 archivo`"
+                        :multiple="documentModalReplaceId === null && (documentModalDoc?.allow_multiple ?? false)"
+                        :hint="documentModalReplaceId !== null
+                            ? `${(documentModalDoc?.allowed_extensions ?? []).join(', ').toUpperCase()} · 1 archivo`
+                            : documentModalDoc?.allow_multiple
+                                ? `${(documentModalDoc.allowed_extensions ?? []).join(', ').toUpperCase()} · se requieren ${documentModalDoc.number_files ?? 1} archivo(s)`
+                                : `${(documentModalDoc?.allowed_extensions ?? []).join(', ').toUpperCase()} · 1 archivo`"
                         :rules="documentFileRules"
                     />
                 </v-form>

@@ -120,6 +120,7 @@ class PermissionSeeder extends Seeder
             ['module' => 'Sistema', 'name' => 'interclub-package-rules.destroy', 'description' => 'Eliminar paquetes interclub', 'contexts' => ['web']],
             ['module' => 'Sistema', 'name' => 'fee-schedules.index', 'description' => 'Ver cuotas por año', 'contexts' => ['web']],
             ['module' => 'Sistema', 'name' => 'fee-schedules.store', 'description' => 'Capturar cuotas por año', 'contexts' => ['web']],
+            ['module' => 'Sistema', 'name' => 'fee-schedules.annual-discount-rules', 'description' => 'Administrar reglas de descuento por pago de anualidad', 'contexts' => ['web']],
 
             // Tipos de documento
             ['module' => 'Membresías', 'name' => 'document-types.index', 'description' => 'Ver tipos de documento', 'contexts' => ['web']],
@@ -181,7 +182,7 @@ class PermissionSeeder extends Seeder
             ['module' => 'Membresías', 'name' => 'memberships.view-inscription-fee', 'description' => 'Permitir descuentos en las inscripción', 'contexts' => ['web']],
 
             // Cobranza
-            ['module' => 'Cobranza', 'name' => 'billing.index', 'description' => 'Ver módulo de cobranza', 'contexts' => ['web']],
+            ['module' => 'Cobranza', 'name' => 'billing.index', 'description' => 'Ver cargos pendientes', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'billing.charges.index', 'description' => 'Ver desglose de cargos pendientes', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'billing.store', 'description' => 'Registrar cobros', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'collections.index', 'description' => 'Ver módulo de cobranza (caja)', 'contexts' => ['web']],

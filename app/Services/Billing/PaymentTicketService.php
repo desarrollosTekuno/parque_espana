@@ -8,6 +8,7 @@ use App\Models\Billing\Payment;
 use App\Models\Billing\PaymentApplication;
 use App\Models\Memberships\MembershipAccount;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
@@ -107,13 +108,24 @@ class PaymentTicketService {
                     'conceptos' => $this->concepts($clubAllocations),
                     'forma_pago' => $representative->paymentMethod?->name,
                     'forma_pago_codigo' => $representative->paymentMethod?->code,
-                    'forma_pago_ticket_codigo' => $this->paymentMethodTicketCode($representative->paymentMethod?->code),
                     'pago_identificacion' => $representative->check_number ?: $representative->reference,
                     'referencia' => $representative->reference,
                     'banco' => $representative->bank_name,
                     'numero_cheque' => $representative->check_number,
                     'es_pago_dividido' => $groupPayments->count() > 1,
-                    'formas_de_pago' => $this->paymentMethods($clubAllocations, $representative),
+                    // Las formas de pago de ESTE ticket son las que en
+                    // verdad pertenecen a este parque (representedClubId,
+                    // o el parque de la sesión si no se marcó ninguno) —
+                    // NO se derivan del reparto 50/50 del concepto
+                    // (ticketAllocations), porque ese reparto es informativo
+                    // por mes/monto, pero el dinero de una tarjeta o
+                    // efectivo específico sigue siendo 100% de un solo
+                    // parque (p. ej. "Tarjeta de crédito (PE2)" solo debe
+                    // aparecer en el ticket de PE2, con su monto completo).
+                    'formas_de_pago' => $this->paymentMethods(
+                        $groupPayments->filter(fn (Payment $item) => $this->resolvePaymentClubId($item) === (int) $clubId),
+                        $representative
+                    ),
                     'notas' => $representative->notes,
                     'leyenda_institucion' => 'DOS MESES SIN APORTACIÓN GENERAN SUSPENSIÓN',
                     'leyenda_no_fiscal' => 'Este comprobante no tiene validez fiscal.',
@@ -136,11 +148,19 @@ class PaymentTicketService {
             ->filter()
             ->unique()
             ->values();
-        $representedClubIds = $payments
+
+        // Solo tiene caso partir una mensualidad combo 50/50 entre los dos
+        // tickets si de verdad se usó una forma de pago que representa al
+        // OTRO parque (representedClubId, ver PaymentLinePayload.club_id en
+        // el diálogo de métodos de pago) — si el grupo completo se cobró
+        // con formas de pago sin esa etiqueta (p. ej. una sola
+        // transferencia genérica), no hay ningún dinero "del otro parque"
+        // que mostrar aparte.
+        $hasCrossParkPayment = $payments
             ->map(fn (Payment $item) => $this->representedClubId($item))
             ->filter()
             ->unique()
-            ->values();
+            ->count() > 1;
 
         $allocations = collect();
 
@@ -157,9 +177,23 @@ class PaymentTicketService {
                 ]);
             } else {
                 foreach ($payment->applications as $application) {
-                    $clubIds = $this->applicationClubIds($application, $requestedPayment, $actualMonthlyClubIds);
+                    $clubIds = $this->applicationClubIds($application, $payment, $actualMonthlyClubIds, $hasCrossParkPayment);
 
-                    if ($this->representedClubId($payment) && ($clubIds->count() === 1 || $representedClubIds->count() > 1)) {
+                    // representedClubId (de dónde viene el dinero de ESTA
+                    // forma de pago, ver PaymentLinePayload.club_id) solo
+                    // decide el ticket de un cargo de UN solo parque — un
+                    // cargo que de verdad se reparte entre dos parques
+                    // (combo interclub CON pago cruzado, ver
+                    // applicationClubIds/$hasCrossParkPayment) se divide
+                    // 50/50 por mes entre ambos tickets, sin importar qué
+                    // forma de pago específica cubrió cada parte: de lo
+                    // contrario, si el cajero no capturó los montos
+                    // exactamente parejos entre las formas de pago de cada
+                    // parque, un ticket terminaba con más meses (o más
+                    // dinero por mes) que el otro, aunque la mensualidad
+                    // combo en realidad es la misma para ambos parques cada
+                    // mes.
+                    if ($clubIds->count() === 1 && $this->representedClubId($payment)) {
                         $clubIds = collect([$this->representedClubId($payment)]);
                     }
 
@@ -169,6 +203,7 @@ class PaymentTicketService {
                         $clubIds->count()
                     );
                     $ivas = $this->splitStoredAmount((float) ($application->iva ?? 0), $clubIds->count());
+                    $discounts = $this->splitStoredAmount((float) ($application->discount ?? 0), $clubIds->count());
 
                     foreach ($clubIds as $index => $clubId) {
                         $allocations->push([
@@ -179,6 +214,7 @@ class PaymentTicketService {
                             'amount' => $amounts[$index],
                             'subtotal' => $subtotals[$index],
                             'iva' => $ivas[$index],
+                            'discount' => $discounts[$index],
                         ]);
                     }
                 }
@@ -188,7 +224,12 @@ class PaymentTicketService {
         return $allocations;
     }
 
-    private function applicationClubIds(PaymentApplication $application, Payment $payment, Collection $actualMonthlyClubIds): Collection {
+    private function applicationClubIds(
+        PaymentApplication $application,
+        Payment $payment,
+        Collection $actualMonthlyClubIds,
+        bool $hasCrossParkPayment
+    ): Collection {
         $charge = $application->charge;
         $chargeClubId = (int) ($charge?->membership?->club_id ?: $payment->club_id);
 
@@ -202,6 +243,18 @@ class PaymentTicketService {
 
         if (! $representsCombo) {
             return collect([$chargeClubId]);
+        }
+
+        // Aunque la membresía sea un combo interclub, solo tiene sentido
+        // partir el ticket 50/50 entre los dos parques si de verdad hubo
+        // una forma de pago que representa al OTRO parque en este grupo
+        // (ver $hasCrossParkPayment arriba) — si todo se cobró con formas
+        // de pago sin esa etiqueta (p. ej. una sola transferencia
+        // genérica), el ticket se queda completo en el parque donde
+        // realmente se cobró (el de la sesión del pago), no en el parque
+        // "dueño" de la membresía en BD, que puede ser otro.
+        if (! $hasCrossParkPayment) {
+            return collect([(int) $payment->club_id]);
         }
 
         $account = $payment->membershipAccount;
@@ -250,28 +303,103 @@ class PaymentTicketService {
             ->map(function (array $allocation) {
                 $charge = $allocation['application']->charge;
 
+                // Cantidad capturada en el panel de Cobranza (p. ej. "3 x
+                // $300.00" de un pase diario, ver
+                // CollectionController::storePayment) — sin esto, un cargo
+                // con cantidad > 1 se ve en el ticket como "1 x $900.00".
+                $capturedQuantity = (int) ($charge?->metadata['quantity'] ?? 1);
+
                 return [
                     'charge_id' => $charge?->id,
                     'codigo' => $charge?->concept?->internal_key ?: $charge?->concept?->code,
                     'concepto' => $charge?->concept?->name,
                     'descripcion' => $charge?->description,
-                    'cantidad' => 1,
+                    'cantidad' => $capturedQuantity > 1 ? $capturedQuantity : 1,
                     'importe_unitario' => $allocation['subtotal'],
                     'total' => $allocation['subtotal'],
-                    'descuento' => null,
+                    'descuento' => round((float) ($allocation['discount'] ?? 0), 2),
                     'monto' => $allocation['amount'],
+                    'period_year' => $charge?->period_year,
+                    'period_month' => $charge?->period_month,
                 ];
             })
-            ->groupBy(fn (array $item) => ($item['codigo'] ?? $item['charge_id']).'|'.number_format($item['importe_unitario'], 2, '.', ''))
+            ->groupBy(function (array $item) {
+                $hasPeriod = $item['period_year'] && $item['period_month'];
+                $key = $item['codigo'] ?? $item['charge_id'];
+
+                // Los cargos con periodo (mes/año, p. ej. mensualidad) se
+                // agrupan por concepto sin importar el importe de cada uno
+                // — el monto por mes puede variar (ajuste de tarifa a
+                // mitad de año, reparto distinto entre parques en un
+                // combo, etc.) y aun así deben verse como un solo renglón
+                // "Septiembre a Noviembre 2026", no partidos en varios
+                // porque el precio no coincidió exacto. Sin periodo, se
+                // agrupa por charge_id: un mismo cargo (p. ej. "3 pases
+                // diarios a $300") siempre debe verse como UN renglón,
+                // aunque su pago se haya dividido entre varias formas de
+                // pago con montos distintos (antes se agrupaba por importe
+                // exacto de cada renglón de pago, y ese reparto desigual lo
+                // partía en dos líneas con precio unitario distinto).
+                return $hasPeriod ? "{$key}|period" : "{$key}|{$item['charge_id']}";
+            })
             ->map(function (Collection $items) {
                 $concept = $items->first();
-                $concept['cantidad'] = $items->count();
+
+                // Un mismo mes puede quedar cubierto por más de un renglón
+                // de payment_applications (una mensualidad dividida en dos
+                // formas de pago, o el descuento adjunto aparte del dinero
+                // real, ver PaymentRegistrationService::registerSplit) —
+                // "cantidad" debe contar MESES distintos, no renglones, o
+                // un diciembre pagado con dos tarjetas se vería como "2
+                // meses" en vez de uno.
+                $uniquePeriods = $items
+                    ->filter(fn (array $item) => $item['period_year'] && $item['period_month'])
+                    ->map(fn (array $item) => "{$item['period_year']}-{$item['period_month']}")
+                    ->unique();
+
+                // Sin periodo: la cantidad capturada (ver 'cantidad' arriba)
+                // es la misma para todos los renglones de UN mismo cargo
+                // (aunque ese cargo se haya dividido en más de una forma de
+                // pago) — se suma por charge_id único para no duplicarla, y
+                // así poder juntar además dos compras distintas del mismo
+                // concepto al mismo precio (p. ej. dos altas de "3 pases
+                // diarios a $300") en un solo renglón de "6".
+                $cantidad = $uniquePeriods->isNotEmpty()
+                    ? $uniquePeriods->count()
+                    : $items->unique('charge_id')->sum('cantidad');
+
+                $concept['cantidad'] = $cantidad;
                 $concept['total'] = round((float) $items->sum('total'), 2);
                 $concept['monto'] = round((float) $items->sum('monto'), 2);
+                $descuento = round((float) $items->sum('descuento'), 2);
+                $concept['descuento'] = $descuento > 0 ? $descuento : null;
 
-                if ($items->count() > 1) {
-                    $concept['descripcion'] = $concept['concepto'];
+                if ($cantidad > 1) {
+                    $rangeLabel = $this->periodRangeLabel($items);
+
+                    if ($rangeLabel !== null) {
+                        $concept['descripcion'] = $rangeLabel;
+                    } elseif ($items->count() > 1) {
+                        // Se juntaron varios cargos distintos (p. ej. dos
+                        // altas del mismo concepto al mismo precio) en un
+                        // solo renglón — usa el nombre del concepto en vez
+                        // de la descripción de nada más el primero. Si es
+                        // UN solo cargo con cantidad > 1 (ver 'cantidad'
+                        // arriba), se deja la descripción tal cual la
+                        // capturó el cajero.
+                        $concept['descripcion'] = $concept['concepto'];
+                    }
+
+                    // El importe pudo variar (precio distinto entre
+                    // renglones, o solo repartir el total entre la
+                    // cantidad capturada) — se muestra el promedio para que
+                    // Cantidad × Importe U. siga cuadrando con el Total
+                    // (mismo criterio que ya usa Cobranza para la "Cuota"
+                    // en su tabla de cargos pendientes).
+                    $concept['importe_unitario'] = round($concept['total'] / $cantidad, 2);
                 }
+
+                unset($concept['period_year'], $concept['period_month']);
 
                 return $concept;
             })
@@ -279,31 +407,61 @@ class PaymentTicketService {
             ->all();
     }
 
-    private function paymentMethods(Collection $allocations, Payment $representative): array {
-        return $allocations
-            ->groupBy('payment_id')
-            ->map(function (Collection $paymentAllocations) use ($representative) {
-                /** @var Payment $payment */
-                $payment = $paymentAllocations->first()['payment'];
+    /**
+     * @param  Collection<int, array{period_year: ?int, period_month: ?int}>  $items
+     */
+    private function periodRangeLabel(Collection $items): ?string {
+        $periods = $items
+            ->filter(fn (array $item) => $item['period_year'] && $item['period_month'])
+            ->map(fn (array $item) => Carbon::create((int) $item['period_year'], (int) $item['period_month'], 1));
 
-                return [
-                    'payment_id' => $payment->id,
-                    'folio' => $payment->folio,
-                    'ticket_serie' => $this->cashierInitial($payment->receiver),
-                    'ticket_folio' => $this->shortFolio($payment->folio),
-                    'nombre' => $payment->paymentMethod?->name,
-                    'codigo' => $this->resolveInternalKey($payment),
-                    'codigo_ticket' => $this->paymentMethodTicketCode($payment->paymentMethod?->code),
-                    'monto' => round((float) $paymentAllocations->sum('amount'), 2),
-                    'referencia' => $payment->reference,
-                    'banco' => $payment->bank_name,
-                    'numero_cheque' => $payment->check_number,
-                    'es_este_ticket' => $payment->id === $representative->id,
-                    'status' => $payment->status,
-                ];
-            })
+        if ($periods->count() !== $items->count()) {
+            // Algún cargo del grupo no trae periodo (p. ej. no es
+            // mensualidad) — no se puede armar un rango confiable, se cae
+            // al nombre genérico del concepto.
+            return null;
+        }
+
+        $sorted = $periods->sort()->values();
+        $first = $sorted->first();
+        $last = $sorted->last();
+
+        if ($first->isSameMonth($last)) {
+            return ucfirst($first->locale('es')->translatedFormat('F Y'));
+        }
+
+        $sameYear = $first->year === $last->year;
+        $firstLabel = ucfirst($first->locale('es')->translatedFormat($sameYear ? 'F' : 'F Y'));
+        $lastLabel = ucfirst($last->locale('es')->translatedFormat('F Y'));
+
+        return "{$firstLabel} a {$lastLabel}";
+    }
+
+    private function paymentMethods(Collection $payments, Payment $representative): array {
+        return $payments
+            ->map(fn (Payment $payment) => [
+                'payment_id' => $payment->id,
+                'folio' => $payment->folio,
+                'ticket_serie' => $this->cashierInitial($payment->receiver),
+                'ticket_folio' => $this->shortFolio($payment->folio),
+                'nombre' => $payment->paymentMethod?->name,
+                'codigo' => $this->resolveInternalKey($payment),
+                'monto' => round((float) $payment->amount, 2),
+                'referencia' => $payment->reference,
+                'banco' => $payment->bank_name,
+                'numero_cheque' => $payment->check_number,
+                'es_este_ticket' => $payment->id === $representative->id,
+                'status' => $payment->status,
+            ])
             ->values()
             ->all();
+    }
+
+    /** A qué parque pertenece el DINERO de esta forma de pago — el que
+     *  marcó explícitamente el cajero (represents_club_id) o, si no marcó
+     *  ninguno, el parque de la sesión donde se registró. */
+    private function resolvePaymentClubId(Payment $payment): int {
+        return $this->representedClubId($payment) ?? (int) $payment->club_id;
     }
 
     private function clubForTicket(int $clubId, Payment $payment): ?Club {
@@ -448,18 +606,6 @@ class PaymentTicketService {
             ->where('club_id', $clubId)
             ->where('payment_method_id', $p->payment_method_id)
             ->value('internal_key') ?: $p->paymentMethod?->code;
-    }
-
-    private function paymentMethodTicketCode(?string $code): ?string {
-        return match ($code) {
-            'CASH' => 'EF',
-            'BANK_TRANSFER' => 'TR',
-            'APP_PAYMENT' => 'AP',
-            'CHECK' => 'CH',
-            'CREDIT_CARD' => 'TC',
-            'DEBIT_CARD' => 'TD',
-            default => $code,
-        };
     }
 
     private function shortFolio(?string $folio): ?string {

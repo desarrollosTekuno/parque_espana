@@ -107,19 +107,13 @@ const routes: Routing[] = [
             "member-access.index",
             "members.cancellations.index",
             "members.age-transitions.index",
-            "fee-schedules.index"
         ],
         title: "Membresías",
         icon: "mdi-account-group-outline",
         value: "membresiasMenu",
         group: "Membresías",
         groupItems: [
-            {
-                name: "fee-schedules.index",
-                title: "Cuotas por año",
-                icon: "mdi-calendar-multiple",
-                value: "cuotas-por-anio",
-            },
+            
             {
                 name: "members.index",
                 title: "Membresías",
@@ -185,6 +179,7 @@ const routes: Routing[] = [
             "global-cash-cuts.index",
             "global-cash-cuts.show",
             "tickets.index",
+            "fee-schedules.index",
         ],
         title: "Cobranza",
         icon: "mdi-cash-multiple",
@@ -192,10 +187,10 @@ const routes: Routing[] = [
         group: "Cobranza",
         groupItems: [
             {
-                name: "collections.index",
-                title: "Registro de cobros",
-                icon: "mdi-cash-register",
-                value: "cobro-directo",
+                name: "fee-schedules.index",
+                title: "Cuotas por año",
+                icon: "mdi-calendar-multiple",
+                value: "cuotas-por-anio",
             },
             {
                 name: "billing-concepts.index",
@@ -210,6 +205,12 @@ const routes: Routing[] = [
                 value: "metodos-pago",
             },
             {
+                name: "collections.index",
+                title: "Registro de cobros",
+                icon: "mdi-cash-register",
+                value: "cobro-directo",
+            },
+            {
                 name: "billing.index",
                 title: "Cargos pendientes",
                 icon: "mdi-receipt-text-outline",
@@ -220,11 +221,11 @@ const routes: Routing[] = [
                 title: "Desglose de cargos",
                 icon: "mdi-format-list-bulleted",
                 value: "desglose-cargos",
-            },
+            }, 
             {
                 name: "cash-cuts.index",
                 title: "Cortes de caja",
-                icon: "mdi-cash-register",
+                icon: "mdi-cash-multiple",
                 value: "cortes-caja",
             },
             {
@@ -235,8 +236,8 @@ const routes: Routing[] = [
             },
             {
                 name: "tickets.index",
-                title: "Tickets de pago",
-                icon: "mdi-printer-outline",
+                title: "Historial de pagos",
+                icon: "mdi-history",
                 value: "tickets-pago",
             },
         ],

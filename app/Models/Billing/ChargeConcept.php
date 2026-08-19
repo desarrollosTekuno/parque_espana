@@ -7,10 +7,11 @@ use App\Traits\SerializesDates;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ChargeConcept extends Model
 {
-    use HasFactory, SerializesDates;
+    use HasFactory, SerializesDates, SoftDeletes;
 
     protected $guarded = ['id', 'created_at', 'updated_at'];
 

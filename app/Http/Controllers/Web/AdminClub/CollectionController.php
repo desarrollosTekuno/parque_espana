@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\AdminClub;
 
 use App\Http\Controllers\Controller;
 use App\Models\Administrator\Club;
+use App\Models\Billing\AnnualDiscountRule;
 use App\Models\Billing\Charge;
 use App\Models\Billing\ChargeConcept;
 use App\Models\Billing\ChargeConceptClubAmount;
@@ -17,6 +18,7 @@ use App\Models\Memberships\MembershipAccount;
 use App\Models\AdminClub\CafeteriaVisit;
 use App\Rules\ExistsInSchema;
 use App\Services\AdminClub\CafeteriaCheckoutService;
+use App\Services\Billing\AnnualPaymentService;
 use App\Services\Billing\MembershipChargeService;
 use App\Services\Billing\PaymentRegistrationService;
 use Carbon\Carbon;
@@ -52,6 +54,7 @@ class CollectionController extends Controller
         protected PaymentRegistrationService $paymentRegistrationService,
         protected MembershipChargeService $membershipChargeService,
         protected CafeteriaCheckoutService $cafeteriaCheckoutService,
+        protected AnnualPaymentService $annualPaymentService,
     ) {
     }
 
@@ -98,6 +101,13 @@ class CollectionController extends Controller
         return Inertia::render('Collections/Index', [
             'conceptOptions' => $conceptOptions,
             'clubPaymentMethods' => $this->resolveClubPaymentMethods(),
+            // Meses (pay_by_month) con regla de descuento activa — el
+            // frontend lo usa para solo mostrar el checkbox "¿Es pago de
+            // anualidad?" cuando el mes de pago (o diciembre, que cubre el
+            // año siguiente, ver resolveAnnualDiscountPaymentMonth) cae
+            // dentro de un periodo configurado en BD. Fuera de esos
+            // periodos no tiene caso ofrecer la anualidad.
+            'annualDiscountRuleMonths' => AnnualDiscountRule::where('is_active', true)->pluck('pay_by_month')->values(),
         ]);
     }
 
@@ -756,6 +766,180 @@ class CollectionController extends Controller
     }
 
     /**
+     * Previsualiza "Pagar anualidad": cubre desde el mes vencido más viejo
+     * (aunque sea de un año anterior) hasta diciembre del año en el que se
+     * está pagando, aplicando el descuento por anualidad vigente (ver
+     * billing.annual_discount_rules / AnnualDiscountRule::findApplicable)
+     * según el mes en que se realiza el pago. El descuento se calcula
+     * siempre sobre la cuota del año que se cubre — el adeudo de años
+     * anteriores, si lo hay, se cobra completo, sin prorratear el
+     * descuento sobre él.
+     */
+    public function previewAnnualPayment(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'membership_account_id' => ['required', new ExistsInSchema('memberships', 'accounts', 'id')],
+            'paid_at' => ['required', 'date'],
+            // Año que se quiere cubrir — normalmente se infiere de paid_at,
+            // pero en diciembre la anualidad del año SIGUIENTE ya se puede
+            // ir cubriendo por adelantado (ver resolveAnnualCoverageYear).
+            'year' => ['sometimes', 'nullable', 'integer', 'min:2000', 'max:2100'],
+        ]);
+
+        $account = MembershipAccount::findOrFail($validated['membership_account_id']);
+        $groupAccountIds = $this->resolveGroupAccountIds($account);
+        $paidAt = Carbon::parse($validated['paid_at']);
+        $year = $this->resolveAnnualCoverageYear($paidAt, $validated['year'] ?? null);
+
+        $billableMembership = $this->resolveBillableGroupMembership($groupAccountIds);
+
+        if (!$billableMembership) {
+            return response()->json(['message' => 'El socio no tiene una membresía facturable activa.'], 422);
+        }
+
+        $monthlyConcept = ChargeConcept::where('code', 'MONTHLY_FEE')->firstOrFail();
+
+        $priorYearsBalance = round((float) Charge::query()
+            ->whereIn('membership_account_id', $groupAccountIds)
+            ->where('concept_id', $monthlyConcept->id)
+            ->where('period_year', '<', $year)
+            ->whereIn('status', ['pending', 'partial'])
+            ->sum('balance'), 2);
+
+        $existingCharges = Charge::query()
+            ->whereIn('membership_account_id', $groupAccountIds)
+            ->where('concept_id', $monthlyConcept->id)
+            ->where('period_year', $year)
+            ->where('status', '!=', 'cancelled')
+            ->get()
+            ->keyBy('period_month');
+
+        $months = [];
+        $currentYearBalance = 0.0;
+
+        for ($month = 1; $month <= 12; $month++) {
+            $existing = $existingCharges->get($month);
+            $balance = $existing
+                ? (in_array($existing->status, ['pending', 'partial'], true) ? round((float) $existing->balance, 2) : 0.0)
+                : round($this->membershipChargeService->previewMonthlyFeeAmount($billableMembership, Carbon::create($year, $month, 1)), 2);
+
+            $currentYearBalance += $balance;
+            $months[] = [
+                'month' => $month,
+                'period_label' => $this->periodLabel($month, $year),
+                'balance' => $balance,
+                'is_virtual' => !$existing,
+                'is_paid' => (bool) ($existing && $existing->status === 'paid'),
+            ];
+        }
+        $currentYearBalance = round($currentYearBalance, 2);
+
+        $monthlyFee = round((float) ($billableMembership->monthly_fee_share ?? $billableMembership->monthly_fee ?? 0), 2);
+        $rule = AnnualDiscountRule::findApplicable($this->resolveAnnualDiscountPaymentMonth($paidAt, $year));
+        $discountAmount = $rule ? round($monthlyFee * (float) $rule->discount_months, 2) : 0.0;
+        $totalBalance = round($priorYearsBalance + $currentYearBalance, 2);
+        $paymentAmount = round(max($totalBalance - $discountAmount, 0), 2);
+
+        // La anualidad es, en el fondo, una colección de mensualidades — si
+        // la membresía facturable representa un combo interclub (mismo
+        // criterio que resolveComboClubBreakdown, usado para "Agregar
+        // mensualidades"), el pago también debe poder repartirse 50/50
+        // entre los métodos de pago de ambos parques en el diálogo, no solo
+        // los del parque de la sesión.
+        $comboBreakdown = $this->resolveComboClubBreakdown($billableMembership, $paymentAmount);
+
+        return response()->json([
+            'year' => $year,
+            // Años que se pueden cubrir con esta fecha de pago — solo trae
+            // más de uno en diciembre (el actual, por si falta cerrarlo, y
+            // el siguiente, para adelantar su anualidad). El frontend usa
+            // esto para decidir si debe mostrar el selector de año.
+            'coverage_year_options' => $this->resolveAnnualCoverageYearOptions($paidAt),
+            'months' => $months,
+            'prior_years_balance' => $priorYearsBalance,
+            'current_year_balance' => $currentYearBalance,
+            'total_balance' => $totalBalance,
+            'monthly_fee' => $monthlyFee,
+            'discount_rule' => $rule ? [
+                'pay_by_month' => $rule->pay_by_month,
+                'discount_months' => $rule->discount_months,
+                'free_month' => $rule->free_month,
+            ] : null,
+            'discount_amount' => $discountAmount,
+            'payment_amount' => $paymentAmount,
+            'is_multi_club' => (bool) $comboBreakdown,
+            'club_breakdown' => $comboBreakdown ?? collect(),
+        ]);
+    }
+
+    /**
+     * La membresía primaria activa/suspendida y facturable dentro de las
+     * cuentas dadas (propia + grupo combo si aplica) — la que realmente
+     * carga la mensualidad real, sin importar en cuál de las cuentas viva.
+     */
+    protected function resolveBillableGroupMembership(array $groupAccountIds): ?Membership
+    {
+        return Membership::query()
+            ->whereIn('membership_account_id', $groupAccountIds)
+            ->where('is_primary', true)
+            ->whereIn('status', ['active', 'suspended'])
+            ->where('is_billable', true)
+            ->first();
+    }
+
+    /**
+     * Año que se cubre con la anualidad. Normalmente el de la fecha de
+     * pago, pero si se paga en diciembre, la anualidad del año SIGUIENTE ya
+     * se puede ir cubriendo por adelantado (empieza a venderse desde
+     * diciembre del año anterior) — el cajero puede elegir explícitamente
+     * cuál de los dos quiere cubrir vía $requestedYear (por si en diciembre
+     * todavía falta cerrar el año en curso en vez de adelantar el próximo);
+     * si no indica nada, se asume el siguiente (lo más común en diciembre).
+     */
+    protected function resolveAnnualCoverageYear(Carbon $paidAt, ?int $requestedYear): int
+    {
+        $options = $this->resolveAnnualCoverageYearOptions($paidAt);
+        $defaultYear = $options[count($options) - 1]; // el más reciente: el siguiente en diciembre, si no el actual.
+
+        if ($requestedYear === null) {
+            return $defaultYear;
+        }
+
+        return in_array($requestedYear, $options, true) ? $requestedYear : $defaultYear;
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    protected function resolveAnnualCoverageYearOptions(Carbon $paidAt): array
+    {
+        return $paidAt->month === 12
+            ? [$paidAt->year, $paidAt->year + 1]
+            : [$paidAt->year];
+    }
+
+    /**
+     * Mes que se usa para buscar la regla de descuento
+     * (AnnualDiscountRule::findApplicable) — normalmente el mes calendario
+     * del pago, salvo cuando se paga en diciembre del año ANTERIOR al que
+     * se está cubriendo: ahí se usa 0 ("antes de que empiece el año"), que
+     * por construcción de la regla (pay_by_month >= mes de pago, ordenado
+     * ascendente) automáticamente califica para AL MENOS el descuento de
+     * enero, sin necesidad de una regla explícita para el mes 0 — a menos
+     * que se quiera dar un descuento todavía mejor por pagar con tanta
+     * anticipación, en cuyo caso sí se puede capturar una regla con
+     * pay_by_month=0 desde Cuotas por año.
+     */
+    protected function resolveAnnualDiscountPaymentMonth(Carbon $paidAt, int $year): int
+    {
+        if ($paidAt->year === $year - 1 && $paidAt->month === 12) {
+            return 0;
+        }
+
+        return $paidAt->month;
+    }
+
+    /**
      * "Agregar concepto de cobro" → código INSCRIPTION o CUOTA_REINSCRIPCION:
      * este módulo solo cobra, no decide diferir a meses (eso se define en el
      * alta de la cuenta o en la reactivación — ver
@@ -850,6 +1034,8 @@ class CollectionController extends Controller
                 'new_items.*.concept_id' => ['required', new ExistsInSchema('billing', 'concepts', 'id')],
                 'new_items.*.description' => ['nullable', 'string', 'max:255'],
                 'new_items.*.total' => ['required', 'numeric', 'gt:0'],
+                'new_items.*.quantity' => ['sometimes', 'nullable', 'integer', 'min:1'],
+                'new_items.*.unit_amount' => ['sometimes', 'nullable', 'numeric', 'min:0'],
 
                 // Salidas de cafetería capturadas en "Agregar concepto de
                 // cobro": la visita solo se da por cerrada (y el cargo, si
@@ -857,13 +1043,24 @@ class CollectionController extends Controller
                 'cafeteria_checkouts' => ['array'],
                 'cafeteria_checkouts.*.visit_id' => ['required', new ExistsInSchema('guest_lists', 'cafeteria_visits', 'id')],
                 'cafeteria_checkouts.*.consumption_amount' => ['required', 'numeric', 'min:0'],
+
+                // Pago de anualidad (checkbox "¿Es pago de anualidad?" en
+                // el panel de mensualidad, ver Collections/Index.vue) — se
+                // puede combinar en el mismo cobro con cualquiera de los
+                // otros tres bloques (p. ej. junto con un pase diario), a
+                // diferencia de existing_charges de mensualidad suelta, que
+                // el frontend ya bloquea mezclar con esto (ver
+                // clearAnnualLineIfPresent).
+                'annual' => ['sometimes', 'nullable', 'array'],
+                'annual.year' => ['required_with:annual', 'integer', 'min:2000', 'max:2100'],
             ]);
 
             $existing = collect($validated['existing_charges'] ?? []);
             $newItems = collect($validated['new_items'] ?? []);
             $cafeteriaCheckouts = collect($validated['cafeteria_checkouts'] ?? []);
+            $annualRequest = $validated['annual'] ?? null;
 
-            if ($existing->isEmpty() && $newItems->isEmpty() && $cafeteriaCheckouts->isEmpty()) {
+            if ($existing->isEmpty() && $newItems->isEmpty() && $cafeteriaCheckouts->isEmpty() && !$annualRequest) {
                 throw ValidationException::withMessages([
                     'applications' => 'Agrega al menos un cargo o concepto a la lista de cobros.',
                 ]);
@@ -887,7 +1084,7 @@ class CollectionController extends Controller
                 // una cuenta) ni salidas de cafetería (tienen su propio
                 // flujo de visita) — solo conceptos nuevos, y únicamente los
                 // marcados requires_account=false.
-                if ($existing->isNotEmpty() || $cafeteriaCheckouts->isNotEmpty()) {
+                if ($existing->isNotEmpty() || $cafeteriaCheckouts->isNotEmpty() || $annualRequest) {
                     throw ValidationException::withMessages([
                         'membership_account_id' => 'Una venta sin cuenta solo puede incluir conceptos nuevos que no requieran cuenta.',
                     ]);
@@ -962,10 +1159,39 @@ class CollectionController extends Controller
                 $memberId = $account->primaryHolder?->member_id;
             }
 
+            $annualYear = null;
+            $annualRule = null;
+
+            if ($annualRequest) {
+                $billableMembership = $this->resolveBillableGroupMembership($groupAccountIds);
+
+                if (!$billableMembership) {
+                    throw ValidationException::withMessages([
+                        'annual' => 'El socio no tiene una membresía facturable activa.',
+                    ]);
+                }
+
+                $paidAt = Carbon::parse($validated['paid_at']);
+                $annualYear = $this->resolveAnnualCoverageYear($paidAt, $annualRequest['year']);
+                $annualRule = AnnualDiscountRule::findApplicable($this->resolveAnnualDiscountPaymentMonth($paidAt, $annualYear));
+
+                // Rellena cualquier mes faltante hasta diciembre del año que
+                // se está cubriendo — createRecurringMonthlyCharge ya es
+                // idempotente (no duplica si el periodo ya tiene cargo, ver
+                // hasMonthlyChargeForPeriod).
+                for ($month = 1; $month <= 12; $month++) {
+                    $this->membershipChargeService->createRecurringMonthlyCharge(
+                        $billableMembership,
+                        Carbon::create($annualYear, $month, 1),
+                        ['charge_origin' => 'annual_payment']
+                    );
+                }
+            }
+
             $payments = DB::transaction(function () use (
                 $account, $clubId, $existing, $newItems, $cafeteriaCheckouts,
                 $membership, $memberId, $validated, $request, $accountClubIds,
-                $groupAccountIds
+                $groupAccountIds, $annualYear, $annualRule
             ) {
                 $applications = $existing
                     ->map(fn ($item) => [
@@ -1021,6 +1247,14 @@ class CollectionController extends Controller
                         'metadata' => [
                             'charge_origin' => 'collections_desk',
                             'created_by' => $request->user()?->id,
+                            // Cantidad/importe unitario capturados en el
+                            // panel (p. ej. "3 x $300.00 = $900.00" de un
+                            // pase diario) — se guardan para que el ticket
+                            // los muestre desglosados (ver
+                            // PaymentTicketService::concepts) en vez de
+                            // solo "1 x $900.00".
+                            'quantity' => isset($item['quantity']) ? (int) $item['quantity'] : null,
+                            'unit_amount' => isset($item['unit_amount']) ? round((float) $item['unit_amount'], 2) : null,
                         ],
                     ]);
 
@@ -1028,6 +1262,25 @@ class CollectionController extends Controller
                         'charge_id' => $charge->id,
                         'amount' => $total,
                     ];
+                }
+
+                // Pago de anualidad: se agrega a la MISMA lista de
+                // aplicaciones que el resto (cargos existentes, conceptos
+                // nuevos, cafetería) — un solo Payment/payment_group_id
+                // cubre todo. El descuento (si aplica una regla) queda
+                // amarrado al cargo del "mes libre" vía la clave 'discount'
+                // (ver PaymentRegistrationService::registerSplit, que la
+                // guarda en billing.payment_applications.discount).
+                if ($annualYear !== null) {
+                    $annual = $this->annualPaymentService->resolveApplications($groupAccountIds, $annualYear, $annualRule);
+
+                    if (empty($annual['applications'])) {
+                        throw ValidationException::withMessages([
+                            'annual' => "No se encontraron cargos de mensualidad pendientes hasta {$annualYear}.",
+                        ]);
+                    }
+
+                    $applications = [...$applications, ...$annual['applications']];
                 }
 
                 return $this->paymentRegistrationService->registerSplit(

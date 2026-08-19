@@ -112,6 +112,7 @@ Route::get('/collections/search', [CollectionController::class, 'search'])->name
 Route::post('/collections/monthly-fee/resolve', [CollectionController::class, 'resolveMonthlyFeeMonths'])->name('collections.monthly-fee.resolve');
 Route::post('/collections/inscription/resolve', [CollectionController::class, 'resolveInscriptionInstallments'])->name('collections.inscription.resolve');
 Route::post('/collections/payment', [CollectionController::class, 'storePayment'])->name('collections.payment.store');
+Route::post('/collections/annual-payment/preview', [CollectionController::class, 'previewAnnualPayment'])->name('collections.annual-payment.preview');
 Route::post('/collections/notes', [CollectionController::class, 'storeNote'])->name('collections.notes.store');
 
 // cash cuts
@@ -147,6 +148,8 @@ Route::post('/payments/{payment}/cancel', [PaymentCancellationController::class,
     ->name('payments.cancel.store');
 Route::get('/payments/group/{paymentGroupId}/cancel/create', [PaymentCancellationController::class, 'groupCreate'])
     ->name('payments.cancel-group.create');
+Route::get('/payments/group/{paymentGroupId}/summary', [PaymentCancellationController::class, 'groupSummary'])
+    ->name('payments.cancel-group.summary');
 Route::post('/payments/group/{paymentGroupId}/cancel', [PaymentCancellationController::class, 'groupStore'])
     ->name('payments.cancel-group.store');
 Route::resource('/pricing-rules', PricingRuleController::class)
@@ -164,6 +167,12 @@ Route::resource('/interclub-package-rules', InterclubPackageRuleController::clas
 Route::get('/fee-schedules', [FeeScheduleController::class, 'index'])->name('fee-schedules.index');
 Route::post('/fee-schedules', [FeeScheduleController::class, 'store'])->name('fee-schedules.store');
 Route::get('/fee-schedules/preview', [FeeScheduleController::class, 'preview'])->name('fee-schedules.preview');
+Route::post('/fee-schedules/annual-discount-rules', [FeeScheduleController::class, 'storeAnnualDiscountRule'])
+    ->name('fee-schedules.annual-discount-rules.store');
+Route::put('/fee-schedules/annual-discount-rules/{annualDiscountRule}', [FeeScheduleController::class, 'updateAnnualDiscountRule'])
+    ->name('fee-schedules.annual-discount-rules.update');
+Route::delete('/fee-schedules/annual-discount-rules/{annualDiscountRule}', [FeeScheduleController::class, 'destroyAnnualDiscountRule'])
+    ->name('fee-schedules.annual-discount-rules.destroy');
 
 Route::resource('/email-configs', EmailConfigController::class)
     ->only(['index', 'store', 'update', 'destroy'])

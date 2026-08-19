@@ -19,7 +19,6 @@ export interface TicketPaymentMethod {
     ticket_folio: string | null;
     nombre: string | null;
     codigo: string | null;
-    codigo_ticket: string | null;
     monto: number;
     referencia: string | null;
     banco: string | null;
@@ -60,7 +59,6 @@ export interface TicketData {
     conceptos: TicketConcept[];
     forma_pago: string | null;
     forma_pago_codigo: string | null;
-    forma_pago_ticket_codigo: string | null;
     pago_identificacion: string | null;
     referencia: string | null;
     banco: string | null;
@@ -140,7 +138,7 @@ const paymentBreakdown = (ticket: TicketData): string => {
             return `
                 <div class="payment-method">
                     <div class="row">
-                        <span>${escapeHtml(payment.codigo_ticket ?? payment.nombre)}</span>
+                        <span>${escapeHtml(payment.codigo ?? payment.nombre)}</span>
                         <strong>${escapeHtml(money(payment.monto))}</strong>
                     </div>
                     ${paymentFolio ? `<div class="muted">Folio: ${escapeHtml(paymentFolio)}</div>` : ""}

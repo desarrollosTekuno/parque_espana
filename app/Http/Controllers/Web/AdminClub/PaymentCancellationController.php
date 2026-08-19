@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web\AdminClub;
 use App\Models\Billing\ClubPaymentMethod;
 use App\Models\Billing\Payment;
 use App\Services\Billing\PaymentCancellationService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Log;
@@ -68,6 +69,39 @@ class PaymentCancellationController extends Controller
 
     public function groupCreate(string $paymentGroupId): Response
     {
+        $group = $this->resolveGroupSummary($paymentGroupId);
+
+        return Inertia::render('AdminClubs/Payments/CancelGroup', [
+            'group' => $group['group'],
+            'alreadyCancelled' => $group['allCancelled'],
+        ]);
+    }
+
+    /**
+     * Mismo resumen que groupCreate(), en JSON — lo usa el diálogo de
+     * "Cancelar cobro" en Tickets/Index.vue para mostrar el total real del
+     * grupo y el desglose por forma de pago SIN pasar por
+     * PaymentTicketService::tickets(), que a propósito reparte cada
+     * aplicación de una mensualidad combo 50/50 entre parques para armar el
+     * ticket físico de cada uno — correcto para imprimir, pero da montos
+     * partidos (la mitad del total) si se usa aquí para decidir cuánto se
+     * cancela.
+     */
+    public function groupSummary(string $paymentGroupId): JsonResponse
+    {
+        $group = $this->resolveGroupSummary($paymentGroupId);
+
+        return response()->json([
+            'group' => $group['group'],
+            'alreadyCancelled' => $group['allCancelled'],
+        ]);
+    }
+
+    /**
+     * @return array{group: array, allCancelled: bool}
+     */
+    private function resolveGroupSummary(string $paymentGroupId): array
+    {
         $clubId = (int) session('club_id');
 
         $payments = Payment::query()
@@ -82,7 +116,7 @@ class PaymentCancellationController extends Controller
         $allCancelled = $payments->every(fn (Payment $payment) => $payment->status === 'cancelled');
         $first = $payments->first();
 
-        return Inertia::render('AdminClubs/Payments/CancelGroup', [
+        return [
             'group' => [
                 'payment_group_id' => $paymentGroupId,
                 'folio' => $first->folio,
@@ -107,8 +141,8 @@ class PaymentCancellationController extends Controller
                     ])->values(),
                 ])->values(),
             ],
-            'alreadyCancelled' => $allCancelled,
-        ]);
+            'allCancelled' => $allCancelled,
+        ];
     }
 
     public function groupStore(Request $request, string $paymentGroupId)

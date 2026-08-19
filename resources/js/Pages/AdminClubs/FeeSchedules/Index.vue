@@ -2,7 +2,7 @@
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { Head, router, usePage } from "@inertiajs/vue3";
 import { computed, ref, watch } from "vue";
-import { customToastSwal } from "@/utils/swal";
+import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import BaseButton from "@/Components/BaseButton.vue";
 
 interface PricingRuleRow {
@@ -42,6 +42,14 @@ interface CurrentClub {
     code: string;
 }
 
+interface AnnualDiscountRuleRow {
+    id: number;
+    pay_by_month: number;
+    discount_months: number;
+    free_month: number;
+    is_active: boolean;
+}
+
 interface FamilySlot {
     membership_type_name: string;
     single_rule_ids: number[];
@@ -59,6 +67,7 @@ interface Props {
     pricingRules?: PricingRuleRow[];
     interclubRules?: InterclubRuleRow[];
     familyGroups?: FamilyGroup[];
+    annualDiscountRules?: AnnualDiscountRuleRow[];
     year?: number;
     currentClub?: CurrentClub | null;
 }
@@ -67,6 +76,7 @@ const props = withDefaults(defineProps<Props>(), {
     pricingRules: () => [],
     interclubRules: () => [],
     familyGroups: () => [],
+    annualDiscountRules: () => [],
     year: () => new Date().getFullYear(),
     currentClub: null,
 });
@@ -85,6 +95,129 @@ const pricingRows = ref<PricingRuleRow[]>(props.pricingRules.map((row) => ({ ...
 const interclubRows = ref<InterclubRuleRow[]>(props.interclubRules.map((row) => ({ ...row })));
 const familyGroups = ref<FamilyGroup[]>(props.familyGroups.map((g) => ({ ...g })));
 const currentClub = ref<CurrentClub | null>(props.currentClub);
+const annualDiscountRules = ref<AnnualDiscountRuleRow[]>(props.annualDiscountRules.map((r) => ({ ...r })));
+
+// ── Descuento por pago de anualidad (billing.annual_discount_rules) ──
+// No está ligado a un club (aplica a cualquier parque, ver
+// AnnualPaymentService) — vive aquí porque ya es donde se administra la
+// cuota del año, solo que en vez de "cuánto se cobra" es "cuánto se
+// descuenta si se paga adelantado".
+const monthOptions = [
+    { title: "Enero", value: 1 }, { title: "Febrero", value: 2 }, { title: "Marzo", value: 3 },
+    { title: "Abril", value: 4 }, { title: "Mayo", value: 5 }, { title: "Junio", value: 6 },
+    { title: "Julio", value: 7 }, { title: "Agosto", value: 8 }, { title: "Septiembre", value: 9 },
+    { title: "Octubre", value: 10 }, { title: "Noviembre", value: 11 }, { title: "Diciembre", value: 12 },
+];
+// Solo para "Pagando hasta": la anualidad de un año ya se puede empezar a
+// cubrir desde diciembre del año ANTERIOR (ver CollectionController::
+// resolveAnnualDiscountPaymentMonth) — 0 representa ese caso. No aplica a
+// "Mes que recibe el descuento" (free_month), que siempre es un mes real
+// dentro del año que se está cubriendo.
+const payByMonthOptions = [{ title: "Diciembre (año anterior)", value: 0 }, ...monthOptions];
+const monthName = (month: number) =>
+    (month === 0 ? "Diciembre (año anterior)" : monthOptions.find((m) => m.value === month)?.title) ?? String(month);
+
+const showAnnualDiscountDialog = ref(false);
+const annualDiscountSaving = ref(false);
+const editingAnnualDiscountId = ref<number | null>(null);
+const annualDiscountForm = ref({
+    pay_by_month: null as number | null,
+    discount_months: null as number | null,
+    free_month: 12 as number | null,
+    is_active: true,
+});
+
+const resetAnnualDiscountForm = () => {
+    editingAnnualDiscountId.value = null;
+    annualDiscountForm.value = {
+        pay_by_month: null,
+        discount_months: null,
+        free_month: 12,
+        is_active: true,
+    };
+};
+
+const openCreateAnnualDiscountDialog = () => {
+    resetAnnualDiscountForm();
+    showAnnualDiscountDialog.value = true;
+};
+
+const openEditAnnualDiscountDialog = (rule: AnnualDiscountRuleRow) => {
+    editingAnnualDiscountId.value = rule.id;
+    annualDiscountForm.value = {
+        pay_by_month: rule.pay_by_month,
+        discount_months: rule.discount_months,
+        free_month: rule.free_month,
+        is_active: rule.is_active,
+    };
+    showAnnualDiscountDialog.value = true;
+};
+
+const saveAnnualDiscountRule = () => {
+    // ojo: 0 (Diciembre año anterior) es un valor válido para pay_by_month
+    // y es "falsy" en JS — hay que comparar explícito contra null, no usar
+    // negación directa, o esa opción quedaba imposible de guardar.
+    if (annualDiscountForm.value.pay_by_month === null || annualDiscountForm.value.discount_months === null || annualDiscountForm.value.free_month === null) {
+        customToastSwal({ title: "Completa mes límite de pago, meses de descuento y mes que se libera.", icon: "warning" });
+        return;
+    }
+
+    annualDiscountSaving.value = true;
+    const payload = {
+        pay_by_month: annualDiscountForm.value.pay_by_month,
+        discount_months: annualDiscountForm.value.discount_months,
+        free_month: annualDiscountForm.value.free_month,
+        is_active: annualDiscountForm.value.is_active,
+    };
+
+    const onDone = {
+        preserveScroll: true,
+        onSuccess: () => {
+            customToastSwal({ title: page.props.flash?.success || "Guardado correctamente.", icon: "success" });
+            showAnnualDiscountDialog.value = false;
+            fetchItems();
+        },
+        onError: (errors: Record<string, string>) => {
+            customToastSwal({
+                title: `Error: ${errors.messageError || "No se pudo guardar la regla"}`,
+                text: `${errors.exception ?? ""}`,
+                icon: "error",
+            });
+        },
+        onFinish: () => {
+            annualDiscountSaving.value = false;
+        },
+    };
+
+    if (editingAnnualDiscountId.value) {
+        router.put(route("fee-schedules.annual-discount-rules.update", editingAnnualDiscountId.value), payload, onDone);
+    } else {
+        router.post(route("fee-schedules.annual-discount-rules.store"), payload, onDone);
+    }
+};
+
+const deleteAnnualDiscountRule = async (rule: AnnualDiscountRuleRow) => {
+    const result = await customConfirmSwal({
+        title: "¿Eliminar esta regla?",
+        text: `Se eliminará el descuento configurado para pagos hechos hasta ${monthName(rule.pay_by_month)}.`,
+        icon: "warning",
+        confirmText: "Sí, eliminar",
+        cancelText: "Cancelar",
+        showLoaderOnConfirm: false,
+    });
+    if (!result?.isConfirmed) return;
+
+    router.delete(route("fee-schedules.annual-discount-rules.destroy", rule.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            customToastSwal({ title: page.props.flash?.success || "Regla eliminada.", icon: "success" });
+            fetchItems();
+        },
+        onError: () => {
+            customToastSwal({ title: "No se pudo eliminar la regla.", icon: "error" });
+        },
+    });
+};
 
 // ── Captura rápida por familia (Familiar/Individual/Solidaria de una misma
 // categoría) — lee y escribe directo sobre pricingRows, así que el flujo de
@@ -191,6 +324,7 @@ const fetchItems = () => {
                 pricingRows.value = (pageResponse.props.pricingRules as PricingRuleRow[]).map((row) => ({ ...row }));
                 interclubRows.value = (pageResponse.props.interclubRules as InterclubRuleRow[]).map((row) => ({ ...row }));
                 familyGroups.value = (pageResponse.props.familyGroups as FamilyGroup[]).map((g) => ({ ...g }));
+                annualDiscountRules.value = (pageResponse.props.annualDiscountRules as AnnualDiscountRuleRow[]).map((r) => ({ ...r }));
                 currentClub.value = (pageResponse.props.currentClub as CurrentClub | null) ?? null;
                 loading.value = false;
             },
@@ -356,6 +490,67 @@ const save = () => {
                     />
                 </v-col>
             </v-row>
+
+            <v-card v-if="can.includes('fee-schedules.annual-discount-rules')" variant="outlined" class="mb-6">
+                <v-card-title class="d-flex justify-space-between align-center">
+                    <span>Descuento por pago de anualidad</span>
+                    <BaseButton
+                        :icon-only="false"
+                        text="Agregar regla"
+                        icon="mdi-plus"
+                        variant="tonal"
+                        size="small"
+                        @click="openCreateAnnualDiscountDialog"
+                    />
+                </v-card-title>
+                <v-card-text>
+                    <p class="text-body-2 text-medium-emphasis mb-3">
+                        Si el socio paga la anualidad completa (hasta diciembre del año que se está cubriendo) antes o
+                        durante el mes indicado, se le descuentan los meses configurados — aplica igual todos los
+                        años (el patrón no cambia), a cualquier parque, no es por club. Ver Collections → "¿Es pago de
+                        anualidad?".
+                    </p>
+
+                    <v-table density="compact" v-if="annualDiscountRules.length">
+                        <thead>
+                            <tr>
+                                <th>Pagando hasta</th>
+                                <th>Descuento</th>
+                                <th>Mes que se libera</th>
+                                <th>Estatus</th>
+                                <th class="text-end">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="rule in annualDiscountRules" :key="rule.id">
+                                <td>{{ monthName(rule.pay_by_month) }}</td>
+                                <td>{{ rule.discount_months }} mes(es)</td>
+                                <td>{{ monthName(rule.free_month) }}</td>
+                                <td>
+                                    <v-chip size="small" :color="rule.is_active ? 'success' : 'default'" variant="tonal">
+                                        {{ rule.is_active ? "Activa" : "Inactiva" }}
+                                    </v-chip>
+                                </td>
+                                <td class="text-end">
+                                    <BaseButton
+                                        action="edit"
+                                        tooltip="Editar"
+                                        @click="openEditAnnualDiscountDialog(rule)"
+                                    />
+                                    <BaseButton
+                                        action="delete"
+                                        tooltip="Eliminar"
+                                        @click="deleteAnnualDiscountRule(rule)"
+                                    />
+                                </td>
+                            </tr>
+                        </tbody>
+                    </v-table>
+                    <p v-else class="text-body-2 text-medium-emphasis mb-0">
+                        No hay reglas de descuento configuradas — la anualidad se cobrará sin descuento.
+                    </p>
+                </v-card-text>
+            </v-card>
 
             <h3 class="text-h6 mb-2">Captura rápida</h3>
             <p class="text-body-2 text-medium-emphasis mb-3">
@@ -699,6 +894,67 @@ const save = () => {
                         :loading="copying"
                         :disabled="!copySourceYear"
                         @click="copyFromYear"
+                    />
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
+        <v-dialog v-model="showAnnualDiscountDialog" max-width="480" persistent>
+            <v-card
+                prepend-icon="mdi-calendar-check"
+                :title="editingAnnualDiscountId ? 'Editar regla de descuento' : 'Nueva regla de descuento'"
+            >
+                <v-card-text>
+                    <v-select
+                        v-model="annualDiscountForm.pay_by_month"
+                        :items="payByMonthOptions"
+                        label="Pagando hasta (mes límite)"
+                        hide-details="auto"
+                        class="mb-3"
+                    />
+                    <v-text-field
+                        v-model.number="annualDiscountForm.discount_months"
+                        label="Meses de descuento"
+                        type="number"
+                        min="0"
+                        max="12"
+                        step="0.5"
+                        hint="1 = un mes completo libre, 0.5 = medio mes"
+                        persistent-hint
+                        class="mb-3"
+                    />
+                    <v-select
+                        v-model="annualDiscountForm.free_month"
+                        :items="monthOptions"
+                        label="Mes que recibe el descuento"
+                        hint="Normalmente diciembre — a ese cargo se le aplica primero si el descuento es de mes completo."
+                        persistent-hint
+                        hide-details="auto"
+                        class="mb-3"
+                    />
+                    <v-switch
+                        v-model="annualDiscountForm.is_active"
+                        label="Activa"
+                        color="success"
+                        hide-details
+                    />
+                </v-card-text>
+                <v-card-actions>
+                    <v-spacer />
+                    <BaseButton
+                        :icon-only="false"
+                        variant="tonal"
+                        action="cancel"
+                        @click="showAnnualDiscountDialog = false"
+                    />
+                    <BaseButton
+                        :icon-only="false"
+                        text="Guardar"
+                        icon="mdi-content-save-outline"
+                        variant="flat"
+                        color="primary"
+                        :loading="annualDiscountSaving"
+                        @click="saveAnnualDiscountRule"
                     />
                 </v-card-actions>
             </v-card>
