@@ -65,7 +65,7 @@ const eventForm = useForm<{ id: number | null; title: string; start_date: string
 /* ====================== Computed ====================== */
 const can = computed<string[]>(() => page.props.auth.permissions ?? []);
 const selectedCount = computed(() => form.images.length);
-const cardLimitReached = computed(() => props.homeCards.length >= 8);
+const cardLimitReached = computed(() => props.homeCards.length >= 10);
 
 /* ====================== Funciones ====================== */
 const openFilePicker = () => {
@@ -483,7 +483,7 @@ onUnmounted(() => {
                                 {{ image.description || "Sin descripción" }}
                             </v-card-text>
                             <div
-                                v-if="can.includes('website-content.destroy')"
+                                v-if="can.includes('website-content.destroy') && carouselImages.length > 3"
                                 class="saved-delete-button"
                             >
                                 <BaseButton action="delete" @click="destroy(image)" />
@@ -575,12 +575,12 @@ onUnmounted(() => {
                 Cards de inicio
             </v-card-title>
             <v-card-subtitle>
-                Cada categoría tiene una sola imagen. Máximo 8 cards.
+                Cada categoría tiene una sola imagen. Máximo 10 cards.
             </v-card-subtitle>
 
             <v-card-text>
                 <v-alert v-if="cardLimitReached" type="warning" variant="tonal" class="mb-5">
-                    Llegaste al máximo de 8 cards. Elimina una existente para agregar otra.
+                    Llegaste al máximo de 10 cards. Elimina una existente para agregar otra.
                 </v-alert>
 
                 <v-row>

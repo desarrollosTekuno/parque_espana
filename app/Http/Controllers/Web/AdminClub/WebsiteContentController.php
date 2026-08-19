@@ -182,9 +182,9 @@ class WebsiteContentController extends Controller {
 
         $clubId = (int) session('club_id');
 
-        if (HomeCard::where('club_id', $clubId)->count() >= 8) {
+        if (HomeCard::where('club_id', $clubId)->count() >= 10) {
             return back()->withErrors([
-                'category' => 'Solo puedes registrar un máximo de 8 cards de inicio. Elimina una para agregar otra.',
+                'category' => 'Solo puedes registrar un máximo de 10 cards de inicio. Elimina una para agregar otra.',
             ]);
         }
 
@@ -407,6 +407,12 @@ class WebsiteContentController extends Controller {
     public function destroy(int $id)
     {
         try {
+            if (CarouselImage::where('club_id', session('club_id'))->count() <= 3) {
+                return back()->withErrors([
+                    'messageError' => 'El carrusel debe tener al menos 3 imágenes.',
+                ]);
+            }
+
             $image = CarouselImage::where('club_id', session('club_id'))->findOrFail($id);
 
             if (Storage::disk('spaces')->exists($image->image_path)) {
