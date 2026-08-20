@@ -372,6 +372,8 @@ Route::resource('/class-schedules', ClassScheduleController::class)->only(['inde
 Route::resource('/website-content', WebsiteContentController::class)
     ->only(['index', 'store', 'destroy'])
     ->names('website-content');
+Route::put('/website-content/{id}/description', [WebsiteContentController::class, 'updateDescription'])
+    ->name('website-content.descriptions.update');
 Route::post('/website-content/home-cards', [WebsiteContentController::class, 'storeCard'])
     ->name('website-content.cards.store');
 Route::delete('/website-content/home-cards/{id}', [WebsiteContentController::class, 'destroyCard'])

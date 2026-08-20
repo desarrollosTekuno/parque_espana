@@ -28,6 +28,7 @@ class WebsiteContentController extends Controller {
         $this->middleware('permission:website-content.index')->only('index');
         $this->middleware('permission:website-content.store')->only([
             'store',
+            'updateDescription',
             'storeCard',
             'storeVirtualTourImages',
             'saveEvent',
@@ -162,7 +163,7 @@ class WebsiteContentController extends Controller {
 
     public function storeCard(Request $request) {
         $validated = $request->validate([
-            'category' => ['required', 'string', 'max:30'],
+            'category' => ['nullable', 'string', 'max:30'],
             'image' => [
                 'required',
                 'image',
@@ -171,7 +172,6 @@ class WebsiteContentController extends Controller {
                 'dimensions:min_width=750,min_height=1000',
             ],
         ], [
-            'category.required' => 'Escribe el nombre de la categoría.',
             'category.max' => 'La categoría debe tener máximo 30 caracteres.',
             'image.required' => 'Selecciona una imagen.',
             'image.image' => 'El archivo seleccionado no es una imagen válida.',
@@ -204,7 +204,7 @@ class WebsiteContentController extends Controller {
 
             HomeCard::create([
                 'club_id' => $clubId,
-                'category' => $validated['category'],
+                'category' => $validated['category'] ?? '',
                 'image_path' => $uploadedPath,
             ]);
 
@@ -225,6 +225,22 @@ class WebsiteContentController extends Controller {
                 'exception' => $e->getMessage(),
             ]);
         }
+    }
+
+    public function updateDescription(Request $request, int $id)
+    {
+        $validated = $request->validate([
+            'description' => ['nullable', 'string', 'max:100'],
+        ], [
+            'description.max' => 'La descripción debe tener máximo 100 caracteres.',
+        ]);
+
+        $image = CarouselImage::where('club_id', session('club_id'))->findOrFail($id);
+        $image->update([
+            'description' => $validated['description'] ?? null,
+        ]);
+
+        return back()->with('success', 'Descripción actualizada correctamente.');
     }
 
     public function destroyCard(int $id) {

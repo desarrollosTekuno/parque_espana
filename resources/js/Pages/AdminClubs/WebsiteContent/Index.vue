@@ -40,11 +40,15 @@ const pendingVirtualTourImages = ref<PendingVirtualTourImage[]>([]);
 const savingVirtualTourImages = ref(false);
 const virtualTourImageError = ref("");
 const today = new Date().toLocaleDateString("en-CA");
+const editingCarouselImage = ref<any | null>(null);
 
 /* ====================== useForm ====================== */
 const form = useForm<{ images: File[]; descriptions: string[] }>({
     images: [],
     descriptions: [],
+});
+const descriptionForm = useForm<{ description: string }>({
+    description: "",
 });
 const cardForm = useForm<{ category: string; image: File | null }>({
     category: "",
@@ -146,15 +150,42 @@ const destroy = (image: any) => {
     });
 };
 
-const openCardFilePicker = () => {
-    if (!cardForm.category) {
-        customToastSwal({
-            title: "Primero escribe el nombre de la categoría",
-            icon: "warning",
-        });
+const editDescription = (image: any) => {
+    editingCarouselImage.value = image;
+    descriptionForm.description = image.description ?? "";
+    descriptionForm.clearErrors();
+};
+
+const cancelEditDescription = () => {
+    editingCarouselImage.value = null;
+    descriptionForm.reset();
+    descriptionForm.clearErrors();
+};
+
+const saveDescription = () => {
+    if (!editingCarouselImage.value) {
         return;
     }
 
+    descriptionForm.put(route("website-content.descriptions.update", editingCarouselImage.value.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            editingCarouselImage.value = null;
+            customToastSwal({
+                title: page.props.flash.success || "Descripción actualizada correctamente",
+                icon: "success",
+            });
+        },
+        onError: (errors) => {
+            customToastSwal({
+                title: Object.values(errors)[0] || "No se pudo actualizar la descripción",
+                icon: "error",
+            });
+        },
+    });
+};
+
+const openCardFilePicker = () => {
     cardFileInput.value?.click();
 };
 
@@ -480,9 +511,35 @@ onUnmounted(() => {
                     >
                         <v-card variant="outlined" class="media-card h-100 position-relative">
                             <v-img :src="image.image_url" aspect-ratio="1.5" cover />
-                            <v-card-text class="text-subtitle-1">
+                            <v-card-text
+                                v-if="editingCarouselImage?.id !== image.id"
+                                class="text-subtitle-1"
+                            >
                                 {{ image.description || "Sin descripción" }}
                             </v-card-text>
+                            <v-card-text v-else>
+                                <v-text-field
+                                    v-model="descriptionForm.description"
+                                    label="Descripción corta"
+                                    maxlength="100"
+                                    counter="100"
+                                    density="compact"
+                                    hide-details="auto"
+                                    :error-messages="descriptionForm.errors.description"
+                                />
+                            </v-card-text>
+                            <v-card-actions
+                                v-if="can.includes('website-content.store') && editingCarouselImage?.id !== image.id"
+                                class="justify-end pt-0"
+                            >
+                                <BaseButton action="edit" tooltip="Editar descripción" @click="editDescription(image)" />
+                            </v-card-actions>
+                            <v-card-actions v-else-if="editingCarouselImage?.id === image.id" class="justify-end pt-0">
+                                <v-btn variant="text" @click="cancelEditDescription">Cancelar</v-btn>
+                                <v-btn color="primary" :loading="descriptionForm.processing" @click="saveDescription">
+                                    Guardar
+                                </v-btn>
+                            </v-card-actions>
                             <div
                                 v-if="can.includes('website-content.destroy') && carouselImages.length > 3"
                                 class="saved-delete-button"
@@ -624,7 +681,7 @@ onUnmounted(() => {
                             <v-card-text>
                                 <v-text-field
                                     v-model="cardForm.category"
-                                    label="Nombre de la categoría"
+                                    label="Nombre de la categoría (opcional)"
                                     maxlength="30"
                                     density="compact"
                                     hide-details="auto"
@@ -641,7 +698,7 @@ onUnmounted(() => {
                                     color="primary"
                                     prepend-icon="mdi-content-save"
                                     :loading="cardForm.processing"
-                                    :disabled="!cardForm.category || !cardForm.image"
+                                    :disabled="!cardForm.image"
                                     @click="saveCards"
                                 >
                                     Guardar
@@ -659,7 +716,7 @@ onUnmounted(() => {
                     >
                         <v-card variant="outlined" class="media-card position-relative">
                             <v-img :src="card.image_url" aspect-ratio="0.75" cover />
-                            <v-card-title>{{ card.category }}</v-card-title>
+                            <v-card-title v-if="card.category">{{ card.category }}</v-card-title>
                             <div
                                 v-if="can.includes('website-content.destroy')"
                                 class="saved-delete-button"
@@ -949,6 +1006,7 @@ onUnmounted(() => {
                 </v-alert>
             </v-card-text>
         </v-card>
+
     </AppLayout>
 </template>
 
