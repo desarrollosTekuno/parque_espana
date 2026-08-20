@@ -1028,7 +1028,7 @@ const submit = () => {
                             </v-form>
                         </template> -->
 
-                        <!-- ══════════════════════════════════════════════════ 0PASO 3 — Confirmación ══════════════════════════════════════════════════ -->
+                        <!-- ══════════════════════════════════════════════════ PASO 2 — Confirmación ══════════════════════════════════════════════════ -->
                         <template #item.2>
                             <v-container class="h-[500px] overflow-auto">
                                 <h3 class="mb-4 text-title-large">Confirmación</h3>
