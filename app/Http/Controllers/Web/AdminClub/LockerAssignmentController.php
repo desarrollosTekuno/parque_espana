@@ -110,7 +110,7 @@ class LockerAssignmentController extends Controller
 
                 $path = "{$directory}/{$filename}";
 
-                LockerAssignment::create([
+                $assignment = LockerAssignment::create([
                     'locker_id' => $locker->id,
                     'club_id' => session('club_id'),
                     'member_id' => $request->member_id,
@@ -118,6 +118,21 @@ class LockerAssignmentController extends Controller
                     'start_date' => now(),
                     'end_date' => now()->endOfYear(),
                     'year' => now()->year,
+                    'file_path' => $path,
+                ]);
+
+                // Registra también la asignación inicial en el historial
+                // (old_locker_id=null) — sin esto, "Historial casilleros"
+                // en Members/Show.vue (que solo lee de esta tabla) se
+                // quedaba vacío hasta el primer CAMBIO de casillero, sin
+                // mostrar nunca la asignación original.
+                LockerAssignmentHistory::create([
+                    'locker_assignment_id' => $assignment->id,
+                    'member_id' => $request->member_id,
+                    'old_locker_id' => null,
+                    'new_locker_id' => $locker->id,
+                    'changed_at' => now(),
+                    'changed_by' => Auth::id(),
                     'file_path' => $path,
                 ]);
 

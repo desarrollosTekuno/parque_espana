@@ -27,6 +27,7 @@ class DatabaseSeeder extends Seeder
             UserSeeder::class,
             // UserCodeSeeder::class,
             SystemVariableSeeder::class,
+            AppVariableSeeder::class,
             NotificationChannelSeeder::class,
             NotificationStatusCatalogSeeder::class,
             EmailConfigSeeder::class,
@@ -34,6 +35,7 @@ class DatabaseSeeder extends Seeder
             DocumentTypeSeeder::class,
             RelationshipSeeder::class,
             SeparationReasonSeeder::class,
+            CancellationReasonSeeder::class,
             NationalitySeeder::class,
             MaritalStatusSeeder::class,
             BillingConceptSeeder::class,
@@ -55,6 +57,10 @@ class DatabaseSeeder extends Seeder
 
             GuestListVariableSeeder::class,
             PhysicalAdSizeSeeder::class,
+            AnnualDiscountRuleSeeder::class,
+
+            //  php artisan migrate:data "C:\Apache24\htdocs\ParquesEsp\public\Plantilla_Migracion_Casos_Prueba_tmp.xlsx" --only=usuarios,membresias,integrantes
+
         ]);
     }
 }

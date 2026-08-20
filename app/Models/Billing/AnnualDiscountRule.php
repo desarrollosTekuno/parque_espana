@@ -16,13 +16,14 @@ class AnnualDiscountRule extends Model
     ];
 
     /**
-     * Busca la regla aplicable dado un año y el mes en que se realiza el pago.
-     * Si el socio paga en marzo y solo existen reglas para enero y febrero, no hay descuento.
+     * Busca la regla aplicable dado el mes en que se realiza el pago — el
+     * patrón de descuento (enero = mes completo, febrero = medio mes, etc.)
+     * no depende del año, aplica igual siempre. Si el socio paga en marzo y
+     * solo existen reglas para enero y febrero, no hay descuento.
      */
-    public static function findApplicable(int $year, int $paymentMonth): ?self
+    public static function findApplicable(int $paymentMonth): ?self
     {
-        return static::where('year', $year)
-            ->where('pay_by_month', '>=', $paymentMonth)
+        return static::where('pay_by_month', '>=', $paymentMonth)
             ->where('is_active', true)
             ->orderBy('pay_by_month')   // la regla más restrictiva (menor mes) primero
             ->first();

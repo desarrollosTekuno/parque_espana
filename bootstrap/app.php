@@ -28,6 +28,15 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => RoleMiddleware::class,
             'permission' => PermissionWithContextMiddleware::class,
         ]);
+
+        // El tunnel de Cloudflare (y cualquier proxy delante de la app,
+        // como en producción) termina el HTTPS y reenvía por HTTP local —
+        // sin confiar en los headers X-Forwarded-*, Laravel genera URLs con
+        // http:// aunque el navegador esté en https://, causando mixed
+        // content y fallas de CSRF/cookies "secure". Se confía en cualquier
+        // proxy ('*') porque tanto Cloudflare como el proxy real de
+        // producción varían de IP.
+        $middleware->trustProxies(at: '*');
     })
 
     ->withExceptions(function (Exceptions $exceptions): void {

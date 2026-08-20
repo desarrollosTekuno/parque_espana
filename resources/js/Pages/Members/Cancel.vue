@@ -27,15 +27,23 @@ interface MembershipInfo {
     status: string;
 }
 
+interface CancellationReasonOption {
+    id: number;
+    name: string;
+}
+
 interface Props {
     membership: MembershipInfo;
     members: MemberItem[];
+    cancellationReasons: CancellationReasonOption[];
 }
 
 const props = defineProps<Props>();
 
 const form = useForm({
     cancellation_letter: null as File | null,
+    cancellation_reason_id: null as number | null,
+    waive_pending_charges: false,
 });
 
 const letterFiles = ref<File[] | null>(null);
@@ -172,6 +180,20 @@ const submit = async () => {
                                     Documentación requerida
                                 </div>
 
+                                <!-- Motivo de la baja -->
+                                <div class="mb-4">
+                                    <v-select
+                                        v-model="form.cancellation_reason_id"
+                                        :items="props.cancellationReasons"
+                                        item-title="name"
+                                        item-value="id"
+                                        label="Motivo de la baja"
+                                        :rules="[(v: number | null) => !!v || 'Debes indicar el motivo de la baja']"
+                                        :error-messages="form.errors.cancellation_reason_id"
+                                        hide-details="auto"
+                                    />
+                                </div>
+
                                 <!-- Carga de carta de baja -->
                                 <div class="mb-4">
                                     <div class="font-weight-medium mb-1">
@@ -192,6 +214,32 @@ const submit = async () => {
                                         {{ form.errors.cancellation_letter }}
                                     </div>
                                 </div>
+
+                                <!-- Condonación de adeudo -->
+                                <v-checkbox
+                                    v-model="form.waive_pending_charges"
+                                    color="warning"
+                                    class="mb-0"
+                                    hide-details="auto"
+                                    :error-messages="form.errors.waive_pending_charges"
+                                >
+                                    <template #label>
+                                        <span class="text-body-2">
+                                            Condonar el adeudo pendiente del socio (mensualidades u otros cargos sin pagar).
+                                            Solo aplica si esta baja lo deja sin ninguna membresía activa en ningún parque.
+                                        </span>
+                                    </template>
+                                </v-checkbox>
+                                <v-alert
+                                    v-if="form.waive_pending_charges"
+                                    type="warning"
+                                    variant="tonal"
+                                    density="compact"
+                                    class="mb-4"
+                                >
+                                    Se cancelará todo el adeudo pendiente del socio en todos sus parques — esta acción
+                                    también es irreversible.
+                                </v-alert>
 
                                 <!-- Confirmación -->
                                 <v-checkbox

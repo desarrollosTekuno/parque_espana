@@ -771,18 +771,32 @@ class MemberController extends Controller
                 ]);
             }
 
+            // El grupo (account_group_id) es lo ideal cuando existe — hace
+            // que el permiso aplique también a las cuentas hermanas del
+            // socio en otros parques (ver MembershipChargeService::
+            // resolveApplicableAbsencePermit). Pero una cuenta sin grupo
+            // (frecuente en datos migrados) no debe quedarse sin poder
+            // registrar su permiso: en ese caso se guarda ligado
+            // directamente a membership_account_id, y aplica solo a esta
+            // cuenta — sigue siendo lo correcto para un socio de un solo
+            // parque.
             $accountGroup = $membership->account?->accountGroup;
             $primaryHolder = $membership->account?->primaryHolder;
 
-            if (!$accountGroup || !$primaryHolder?->member_id) {
+            if (!$primaryHolder?->member_id) {
                 return redirect()->back()->withErrors([
-                    'messageError' => 'La cuenta no tiene un grupo o titular válido para registrar el permiso por ausencia.',
+                    'messageError' => 'La cuenta no tiene un titular válido para registrar el permiso por ausencia.',
                     'exception' => '',
                 ]);
             }
 
             $overlappingPermit = AbsencePermit::query()
-                ->where('account_group_id', $accountGroup->id)
+                ->where(function (Builder $scope) use ($accountGroup, $membership) {
+                    if ($accountGroup) {
+                        $scope->where('account_group_id', $accountGroup->id);
+                    }
+                    $scope->orWhere('membership_account_id', $membership->membership_account_id);
+                })
                 ->whereIn('status', ['approved', 'active'])
                 ->whereDate('start_date', '<=', $endDate->toDateString())
                 ->whereDate('end_date', '>=', $startDate->toDateString())
@@ -796,7 +810,7 @@ class MemberController extends Controller
 
             DB::transaction(function () use ($request, $membership, $accountGroup, $primaryHolder, $startDate, $endDate, $validated) {
                 AbsencePermit::create([
-                    'account_group_id' => $accountGroup->id,
+                    'account_group_id' => $accountGroup?->id,
                     'membership_account_id' => $membership->membership_account_id,
                     'primary_member_id' => $primaryHolder->member_id,
                     'start_date' => $startDate->toDateString(),
@@ -827,6 +841,18 @@ class MemberController extends Controller
                     'document_type_id' => $docType?->id,
                     'file_path'        => "{$directory}/{$filename}",
                 ]);
+
+                // Ajusta cargos de mensualidad que ya existían ANTES de
+                // registrar este permiso (p. ej. generados por el backfill
+                // automático al buscar al socio en Cobranza) — si no, se
+                // quedan con el monto completo aunque el permiso ya
+                // aplique para ese mes. Ver reconcilePendingMonthlyChargesForAbsencePermit.
+                $this->membershipChargeService->reconcilePendingMonthlyChargesForAbsencePermit(
+                    accountGroupId: $accountGroup?->id,
+                    membershipAccountId: $membership->membership_account_id,
+                    startDate: $startDate,
+                    endDate: $endDate
+                );
             });
 
             return redirect()
@@ -854,9 +880,16 @@ class MemberController extends Controller
             }
 
             $membership = $this->loadMembershipContext($membership);
-            $accountGroupId = (int) ($membership->account?->account_group_id ?? 0);
+            $accountGroupId = $membership->account?->account_group_id;
 
-            if ((int) $absencePermit->account_group_id !== $accountGroupId) {
+            // Mismo criterio que resolveAbsencePermitsForAccount: por grupo
+            // cuando la cuenta pertenece a uno, si no por la cuenta directa
+            // (permiso registrado sin grupo).
+            $belongsToThisAccount = $accountGroupId
+                ? (int) $absencePermit->account_group_id === (int) $accountGroupId
+                : (int) $absencePermit->membership_account_id === (int) $membership->membership_account_id;
+
+            if (!$belongsToThisAccount) {
                 abort(404);
             }
 
@@ -870,6 +903,17 @@ class MemberController extends Controller
             $absencePermit->update([
                 'status' => 'cancelled',
             ]);
+
+            // Revierte al monto completo los cargos de mensualidad pendientes
+            // que se habían ajustado por este permiso — al quedar cancelado,
+            // resolveApplicableAbsencePermit ya no lo encuentra, así que
+            // previewMonthlyFeeAmount recalcula sin el descuento.
+            $this->membershipChargeService->reconcilePendingMonthlyChargesForAbsencePermit(
+                accountGroupId: $accountGroupId,
+                membershipAccountId: $membership->membership_account_id,
+                startDate: Carbon::parse($absencePermit->start_date),
+                endDate: Carbon::parse($absencePermit->end_date)
+            );
 
             return redirect()
                 ->route('members.manage.show', $membership)
@@ -2365,7 +2409,6 @@ class MemberController extends Controller
     {
         $membership->load([
             'account.club',
-            'account.accountGroup.absencePermits',
             'account.primaryHolder.member.primaryAddress',
             'account.primaryHolder.member.primaryAddress.country',
             'account.primaryHolder.member.primaryAddress.state',
@@ -2857,6 +2900,37 @@ class MemberController extends Controller
                 ->where('is_primary', true)
         );
 
+        // Dos cuentas pueden compartir account_group_id sin representar un
+        // combo real de precio (p. ej. el mismo titular con un Individual
+        // en un parque y un Pase Mensual Individual en otro, cada uno con
+        // su propio pricing_rule independiente, sin interclub_package_rule
+        // ni una regla requires_multiple_clubs de por medio) — ahí cada
+        // cuenta se cobra por su lado y "cuota actual" debe mostrar solo lo
+        // de ESA cuenta, no la suma del grupo. Mismo criterio que ya usa
+        // CollectionController::resolveComboClubBreakdown para decidir si
+        // hay reparto real entre parques: se busca en TODO el grupo (no
+        // solo en la cuenta que se está mostrando) porque en un combo real
+        // solo el lado facturable carga la marca — el otro lado
+        // (is_billable=false) no la tiene, pero igual debe mostrar el total
+        // conjunto en su propia fila.
+        $representsCombo = $groupMemberships->contains(
+            fn (Membership $membership) => (bool) $membership->interclub_package_rule_id
+                || (bool) ($membership->pricingRule?->requires_multiple_clubs ?? false)
+        );
+
+        if (!$representsCombo) {
+            $ownMemberships = $account->memberships
+                ->where('status', 'active')
+                ->where('is_primary', true);
+
+            return [
+                'total' => (float) $ownMemberships
+                    ->where('is_billable', true)
+                    ->sum(fn (Membership $membership) => $membership->resolved_monthly_fee_share),
+                'spans_multiple_clubs' => false,
+            ];
+        }
+
         return [
             'total' => (float) $groupMemberships
                 ->where('is_billable', true)
@@ -2867,7 +2941,9 @@ class MemberController extends Controller
 
     protected function buildMembershipAccountPayload(Membership $membership): array
     {
-        $this->syncAbsencePermitStatuses($membership->account?->accountGroup);
+        $absencePermits = $this->resolveAbsencePermitsForAccount($membership->account);
+        $this->syncAbsencePermitStatuses($absencePermits);
+        $absencePermits = $absencePermits->sortByDesc('start_date')->values();
 
         $activeMemberships = $membership->account->memberships
             ->where('status', 'active')
@@ -2875,11 +2951,6 @@ class MemberController extends Controller
             ->values();
         $billableMembership = $activeMemberships->firstWhere('is_billable', true);
         $accountClub = $membership->account?->club ?? $activeMemberships->first()?->club;
-        $absencePermits = $membership->account?->accountGroup?->absencePermits
-            ? $membership->account->accountGroup->absencePermits
-                ->sortByDesc('start_date')
-                ->values()
-            : collect();
         $currentAbsencePermit = $this->resolveCurrentAbsencePermit($absencePermits);
         $groupBillingSummary = $this->resolveGroupBillingSummary($membership->account);
         // El "de descuento por permiso" se calcula sobre lo que esta cuenta
@@ -2983,15 +3054,36 @@ class MemberController extends Controller
         return 'active';
     }
 
-    protected function syncAbsencePermitStatuses(?MembershipAccountGroup $accountGroup): void
+    /**
+     * Permisos por ausencia que aplican a esta cuenta: por account_group_id
+     * cuando la cuenta pertenece a un grupo (así aplica también a sus
+     * cuentas hermanas de otros parques, ver
+     * MembershipChargeService::resolveApplicableAbsencePermit, mismo
+     * criterio) y/o por membership_account_id directo (cuentas sin grupo,
+     * p. ej. datos migrados que nunca recibieron uno — antes esto dejaba a
+     * esas cuentas sin poder registrar ni aplicar ningún permiso).
+     */
+    protected function resolveAbsencePermitsForAccount(?MembershipAccount $account): \Illuminate\Support\Collection
     {
-        if (!$accountGroup || !$accountGroup->relationLoaded('absencePermits')) {
-            return;
+        if (!$account) {
+            return collect();
         }
 
+        return AbsencePermit::query()
+            ->where(function (Builder $scope) use ($account) {
+                if ($account->account_group_id) {
+                    $scope->where('account_group_id', $account->account_group_id);
+                }
+                $scope->orWhere('membership_account_id', $account->id);
+            })
+            ->get();
+    }
+
+    protected function syncAbsencePermitStatuses(\Illuminate\Support\Collection $absencePermits): void
+    {
         $today = now()->startOfDay();
 
-        $accountGroup->absencePermits->each(function (AbsencePermit $absencePermit) use ($today) {
+        $absencePermits->each(function (AbsencePermit $absencePermit) use ($today) {
             $newStatus = $absencePermit->status;
             $startDate = Carbon::parse($absencePermit->start_date)->startOfDay();
             $endDate = Carbon::parse($absencePermit->end_date)->startOfDay();
@@ -3063,10 +3155,15 @@ class MemberController extends Controller
             }
 
             $validated = $request->validate([
-                'member_id'        => ['required', 'integer'],
-                'document_type_id' => ['required', 'integer'],
-                'files'            => ['required', 'array', 'min:1'],
-                'files.*'          => ['file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+                'member_id'            => ['required', 'integer'],
+                'document_type_id'     => ['required', 'integer'],
+                'files'                => ['required', 'array', 'min:1'],
+                'files.*'              => ['file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+                // Presente cuando el cajero le dio "Reemplazar" a un
+                // archivo ya cargado en particular (ver
+                // Members/Show.vue::openDocumentModal) — solo se puede
+                // reemplazar UN archivo a la vez.
+                'replace_document_id'  => ['nullable', 'integer', new \App\Rules\ExistsInSchema('members', 'documents', 'id')],
             ], [
                 'files.required'   => 'El documento es obligatorio.',
                 'files.*.mimes'    => 'El documento debe ser PDF, JPG o PNG.',
@@ -3083,7 +3180,24 @@ class MemberController extends Controller
                 abort(403, 'El integrante no pertenece a esta cuenta.');
             }
 
-            $docType     = DocumentType::findOrFail($documentTypeId);
+            $docType = DocumentType::findOrFail($documentTypeId);
+
+            $replacedDocument = null;
+
+            if (!empty($validated['replace_document_id'])) {
+                $replacedDocument = MemberDocument::where('id', $validated['replace_document_id'])
+                    ->where('member_id', $memberId)
+                    ->where('document_type_id', $documentTypeId)
+                    ->when($docType->is_club_specific, fn ($q) => $q->where('club_id', $clubId))
+                    ->firstOrFail();
+
+                if (count($request->file('files')) !== 1) {
+                    throw ValidationException::withMessages([
+                        'files' => 'Para reemplazar un documento solo puedes subir un archivo.',
+                    ]);
+                }
+            }
+
             $docTypeSlug = \Illuminate\Support\Str::slug($docType->name);
             $directory   = "members/{$memberId}/{$docTypeSlug}";
             $userId      = $request->user()?->id;
@@ -3101,14 +3215,26 @@ class MemberController extends Controller
                 MemberDocument::create([
                     'member_id'        => $memberId,
                     'document_type_id' => $documentTypeId,
+                    // Documentos como la carta de recomendación o el formato de
+                    // solicitud son distintos por parque aunque el socio comparta
+                    // cuenta en varios; el resto se guarda sin club_id (compartido).
+                    'club_id'          => $docType->is_club_specific ? $clubId : null,
                     'file_path'        => "{$directory}/{$filename}",
                     'uploaded_by'      => $userId,
                 ]);
             }
 
+            // El archivo viejo solo se borra DESPUÉS de que el nuevo ya
+            // quedó guardado correctamente (líneas arriba) — si la subida
+            // fallara, no se pierde el documento anterior.
+            if ($replacedDocument) {
+                \Illuminate\Support\Facades\Storage::disk('spaces')->delete($replacedDocument->file_path);
+                $replacedDocument->delete();
+            }
+
             return redirect()
                 ->route('members.manage.show', $membership)
-                ->with('success', 'Documento cargado correctamente.');
+                ->with('success', $replacedDocument ? 'Documento reemplazado correctamente.' : 'Documento cargado correctamente.');
         } catch (ValidationException $e) {
             return $this->validationExceptionResponse($e);
         } catch (\Exception $e) {
@@ -3150,6 +3276,7 @@ class MemberController extends Controller
         $uploadedDocs = $member?->documents ?? collect();
         $relationshipId = $accountMember->is_primary_holder ? 1 : $accountMember->relationship_id;
         $memberAge = $member?->birthdate ? Carbon::parse($member->birthdate)->age : null;
+        $clubId = session('club_id');
 
         $documents = collect($documentTypes ?? [])
             ->filter(fn ($docType) => $docType->relationships->contains('id', $relationshipId))
@@ -3159,12 +3286,17 @@ class MemberController extends Controller
                 if ($docType->max_age !== null && $memberAge > (int) $docType->max_age) return false;
                 return true;
             })
-            ->map(function ($docType) use ($uploadedDocs) {
+            ->map(function ($docType) use ($uploadedDocs, $clubId) {
                 $allowMultiple = (bool) $docType->pivot->allow_multiple;
                 $numberFiles   = (int) $docType->pivot->number_files;
 
+                // Los tipos marcados como is_club_specific (carta de recomendación,
+                // formato de solicitud) se cargan una vez por parque: aunque el
+                // socio tenga documentos de ese tipo subidos en otro club, no
+                // cuentan aquí.
                 $docsForType = $uploadedDocs
                     ->where('document_type_id', $docType->id)
+                    ->when($docType->is_club_specific, fn ($docs) => $docs->where('club_id', $clubId))
                     ->map(fn ($d) => [
                         'id'          => $d->id,
                         'uploaded_at' => $d->created_at?->toDateString(),
@@ -3182,6 +3314,7 @@ class MemberController extends Controller
                         : [],
                     'max_file_size_kb'   => $docType->max_file_size_kb !== null ? (int) $docType->max_file_size_kb : null,
                     'is_required'        => (bool) $docType->pivot->is_required,
+                    'is_club_specific'   => (bool) $docType->is_club_specific,
                     'allow_multiple'     => $allowMultiple,
                     'number_files'       => $numberFiles,
                     'already_uploaded'   => $alreadyUploaded,
@@ -3224,6 +3357,9 @@ class MemberController extends Controller
 
         $uploadedDocs
             ->whereNotIn('document_type_id', $coveredDocTypeIds)
+            // Documentos de tipo específico de parque, subidos desde otro club,
+            // no deben aparecer como "extra" aquí.
+            ->reject(fn ($d) => $d->documentType?->is_club_specific && (int) $d->club_id !== (int) $clubId)
             ->groupBy('document_type_id')
             ->each(function ($docs) use (&$documents) {
                 $docType = $docs->first()->documentType;

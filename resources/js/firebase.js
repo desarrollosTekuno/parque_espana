@@ -20,8 +20,15 @@ const hasFirebaseConfig =
     !!firebaseConfig.messagingSenderId &&
     !!firebaseConfig.appId;
 
+const canUseFirebaseMessaging =
+    hasFirebaseConfig &&
+    typeof window !== "undefined" &&
+    window.isSecureContext &&
+    typeof navigator !== "undefined" &&
+    "serviceWorker" in navigator;
+
 const app = hasFirebaseConfig ? initializeApp(firebaseConfig) : null;
-const messaging = app ? getMessaging(app) : null;
+const messaging = app && canUseFirebaseMessaging ? getMessaging(app) : null;
 
 export async function requestFirebaseNotificationPermission() {
     if (!hasFirebaseConfig || !messaging) {

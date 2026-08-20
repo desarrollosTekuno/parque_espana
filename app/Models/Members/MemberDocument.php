@@ -2,6 +2,7 @@
 
 namespace App\Models\Members;
 
+use App\Models\Administrator\Club;
 use App\Models\Catalogs\DocumentType;
 use App\Models\User;
 use App\Traits\SerializesDates;
@@ -22,6 +23,11 @@ class MemberDocument extends Model
     public function documentType()
     {
         return $this->belongsTo(DocumentType::class, 'document_type_id');
+    }
+
+    public function club()
+    {
+        return $this->belongsTo(Club::class, 'club_id');
     }
 
     public function verifiedBy()

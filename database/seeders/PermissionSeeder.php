@@ -106,6 +106,10 @@ class PermissionSeeder extends Seeder
             ['module' => 'Sistema', 'name' => 'system-variables.store', 'description' => 'Crear variables de sistema', 'contexts' => ['web']],
             ['module' => 'Sistema', 'name' => 'system-variables.update', 'description' => 'Actualizar variables de sistema', 'contexts' => ['web']],
             ['module' => 'Sistema', 'name' => 'system-variables.destroy', 'description' => 'Eliminar variables de sistema', 'contexts' => ['web']],
+            ['module' => 'Sistema', 'name' => 'app-variables.index', 'description' => 'Ver variables de app móvil', 'contexts' => ['web']],
+            ['module' => 'Sistema', 'name' => 'app-variables.store', 'description' => 'Crear variables de app móvil', 'contexts' => ['web']],
+            ['module' => 'Sistema', 'name' => 'app-variables.update', 'description' => 'Actualizar variables de app móvil', 'contexts' => ['web']],
+            ['module' => 'Sistema', 'name' => 'app-variables.destroy', 'description' => 'Eliminar variables de app móvil', 'contexts' => ['web']],
             ['module' => 'Sistema', 'name' => 'pricing-rules.index', 'description' => 'Ver reglas de precio', 'contexts' => ['web']],
             ['module' => 'Sistema', 'name' => 'pricing-rules.store', 'description' => 'Crear reglas de precio', 'contexts' => ['web']],
             ['module' => 'Sistema', 'name' => 'pricing-rules.update', 'description' => 'Actualizar reglas de precio', 'contexts' => ['web']],
@@ -116,6 +120,7 @@ class PermissionSeeder extends Seeder
             ['module' => 'Sistema', 'name' => 'interclub-package-rules.destroy', 'description' => 'Eliminar paquetes interclub', 'contexts' => ['web']],
             ['module' => 'Sistema', 'name' => 'fee-schedules.index', 'description' => 'Ver cuotas por año', 'contexts' => ['web']],
             ['module' => 'Sistema', 'name' => 'fee-schedules.store', 'description' => 'Capturar cuotas por año', 'contexts' => ['web']],
+            ['module' => 'Sistema', 'name' => 'fee-schedules.annual-discount-rules', 'description' => 'Administrar reglas de descuento por pago de anualidad', 'contexts' => ['web']],
 
             // Tipos de documento
             ['module' => 'Membresías', 'name' => 'document-types.index', 'description' => 'Ver tipos de documento', 'contexts' => ['web']],
@@ -170,13 +175,14 @@ class PermissionSeeder extends Seeder
             ['module' => 'Membresías', 'name' => 'acts.update', 'description' => 'Actualizar multas y/o actas', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'member-access.index', 'description' => 'Ver acceso de miembros', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'member-access.store', 'description' => 'Asignar acceso a miembros', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'member-access.reset-password', 'description' => 'Reiniciar contraseña de miembros', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'member-access.destroy', 'description' => 'Revocar acceso a miembros', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.cancel.create', 'description' => 'Dar de baja membresía', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.additional-membership.create', 'description' => 'Agregar nueva membresía', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'memberships.view-inscription-fee', 'description' => 'Permitir descuentos en las inscripción', 'contexts' => ['web']],
 
             // Cobranza
-            ['module' => 'Cobranza', 'name' => 'billing.index', 'description' => 'Ver módulo de cobranza', 'contexts' => ['web']],
+            ['module' => 'Cobranza', 'name' => 'billing.index', 'description' => 'Ver cargos pendientes', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'billing.charges.index', 'description' => 'Ver desglose de cargos pendientes', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'billing.store', 'description' => 'Registrar cobros', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'collections.index', 'description' => 'Ver módulo de cobranza (caja)', 'contexts' => ['web']],
@@ -191,6 +197,7 @@ class PermissionSeeder extends Seeder
             ['module' => 'Cobranza', 'name' => 'payment-methods.update', 'description' => 'Actualizar métodos de pago', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'payment-methods.destroy', 'description' => 'Eliminar métodos de pago', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'tickets.index', 'description' => 'Ver y reimprimir tickets de pago', 'contexts' => ['web']],
+            ['module' => 'Cobranza', 'name' => 'payments.cancel', 'description' => 'Cancelar pagos (p. ej. cheque rebotado)', 'contexts' => ['web']],
 
             // Cortes de caja
             ['module' => 'Cortes de caja', 'name' => 'cash-cuts.index', 'description' => 'Ver mis cortes de caja', 'contexts' => ['web']],
@@ -306,15 +313,16 @@ class PermissionSeeder extends Seeder
             ['module' => 'Página web', 'name' => 'website-content.index', 'description' => 'Ver módulo de página web', 'contexts' => ['web']],
             ['module' => 'Página web', 'name' => 'website-content.store', 'description' => 'Subir imágenes del carrusel', 'contexts' => ['web']],
             ['module' => 'Página web', 'name' => 'website-content.destroy', 'description' => 'Eliminar imágenes del carrusel', 'contexts' => ['web']],
+            ['module' => 'Página web', 'name' => 'website-contacts.index', 'description' => 'Ver mensajes del formulario de contacto', 'contexts' => ['web']],
 
             // Files
-            ['module' => 'Archivos', 'name' => 'files.index', 'description' => 'Ver archivos', 'contexts' => ['Web']],
-            ['module' => 'Archivos', 'name' => 'files.store', 'description' => 'Crear formato de archivo', 'contexts' => ['Web']],
-            ['module' => 'Archivos', 'name' => 'files.update', 'description' => 'Editar formato de archivo', 'contexts' => ['Web']],
-            ['module' => 'Archivos', 'name' => 'files.destroy', 'description' => 'Eliminar formato de archivo', 'contexts' => ['Web']],
-            ['module' => 'Archivos', 'name' => 'files.club-file.upload', 'description' => 'Subir archivo del club', 'contexts' => ['Web']],
-            ['module' => 'Archivos', 'name' => 'files.club-file.destroy', 'description' => 'Eliminar archivo del club', 'contexts' => ['Web']],
-            ['module' => 'Archivos', 'name' => 'files.variables', 'description' => 'Extracción de variables en Formato', 'contexts' => ['Web']]
+            ['module' => 'Archivos', 'name' => 'files.index', 'description' => 'Ver archivos', 'contexts' => ['web']],
+            ['module' => 'Archivos', 'name' => 'files.store', 'description' => 'Crear formato de archivo', 'contexts' => ['web']],
+            ['module' => 'Archivos', 'name' => 'files.update', 'description' => 'Editar formato de archivo', 'contexts' => ['web']],
+            ['module' => 'Archivos', 'name' => 'files.destroy', 'description' => 'Eliminar formato de archivo', 'contexts' => ['web']],
+            ['module' => 'Archivos', 'name' => 'files.club-file.upload', 'description' => 'Subir archivo del club', 'contexts' => ['web']],
+            ['module' => 'Archivos', 'name' => 'files.club-file.destroy', 'description' => 'Eliminar archivo del club', 'contexts' => ['web']],
+            ['module' => 'Archivos', 'name' => 'files.variables', 'description' => 'Extracción de variables en Formato', 'contexts' => ['web']]
             ];
 
         foreach ($permissions as $permission) {
