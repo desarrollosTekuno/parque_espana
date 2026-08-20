@@ -14,6 +14,7 @@ interface CancellationItem {
     email: string | null;
     membership_type_name: string | null;
     cancellation_type: "voluntary" | "sanction" | null;
+    cancellation_reason: string | null;
     cancelled_at: string | null;
     cancelled_by_name: string | null;
     cancelled_by_id: number | null;
@@ -339,7 +340,7 @@ function clearFilters() {
                             </v-chip>
                         </div>
                         <div class="text-caption text-medium-emphasis mt-1">
-                            {{ motivoLabel(item.cancellation_type) }}
+                            {{ item.cancellation_reason ?? motivoLabel(item.cancellation_type) }}
                         </div>
                     </template>
 

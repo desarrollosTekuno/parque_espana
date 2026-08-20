@@ -103,6 +103,11 @@ class MembershipAccount extends Model
         return $this->belongsTo(User::class, 'cancelled_by');
     }
 
+    public function cancellationReason()
+    {
+        return $this->belongsTo(\App\Models\Catalogs\CancellationReason::class, 'cancellation_reason_id');
+    }
+
     public function reactivations()
     {
         return $this->hasMany(AccountReactivation::class, 'membership_account_id');

@@ -43,6 +43,7 @@ class AccountReactivationController extends Controller
             'account.accountMembers.relationship',
             'account.memberships.membershipType',
             'account.cancelledBy',
+            'account.cancellationReason',
             'account.reactivations.reactivatedBy',
             'membershipType',
             'club',
@@ -122,6 +123,7 @@ class AccountReactivationController extends Controller
                 'cancelled_at' => $account->cancelled_at,
                 'cancelled_by_name' => $account->cancelledBy?->name,
                 'cancellation_type' => $account->cancellation_type,
+                'cancellation_reason' => $account->cancellationReason?->name,
             ],
             'members' => $members,
             'previous_memberships' => $previousMemberships,
@@ -195,6 +197,7 @@ class AccountReactivationController extends Controller
                 'cancelled_by' => null,
                 'cancellation_letter_path' => null,
                 'cancellation_type' => null,
+                'cancellation_reason_id' => null,
             ]);
 
             // Restore all cancelled memberships for this account back to active

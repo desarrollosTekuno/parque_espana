@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web\AdminClub;
 
 use App\Models\Billing\Charge;
+use App\Models\Catalogs\CancellationReason;
 use App\Models\Catalogs\DocumentType;
 use App\Models\Members\LockerAssignment;
 use App\Models\Members\MemberDocument;
@@ -17,6 +18,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Spatie\Permission\PermissionRegistrar;
@@ -85,6 +87,10 @@ class AccountCancellationController extends Controller
                 'status' => $membership->status,
             ],
             'members' => $members,
+            'cancellationReasons' => CancellationReason::query()
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name']),
         ]);
     }
 
@@ -105,11 +111,17 @@ class AccountCancellationController extends Controller
 
         $validated = $request->validate([
             'cancellation_letter' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+            'cancellation_reason_id' => [
+                'required',
+                'integer',
+                Rule::exists(CancellationReason::class, 'id')->where('is_active', true),
+            ],
             'waive_pending_charges' => ['sometimes', 'boolean'],
         ], [
             'cancellation_letter.required' => 'La carta de baja firmada es obligatoria para continuar.',
             'cancellation_letter.mimes' => 'La carta debe ser un archivo PDF, JPG o PNG.',
             'cancellation_letter.max' => 'La carta no debe superar los 5 MB.',
+            'cancellation_reason_id.required' => 'Debes indicar el motivo de la baja.',
         ]);
         $waivePendingCharges = (bool) ($validated['waive_pending_charges'] ?? false);
 
@@ -161,6 +173,7 @@ class AccountCancellationController extends Controller
                 'cancelled_by' => auth()->id(),
                 'cancellation_letter_path' => $letterPath,
                 'cancellation_type' => 'voluntary',
+                'cancellation_reason_id' => $validated['cancellation_reason_id'],
             ]);
 
             $activeMemberships = $account->memberships()->where('status', 'active')->get();

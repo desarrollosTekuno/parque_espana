@@ -122,6 +122,7 @@ class CancellationHistoryController extends Controller
                 'primaryHolder.member',
                 'memberships' => fn ($q) => $q->with(['membershipType'])->where('is_primary', true),
                 'cancelledBy',
+                'cancellationReason',
             ])
             ->where('status', 'cancelled')
             ->whereHas('memberships', fn (Builder $q) => $q->where('club_id', $clubId)->where('is_primary', true));
@@ -174,6 +175,7 @@ class CancellationHistoryController extends Controller
             'email'                => $holder?->email,
             'membership_type_name' => $primaryMembership?->membershipType?->name,
             'cancellation_type'    => $account->cancellation_type,
+            'cancellation_reason'  => $account->cancellationReason?->name,
             'cancelled_at'         => $account->cancelled_at?->toIso8601String(),
             'cancelled_by_name'    => $account->cancelledBy?->name,
             'cancelled_by_id'      => $account->cancelled_by,
