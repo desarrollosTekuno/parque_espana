@@ -2,10 +2,20 @@
 import BaseButton from "@/Components/BaseButton.vue";
 import CustomFileUploadField from "@/Components/CustomFileUploadField.vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
-import { fileMaxSizeRule, fileTypeRule, requiredFileRule } from "@/constants/validationRules";
+import {
+    email,
+    fileMaxSizeRule,
+    fileTypeRule,
+    minLength,
+    postalCode,
+    required,
+    requiredFileRule,
+    selectRequired,
+    validatePhone,
+} from "@/constants/validationRules";
 import { customToastSwal } from "@/utils/swal";
 import { Head, router, useForm, usePage } from "@inertiajs/vue3";
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 
 const page = usePage<any>();
 
@@ -40,6 +50,61 @@ interface CandidateMember {
     has_other_club_membership: boolean;
     other_club_name: string | null;
     target_membership_options: TargetMembershipOption[];
+    prefill: MemberForm;
+}
+
+interface CountryCatalog {
+    id: number;
+    name: string;
+    translations: Record<string, string> | null;
+    demonym: string | null;
+}
+
+interface StateCatalog {
+    id: number;
+    country_id: number;
+    name: string;
+}
+
+interface CityCatalog {
+    id: number;
+    state_id: number;
+    name: string;
+}
+
+interface MaritalStatus {
+    id: number;
+    name: string;
+}
+
+interface MemberForm {
+    first_name: string | null;
+    last_name: string | null;
+    second_last_name: string | null;
+    birthdate: string | null;
+    birth_place: string | null;
+    birth_country_id: number | null;
+    birth_state_id: number | null;
+    birth_city_id: number | null;
+    nationality_id: number | null;
+    marital_status_id: number | null;
+    phone: string | null;
+    email: string | null;
+    occupation: string | null;
+    address: {
+        street: string | null;
+        neighborhood: string | null;
+        postal_code: string | null;
+        country_id: number | null;
+        state_id: number | null;
+        city_id: number | null;
+        years_in_city: number | null;
+    };
+    employment: {
+        company_name: string | null;
+        company_address: string | null;
+        company_phone: string | null;
+    };
 }
 
 interface SeparationReason {
@@ -60,6 +125,9 @@ interface Props {
     membership: SourceMembership;
     candidateMembers?: CandidateMember[];
     separationReasons?: SeparationReason[];
+    countries: CountryCatalog[];
+    nationalities: CountryCatalog[];
+    maritalStatuses: MaritalStatus[];
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -73,10 +141,13 @@ const form = useForm({
     separation_reason_id: null as number | null,
     reason: "",
     reason_document: null as File | null,
+    member: null as MemberForm | null,
 });
 
 const formRef = ref<{ validate(): Promise<{ valid: boolean }> } | null>(null);
 const reasonDocumentFiles = ref<File[] | null>(null);
+const statesByCountry = ref<Record<number, StateCatalog[]>>({});
+const citiesByState = ref<Record<number, CityCatalog[]>>({});
 
 const currencyFormatter = new Intl.NumberFormat("es-MX", {
     style: "currency",
@@ -100,6 +171,80 @@ const selectedMember = computed(
             (candidate) => candidate.member_id === form.member_id,
         ) ?? null,
 );
+
+const getCountryDisplayName = (country: CountryCatalog | null | undefined) =>
+    country?.translations?.["es-MX"]?.trim() || country?.translations?.es?.trim() || country?.name || "";
+
+const countryOptions = computed(() =>
+    props.countries.map((country) => ({ id: country.id, title: getCountryDisplayName(country) })),
+);
+
+const nationalityOptions = computed(() =>
+    props.nationalities.map((country) => ({
+        id: country.id,
+        title: country.demonym || getCountryDisplayName(country),
+    })),
+);
+
+const maritalStatusOptions = computed(() =>
+    props.maritalStatuses.map((status) => ({ id: status.id, title: status.name })),
+);
+
+const getStateOptions = (countryId: number | null) =>
+    countryId ? statesByCountry.value[countryId] ?? [] : [];
+
+const getCityOptions = (stateId: number | null) =>
+    stateId ? citiesByState.value[stateId] ?? [] : [];
+
+const fetchStates = async (countryId: number | null) => {
+    if (!countryId || statesByCountry.value[countryId]) return;
+    const response = await fetch(route("members.location-catalogs.states", { country_id: countryId }));
+    if (response.ok) statesByCountry.value[countryId] = await response.json();
+};
+
+const fetchCities = async (stateId: number | null) => {
+    if (!stateId || citiesByState.value[stateId]) return;
+    const response = await fetch(route("members.location-catalogs.cities", { state_id: stateId }));
+    if (response.ok) citiesByState.value[stateId] = await response.json();
+};
+
+const loadLocationCatalogs = async () => {
+    if (!form.member) return;
+    await Promise.all([
+        fetchStates(form.member.birth_country_id),
+        fetchStates(form.member.address.country_id),
+    ]);
+    await Promise.all([
+        fetchCities(form.member.birth_state_id),
+        fetchCities(form.member.address.state_id),
+    ]);
+};
+
+const onBirthCountryChange = async (countryId: number | null) => {
+    if (!form.member) return;
+    form.member.birth_state_id = null;
+    form.member.birth_city_id = null;
+    await fetchStates(countryId);
+};
+
+const onBirthStateChange = async (stateId: number | null) => {
+    if (!form.member) return;
+    form.member.birth_city_id = null;
+    await fetchCities(stateId);
+};
+
+const onAddressCountryChange = async (countryId: number | null) => {
+    if (!form.member) return;
+    form.member.address.state_id = null;
+    form.member.address.city_id = null;
+    await fetchStates(countryId);
+};
+
+const onAddressStateChange = async (stateId: number | null) => {
+    if (!form.member) return;
+    form.member.address.city_id = null;
+    await fetchCities(stateId);
+};
 
 const targetMembershipOptions = computed(() =>
     (selectedMember.value?.target_membership_options ?? []).map((option) => ({
@@ -196,7 +341,7 @@ const showReasonDocument = computed(() =>
 );
 
 const canSubmit = computed(() => {
-    if (!form.member_id || !form.target_membership_type_id) return false;
+    if (!form.member_id || !form.member || !form.target_membership_type_id) return false;
     if (showReasonSelect.value && !form.separation_reason_id) return false;
     if (showReasonDocument.value && !reasonDocumentFiles.value?.length) return false;
     return true;
@@ -209,9 +354,13 @@ const clearReasonFields = () => {
     reasonDocumentFiles.value = null;
 };
 
-const onMemberChange = () => {
+const onMemberChange = async () => {
     form.target_membership_type_id = null;
+    form.member = selectedMember.value
+        ? JSON.parse(JSON.stringify(selectedMember.value.prefill))
+        : null;
     clearReasonFields();
+    await loadLocationCatalogs();
 };
 
 const onReasonChange = () => {
@@ -244,6 +393,10 @@ const submit = async () => {
         },
     });
 };
+
+onMounted(async () => {
+    await loadLocationCatalogs();
+});
 </script>
 
 <template>
@@ -262,7 +415,7 @@ const submit = async () => {
 
         <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
             <v-row>
-                <v-col cols="12" md="10" class="mx-auto">
+                <v-col cols="12" md="12" class="mx-auto">
                     <v-container class="py-6">
                         <v-card class="mb-4 pa-4" variant="tonal">
                             <div class="mb-2 text-subtitle-1 font-weight-bold">
@@ -290,7 +443,7 @@ const submit = async () => {
                                 <p class="mb-4 text-body-2 text-medium-emphasis">
                                     Selecciona al integrante que saldrá de la cuenta
                                     familiar y el tipo de membresía destino. Se creará
-                                    un nuevo no. cuenta para esa persona.
+                                    un nuevo número de cuenta para esa persona.
                                 </p>
 
                                 <v-autocomplete
@@ -328,6 +481,146 @@ const submit = async () => {
                                         <strong>Teléfono:</strong>
                                         {{ selectedMember.phone }}
                                     </p>
+                                </v-card>
+
+                                <v-card v-if="form.member" variant="outlined" class="mb-4 pa-4">
+                                    <div class="mb-4 text-subtitle-1 font-weight-bold">
+                                        Datos del nuevo titular
+                                    </div>
+                                    <p class="mb-4 text-body-2 text-medium-emphasis">
+                                        Confirma o actualiza los datos antes de crear la nueva cuenta.
+                                    </p>
+
+                                    <v-row>
+                                        <v-col cols="12" md="4">
+                                            <v-text-field v-model="form.member.first_name" label="Nombre(s)" :rules="[required, minLength(2)]" />
+                                        </v-col>
+                                        <v-col cols="12" md="4">
+                                            <v-text-field v-model="form.member.last_name" label="Apellido paterno" :rules="[required, minLength(2)]" />
+                                        </v-col>
+                                        <v-col cols="12" md="4">
+                                            <v-text-field v-model="form.member.second_last_name" label="Apellido materno" />
+                                        </v-col>
+                                        <v-col cols="12" md="4">
+                                            <v-text-field v-model="form.member.birthdate" type="date" label="Fecha de nacimiento" :rules="[required]" />
+                                        </v-col>
+                                        <v-col cols="12" md="4">
+                                            <v-autocomplete
+                                                v-model="form.member.birth_country_id"
+                                                :items="countryOptions"
+                                                item-title="title"
+                                                item-value="id"
+                                                label="País de nacimiento"
+                                                clearable
+                                                :rules="[selectRequired]"
+                                                @update:model-value="onBirthCountryChange"
+                                            />
+                                        </v-col>
+                                        <v-col cols="12" md="4">
+                                            <v-autocomplete
+                                                v-model="form.member.birth_state_id"
+                                                :items="getStateOptions(form.member.birth_country_id)"
+                                                item-title="name"
+                                                item-value="id"
+                                                label="Estado de nacimiento"
+                                                :disabled="!form.member.birth_country_id"
+                                                clearable
+                                                :rules="[selectRequired]"
+                                                @update:model-value="onBirthStateChange"
+                                            />
+                                        </v-col>
+                                        <v-col cols="12" md="4">
+                                            <v-autocomplete
+                                                v-model="form.member.birth_city_id"
+                                                :items="getCityOptions(form.member.birth_state_id)"
+                                                item-title="name"
+                                                item-value="id"
+                                                label="Ciudad de nacimiento"
+                                                :disabled="!form.member.birth_state_id"
+                                                clearable
+                                            />
+                                        </v-col>
+                                        <v-col cols="12" md="4">
+                                            <v-autocomplete v-model="form.member.nationality_id" :items="nationalityOptions" item-title="title" item-value="id" label="Nacionalidad" clearable :rules="[selectRequired]" />
+                                        </v-col>
+                                        <v-col cols="12" md="4">
+                                            <v-autocomplete v-model="form.member.marital_status_id" :items="maritalStatusOptions" item-title="title" item-value="id" label="Estado civil" clearable :rules="[selectRequired]" />
+                                        </v-col>
+                                        <v-col cols="12" md="4">
+                                            <v-text-field v-model="form.member.phone" label="Teléfono" :rules="[required, validatePhone]" />
+                                        </v-col>
+                                        <v-col cols="12" md="4">
+                                            <v-text-field v-model="form.member.email" label="Correo" :rules="[required, email]" />
+                                        </v-col>
+                                        <v-col cols="12" md="4">
+                                            <v-text-field v-model="form.member.occupation" label="Ocupación" :rules="[required, minLength(2)]" />
+                                        </v-col>
+                                    </v-row>
+
+                                    <div class="mt-4 mb-2 text-subtitle-2 font-weight-bold">Domicilio</div>
+                                    <v-row>
+                                        <v-col cols="12" md="4">
+                                            <v-text-field v-model="form.member.address.street" label="Calle" :rules="[required, minLength(3)]" />
+                                        </v-col>
+                                        <v-col cols="12" md="4">
+                                            <v-text-field v-model="form.member.address.neighborhood" label="Colonia" :rules="[required, minLength(3)]" />
+                                        </v-col>
+                                        <v-col cols="12" md="4">
+                                            <v-text-field v-model="form.member.address.postal_code" label="Código postal" :rules="[postalCode]" />
+                                        </v-col>
+                                        <v-col cols="12" md="4">
+                                            <v-autocomplete
+                                                v-model="form.member.address.country_id"
+                                                :items="countryOptions"
+                                                item-title="title"
+                                                item-value="id"
+                                                label="País"
+                                                clearable
+                                                :rules="[selectRequired]"
+                                                @update:model-value="onAddressCountryChange"
+                                            />
+                                        </v-col>
+                                        <v-col cols="12" md="4">
+                                            <v-autocomplete
+                                                v-model="form.member.address.state_id"
+                                                :items="getStateOptions(form.member.address.country_id)"
+                                                item-title="name"
+                                                item-value="id"
+                                                label="Estado del domicilio"
+                                                :disabled="!form.member.address.country_id"
+                                                clearable
+                                                :rules="[selectRequired]"
+                                                @update:model-value="onAddressStateChange"
+                                            />
+                                        </v-col>
+                                        <v-col cols="12" md="4">
+                                            <v-autocomplete
+                                                v-model="form.member.address.city_id"
+                                                :items="getCityOptions(form.member.address.state_id)"
+                                                item-title="name"
+                                                item-value="id"
+                                                label="Ciudad del domicilio"
+                                                :disabled="!form.member.address.state_id"
+                                                clearable
+                                            />
+                                        </v-col>
+                                        <v-col cols="12" md="4">
+                                            <v-number-input v-model="form.member.address.years_in_city" label="Años radicando en la ciudad" :rules="[required]" />
+                                        </v-col>
+                                    </v-row>
+
+                                    <div class="mt-4 mb-2 text-subtitle-2 font-weight-bold">Información laboral</div>
+                                    <v-row>
+                                        <v-col cols="12" md="4">
+                                            <v-text-field v-model="form.member.employment.company_name" label="Empresa" />
+                                        </v-col>
+                                        <v-col cols="12" md="4">
+                                            <v-text-field v-model="form.member.employment.company_address" label="Dirección de la empresa" />
+                                        </v-col>
+                                        <v-col cols="12" md="4">
+                                            <v-text-field v-model="form.member.employment.company_phone" label="Teléfono de la empresa" :rules="[validatePhone]" />
+                                        </v-col>
+                                    </v-row>
                                 </v-card>
 
                                 <v-autocomplete
