@@ -1612,17 +1612,26 @@ console.log(can)
                                         <!-- Cambio -->
                                         <template #item.change="{ item }">
                                             <div class="d-flex align-center ga-2">
+                                                <template v-if="item.old_locker">
+                                                    <v-chip size="small" color="gray" variant="tonal">
+                                                        {{ item.old_locker.number }}
+                                                    </v-chip>
 
-                                                <v-chip size="small" color="gray" variant="tonal">
-                                                    {{ item.old_locker?.number ?? 'N/A' }}
-                                                </v-chip>
+                                                    <v-icon size="16">mdi-arrow-right</v-icon>
 
-                                                <v-icon size="16">mdi-arrow-right</v-icon>
-
-                                                <v-chip size="small" color="green" variant="tonal">
-                                                    {{ item.new_locker?.number ?? 'N/A' }}
-                                                </v-chip>
-
+                                                    <v-chip size="small" color="green" variant="tonal">
+                                                        {{ item.new_locker?.number ?? 'N/A' }}
+                                                    </v-chip>
+                                                </template>
+                                                <template v-else>
+                                                    <v-chip size="small" color="primary" variant="tonal">
+                                                        Asignación inicial
+                                                    </v-chip>
+                                                    <v-icon size="16">mdi-arrow-right</v-icon>
+                                                    <v-chip size="small" color="green" variant="tonal">
+                                                        {{ item.new_locker?.number ?? 'N/A' }}
+                                                    </v-chip>
+                                                </template>
                                             </div>
                                         </template>
 
