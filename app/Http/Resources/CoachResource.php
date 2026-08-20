@@ -23,6 +23,20 @@ class CoachResource extends JsonResource
             'phone' => $this->phone,
             'email' => $this->email,
             'photo' => $this->photo,
+            'amenity' => $this->whenLoaded('amenity', function () {
+                return $this->amenity ? [
+                    'id' => $this->amenity->id,
+                    'name' => $this->amenity->name,
+                ] : null;
+            }),
+            'availabilities' => $this->whenLoaded('availabilities', function () {
+                return $this->availabilities->map(fn ($a) => [
+                    'id' => $a->id,
+                    'day_of_week' => $a->day_of_week,
+                    'start_time' => $a->start_time,
+                    'end_time' => $a->end_time,
+                ])->values();
+            }),
             'specialties' => $this->whenLoaded('specialties', function () {
                 return $this->specialties->map(fn ($specialty) => [
                     'id' => $specialty->id,

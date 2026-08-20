@@ -4,6 +4,7 @@ namespace App\Models\AdminClub;
 
 use App\Traits\SerializesDates;
 use App\Models\Administrator\Club;
+use App\Models\Classes\Coach;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -63,6 +64,11 @@ class Amenity extends Model
     public function resources()
     {
         return $this->hasMany(AmenityResource::class, 'amenity_id');
+    }
+
+    public function coaches()
+    {
+        return $this->hasMany(Coach::class, 'amenity_id');
     }
 
 }
