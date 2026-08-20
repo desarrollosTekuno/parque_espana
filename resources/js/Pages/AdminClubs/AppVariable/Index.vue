@@ -26,6 +26,7 @@ interface AppVariable {
     name: string;
     value: string;
     description: string;
+    scope: "global" | "club";
 }
 
 const form = useForm<AppVariable>({
@@ -33,6 +34,7 @@ const form = useForm<AppVariable>({
     name: '',
     value: '',
     description: '',
+    scope: 'club',
 });
 
 const create = () => {
@@ -93,6 +95,7 @@ const edit = (data: any) => {
     form.name = data.name;
     form.value = data.value;
     form.description = data.description;
+    form.scope = data.club_id === null ? 'global' : 'club';
     showModal.value = true;
 }
 
@@ -133,6 +136,7 @@ const headers = [
     { title: "Nombre", key: "name" },
     { title: "Descripción", key: "description" },
     { title: "Valor", key: "value" },
+    { title: "Alcance", key: "scope", sortable: false },
     { title: "Acciones", key: "actions", sortable: false },
 ];
 
@@ -176,6 +180,12 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
 
 watch(() => page.props.auth.currentClub, () => {
     fetchItems();
+});
+
+watch(() => form.name, (name) => {
+    if (name === 'default_user_password') {
+        form.scope = 'global';
+    }
 });
 
 </script>
@@ -234,6 +244,16 @@ watch(() => page.props.auth.currentClub, () => {
                             />
                         </template>
 
+                        <template #item.scope="{ item }">
+                            <v-chip
+                                :color="item.club_id === null ? 'primary' : 'default'"
+                                size="small"
+                                variant="tonal"
+                            >
+                                {{ item.club_id === null ? "Global" : "Parque actual" }}
+                            </v-chip>
+                        </template>
+
                     </v-data-table-server>
                 </v-col>
             </v-row>
@@ -246,6 +266,20 @@ watch(() => page.props.auth.currentClub, () => {
                     :title="`${form.id ? 'Editar Variable' : 'Nueva Variable'}`"
                 >
                     <v-card-text class="overflow-y-auto h-full">
+                        <v-col cols="12">
+                            <v-select
+                                v-model="form.scope"
+                                label="Alcance"
+                                :items="[
+                                    { title: 'Parque actual', value: 'club' },
+                                    { title: 'Global (ambos parques)', value: 'global' },
+                                ]"
+                                :rules="[required]"
+                                :disabled="form.name === 'default_user_password'"
+                                hint="Las variables globales se comparten entre ambos parques"
+                                persistent-hint
+                            />
+                        </v-col>
                         <v-col cols="12">
                             <v-text-field
                                 v-model="form.name"
