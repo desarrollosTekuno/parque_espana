@@ -12,7 +12,7 @@ use Illuminate\Database\Seeder;
 class AmenitySeeder extends Seeder
 {
     /**
-     * Run the database seeds.
+     * Run the database seeds
      */
     public function run(): void
     {
@@ -114,37 +114,37 @@ class AmenitySeeder extends Seeder
                             ],
                             [
                                 'name' => 'Asador 1',
-                                'capacity' => null,
+                                'capacity' => 1,
                                 'slot_duration_minutes' => null,
                             ],
                             [
                                 'name' => 'Asador 2',
-                                'capacity' => null,
+                                'capacity' => 1,
                                 'slot_duration_minutes' => null,
                             ],
                             [
                                 'name' => 'Asador 3',
-                                'capacity' => null,
+                                'capacity' => 1,
                                 'slot_duration_minutes' => null,
                             ],
                             [
                                 'name' => 'Asador 4',
-                                'capacity' => null,
+                                'capacity' => 1,
                                 'slot_duration_minutes' => null,
                             ],
                             [
                                 'name' => 'Asador 5',
-                                'capacity' => null,
+                                'capacity' => 1,
                                 'slot_duration_minutes' => null,
                             ],
                             [
                                 'name' => 'Asador 6',
-                                'capacity' => null,
+                                'capacity' => 1,
                                 'slot_duration_minutes' => null,
                             ],
                             [
                                 'name' => 'Asador 7',
-                                'capacity' => null,
+                                'capacity' => 1,
                                 'slot_duration_minutes' => null,
                             ],
                         ],

@@ -56,9 +56,9 @@ Route::prefix('v1')->name('api.')->group(function () {
 
     // Amenities
     Route::get('/amenities/{amenityResource}/available-slots', [AmenityController::class, 'availableSlots'])->middleware('auth:sanctum');
-    Route::get('/amenities/{amenityResource}/teachers', [AmenityController::class, 'teachers'])->middleware('auth:sanctum');
+    Route::get('/amenities/{amenity}/teachers', [AmenityController::class, 'teachers'])->middleware('auth:sanctum');
     Route::get('/amenities/{amenityResource}/classes', [AmenityController::class, 'classes'])->middleware('auth:sanctum');
-    Route::get('/clubs/{club}/amenities', [AmenityController::class, 'amenitiesByClub'])->middleware('auth:sanctum');
+    Route::get('/clubs/{club}/amenities', [AmenityController::class, 'amenitiesByClub'])->middleware('auth:sanctum'); 
 
     // Business Ads
     // Enviar solicitud de promoción desde la app

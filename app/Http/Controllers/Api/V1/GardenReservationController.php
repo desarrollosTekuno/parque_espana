@@ -31,18 +31,34 @@ class GardenReservationController extends Controller
     /**
      * Catálogo de jardines y asadores (amenidad "Jardines"), para el mapa de selección.
      */
-    public function catalog()
+    public function catalog(\Illuminate\Http\Request $request)
     {
+        $validated = $request->validate([
+            'club_id' => ['required', new \App\Rules\ExistsInSchema('clubs', 'clubs', 'id')],
+            'date'    => ['nullable', 'date_format:Y-m-d'],
+        ]);
+
         try {
-            $resources = AmenityResource::whereHas('amenity', fn ($query) => $query->where('name', 'Jardines'))
+            $date = $validated['date'] ?? Carbon::now()->format('Y-m-d');
+
+            $resources = AmenityResource::whereHas('amenity', fn ($query) => $query
+                ->where('name', 'Jardines')
+                ->where('club_id', $validated['club_id']))
                 ->orderBy('name')
                 ->get();
+
+            $reservedResourceIds = Reservation::whereIn('amenity_resource_id', $resources->pluck('id'))
+                ->where('reservation_status_id', '!=', ReservationStatus::CANCELADA)
+                ->where('reservation_date', $date)
+                ->pluck('amenity_resource_id')
+                ->unique();
 
             $gardens = $resources->filter(fn (AmenityResource $r) => str_starts_with($r->name, 'Jardín'))
                 ->map(fn (AmenityResource $r) => [
                     'id' => $r->id,
                     'name' => $r->name,
                     'nearby_grills' => self::NEARBY_GRILLS[$this->resourceNumber($r->name)] ?? [],
+                    'is_available' => !$reservedResourceIds->contains($r->id),
                 ])
                 ->values();
 
@@ -50,10 +66,11 @@ class GardenReservationController extends Controller
                 ->map(fn (AmenityResource $r) => [
                     'id' => $r->id,
                     'name' => $r->name,
+                    'is_available' => !$reservedResourceIds->contains($r->id),
                 ])
                 ->values();
 
-            return $this->ok(['gardens' => $gardens, 'grills' => $grills]);
+            return $this->ok(['date' => $date, 'gardens' => $gardens, 'grills' => $grills]);
         } catch (\Exception $e) {
             report($e);
             return $this->serverError('Ocurrió un error al obtener el catálogo de jardines.');
