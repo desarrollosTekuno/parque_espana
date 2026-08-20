@@ -28,6 +28,8 @@ class ReservationController extends Controller
                 'end_datetime'        => 'required|date_format:Y-m-d H:i|after:start_datetime',
                 'club_id'             => ['required', new ExistsInSchema('clubs', 'clubs', 'id')],
                 'amenity_resource_id' => ['required', new ExistsInSchema('amenities', 'resources', 'id')],
+                'is_class'            => ['nullable', 'boolean'],
+                'coach_id'            => ['nullable', new ExistsInSchema('classes', 'coaches', 'id')],
             ]);
 
             $member = Member::where('user_id', $request->user()->id)->first();
@@ -60,9 +62,11 @@ class ReservationController extends Controller
                 'reservation_date'      => $amenity->reservation_type === 'daily'
                     ? Carbon::parse($validated['start_datetime'])->format('Y-m-d')
                     : null,
+                'is_class'              => (bool) ($validated['is_class'] ?? false),
+                'coach_id'              => $validated['coach_id'] ?? null,
             ]);
 
-            $reservation->load(['amenity', 'amenityResource', 'status']);
+            $reservation->load(['amenity', 'amenityResource', 'status', 'coach']);
 
             return $this->created(
                 'Reservación creada correctamente.',
@@ -152,7 +156,7 @@ class ReservationController extends Controller
                 ]);
             }
 
-            $query = Reservation::with(['amenity', 'amenityResource', 'status', 'club'])
+            $query = Reservation::with(['amenity', 'amenityResource', 'status', 'club', 'coach'])
                 ->where('member_id', $member->id);
 
             if (!empty($validated['club_id'])) {

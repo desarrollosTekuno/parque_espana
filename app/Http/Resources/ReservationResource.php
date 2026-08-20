@@ -28,6 +28,7 @@ class ReservationResource extends JsonResource
             'date_label' => $this->start_datetime ? SpanishDate::fullDate($this->start_datetime) : null,
             'duration_minutes' => $duration !== null ? (int) round($duration) : null,
             'cancelled_at' => $this->cancelled_at,
+            'is_class' => (bool) $this->is_class,
 
             'club' => [
                 'id' => $this->club?->id,
@@ -51,6 +52,13 @@ class ReservationResource extends JsonResource
                 'name' => $this->status?->name,
                 'color' => $this->status?->color
             ],
+
+            'coach' => $this->whenLoaded('coach', function () {
+                return $this->coach ? [
+                    'id' => $this->coach->id,
+                    'full_name' => $this->coach->full_name,
+                ] : null;
+            }),
 
             'created_at' => $this->created_at,
         ];

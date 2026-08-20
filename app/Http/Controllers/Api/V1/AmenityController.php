@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\AmenityResource as AmeResource;
 use App\Http\Resources\ClassScheduleResource;
 use App\Http\Resources\CoachResource;
+use App\Models\AdminClub\Amenity;
 use App\Models\AdminClub\AmenityResource;
 use App\Models\AdminClub\SystemVariable;
 use App\Models\Administrator\Club;
@@ -15,7 +16,7 @@ use App\Support\SpanishDate;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
-class AmenityController extends Controller
+class AmenityController extends Controller 
 {
     private const TIMEZONE = 'America/Mexico_City';
 
@@ -60,11 +61,11 @@ class AmenityController extends Controller
         }
     }
 
-    public function teachers(AmenityResource $amenityResource)
+    public function teachers(Amenity $amenity)
     {
         try {
-            $coaches = $amenityResource->coaches()
-                ->with('specialties')
+            $coaches = $amenity->coaches()
+                ->with(['specialties', 'availabilities'])
                 ->distinct()
                 ->get();
 

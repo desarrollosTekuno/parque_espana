@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\Administrator\Club;
 use App\Traits\SerializesDates;
 use App\Models\Members\Member;
+use App\Models\Classes\Coach;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -31,12 +32,15 @@ class Reservation extends Model {
         'chairs_count',
         'notes',
         'linked_reservation_id',
+        'is_class',
+        'coach_id',
         ];
     protected $dates = ['deleted_at'];
     protected $casts = [
         'start_datetime' => 'datetime',
         'end_datetime' => 'datetime',
         'requires_tent' => 'boolean',
+        'is_class' => 'boolean',
     ];
 
     public function amenity()
@@ -70,5 +74,10 @@ class Reservation extends Model {
     public function club()
     {
         return $this->belongsTo(Club::class, 'club_id');
+    }
+
+    public function coach()
+    {
+        return $this->belongsTo(Coach::class, 'coach_id');
     }
 }

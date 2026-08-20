@@ -19,7 +19,6 @@ class CapacityRule implements ReservationRule
         if (strtolower($amenity->name) === 'jardines') {
             return;
         }
-    dd($amenity->name);
         // Valida que no exista una reservación en el mismo horario
         $reservations = Reservation::where('amenity_resource_id', $data['amenity_resource_id'])
             ->where('club_id', $data['club_id'])

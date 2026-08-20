@@ -2,6 +2,7 @@
 
 namespace App\Models\Classes;
 
+use App\Models\AdminClub\Amenity;
 use App\Traits\SerializesDates;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -15,6 +16,7 @@ class Coach extends Model
 
     protected $fillable = [
         'club_id',
+        'amenity_id',
         'first_name',
         'last_name',
         'second_last_name',
@@ -36,5 +38,15 @@ class Coach extends Model
     public function specialties()
     {
         return $this->belongsToMany(Specialty::class, 'classes.coach_specialties', 'coach_id', 'specialty_id');
+    }
+
+    public function amenity()
+    {
+        return $this->belongsTo(Amenity::class);
+    }
+
+    public function availabilities()
+    {
+        return $this->hasMany(CoachAvailability::class);
     }
 }
