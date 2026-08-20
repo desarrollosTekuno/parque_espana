@@ -16,6 +16,7 @@ use App\Services\Reservation\Validators\CreateReservationValidator;
 use App\Support\SpanishDate;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ReservationController extends Controller
 {
@@ -84,10 +85,21 @@ class ReservationController extends Controller
             );
             (new CancelReservationValidator())->validate($context);
 
-            $reservation->update([
-                'cancelled_at'          => now(),
-                'reservation_status_id' => ReservationStatus::CANCELADA,
-            ]);
+            DB::transaction(function () use ($reservation) {
+                $reservation->update([
+                    'cancelled_at'          => now(),
+                    'reservation_status_id' => ReservationStatus::CANCELADA,
+                ]);
+
+                if ($reservation->linked_reservation_id) {
+                    Reservation::where('id', $reservation->linked_reservation_id)
+                        ->where('reservation_status_id', '!=', ReservationStatus::CANCELADA)
+                        ->update([
+                            'cancelled_at'          => now(),
+                            'reservation_status_id' => ReservationStatus::CANCELADA,
+                        ]);
+                }
+            });
 
             return $this->success('Reservación cancelada correctamente.');
         } catch (ReservationException $e) {

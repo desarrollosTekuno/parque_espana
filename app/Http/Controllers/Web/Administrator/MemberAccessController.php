@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web\Administrator;
 
 use App\Models\Members\Member;
+use App\Models\MobileApp\AppVariable;
 use App\Models\User;
 use App\Services\MemberAccessService;
 use Illuminate\Http\Request;
@@ -19,6 +20,7 @@ class MemberAccessController extends Controller
     {
         $this->middleware('permission:member-access.index')->only('index');
         $this->middleware('permission:member-access.store')->only('store');
+        $this->middleware('permission:member-access.reset-password')->only('resetPassword');
         $this->middleware('permission:member-access.destroy')->only('destroy');
     }
 
@@ -105,7 +107,7 @@ class MemberAccessController extends Controller
                 'password' => Hash::make($request->password),
             ]);
 
-            $member->update(['user_id' => $user->id]);
+            $member->update(['user_id' => $user->id, 'email' => $request->email]);
 
             $this->accessService->syncMobileRoles($member->fresh());
 
@@ -117,6 +119,44 @@ class MemberAccessController extends Controller
                 'messageError' => 'Ocurrió un error al otorgar el acceso.',
                 'exception'    => $e->getMessage(),
             ]);
+        }
+    }
+
+    /**
+     * Reinicia la contraseña del usuario con el valor configurado para el club.
+     */
+    public function resetPassword(Member $member)
+    {
+        try {
+            if (!$member->user_id) {
+                return response()->json([
+                    'message' => 'Este miembro no tiene acceso activo.',
+                ], 422);
+            }
+
+            $defaultPassword = AppVariable::where('club_id', session('club_id'))
+                ->where('name', 'default_user_password')
+                ->value('value');
+
+            if (!$defaultPassword) {
+                return response()->json([
+                    'message' => 'No se encontró la contraseña por defecto del club.',
+                ], 422);
+            }
+
+            $member->user->update([
+                'password' => Hash::make($defaultPassword),
+            ]);
+
+            return response()->json([
+                'message' => 'Contraseña reiniciada con éxito.',
+            ]);
+        } catch (\Exception $e) {
+            report($e);
+
+            return response()->json([
+                'message' => 'Ocurrió un error al reiniciar la contraseña.',
+            ], 500);
         }
     }
 
@@ -136,7 +176,7 @@ class MemberAccessController extends Controller
 
             $user = $member->user;
 
-            $member->update(['user_id' => null]);
+            $member->update(['user_id' => null, 'email' => null]);
 
             $user->tokens()->delete();
             $user->roles()->detach();

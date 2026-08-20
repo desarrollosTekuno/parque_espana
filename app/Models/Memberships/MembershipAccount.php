@@ -22,6 +22,7 @@ class MembershipAccount extends Model
     protected $casts = [
         'cancelled_at' => 'datetime',
         'cancellation_type' => 'string',
+        'billing_backfill_floor' => 'date',
     ];
 
     protected $table = 'memberships.accounts';
@@ -100,6 +101,11 @@ class MembershipAccount extends Model
     public function cancelledBy()
     {
         return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
+    public function cancellationReason()
+    {
+        return $this->belongsTo(\App\Models\Catalogs\CancellationReason::class, 'cancellation_reason_id');
     }
 
     public function reactivations()

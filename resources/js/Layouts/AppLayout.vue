@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import Loader from "@/Components/Loader.vue";
+import EnvironmentBadge from "@/Components/EnvironmentBadge.vue";
 import Navigation from "@/Layouts/Navigation.vue";
 import { router, usePage } from "@inertiajs/vue3";
 import { isLoading } from "@/loading";
@@ -38,6 +39,7 @@ const openSupport = () => {
 <template>
     <v-responsive class="border rounded">
         <v-app>
+            <EnvironmentBadge />
             <v-app-bar
                 prominent
                 elevation="0"

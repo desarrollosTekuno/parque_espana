@@ -8,6 +8,7 @@ use App\Models\Billing\ChargeConcept;
 use App\Models\Memberships\Membership;
 use App\Models\Memberships\MembershipAccount;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -148,6 +149,21 @@ class MembershipChargeService
             return false;
         }
 
+        // Punto único de control: cualquier camino que genere mensualidad
+        // recurrente pasa por aquí (backfill al buscar al socio, "Agregar
+        // mensualidades" en Collections, y el comando de ciclo mensual
+        // memberships:generate-monthly-charges) — sin esto, un camino que no
+        // revisara esto por su cuenta podía resucitar mensualidad de un
+        // periodo ya condonado o de cuando la cuenta estuvo dada de baja.
+        $backfillFloor = $this->resolveBackfillFloorMonth($membership);
+        if ($backfillFloor && $chargeDate->lt($backfillFloor)) {
+            return false;
+        }
+
+        if ($this->periodFallsWithin($chargeDate, $this->resolveCancelledPeriods($membership))) {
+            return false;
+        }
+
         if ($this->hasMonthlyChargeForPeriod($membership, $chargeDate, $monthlyConcept->id)) {
             return false;
         }
@@ -191,6 +207,92 @@ class MembershipChargeService
         return true;
     }
 
+    /**
+     * Calcula (sin persistir nada) el monto que se cobraría por esta
+     * membresía en el periodo indicado — misma resolución de cuota que usa
+     * createRecurringMonthlyCharge. Sirve para previsualizar meses que
+     * todavía no tienen cargo generado (p. ej. el cálculo en vivo del
+     * módulo de cobranza) sin crear cargos reales solo por calcular.
+     */
+    public function previewMonthlyFeeAmount(Membership $membership, Carbon $periodDate): float
+    {
+        $chargeDate = $periodDate->copy()->startOfMonth();
+        $monthlyFee = round(
+            $this->resolveMembershipMonthlyFeeShare($membership, null, $chargeDate->year, $chargeDate),
+            2
+        );
+
+        return $this->resolveAbsenceAdjustedMonthlyFee(
+            membership: $membership,
+            monthlyFee: $monthlyFee,
+            chargeDate: $chargeDate
+        );
+    }
+
+    /**
+     * Recalcula los cargos de mensualidad YA EXISTENTES que caigan dentro
+     * del rango de un permiso por ausencia (al registrarlo o al
+     * cancelarlo) — sin esto, un cargo generado ANTES de registrar el
+     * permiso (p. ej. por el backfill automático al buscar al socio en
+     * Cobranza) se queda con el monto completo para siempre, aunque el
+     * permiso ya esté vigente para ese mes: previewMonthlyFeeAmount /
+     * createRecurringMonthlyCharge solo aplican el descuento a cargos que
+     * TODAVÍA no existen.
+     *
+     * Solo toca cargos en status 'pending' (balance == amount, nada
+     * aplicado todavía) — uno 'partial' o 'paid' ya tiene dinero real de
+     * por medio, ajustarlo ahí correspondería a una cancelación de pago,
+     * no a esto.
+     */
+    public function reconcilePendingMonthlyChargesForAbsencePermit(
+        ?int $accountGroupId,
+        ?int $membershipAccountId,
+        Carbon $startDate,
+        Carbon $endDate
+    ): void {
+        $accountIds = $accountGroupId
+            ? MembershipAccount::where('account_group_id', $accountGroupId)->pluck('id')->all()
+            : array_filter([$membershipAccountId]);
+
+        if (empty($accountIds)) {
+            return;
+        }
+
+        $monthlyConcept = $this->resolveConcept('MONTHLY_FEE');
+        $periodStart = $startDate->copy()->startOfMonth();
+        $periodEnd = $endDate->copy()->startOfMonth();
+
+        Charge::query()
+            ->with('membership')
+            ->where('concept_id', $monthlyConcept->id)
+            ->whereIn('membership_account_id', $accountIds)
+            ->where('status', 'pending')
+            ->whereNotNull('period_year')
+            ->whereNotNull('period_month')
+            ->get()
+            ->each(function (Charge $charge) use ($periodStart, $periodEnd) {
+                $period = Carbon::create((int) $charge->period_year, (int) $charge->period_month, 1);
+
+                if ($period->lt($periodStart) || $period->gt($periodEnd) || !$charge->membership) {
+                    return;
+                }
+
+                $newAmount = $this->previewMonthlyFeeAmount($charge->membership, $period);
+
+                if (round($newAmount, 2) === round((float) $charge->amount, 2)) {
+                    return;
+                }
+
+                $charge->update([
+                    'amount' => $newAmount,
+                    'balance' => $newAmount,
+                    'metadata' => array_merge($charge->metadata ?? [], [
+                        'absence_permit_reconciled_at' => now()->toDateTimeString(),
+                    ]),
+                ]);
+            });
+    }
+
     public function hasMonthlyChargeForPeriod(
         Membership $membership,
         ?Carbon $periodDate = null,
@@ -209,83 +311,153 @@ class MembershipChargeService
     }
 
     /**
-     * Periodo (primer día del mes) que corresponde cobrar a continuación:
-     * el mes siguiente al último cargo de mensualidad pagado, o el periodo
-     * del cargo pendiente/parcial más reciente si nunca se ha pagado uno,
-     * o el mes en curso si la membresía nunca ha generado ningún cargo
-     * (evita "resucitar" décadas de mensualidades atrasadas en membresías
-     * antiguas migradas sin historial de cobros).
+     * Garantiza que existan cargos de mensualidad para TODOS los meses entre
+     * el cargo más antiguo que ya exista para el grupo de cuentas del socio
+     * (cualquiera de sus parques) y el mes en curso, creando aquí mismo
+     * cualquier hueco de en medio — no solo el siguiente periodo. Antes se
+     * usaba resolveNextChargeablePeriod()/ensureMonthlyChargeForNextPeriod(),
+     * que al no haber ningún cargo 'paid' regresaba el mismo periodo del
+     * cargo pendiente más antiguo una y otra vez, así que una membresía con
+     * un solo mes vencido desde hace más de un año se quedaba "atorada" en
+     * ese único mes en vez de ir generando los siguientes.
+     *
+     * Si el grupo nunca ha tenido ningún cargo, solo se crea el del mes en
+     * curso (no se resucitan años de historial para una membresía sin
+     * cargos previos, p. ej. una migrada sin ese dato).
      */
-    public function resolveNextChargeablePeriod(Membership $membership): Carbon
+    public function ensureMonthlyChargesUpToToday(Membership $billableMembership, array $groupAccountIds): void
     {
         $monthlyConcept = $this->resolveConcept('MONTHLY_FEE');
+        $currentPeriod = now()->startOfMonth();
 
-        $lastPaid = Charge::query()
-            ->where('membership_id', $membership->id)
+        $earliestCharge = Charge::query()
             ->where('concept_id', $monthlyConcept->id)
-            ->where('status', 'paid')
-            ->whereNotNull('period_year')
-            ->whereNotNull('period_month')
-            ->orderByDesc('period_year')
-            ->orderByDesc('period_month')
-            ->first();
-
-        if ($lastPaid) {
-            return Carbon::create((int) $lastPaid->period_year, (int) $lastPaid->period_month, 1)
-                ->addMonthNoOverflow();
-        }
-
-        $pendingCharge = Charge::query()
-            ->where('membership_id', $membership->id)
-            ->where('concept_id', $monthlyConcept->id)
-            ->whereIn('status', ['pending', 'partial'])
+            ->whereIn('membership_account_id', $groupAccountIds)
             ->whereNotNull('period_year')
             ->whereNotNull('period_month')
             ->orderBy('period_year')
             ->orderBy('period_month')
             ->first();
 
-        if ($pendingCharge) {
-            return Carbon::create((int) $pendingCharge->period_year, (int) $pendingCharge->period_month, 1);
+        if (!$earliestCharge) {
+            $this->createRecurringMonthlyCharge($billableMembership, $currentPeriod);
+
+            return;
         }
 
-        return now()->startOfMonth();
+        $earliestChargePeriod = Carbon::create((int) $earliestCharge->period_year, (int) $earliestCharge->period_month, 1);
+        $cursor = $this->resolveMonthlyBackfillStart($billableMembership, $earliestChargePeriod);
+        $safetyLimit = 240; // ~20 años, para nunca quedar en un ciclo infinito por un dato inesperado.
+        $cancelledPeriods = $this->resolveCancelledPeriods($billableMembership);
+
+        while ($cursor->lte($currentPeriod) && $safetyLimit-- > 0) {
+            $wasCancelledThisPeriod = $this->periodFallsWithin($cursor, $cancelledPeriods);
+
+            if ($wasCancelledThisPeriod) {
+                $cursor->addMonthNoOverflow();
+                continue;
+            }
+
+            $existsForPeriod = Charge::query()
+                ->where('concept_id', $monthlyConcept->id)
+                ->whereIn('membership_account_id', $groupAccountIds)
+                ->where('period_year', $cursor->year)
+                ->where('period_month', $cursor->month)
+                ->where('status', '!=', 'cancelled')
+                ->exists();
+
+            if (!$existsForPeriod) {
+                $this->createRecurringMonthlyCharge($billableMembership, $cursor->copy(), [
+                    'charge_origin' => 'auto_backfill_on_search',
+                ]);
+            }
+
+            $cursor->addMonthNoOverflow();
+        }
     }
 
     /**
-     * Garantiza que exista un cargo de mensualidad pendiente para el
-     * siguiente periodo a cobrar de la membresía (ver resolveNextChargeablePeriod).
-     * No duplica cargos: si ya existe uno para ese periodo, solo lo regresa.
+     * Meses en los que la membresía estuvo dada de baja, reconstruidos a
+     * partir de memberships.membership_history. Sin esto, ensureMonthlyChargesUpToToday
+     * rellenaba mensualidad para TODO el hueco entre el cargo más antiguo y hoy,
+     * incluyendo los meses en que la cuenta estuvo cancelada — generando adeudo
+     * por periodos en los que el socio no tenía membresía activa.
+     *
+     * @return array<int, array{0: Carbon, 1: ?Carbon}> pares [inicio, fin) del mes en que se dio de baja / reactivó
      */
-    public function ensureMonthlyChargeForNextPeriod(Membership $membership): ?Charge
+    public function resolveCancelledPeriods(Membership $membership): array
     {
-        $monthlyConcept = $this->resolveConcept('MONTHLY_FEE');
-        $periodDate = $this->resolveNextChargeablePeriod($membership);
-
-        $existing = Charge::query()
+        $events = DB::table('memberships.membership_history')
             ->where('membership_id', $membership->id)
-            ->where('concept_id', $monthlyConcept->id)
-            ->where('period_year', (int) $periodDate->format('Y'))
-            ->where('period_month', (int) $periodDate->format('m'))
-            ->where('status', '!=', 'cancelled')
-            ->first();
+            ->whereIn('reason', ['Baja voluntaria de cuenta', 'Reactivación de cuenta'])
+            ->orderBy('created_at')
+            ->get(['reason', 'effective_date']);
 
-        if ($existing) {
-            return $existing;
+        $periods = [];
+        $cancelledFrom = null;
+
+        foreach ($events as $event) {
+            $effectiveMonth = Carbon::parse($event->effective_date)->startOfMonth();
+
+            if ($event->reason === 'Baja voluntaria de cuenta') {
+                $cancelledFrom ??= $effectiveMonth;
+            } elseif ($event->reason === 'Reactivación de cuenta' && $cancelledFrom) {
+                $periods[] = [$cancelledFrom, $effectiveMonth];
+                $cancelledFrom = null;
+            }
         }
 
-        $created = $this->createRecurringMonthlyCharge($membership, $periodDate);
-
-        if (!$created) {
-            return null;
+        if ($cancelledFrom) {
+            $periods[] = [$cancelledFrom, null];
         }
 
-        return Charge::query()
-            ->where('membership_id', $membership->id)
-            ->where('concept_id', $monthlyConcept->id)
-            ->where('period_year', (int) $periodDate->format('Y'))
-            ->where('period_month', (int) $periodDate->format('m'))
-            ->first();
+        return $periods;
+    }
+
+    /**
+     * @param array<int, array{0: Carbon, 1: ?Carbon}> $periods
+     */
+    public function periodFallsWithin(Carbon $month, array $periods): bool
+    {
+        foreach ($periods as [$start, $end]) {
+            if ($month->gte($start) && ($end === null || $month->lt($end))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Mes a partir del cual se puede volver a rellenar mensualidad faltante
+     * para esta membresía — null si nunca se condonó adeudo. Ver
+     * memberships.accounts.billing_backfill_floor y
+     * AccountCancellationController::waivePendingCharges.
+     */
+    public function resolveBackfillFloorMonth(Membership $membership): ?Carbon
+    {
+        $floor = $membership->account?->billing_backfill_floor;
+
+        return $floor ? $floor->copy()->startOfMonth() : null;
+    }
+
+    /**
+     * Punto de partida para recorrer mes a mes al rellenar mensualidad
+     * faltante: el periodo del cargo más antiguo existente, nunca antes del
+     * piso de condonación (si aplica). Compartido entre el backfill
+     * automático (ensureMonthlyChargesUpToToday) y el de "Agregar concepto
+     * de cobro" en Collections (CollectionController::resolveMonthlyFeeMonths).
+     */
+    public function resolveMonthlyBackfillStart(Membership $membership, ?Carbon $earliestChargePeriod): Carbon
+    {
+        $cursor = ($earliestChargePeriod ?? now())->copy()->startOfMonth();
+        $floor = $this->resolveBackfillFloorMonth($membership);
+
+        if ($floor && $cursor->lt($floor)) {
+            return $floor;
+        }
+
+        return $cursor;
     }
 
     public function createInitialCharges(
@@ -301,43 +473,46 @@ class MembershipChargeService
         $monthlyConcept = $this->resolveConcept('MONTHLY_FEE');
         $groupMemberships = $this->resolveGroupPrimaryMemberships($membership, $chargeDate);
         $splitAcrossGroup = $this->shouldSplitMonthlyChargesAcrossGroup($groupMemberships);
-        $groupTotalMonthlyFee = $splitAcrossGroup
-            ? $this->resolveGroupMonthlyTotal(
+
+        if ($splitAcrossGroup) {
+            // Todo socio con membresía activa en más de un parque debe tener
+            // su mensualidad repartida entre ambos — sin importar si alguna
+            // membresía del grupo ya tenía un cargo del periodo (p. ej. venía
+            // de antes de sumar el segundo parque): a cada una se le cobra
+            // solo la diferencia hasta cubrir su mitad, nunca el total del
+            // grupo completo (ver ensureSplitMonthlyChargesForGroup).
+            $groupTotalMonthlyFee = $this->resolveGroupMonthlyTotal(
                 memberships: $groupMemberships,
                 candidateMonthlyFee: $monthlyFee
-            )
-            : null;
-        $shouldReconcileAgainstExistingCharges = $reconcileExistingMonthlyCharge || $splitAcrossGroup;
-        $existingPeriodMonthlyAmount = $shouldReconcileAgainstExistingCharges
-            ? $this->resolveExistingPeriodMonthlyAmount(
-                membership: $membership,
-                conceptId: $monthlyConcept->id,
-                chargeDate: $chargeDate
-            )
-            : 0.0;
+            );
 
-        if ($splitAcrossGroup && $existingPeriodMonthlyAmount <= 0) {
-            $this->createSplitInitialMonthlyCharges(
-                memberships: $groupMemberships,
-                totalMonthlyFee: (float) $groupTotalMonthlyFee,
+            $this->ensureSplitMonthlyChargesForGroup(
+                groupMemberships: $groupMemberships,
+                groupTotalMonthlyFee: $groupTotalMonthlyFee,
                 chargeDate: $chargeDate,
-                metadata: $metadata,
-                concept: $monthlyConcept
+                concept: $monthlyConcept,
+                metadata: $metadata
             );
         } else {
+            $existingPeriodMonthlyAmount = $reconcileExistingMonthlyCharge
+                ? $this->resolveExistingPeriodMonthlyAmount(
+                    membership: $membership,
+                    conceptId: $monthlyConcept->id,
+                    chargeDate: $chargeDate
+                )
+                : 0.0;
+
             $effectiveMonthlyFee = $this->resolveAbsenceAdjustedMonthlyFee(
                 membership: $membership,
-                monthlyFee: $splitAcrossGroup
-                    ? (float) $groupTotalMonthlyFee
-                    : $this->resolveMembershipMonthlyFeeShare($membership, $monthlyFee, $chargeDate->year),
+                monthlyFee: $this->resolveMembershipMonthlyFeeShare($membership, $monthlyFee, $chargeDate->year),
                 chargeDate: $chargeDate
             );
 
-            if (((bool) $membership->is_billable || $shouldReconcileAgainstExistingCharges) && $effectiveMonthlyFee > 0) {
+            if (((bool) $membership->is_billable || $reconcileExistingMonthlyCharge) && $effectiveMonthlyFee > 0) {
                 $monthlyChargeAmount = $effectiveMonthlyFee;
                 $monthlyChargeDescription = $this->buildMonthlyChargeDescription($membership, $chargeDate);
 
-                if ($shouldReconcileAgainstExistingCharges) {
+                if ($reconcileExistingMonthlyCharge) {
                     $monthlyChargeAmount = round($effectiveMonthlyFee - $existingPeriodMonthlyAmount, 2);
 
                     if ($existingPeriodMonthlyAmount > 0 && $monthlyChargeAmount > 0) {
@@ -355,16 +530,11 @@ class MembershipChargeService
                         concept: $monthlyConcept,
                         chargeDate: $chargeDate,
                         amount: $monthlyChargeAmount,
-                        targetMonthlyFee: $splitAcrossGroup
-                            ? (float) $groupTotalMonthlyFee
-                            : $this->resolveMembershipMonthlyFeeShare($membership, $monthlyFee, $chargeDate->year),
+                        targetMonthlyFee: $this->resolveMembershipMonthlyFeeShare($membership, $monthlyFee, $chargeDate->year),
                         effectiveMonthlyFee: $effectiveMonthlyFee,
                         description: $monthlyChargeDescription,
                         metadata: array_merge($metadata, [
-                            'is_monthly_adjustment' => $shouldReconcileAgainstExistingCharges,
-                            'split_mode' => $splitAcrossGroup ? 'equal_group_split_adjustment' : null,
-                            'split_group_total' => $groupTotalMonthlyFee,
-                            'split_group_memberships' => $splitAcrossGroup ? $groupMemberships->count() : null,
+                            'is_monthly_adjustment' => $reconcileExistingMonthlyCharge,
                         ]),
                         dueDate: $chargeDate
                     );
@@ -373,43 +543,73 @@ class MembershipChargeService
         }
 
         if ($inscriptionFee > 0) {
-            $inscriptionConcept = $this->resolveConcept('INSCRIPTION');
-            $months = ($installmentMonths !== null && $installmentMonths > 1) ? $installmentMonths : 1;
-            $baseAmount = round($inscriptionFee / $months, 2);
-            $remainder = round($inscriptionFee - ($baseAmount * $months), 2);
+            $this->createInstallmentCharge(
+                membership: $membership,
+                conceptCode: 'INSCRIPTION',
+                totalAmount: $inscriptionFee,
+                installmentMonths: $installmentMonths,
+                metadata: $metadata,
+                chargeDate: $chargeDate
+            );
+        }
+    }
 
-            $commonFields = [
-                'membership_account_id' => $membership->membership_account_id,
-                'membership_id'         => $membership->id,
-                'member_id'             => $membership->account?->primaryHolder?->member_id,
-                'concept_id'            => $inscriptionConcept->id,
-                'period_year'           => null,
-                'period_month'          => null,
-                'allows_partial_payments' => (bool) $inscriptionConcept->allows_partial_payments,
-                'status'                => 'pending',
-            ];
+    /**
+     * Crea un cargo (o varios, si $installmentMonths > 1) para un concepto
+     * de una sola vez, independiente de la lógica de mensualidad. Extraído
+     * de createInitialCharges para poder reutilizarse con otros conceptos
+     * de una sola vez (p. ej. CUOTA_REINSCRIPCION en reactivación de cuenta)
+     * sin volver a disparar la creación/reconciliación del cargo mensual.
+     */
+    public function createInstallmentCharge(
+        Membership $membership,
+        string $conceptCode,
+        float $totalAmount,
+        ?int $installmentMonths = null,
+        array $metadata = [],
+        ?Carbon $chargeDate = null
+    ): void {
+        if ($totalAmount <= 0) {
+            return;
+        }
 
-            for ($i = 0; $i < $months; $i++) {
-                $dueDate = $chargeDate->copy()->addMonthsNoOverflow($i);
-                $amount  = $i === $months - 1
-                    ? round($baseAmount + $remainder, 2)
-                    : $baseAmount;
+        $chargeDate = ($chargeDate ?? now())->copy()->startOfDay();
+        $concept = $this->resolveConcept($conceptCode);
+        $months = ($installmentMonths !== null && $installmentMonths > 1) ? $installmentMonths : 1;
+        $baseAmount = round($totalAmount / $months, 2);
+        $remainder = round($totalAmount - ($baseAmount * $months), 2);
 
-                Charge::create(array_merge($commonFields, [
-                    'description' => $months > 1
-                        ? $this->buildInscriptionInstallmentDescription($membership, $i + 1, $months)
-                        : $this->buildInscriptionChargeDescription($membership),
-                    'amount'     => $amount,
-                    'balance'    => $amount,
-                    'issue_date' => $chargeDate->toDateString(),
-                    'due_date'   => $dueDate->toDateString(),
-                    'metadata'   => array_merge($metadata, [
-                        'concept_code'       => $inscriptionConcept->code,
-                        'installment_months' => $months > 1 ? $months : null,
-                        'installment_index'  => $months > 1 ? $i + 1 : null,
-                    ]),
-                ]));
-            }
+        $commonFields = [
+            'membership_account_id' => $membership->membership_account_id,
+            'membership_id'         => $membership->id,
+            'member_id'             => $membership->account?->primaryHolder?->member_id,
+            'concept_id'            => $concept->id,
+            'period_year'           => null,
+            'period_month'          => null,
+            'allows_partial_payments' => (bool) $concept->allows_partial_payments,
+            'status'                => 'pending',
+        ];
+
+        for ($i = 0; $i < $months; $i++) {
+            $dueDate = $chargeDate->copy()->addMonthsNoOverflow($i);
+            $amount  = $i === $months - 1
+                ? round($baseAmount + $remainder, 2)
+                : $baseAmount;
+
+            Charge::create(array_merge($commonFields, [
+                'description' => $months > 1
+                    ? $this->buildInstallmentChargeDescription($concept, $membership, $i + 1, $months)
+                    : $this->buildSingleChargeDescription($concept, $membership),
+                'amount'     => $amount,
+                'balance'    => $amount,
+                'issue_date' => $chargeDate->toDateString(),
+                'due_date'   => $dueDate->toDateString(),
+                'metadata'   => array_merge($metadata, [
+                    'concept_code'       => $concept->code,
+                    'installment_months' => $months > 1 ? $months : null,
+                    'installment_index'  => $months > 1 ? $i + 1 : null,
+                ]),
+            ]));
         }
     }
 
@@ -485,18 +685,18 @@ class MembershipChargeService
         );
     }
 
-    protected function buildInscriptionChargeDescription(Membership $membership): string
+    protected function buildSingleChargeDescription(ChargeConcept $concept, Membership $membership): string
     {
         $membershipTypeName = $membership->membershipType?->name ?? 'Membresía';
 
-        return sprintf('Inscripción - %s', $membershipTypeName);
+        return sprintf('%s - %s', $concept->name, $membershipTypeName);
     }
 
-    protected function buildInscriptionInstallmentDescription(Membership $membership, int $index, int $total): string
+    protected function buildInstallmentChargeDescription(ChargeConcept $concept, Membership $membership, int $index, int $total): string
     {
         $membershipTypeName = $membership->membershipType?->name ?? 'Membresía';
 
-        return sprintf('Inscripción - %s (Parcialidad %d de %d)', $membershipTypeName, $index, $total);
+        return sprintf('%s - %s (Parcialidad %d de %d)', $concept->name, $membershipTypeName, $index, $total);
     }
 
     protected function resolveExistingPeriodMonthlyAmount(
@@ -504,13 +704,7 @@ class MembershipChargeService
         int $conceptId,
         Carbon $chargeDate
     ): float {
-        $accountIds = MembershipAccount::query()
-            ->when(
-                $membership->account?->account_group_id,
-                fn ($query) => $query->where('account_group_id', $membership->account->account_group_id),
-                fn ($query) => $query->where('id', $membership->membership_account_id)
-            )
-            ->pluck('id');
+        $accountIds = $this->resolveComboAwareAccountIds($membership);
 
         return (float) Charge::query()
             ->whereIn('membership_account_id', $accountIds)
@@ -519,6 +713,48 @@ class MembershipChargeService
             ->where('period_month', (int) $chargeDate->format('m'))
             ->where('status', '!=', 'cancelled')
             ->sum('amount');
+    }
+
+    /**
+     * Cuentas del mismo account_group_id que la membresía dada — solo
+     * cuando ese grupo representa un combo interclub real
+     * (interclub_package_rule_id o un pricing_rule con
+     * requires_multiple_clubs=true en alguna membresía primaria del
+     * grupo). Mismo criterio que CollectionController::resolveGroupAccountIds
+     * y MemberController::resolveGroupBillingSummary — dos cuentas pueden
+     * compartir grupo (mismo titular) sin que exista esa relación de
+     * precio, y ahí cada una debe tratarse por separado. Sin este filtro,
+     * resolveExistingPeriodMonthlyAmount sumaba el cargo del periodo de
+     * CUALQUIER cuenta hermana, aunque no tuviera nada que ver con la
+     * mensualidad de esta membresía — restando de más al calcular el
+     * ajuste de reactivación/transición.
+     */
+    protected function resolveComboAwareAccountIds(Membership $membership): Collection
+    {
+        $accountGroupId = $membership->account?->account_group_id;
+
+        if (!$accountGroupId) {
+            return collect([$membership->membership_account_id]);
+        }
+
+        $groupAccountIds = MembershipAccount::query()
+            ->where('account_group_id', $accountGroupId)
+            ->pluck('id');
+
+        if ($groupAccountIds->count() <= 1) {
+            return $groupAccountIds;
+        }
+
+        $representsCombo = Membership::query()
+            ->whereIn('membership_account_id', $groupAccountIds)
+            ->where('is_primary', true)
+            ->where(function (Builder $scope) {
+                $scope->whereNotNull('interclub_package_rule_id')
+                    ->orWhereHas('pricingRule', fn (Builder $pricingRule) => $pricingRule->where('requires_multiple_clubs', true));
+            })
+            ->exists();
+
+        return $representsCombo ? $groupAccountIds : collect([$membership->membership_account_id]);
     }
 
     protected function resolveGroupPrimaryMemberships(Membership $membership, Carbon $chargeDate): Collection
@@ -576,61 +812,106 @@ class MembershipChargeService
         return round(max($groupMaximumFee, (float) ($candidateMonthlyFee ?? 0)), 2);
     }
 
-    protected function createSplitInitialMonthlyCharges(
-        Collection $memberships,
-        float $totalMonthlyFee,
+    /**
+     * Garantiza que, para el periodo dado, cada membresía del grupo (mismo
+     * account_group_id, con membresía activa en 2 o más parques) tenga
+     * cargada exactamente su parte proporcional del total del grupo — ni más
+     * ni menos —, sin importar si alguna ya tenía un cargo previo para ese
+     * periodo (p. ej. porque venía de antes de tener el segundo parque, o de
+     * una corrida anterior de este mismo proceso). A cada membresía a la que
+     * le falte cobrar se le crea un cargo (o complemento) solo por la
+     * diferencia contra SU PROPIO cargo existente; a la que ya tenga cubierta
+     * su parte no se le toca nada. Esto evita que, cuando una membresía del
+     * grupo ya tenía cargo y otra no, la que faltaba terminara absorbiendo el
+     * total completo del grupo en vez de solo su mitad.
+     *
+     * Devuelve, por cada membresía del grupo, si se le generó cargo y por
+     * cuánto — lo usa el comando de generación mensual para su reporte.
+     *
+     * @return Collection<int, array{membership: Membership, created: bool, amount: float}>
+     */
+    public function ensureSplitMonthlyChargesForGroup(
+        Collection $groupMemberships,
+        float $groupTotalMonthlyFee,
         Carbon $chargeDate,
-        array $metadata,
-        ChargeConcept $concept
-    ): void {
-        $membershipCount = $memberships->count();
+        ?ChargeConcept $concept = null,
+        array $metadata = [],
+        bool $dryRun = false
+    ): Collection {
+        $concept ??= $this->resolveConcept('MONTHLY_FEE');
+        $membershipCount = $groupMemberships->count();
+        $results = collect();
 
-        if ($membershipCount === 0 || $totalMonthlyFee <= 0) {
-            return;
+        if ($membershipCount === 0 || $groupTotalMonthlyFee <= 0) {
+            return $results;
         }
 
-        $splitAmount = round($totalMonthlyFee / $membershipCount, 2);
+        $splitAmount = round($groupTotalMonthlyFee / $membershipCount, 2);
         $allocated = 0.0;
-        $lastMembership = $memberships->last();
+        $lastMembership = $groupMemberships->last();
 
-        foreach ($memberships as $groupMembership) {
-            if ($this->hasMonthlyChargeForPeriod($groupMembership, $chargeDate, $concept->id)) {
+        foreach ($groupMemberships as $groupMembership) {
+            $targetShare = $groupMembership->is($lastMembership)
+                ? round($groupTotalMonthlyFee - $allocated, 2)
+                : $splitAmount;
+            $allocated = round($allocated + $targetShare, 2);
+
+            // Mismo control que createRecurringMonthlyCharge — ver ahí.
+            $backfillFloor = $this->resolveBackfillFloorMonth($groupMembership);
+            $skipByFloor = $backfillFloor && $chargeDate->lt($backfillFloor);
+            $skipByCancelledPeriod = $this->periodFallsWithin($chargeDate, $this->resolveCancelledPeriods($groupMembership));
+
+            if ($skipByFloor || $skipByCancelledPeriod) {
+                $results->push(['membership' => $groupMembership, 'created' => false, 'amount' => 0.0]);
                 continue;
             }
 
-            $targetMonthlyFee = $groupMembership->is($lastMembership)
-                ? round($totalMonthlyFee - $allocated, 2)
-                : $splitAmount;
-
-            $allocated = round($allocated + $targetMonthlyFee, 2);
-
-            $effectiveMonthlyFee = $this->resolveAbsenceAdjustedMonthlyFee(
+            $effectiveTargetShare = $this->resolveAbsenceAdjustedMonthlyFee(
                 membership: $groupMembership,
-                monthlyFee: $targetMonthlyFee,
+                monthlyFee: $targetShare,
                 chargeDate: $chargeDate
             );
 
-            if ($effectiveMonthlyFee <= 0) {
+            $alreadyChargedToThisMembership = (float) Charge::query()
+                ->where('membership_id', $groupMembership->id)
+                ->where('concept_id', $concept->id)
+                ->where('period_year', (int) $chargeDate->format('Y'))
+                ->where('period_month', (int) $chargeDate->format('m'))
+                ->where('status', '!=', 'cancelled')
+                ->sum('amount');
+
+            $amountToCharge = round($effectiveTargetShare - $alreadyChargedToThisMembership, 2);
+
+            if ($amountToCharge <= 0) {
+                $results->push(['membership' => $groupMembership, 'created' => false, 'amount' => 0.0]);
                 continue;
             }
 
-            $this->storeMonthlyCharge(
-                membership: $groupMembership,
-                concept: $concept,
-                chargeDate: $chargeDate,
-                amount: $effectiveMonthlyFee,
-                targetMonthlyFee: $targetMonthlyFee,
-                effectiveMonthlyFee: $effectiveMonthlyFee,
-                description: $this->buildMonthlyChargeDescription($groupMembership, $chargeDate),
-                metadata: array_merge($metadata, [
-                    'split_mode' => 'equal_group_split',
-                    'split_group_total' => $totalMonthlyFee,
-                    'split_group_memberships' => $membershipCount,
-                    'is_monthly_adjustment' => false,
-                ]),
-                dueDate: $chargeDate
-            );
+            if (!$dryRun) {
+                $this->storeMonthlyCharge(
+                    membership: $groupMembership,
+                    concept: $concept,
+                    chargeDate: $chargeDate,
+                    amount: $amountToCharge,
+                    targetMonthlyFee: $targetShare,
+                    effectiveMonthlyFee: $effectiveTargetShare,
+                    description: $alreadyChargedToThisMembership > 0
+                        ? $this->buildMonthlyAdjustmentChargeDescription($groupMembership, $chargeDate, $effectiveTargetShare)
+                        : $this->buildMonthlyChargeDescription($groupMembership, $chargeDate),
+                    metadata: array_merge($metadata, [
+                        'split_mode' => 'equal_group_split',
+                        'split_group_total' => $groupTotalMonthlyFee,
+                        'split_group_memberships' => $membershipCount,
+                        'is_monthly_adjustment' => $alreadyChargedToThisMembership > 0,
+                    ]),
+                    dueDate: $chargeDate
+                );
+            }
+
+            $results->push(['membership' => $groupMembership, 'created' => true, 'amount' => $amountToCharge]);
         }
+
+        return $results;
     }
 
     protected function resolveMembershipMonthlyFeeTotal(Membership $membership, ?float $fallback = null, ?int $year = null): float
@@ -707,18 +988,35 @@ class MembershipChargeService
         return round($monthlyFee * ((float) $absencePermit->charge_percentage / 100), 2);
     }
 
+    /**
+     * Por account_group_id cuando la cuenta pertenece a un grupo — así
+     * aplica también a las cuentas hermanas del socio en otros parques
+     * (p. ej. un socio con cuenta en PE1 y PE2, ver
+     * MemberController::storeAbsencePermit). Si la cuenta no tiene grupo
+     * (frecuente en datos migrados), se resuelve por membership_account_id
+     * directo — aplica solo a esta cuenta, que es lo correcto para un socio
+     * de un solo parque.
+     */
     protected function resolveApplicableAbsencePermit(
         Membership $membership,
         Carbon $chargeDate
     ): ?AbsencePermit {
         $accountGroupId = $membership->account?->account_group_id;
+        $accountId = $membership->membership_account_id;
 
-        if (!$accountGroupId) {
+        if (!$accountGroupId && !$accountId) {
             return null;
         }
 
         return AbsencePermit::query()
-            ->where('account_group_id', $accountGroupId)
+            ->where(function ($scope) use ($accountGroupId, $accountId) {
+                if ($accountGroupId) {
+                    $scope->where('account_group_id', $accountGroupId);
+                }
+                if ($accountId) {
+                    $scope->orWhere('membership_account_id', $accountId);
+                }
+            })
             ->whereIn('status', ['approved', 'active'])
             ->whereDate('start_date', '<=', $chargeDate->toDateString())
             ->whereDate('end_date', '>=', $chargeDate->toDateString())

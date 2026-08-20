@@ -17,12 +17,13 @@ class ChargeConceptClubAmount extends Model
 
     protected $casts = [
         'amount' => 'float',
+        'applies_iva' => 'boolean',
         'is_active' => 'boolean',
     ];
 
     public function concept()
     {
-        return $this->belongsTo(ChargeConcept::class, 'concept_id');
+        return $this->belongsTo(ChargeConcept::class, 'concept_id')->withTrashed();
     }
 
     public function club()

@@ -26,7 +26,7 @@ class ReservationResource extends JsonResource
             'date' => $this->start_datetime?->format('Y-m-d'),
             'time' => $this->start_datetime?->format('H:i'),
             'date_label' => $this->start_datetime ? SpanishDate::fullDate($this->start_datetime) : null,
-            'duration_minutes' => $duration,
+            'duration_minutes' => $duration !== null ? (int) round($duration) : null,
             'cancelled_at' => $this->cancelled_at,
 
             'club' => [

@@ -4,9 +4,12 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\AmenityResource as AmeResource;
+use App\Http\Resources\ClassScheduleResource;
+use App\Http\Resources\CoachResource;
 use App\Models\AdminClub\AmenityResource;
 use App\Models\AdminClub\SystemVariable;
 use App\Models\Administrator\Club;
+use App\Models\Classes\ClassSchedule;
 use App\Services\AmenityAvailabilityService;
 use App\Support\SpanishDate;
 use Carbon\Carbon;
@@ -54,6 +57,51 @@ class AmenityController extends Controller
         } catch (\Exception $e) {
             report($e);
             return $this->serverError('Ocurrió un error al obtener los horarios.');
+        }
+    }
+
+    public function teachers(AmenityResource $amenityResource)
+    {
+        try {
+            $coaches = $amenityResource->coaches()
+                ->with('specialties')
+                ->distinct()
+                ->get();
+
+            return $this->ok(CoachResource::collection($coaches));
+        } catch (\Exception $e) {
+            report($e);
+            return $this->serverError('Ocurrió un error al obtener los profesores.');
+        }
+    }
+
+    public function classes(AmenityResource $amenityResource)
+    {
+        try {
+            $now = Carbon::now(self::TIMEZONE);
+            $today = Carbon::now(self::TIMEZONE)->dayOfWeek;
+            $tomorrow = Carbon::now(self::TIMEZONE)->addDay()->dayOfWeek;
+            $currentTime = $now->format('H:i:s');
+
+            $classes = ClassSchedule::with('coach.specialties')
+                ->withCount('activeEnrollments')
+                ->where('amenity_resource_id', $amenityResource->id)
+                ->whereIn('day_of_week', array_unique([$today, $tomorrow]))
+                ->where(function ($query) use ($today, $currentTime) {
+                    $query->where('day_of_week', '!=', $today)
+                          ->orWhere(function ($query) use ($today, $currentTime) {
+                                $query->where('day_of_week', $today)
+                                ->where('start_time', '>', $currentTime);
+                        });
+                })
+                ->orderBy('day_of_week')
+                ->orderBy('start_time')
+                ->get();
+
+            return $this->ok(ClassScheduleResource::collection($classes));
+        } catch (\Exception $e) {
+            report($e);
+            return $this->serverError('Ocurrió un error al obtener las clases.');
         }
     }
 

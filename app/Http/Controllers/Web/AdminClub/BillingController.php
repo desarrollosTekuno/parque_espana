@@ -682,7 +682,7 @@ class BillingController extends Controller
         $totalBalance = round($totalBalance, 2);
 
         $paymentMonth   = Carbon::parse($validated['paid_at'])->month;
-        $rule           = AnnualDiscountRule::findApplicable($year, $paymentMonth);
+        $rule           = AnnualDiscountRule::findApplicable($paymentMonth);
         $discountAmount = $rule ? round($monthlyFee * (float) $rule->discount_months, 2) : 0.0;
         $paymentAmount  = round($totalBalance - $discountAmount, 2);
 
@@ -774,7 +774,7 @@ class BillingController extends Controller
 
             $monthlyFee     = $membership->resolved_monthly_fee_share;
             $paymentMonth   = Carbon::parse($validated['paid_at'])->month;
-            $rule           = AnnualDiscountRule::findApplicable($year, $paymentMonth);
+            $rule           = AnnualDiscountRule::findApplicable($paymentMonth);
             $discountAmount = $rule ? round($monthlyFee * (float) $rule->discount_months, 2) : 0.0;
             $paymentAmount  = round((float) $charges->sum('balance') - $discountAmount, 2);
 
@@ -812,7 +812,7 @@ class BillingController extends Controller
                     ],
                 ]);
 
-                app(AnnualPaymentService::class)->processAnnualPayment($account, $year, $payment, $clubId);
+                app(AnnualPaymentService::class)->processAnnualPayment($account, [$account->id], $year, collect([$payment]), $rule);
 
                 return $payment;
             });

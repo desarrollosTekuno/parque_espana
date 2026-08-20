@@ -2,15 +2,17 @@
 import BaseButton from "@/Components/BaseButton.vue";
 import TicketPreview from "@/Components/TicketPreview.vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
-import { getTicketData, printTicket, type TicketData } from "@/utils/ticket";
+import { getTicketBundle, printTicket, type TicketData } from "@/utils/ticket";
 import { customToastSwal } from "@/utils/swal";
 import { Head, router, usePage } from "@inertiajs/vue3";
 import { debounce } from "lodash";
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 
 interface TicketListItem {
     id: number;
+    payment_group_id: string | null;
     folio: string | null;
+    formas_de_pago_count: number;
     fecha: string | null;
     estatus: string | null;
     cuenta_numero: string | null;
@@ -36,7 +38,8 @@ const props = defineProps<{
 }>();
 
 /* ====================== Variables ====================== */
-const page = usePage();
+const page = usePage<any>();
+const can = page.props.auth.permissions;
 const headers = [
     { title: "Folio / pago", key: "folio", sortable: false },
     { title: "Fecha", key: "fecha", sortable: false },
@@ -45,7 +48,6 @@ const headers = [
     { title: "Monto", key: "monto", sortable: false },
     { title: "Forma de pago", key: "forma_pago", sortable: false },
     { title: "Cajero", key: "cajero", sortable: false },
-    { title: "Estado", key: "estatus", sortable: false },
     { title: "Acciones", key: "actions", sortable: false, align: "center" as const },
 ];
 const items = ref<TicketListItem[]>(props.tickets.data);
@@ -58,7 +60,39 @@ const options = ref({
 });
 const showPreview = ref(false);
 const previewLoading = ref(false);
-const selectedTicket = ref<TicketData | null>(null);
+const selectedTickets = ref<TicketData[]>([]);
+
+interface CancelGroupPaymentItem {
+    id: number;
+    metodo_pago: string | null;
+    metodo_pago_codigo: string | null;
+    amount: number;
+    reference: string | null;
+    bank_name: string | null;
+    check_number: string | null;
+    status: string;
+}
+// Resumen crudo del grupo (PaymentCancellationController::groupSummary) —
+// NO usa PaymentTicketService::tickets(), que a propósito reparte cada
+// aplicación de una mensualidad combo 50/50 entre parques para el ticket
+// físico de cada uno: si se usara aquí, este diálogo mostraría montos
+// partidos (la mitad de lo que en verdad se cobró) en vez del total real
+// del grupo.
+interface CancelGroupSummary {
+    payment_group_id: string;
+    folio: string | null;
+    paid_at: string | null;
+    total: number;
+    cuenta_numero: string | null;
+    titular: string | null;
+    cajero: string | null;
+    payments: CancelGroupPaymentItem[];
+}
+
+const showCancelDialog = ref(false);
+const cancelDialogLoading = ref(false);
+const cancelDialogItem = ref<TicketListItem | null>(null);
+const cancelDialogGroup = ref<CancelGroupSummary | null>(null);
 
 /* ====================== Funciones ====================== */
 const fetchItems = () => {
@@ -82,10 +116,10 @@ const fetchItems = () => {
 const openPreview = async (item: TicketListItem) => {
     showPreview.value = true;
     previewLoading.value = true;
-    selectedTicket.value = null;
+    selectedTickets.value = [];
 
     try {
-        selectedTicket.value = await getTicketData(item.id);
+        selectedTickets.value = (await getTicketBundle(item.id)).tickets;
     } catch (error) {
         showPreview.value = false;
         customToastSwal({ title: "No fue posible cargar el ticket.", icon: "error" });
@@ -94,8 +128,8 @@ const openPreview = async (item: TicketListItem) => {
     }
 };
 
-const sendToPrint = async (item: TicketListItem | null = null, duplicate = false) => {
-    const paymentId = item?.id ?? selectedTicket.value?.payment_id;
+const sendToPrint = async (item: TicketListItem | null = null, duplicate = true) => {
+    const paymentId = item?.id ?? selectedTickets.value[0]?.payment_id;
 
     if (!paymentId) {
         return;
@@ -107,6 +141,48 @@ const sendToPrint = async (item: TicketListItem | null = null, duplicate = false
         const message = error instanceof Error ? error.message : "No fue posible imprimir el ticket.";
         customToastSwal({ title: message, icon: "error" });
     }
+};
+
+// El renglón de la tabla solo representa el cobro completo (el pago con
+// menor id del grupo, ver TicketController::index). Si se pagó con una sola
+// forma de pago no hay nada que elegir: se va directo a cancelar ese pago.
+// Si hubo varias, se abre un diálogo para elegir entre cancelar el ticket
+// completo (rollback de todas las formas de pago) o solo una en particular.
+const goToCancelPayment = async (item: TicketListItem) => {
+    if (item.formas_de_pago_count <= 1) {
+        router.visit(route("payments.cancel.create", item.id));
+        return;
+    }
+
+    if (!item.payment_group_id) return;
+
+    cancelDialogItem.value = item;
+    cancelDialogGroup.value = null;
+    showCancelDialog.value = true;
+    cancelDialogLoading.value = true;
+
+    try {
+        const { data } = await window.axios.get(route("payments.cancel-group.summary", item.payment_group_id));
+        cancelDialogGroup.value = data.group;
+    } catch (error) {
+        showCancelDialog.value = false;
+        customToastSwal({ title: "No fue posible cargar las formas de pago de este cobro.", icon: "error" });
+    } finally {
+        cancelDialogLoading.value = false;
+    }
+};
+
+const hasCancellablePayments = computed(() =>
+    (cancelDialogGroup.value?.payments ?? []).some((p) => p.status !== "cancelled")
+);
+
+const goToCancelWholeTicket = () => {
+    if (!cancelDialogItem.value?.payment_group_id) return;
+    router.visit(route("payments.cancel-group.create", cancelDialogItem.value.payment_group_id));
+};
+
+const goToCancelSinglePayment = (paymentId: number) => {
+    router.visit(route("payments.cancel.create", paymentId));
 };
 
 const money = (value: number) => {
@@ -188,6 +264,15 @@ watch(() => page.props.auth.currentClub, () => {
                     <template #item.folio="{ item }">
                         <span v-if="item.folio">{{ item.folio }}</span>
                         <v-chip v-else size="small" color="warning" variant="tonal">Pago #{{ item.id }}</v-chip>
+                        <v-chip
+                            v-if="item.formas_de_pago_count > 1"
+                            size="small"
+                            color="info"
+                            variant="tonal"
+                            class="ml-1"
+                        >
+                            +{{ item.formas_de_pago_count - 1 }}
+                        </v-chip>
                     </template>
 
                     <template #item.fecha="{ item }">{{ dateTime(item.fecha) }}</template>
@@ -196,14 +281,16 @@ watch(() => page.props.auth.currentClub, () => {
                     <template #item.cajero="{ item }">
                         {{ item.cajero || "-" }}<span v-if="item.cajero_codigo"> ({{ item.cajero_codigo }})</span>
                     </template>
-                    <template #item.estatus="{ item }">
-                        <v-chip :color="statusColor(item.estatus)" size="small" variant="tonal">
-                            {{ statusLabel(item.estatus) }}
-                        </v-chip>
-                    </template>
                     <template #item.actions="{ item }">
                         <BaseButton action="view" tooltip="Vista previa" @click="openPreview(item)" />
                         <BaseButton icon="mdi-printer-outline" color="primary" tooltip="Reimprimir" @click="sendToPrint(item, true)" />
+                        <BaseButton
+                            v-if="can.includes('payments.cancel') && item.estatus !== 'cancelled'"
+                            icon="mdi-cash-remove"
+                            color="error"
+                            tooltip="Cancelar pago"
+                            @click="goToCancelPayment(item)"
+                        />
                     </template>
                 </v-data-table-server>
             </v-card-text>
@@ -216,7 +303,14 @@ watch(() => page.props.auth.currentClub, () => {
                     <div v-if="previewLoading" class="text-center pa-8">
                         <v-progress-circular indeterminate color="primary" />
                     </div>
-                    <TicketPreview v-else-if="selectedTicket" :ticket="selectedTicket" />
+                    <div v-else-if="selectedTickets.length">
+                        <TicketPreview
+                            v-for="ticket in selectedTickets"
+                            :key="ticket.club_id"
+                            :ticket="ticket"
+                            class="mb-6"
+                        />
+                    </div>
                 </v-card-text>
                 <v-card-actions>
                     <v-spacer />
@@ -226,9 +320,70 @@ watch(() => page.props.auth.currentClub, () => {
                         text="Imprimir"
                         tooltip="Imprimir"
                         :icon-only="false"
-                        :disabled="!selectedTicket"
+                        :disabled="!selectedTickets.length"
                         @click="sendToPrint()"
                     />
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
+        <v-dialog v-model="showCancelDialog" max-width="560">
+            <v-card>
+                <v-card-title>Cancelar cobro</v-card-title>
+                <v-card-text>
+                    <div v-if="cancelDialogLoading" class="text-center pa-8">
+                        <v-progress-circular indeterminate color="primary" />
+                    </div>
+                    <template v-else-if="cancelDialogGroup">
+                        <v-alert type="info" variant="tonal" density="compact" class="mb-4">
+                            Este cobro se pagó con {{ cancelDialogItem?.formas_de_pago_count }} formas de pago.
+                            Puedes cancelar el ticket completo o solo una forma de pago en particular.
+                        </v-alert>
+
+                        <v-btn
+                            v-if="hasCancellablePayments"
+                            color="error"
+                            variant="flat"
+                            block
+                            class="mb-4"
+                            prepend-icon="mdi-cash-remove"
+                            @click="goToCancelWholeTicket"
+                        >
+                            Cancelar ticket completo ({{ money(cancelDialogGroup.total) }})
+                        </v-btn>
+                        <v-alert v-else type="warning" variant="tonal" density="compact" class="mb-4">
+                            Todas las formas de pago de este ticket ya están canceladas.
+                        </v-alert>
+
+                        <div class="text-subtitle-2 font-weight-medium mb-2">
+                            O cancelar solo una forma de pago:
+                        </div>
+                        <v-list density="compact" lines="two">
+                            <v-list-item
+                                v-for="p in cancelDialogGroup.payments"
+                                :key="p.id"
+                                :title="`${p.metodo_pago_codigo ?? '-'} · ${p.metodo_pago ?? '-'} — ${money(p.amount)}`"
+                            >
+                                <template #subtitle>
+                                    <span v-if="p.status === 'cancelled'" class="text-error">Ya cancelado</span>
+                                    <span v-else>{{ [p.reference, p.bank_name, p.check_number].filter(Boolean).join(" · ") || undefined }}</span>
+                                </template>
+                                <template #append>
+                                    <BaseButton
+                                        v-if="p.status !== 'cancelled'"
+                                        icon="mdi-cash-remove"
+                                        color="error"
+                                        tooltip="Cancelar esta forma de pago"
+                                        @click="goToCancelSinglePayment(p.id)"
+                                    />
+                                </template>
+                            </v-list-item>
+                        </v-list>
+                    </template>
+                </v-card-text>
+                <v-card-actions>
+                    <v-spacer />
+                    <BaseButton action="close" :icon-only="false" text="Cerrar" @click="showCancelDialog = false" />
                 </v-card-actions>
             </v-card>
         </v-dialog>

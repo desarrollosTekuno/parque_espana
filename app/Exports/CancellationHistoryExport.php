@@ -42,7 +42,9 @@ class CancellationHistoryExport implements FromCollection, WithHeadings, WithTit
             $row['email'],
             $row['membership_type_name'],
             $this->typeLabel($row['cancellation_type']),
-            $this->motivoLabel($row['cancellation_type']),
+            // Bajas registradas antes de este catálogo no tienen motivo
+            // capturado — se cae al texto genérico derivado del tipo.
+            $row['cancellation_reason'] ?? $this->motivoLabel($row['cancellation_type']),
             $row['cancelled_at'] ? Carbon::parse($row['cancelled_at'])->format('d/m/Y H:i') : '',
             $row['cancelled_by_name'],
         ]);

@@ -319,6 +319,11 @@ const reservationForm = useForm({
     date: null,
     start_datetime: null,
     end_datetime: null,
+    requires_tent: false,
+    grill_resource_id: null,
+    tables_count: null,
+    chairs_count: null,
+    notes: null,
 })
 
 const createReservation = () => {
@@ -330,7 +335,7 @@ const createReservation = () => {
     showReservationModal.value = true
 }
 const isFormValid = computed(() => {
-    return (
+    const base = (
         reservationForm.member_id &&
         reservationForm.amenity_id &&
         reservationForm.amenity_resource_id &&
@@ -338,6 +343,15 @@ const isFormValid = computed(() => {
         reservationForm.start_datetime &&
         reservationForm.end_datetime
     )
+
+    if (!base) return false
+
+    if (isGardenResourceSelected.value) {
+        return reservationForm.tables_count !== null && reservationForm.tables_count !== '' &&
+            reservationForm.chairs_count !== null && reservationForm.chairs_count !== ''
+    }
+
+    return true
 })
 const saveReservation = () => {
 
@@ -387,15 +401,48 @@ const saveReservation = () => {
         })
     })
 }
-// filtro de recursos
+// La amenidad seleccionada no maneja horarios (reservación por día completo, ej. Jardines)
+const selectedAmenity = computed(() => {
+    return amenities.find((a: any) => a.id === reservationForm.amenity_id) || null
+})
+const isDailyAmenity = computed(() => selectedAmenity.value?.reservation_type === 'daily')
+const isGardenAmenity = computed(() => selectedAmenity.value?.name === 'Jardines')
+
+// filtro de recursos: para Jardines, el selector de "Recurso" solo debe listar los jardines,
+// los asadores se eligen aparte una vez elegido el jardín
 const filteredResources = computed(() => {
     if (!reservationForm.amenity_id) return []
-    return props.resources.filter(
+    const list = props.resources.filter(
         (r: any) => r.amenity_id === reservationForm.amenity_id
     )
+    return isGardenAmenity.value
+        ? list.filter((r: any) => r.name.startsWith('Jardín'))
+        : list
 })
+
+const selectedResource = computed(() => {
+    return props.resources.find((r: any) => r.id === reservationForm.amenity_resource_id) || null
+})
+const isGardenResourceSelected = computed(() =>
+    isGardenAmenity.value && !!selectedResource.value?.name?.startsWith('Jardín')
+)
+
+const grillOptions = computed(() => {
+    if (!isGardenResourceSelected.value) return []
+    return props.resources.filter(
+        (r: any) => r.amenity_id === reservationForm.amenity_id && r.name.startsWith('Asador')
+    )
+})
+
 watch(() => reservationForm.amenity_id, () => {
     reservationForm.amenity_resource_id = null
+})
+watch(() => reservationForm.amenity_resource_id, () => {
+    reservationForm.grill_resource_id = null
+    reservationForm.requires_tent = false
+    reservationForm.tables_count = null
+    reservationForm.chairs_count = null
+    reservationForm.notes = null
 })
 
 // Horarios disponibles
@@ -426,6 +473,12 @@ watch(
             )
 
             slots.value = data
+
+            // Para amenidades de día completo (ej. Jardines) no se elige horario,
+            // se toma automáticamente el único slot de día si está disponible.
+            if (isDailyAmenity.value && data.length && data[0].status === 'available') {
+                selectSlot(data[0])
+            }
 
         } catch (e) {
             console.error(e)
@@ -705,7 +758,7 @@ const maxDate = computed(() => {
                                     :max="maxDate"
                                 />
                             </v-col>
-                            <v-col cols="12">
+                            <v-col v-if="!isDailyAmenity" cols="12">
                                 <div class="text-subtitle-2 mb-2">
                                     Horarios disponibles
                                 </div>
@@ -735,6 +788,81 @@ const maxDate = computed(() => {
 
                                 </div>
                             </v-col>
+
+                            <!-- Amenidades de día completo (ej. Jardines): no aplica horario -->
+                            <v-col v-else cols="12">
+                                <div v-if="loadingSlots" class="text-caption text-grey">
+                                    Verificando disponibilidad...
+                                </div>
+                                <div v-else-if="reservationForm.amenity_resource_id && reservationForm.date">
+                                    <v-alert
+                                        v-if="selectedSlot"
+                                        type="success"
+                                        variant="tonal"
+                                        density="compact"
+                                    >
+                                        Disponible para reservar el día completo.
+                                    </v-alert>
+                                    <v-alert
+                                        v-else
+                                        type="warning"
+                                        variant="tonal"
+                                        density="compact"
+                                    >
+                                        No hay disponibilidad para la fecha seleccionada.
+                                    </v-alert>
+                                </div>
+                            </v-col>
+
+                            <!-- Campos exclusivos de reservación de jardines -->
+                            <template v-if="isGardenResourceSelected">
+                                <v-col cols="12">
+                                    <v-switch
+                                        v-model="reservationForm.requires_tent"
+                                        label="Requiere carpa"
+                                        color="primary"
+                                        hide-details
+                                    />
+                                </v-col>
+
+                                <v-col cols="12">
+                                    <v-select
+                                        v-model="reservationForm.grill_resource_id"
+                                        :items="grillOptions"
+                                        item-title="name"
+                                        item-value="id"
+                                        label="Asador (opcional)"
+                                        clearable
+                                        no-data-text="No hay asadores disponibles"
+                                    />
+                                </v-col>
+
+                                <v-col cols="6">
+                                    <v-text-field
+                                        v-model.number="reservationForm.tables_count"
+                                        type="number"
+                                        min="0"
+                                        label="Número de tablones"
+                                    />
+                                </v-col>
+
+                                <v-col cols="6">
+                                    <v-text-field
+                                        v-model.number="reservationForm.chairs_count"
+                                        type="number"
+                                        min="0"
+                                        label="Número de sillas"
+                                    />
+                                </v-col>
+
+                                <v-col cols="12">
+                                    <v-textarea
+                                        v-model="reservationForm.notes"
+                                        label="Notas / observaciones"
+                                        rows="3"
+                                    />
+                                </v-col>
+                            </template>
                         </v-row>
                     </v-card-text>
 

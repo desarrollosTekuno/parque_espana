@@ -37,11 +37,25 @@ const routes: Routing[] = [
         group: null,
     },
     {
-        name: ["website-content.index"],
+        name: ["website-content.index", "website-contacts.index"],
         title: "Página web",
         icon: "mdi-web",
         value: "pagina-web",
-        group: null,
+        group: "Página web",
+        groupItems: [
+            {
+                name: "website-content.index",
+                title: "Contenido",
+                icon: "mdi-image-multiple-outline",
+                value: "contenido-pagina-web",
+            },
+            {
+                name: "website-contacts.index",
+                title: "Mensajes de contacto",
+                icon: "mdi-email-outline",
+                value: "mensajes-contacto-pagina-web",
+            },
+        ],
     },
     {
         name: [
@@ -79,7 +93,7 @@ const routes: Routing[] = [
                 icon: "mdi-swap-horizontal",
                 value: "paquetes-intermedios",
             },
-            
+
         ],
     },
     {
@@ -93,19 +107,13 @@ const routes: Routing[] = [
             "member-access.index",
             "members.cancellations.index",
             "members.age-transitions.index",
-            "fee-schedules.index"
         ],
         title: "Membresías",
         icon: "mdi-account-group-outline",
         value: "membresiasMenu",
         group: "Membresías",
         groupItems: [
-            {
-                name: "fee-schedules.index",
-                title: "Cuotas por año",
-                icon: "mdi-calendar-multiple",
-                value: "cuotas-por-anio",
-            },
+            
             {
                 name: "members.index",
                 title: "Membresías",
@@ -131,12 +139,13 @@ const routes: Routing[] = [
                 value: "transiciones-edad",
                 showBadge: true,
             },
-            
+
         ],
     },
     {
         name: [
             "member-access.index",
+            "app-variables.index",
         ],
         title: "App móvil",
         icon: "mdi-cellphone-key",
@@ -149,13 +158,12 @@ const routes: Routing[] = [
                 icon: "mdi-cellphone-key",
                 value: "accesos-app",
             },
-            // Configuración de variables de la app móvil
-            // {
-            //     name: "app-variables.index",
-            //     title: "Variables de la App",
-            //     icon: "mdi-cog-outline",
-            //     value: "variables-app",
-            // }
+            {
+                name: "app-variables.index",
+                title: "Variables de App Móvil",
+                icon: "mdi-cellphone-cog",
+                value: "variables-app-movil",
+            },
         ],
     },
 
@@ -171,6 +179,7 @@ const routes: Routing[] = [
             "global-cash-cuts.index",
             "global-cash-cuts.show",
             "tickets.index",
+            "fee-schedules.index",
         ],
         title: "Cobranza",
         icon: "mdi-cash-multiple",
@@ -178,10 +187,10 @@ const routes: Routing[] = [
         group: "Cobranza",
         groupItems: [
             {
-                name: "collections.index",
-                title: "Registro de cobros",
-                icon: "mdi-cash-register",
-                value: "cobro-directo",
+                name: "fee-schedules.index",
+                title: "Cuotas por año",
+                icon: "mdi-calendar-multiple",
+                value: "cuotas-por-anio",
             },
             {
                 name: "billing-concepts.index",
@@ -196,6 +205,12 @@ const routes: Routing[] = [
                 value: "metodos-pago",
             },
             {
+                name: "collections.index",
+                title: "Registro de cobros",
+                icon: "mdi-cash-register",
+                value: "cobro-directo",
+            },
+            {
                 name: "billing.index",
                 title: "Cargos pendientes",
                 icon: "mdi-receipt-text-outline",
@@ -206,11 +221,11 @@ const routes: Routing[] = [
                 title: "Desglose de cargos",
                 icon: "mdi-format-list-bulleted",
                 value: "desglose-cargos",
-            },
+            }, 
             {
                 name: "cash-cuts.index",
                 title: "Cortes de caja",
-                icon: "mdi-cash-register",
+                icon: "mdi-cash-multiple",
                 value: "cortes-caja",
             },
             {
@@ -221,8 +236,8 @@ const routes: Routing[] = [
             },
             {
                 name: "tickets.index",
-                title: "Tickets de pago",
-                icon: "mdi-printer-outline",
+                title: "Historial de pagos",
+                icon: "mdi-history",
                 value: "tickets-pago",
             },
         ],
@@ -358,6 +373,12 @@ const routes: Routing[] = [
                 title: "Variables del Sistema",
                 icon: "mdi-cog",
                 value: "variables-sistema",
+            },
+            {
+                name: "app-variables.index",
+                title: "Variables de App Móvil",
+                icon: "mdi-cellphone-cog",
+                value: "variables-app-movil",
             }
         ]
     },

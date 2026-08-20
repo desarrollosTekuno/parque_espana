@@ -14,9 +14,9 @@ use Illuminate\Http\Request;
 
 class WebsiteApiController extends Controller {
     private const EVENT_TYPES = [
-        'activity' => ['label' => 'Actividad', 'color' => '#0097A7'],
-        'celebration' => ['label' => 'Celebración', 'color' => '#EC659C'],
-        'holiday' => ['label' => 'Día festivo', 'color' => '#F4B400'],
+        'summer_course' => ['label' => 'Curso de verano', 'color' => '#5AA2B8'],
+        'pilgrimage' => ['label' => 'Romería', 'color' => '#D676A5'],
+        'holidays' => ['label' => 'Días festivos', 'color' => '#E8B72C'],
     ];
 
     public function carousel(Club $club) {
@@ -147,19 +147,29 @@ class WebsiteApiController extends Controller {
 
     public function virtualTour(Club $club) {
         try {
-            $categories = VirtualTourCategory::where('club_id', $club->id)
+            $virtualTourConfig = config("website.virtual_tour.{$club->code}", []);
+            $savedCategories = VirtualTourCategory::where('club_id', $club->id)
                 ->with('images')
-                ->orderBy('id')
                 ->get()
-                ->map(fn ($category) => [
-                    'id' => $category->id,
-                    'name' => $category->name,
-                    'images' => $category->images->map(fn ($image) => [
-                        'id' => $image->id,
-                        'title' => $image->title,
-                        'image_url' => $image->image_url,
-                    ]),
-                ]);
+                ->keyBy('name');
+
+            $categories = collect($virtualTourConfig)->map(function ($titles, $categoryName) use ($savedCategories) {
+                $category = $savedCategories->get($categoryName);
+
+                return [
+                    'id' => $category?->id,
+                    'name' => $categoryName,
+                    'images' => collect($titles)->map(function ($title) use ($category) {
+                        $image = $category?->images->firstWhere('title', $title);
+
+                        return [
+                            'id' => $image?->id,
+                            'title' => $title,
+                            'image_url' => $image?->image_url,
+                        ];
+                    })->values(),
+                ];
+            })->values();
 
             return $this->ok($categories);
         } catch (\Exception $e) {
@@ -174,26 +184,23 @@ class WebsiteApiController extends Controller {
             $query = WebsiteEvent::where('club_id', $club->id);
 
             if ($request->filled('year')) {
-                $query->whereYear('event_date', (int) $request->year);
+                $query->whereYear('start_date', (int) $request->year);
             }
 
             if ($request->filled('month')) {
-                $query->whereMonth('event_date', (int) $request->month);
+                $query->whereMonth('start_date', (int) $request->month);
             }
 
-            $events = $query->orderBy('event_date')
+            $events = $query->orderBy('start_date')
                 ->orderBy('id')
                 ->get()
                 ->map(function ($event) {
-                    $type = self::EVENT_TYPES[$event->type];
-
                     return [
-                        'id' => $event->id,
+                        'id' => (string) $event->id,
                         'title' => $event->title,
-                        'date' => $event->event_date->format('Y-m-d'),
-                        'type' => $event->type,
-                        'type_label' => $type['label'],
-                        'color' => $type['color'],
+                        'start' => $event->start_date->format('Y-m-d'),
+                        'end' => $event->end_date->format('Y-m-d'),
+                        'calendarId' => $event->type,
                     ];
                 });
 

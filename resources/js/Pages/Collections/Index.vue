@@ -10,18 +10,26 @@ import {
     fileTypeRule,
     requiredFileRule,
 } from "@/constants/validationRules";
+import TicketPreview from "@/Components/TicketPreview.vue";
+import { getTicketBundle, printTicket, type TicketData } from "@/utils/ticket";
 import { Head, usePage } from "@inertiajs/vue3";
 import { computed, ref, watch } from "vue";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
+import { nowAsLocalInput } from "@/constants/formatDates";
+import { isLoading } from "@/loading";
 import Swal from "sweetalert2";
 
 interface ConceptOption {
     id: number;
     code: string;
+    internal_key: string;
     name: string;
     default_amount: number | null;
     is_recurring: boolean;
     allows_partial_payments: boolean;
+    applies_iva: boolean;
+    requires_account: boolean;
+    club_amounts: { club_id: number; amount: number | null; applies_iva: boolean | null }[];
 }
 interface PaymentMethodItem {
     id: number;
@@ -32,6 +40,12 @@ interface PaymentMethodItem {
     requires_check_number: boolean;
     affects_cash_cut: boolean;
     internal_key: string | null;
+}
+interface PaymentMethodOption extends PaymentMethodItem {
+    club_id: number;
+    club_code: string;
+    is_session_club: boolean;
+    option_key: string;
 }
 interface ClubPaymentMethodItem {
     id: number;
@@ -56,6 +70,7 @@ interface ClubBreakdownItem {
 interface PendingConcept {
     concept_id: number | null;
     concept_code: string | null;
+    internal_key: string | null;
     concept_name: string | null;
     rate: number | null;
     fee: number;
@@ -65,6 +80,9 @@ interface PendingConcept {
     balance: number;
     is_multi_club: boolean;
     club_breakdown: ClubBreakdownItem[];
+    period_year: number | null;
+    period_month: number | null;
+    period_label: string | null;
     charges: PendingChargeRef[];
 }
 interface AccountInfo {
@@ -117,6 +135,14 @@ interface Signal {
     label: string;
     color: string;
 }
+interface RelatedAccount {
+    id: number;
+    membership_number: string | null;
+    internal_account_number: string | null;
+    holder_name: string;
+    club_code: string | null;
+    status: string | null;
+}
 interface SearchResult {
     found: boolean;
     message?: string;
@@ -130,30 +156,49 @@ interface SearchResult {
     incidents?: Incident[];
     notes?: NoteItem[];
     signals?: Signal[];
+    related_accounts?: RelatedAccount[];
 }
 
-/** Renglón de la lista de cobros (mezcla cargos existentes y conceptos nuevos). */
+/** Renglón de la lista de cobros (mezcla cargos existentes, conceptos nuevos
+ *  y salidas de cafetería aún no confirmadas). */
 interface CobroLine {
     key: string;
-    type: "existing" | "new";
+    type: "existing" | "new" | "cafeteria_checkout" | "annual";
     concept_label: string;
     detail: string;
     amount: number;
     charges?: { charge_id: number; amount: number }[];
     concept_id?: number;
     description?: string | null;
+    // Solo para type "new" — cantidad/importe unitario capturados en el
+    // panel, para que el ticket pueda mostrar "3 x $300.00" en vez de "1 x
+    // $900.00" (ver PaymentTicketService::concepts, que los lee de
+    // Charge.metadata).
+    quantity?: number;
+    unit_amount?: number;
     is_multi_club?: boolean;
     club_breakdown?: ClubBreakdownItem[];
+    cafeteria_visit_id?: number;
+    cafeteria_consumption_amount?: number;
+    // Solo para type "annual" — ver confirmAnnualFeePaymentFromPanel /
+    // registerPayment: se manda como bloque `annual` dentro del mismo
+    // storePayment (junto con cargos/conceptos normales), y el backend
+    // resuelve sus propios cargos/descuento a partir del año (ver
+    // CollectionController::storePayment / AnnualPaymentService::resolveApplications).
+    annual_year?: number;
+    annual_discount_amount?: number;
 }
 
 interface Props {
     conceptOptions?: ConceptOption[];
     clubPaymentMethods?: ClubPaymentMethodItem[];
+    annualDiscountRuleMonths?: number[];
 }
 
 const props = withDefaults(defineProps<Props>(), {
     conceptOptions: () => [],
     clubPaymentMethods: () => [],
+    annualDiscountRuleMonths: () => [],
 });
 
 const page = usePage<any>();
@@ -166,13 +211,47 @@ const currencyFormatter = new Intl.NumberFormat("es-MX", {
 const formatCurrency = (value: number | null | undefined) =>
     currencyFormatter.format(Number(value ?? 0));
 
+const round2 = (value: number) => Math.round(value * 100) / 100;
+
 // Búsqueda
 const searchTerm = ref("");
 const searching = ref(false);
 const result = ref<SearchResult | null>(null);
 
+// Venta "sin cuenta": conceptos marcados requires_account=false (p. ej. un
+// pase diario a un visitante sin socio ligado) se pueden cobrar sin buscar
+// ni encontrar una cuenta — ver CollectionController::storePayment. En este
+// modo no hay socio ni cargos pendientes, solo la captura de conceptos
+// nuevos (reutilizando el mismo panel "Agregar concepto de cobro" y el
+// mismo flujo de Método de pago/Registrar cobro).
+const walkInMode = ref(false);
+
+const setWalkInMode = (value: boolean) => {
+    walkInMode.value = value;
+    searchTerm.value = "";
+    result.value = null;
+    notes.value = [];
+    cobros.value = [];
+    resetNewItem();
+    paymentDialog.value = false;
+    manualPaymentOverride.value = null;
+};
+
 const account = computed(() => result.value?.account ?? null);
-const cobroClub = computed(() => result.value?.cobro_club ?? null);
+
+// En modo sin cuenta no hay resultado de búsqueda del que sacar el parque:
+// se usa el parque de la sesión actual (ver page.props.auth.currentClub,
+// que en este proyecto es solo el id del club) contra el catálogo de
+// métodos de pago por parque que ya llega en props.
+const sessionClubInfo = computed<ClubInfo | null>(() => {
+    const sessionClubId = page.props.auth?.currentClub;
+    const club = props.clubPaymentMethods.find((c) => c.id === sessionClubId);
+    return club ? { id: club.id, code: club.code, name: club.name } : null;
+});
+
+const cobroClub = computed(() =>
+    walkInMode.value ? sessionClubInfo.value : (result.value?.cobro_club ?? null),
+);
 const clubMemberships = computed(() => result.value?.club_memberships ?? []);
 const accountMembers = computed(() => result.value?.account_members ?? []);
 const billingMembershipId = computed(
@@ -182,8 +261,104 @@ const pendingConcepts = computed(() => result.value?.pending_concepts ?? []);
 const summary = computed(() => result.value?.summary ?? null);
 const incidents = computed(() => result.value?.incidents ?? []);
 const notes = ref<NoteItem[]>([]);
-const signals = computed(() => result.value?.signals ?? []);
 const paymentDialog = ref(false);
+
+// Cuentas relacionadas por el árbol de origen/derivadas (ver
+// CollectionController::resolveRelatedAccounts — mismo mecanismo que la
+// pestaña "Árbol" de Members/Show.vue, distinto al account_group_id del
+// mismo socio en varios parques). Frecuente que quien llega a pagar termine
+// cubriendo también cargos de esas cuentas — este modal deja elegir una y
+// vuelve a buscar directo con ella, sin que el cajero tenga que anotar la
+// clave e ir a teclearla de nuevo.
+const relatedAccounts = computed(() => result.value?.related_accounts ?? []);
+const showRelatedAccountsDialog = ref(false);
+const selectedRelatedAccountId = ref<number | null>(null);
+
+const openRelatedAccountsDialog = () => {
+    selectedRelatedAccountId.value = null;
+    showRelatedAccountsDialog.value = true;
+};
+
+const goToRelatedAccount = () => {
+    const selected = relatedAccounts.value.find((a) => a.id === selectedRelatedAccountId.value);
+    if (!selected) return;
+
+    searchTerm.value = selected.membership_number || selected.internal_account_number || "";
+    showRelatedAccountsDialog.value = false;
+    runSearch();
+};
+
+// ── Pagar anualidad ──
+// Cubre desde el mes vencido más viejo (aunque sea de un año anterior)
+// hasta diciembre del año en que se paga, con el descuento vigente según
+// billing.annual_discount_rules (ver CollectionController::previewAnnualPayment/
+// storeAnnualPayment). El cálculo se hace aquí (mismo panel "Agregar
+// concepto de cobro" que ya usa cobranza, con el checkbox "¿Es pago de
+// anualidad?"), pero el renglón se agrega a la MISMA lista de cobros que
+// todo lo demás, para que el método de pago se configure con el mismo
+// diálogo (incluyendo pago dividido) — ver registerPayment(), que detecta
+// este renglón y lo manda al endpoint de anualidad en vez de storePayment.
+interface AnnualMonthPreview {
+    month: number;
+    period_label: string;
+    balance: number;
+    is_virtual: boolean;
+    is_paid: boolean;
+}
+interface AnnualPaymentPreview {
+    year: number;
+    months: AnnualMonthPreview[];
+    prior_years_balance: number;
+    current_year_balance: number;
+    total_balance: number;
+    monthly_fee: number;
+    discount_rule: { pay_by_month: number; discount_months: number; free_month: number } | null;
+    discount_amount: number;
+    payment_amount: number;
+    // La anualidad es, en el fondo, una colección de mensualidades — si la
+    // membresía facturable es un combo interclub, también debe poder
+    // repartirse entre los métodos de pago de ambos parques (ver
+    // dialogClubBreakdown / paymentMethodOptions), igual que "Agregar
+    // mensualidades".
+    is_multi_club: boolean;
+    club_breakdown: ClubBreakdownItem[];
+    // Años que se pueden cubrir con esta fecha de pago — solo trae más de
+    // uno en diciembre (el actual, por si falta cerrarlo, y el siguiente,
+    // para adelantar su anualidad). Ver annualCoverageYear.
+    coverage_year_options: number[];
+}
+
+const annualPaymentLoading = ref(false);
+const annualPaymentPreview = ref<AnnualPaymentPreview | null>(null);
+const annualPaymentDate = ref(nowAsLocalInput());
+// Año que se quiere cubrir — normalmente null (deja que el backend decida
+// solo, ver resolveAnnualCoverageYear); en diciembre se puede elegir
+// explícitamente entre el año en curso o el siguiente (adelantar la
+// anualidad), ver el selector "Año a cubrir" que aparece solo entonces.
+const annualCoverageYear = ref<number | null>(null);
+
+const loadAnnualPaymentPreview = async () => {
+    if (!account.value) return;
+    annualPaymentLoading.value = true;
+    annualPaymentPreview.value = null;
+    try {
+        const { data } = await window.axios.post(route("collections.annual-payment.preview"), {
+            membership_account_id: account.value.id,
+            paid_at: annualPaymentDate.value,
+            year: annualCoverageYear.value,
+        });
+        annualPaymentPreview.value = data;
+        annualCoverageYear.value = data.year;
+    } catch (e: any) {
+        customToastSwal({
+            title: e?.response?.data?.message || "No se pudo calcular la anualidad.",
+            icon: "error",
+        });
+    } finally {
+        annualPaymentLoading.value = false;
+    }
+};
+
 const runSearch = async () => {
     if (!searchTerm.value || searchTerm.value.trim().length < 2) {
         customToastSwal({
@@ -231,9 +406,10 @@ const runSearch = async () => {
 // Tabla 1: cargos pendientes 
 const pendingHeaders = [
     { title: "Concepto", key: "concept", sortable: false },
+    // { title: "Parque", key: "club", sortable: false },
     { title: "Tasa", key: "rate", sortable: false },
     { title: "Cuota", key: "fee", sortable: false },
-    { title: "Clase", key: "class_label", sortable: false },
+    // { title: "Clase", key: "class_label", sortable: false },
     { title: "Monto", key: "unit_amount", sortable: false },
     { title: "Meses", key: "months", sortable: false },
     { title: "Saldo", key: "balance", sortable: false, align: "end" },
@@ -242,18 +418,66 @@ const pendingHeaders = [
 
 const conceptLabel = (c: {
     concept_code: string | null;
+    internal_key: string | null;
     concept_name: string | null;
-}) => `${c.concept_code ?? ""} ${c.concept_name ?? ""}`.trim();
+}) => `${c.internal_key ?? ""} ${c.concept_name ?? ""}`.trim();
 
-const isConceptInCobros = (conceptId: number | null) =>
-    conceptId !== null &&
+const isChargesInCobros = (chargeId: number | null) =>
+    chargeId !== null &&
     cobros.value.some(
-        (line) => line.type === "existing" && line.concept_id === conceptId,
+        (line) => line.type === "existing" && line.charges.some((ch) => ch.charge_id === chargeId),
     );
 
+/** Solo la mensualidad se puede repartir entre parques; cualquier otro cargo
+ *  solo se cobra en el parque al que pertenece (ver addPendingToCobros). */
+const isConceptOtherClub = (concept: PendingConcept) => {
+    if (concept.is_multi_club) return false;
+    const conceptClubId = concept.charges[0]?.club_id ?? null;
+    return conceptClubId !== null && !!cobroClub.value && conceptClubId !== cobroClub.value.id;
+};
+
+// La anualidad SÍ se puede combinar con otros conceptos en el mismo cobro
+// (p. ej. un pase diario, ver registerPayment) pero no con una mensualidad
+// suelta (existing/nueva captura de meses) — son dos formas de cobrar lo
+// mismo (el mes a mes vs. el año completo con descuento) y mezclarlas no
+// tiene sentido. Se llama al agregar mensualidad suelta para quitar
+// cualquier renglón de anualidad que ya estuviera en la lista.
+const clearAnnualLineIfPresent = () => {
+    if (!cobros.value.some((l) => l.type === "annual")) return;
+    cobros.value = cobros.value.filter((l) => l.type !== "annual");
+    customToastSwal({
+        title: "Se quitó la anualidad de la lista: no se puede combinar con mensualidades sueltas.",
+        icon: "info",
+    });
+};
+
+/** El renglón de mensualidad ya trae TODOS los meses vencidos agrupados (ver
+ *  CollectionController::search) con sus cargos en orden cronológico, así que
+ *  agregarlo aquí ya respeta "pagar en orden" sin necesidad de bloquear
+ *  renglones entre sí — para agregar solo ALGUNOS de los meses vencidos (no
+ *  todos) se usa la captura rápida "Agregar mensualidades" del concepto
+ *  MONTHLY_FEE, que sí permite elegir cuántos. */
 const addPendingToCobros = (concept: PendingConcept) => {
-    if (concept.concept_id === null || isConceptInCobros(concept.concept_id)) {
+    const firstChargeId = concept.charges[0]?.id;
+    if (concept.concept_id === null || isChargesInCobros(firstChargeId)) {
         return;
+    }
+    clearAnnualLineIfPresent();
+
+    // Solo la mensualidad puede repartirse entre parques (is_multi_club);
+    // cualquier otro cargo se cobra en el parque al que pertenece, así que
+    // no se puede mezclar en la misma lista de cobros con el parque de la
+    // sesión actual (ver PaymentRegistrationService::ensureChargesBelongToClub).
+    if (!concept.is_multi_club) {
+        const conceptClubId = concept.charges[0]?.club_id ?? null;
+        if (conceptClubId !== null && cobroClub.value && conceptClubId !== cobroClub.value.id) {
+            const clubCode = concept.charges[0]?.club_code ?? "otro parque";
+            customToastSwal({
+                title: `Este cargo pertenece a ${clubCode}. Cambia el parque de la sesión para cobrarlo.`,
+                icon: "warning",
+            });
+            return;
+        }
     }
 
     cobros.value.push({
@@ -297,28 +521,62 @@ const resetNewItem = () => {
     newItem.value = emptyNewItem();
 };
 
+// En modo "sin cuenta" solo se pueden elegir conceptos que no requieran una
+// cuenta de socio (billing.concepts.requires_account=false) — ver
+// PaymentRegistrationService::ensureChargesBelongToClub, que rechaza
+// cualquier otro cargo sin cuenta.
+const availableConceptOptions = computed(() =>
+    walkInMode.value
+        ? props.conceptOptions.filter((c) => !c.requires_account)
+        : props.conceptOptions,
+);
+
 const conceptSelectItems = computed(() =>
-    props.conceptOptions.map((c) => ({
-        title: `${c.code} - ${c.name}`,
+    availableConceptOptions.value.map((c) => ({
+        title: `${c.internal_key} - ${c.name}`,
         value: c.id,
     })),
 );
 
-// Función para llenar el concepto e importe
-const applyConcept = (concept) => {
-    console.log(concept);
+// Función para llenar el concepto e importe: se usa el monto configurado
+// para el parque en sesión (club_amounts) si existe; el monto base
+// (default_amount) es solo el respaldo cuando ese concepto no tiene un
+// monto específico capturado para este parque.
+const resolveConceptAmount = (concept: ConceptOption): number => {
+    const clubId = cobroClub.value?.id;
+    const clubAmount = clubId != null
+        ? concept.club_amounts?.find((ca) => ca.club_id === clubId)
+        : undefined;
+    return clubAmount?.amount ?? concept.default_amount ?? 0;
+};
+
+// Si el concepto factura IVA en el parque en sesión: primero el override
+// específico del concepto para ese parque (club_amounts[].applies_iva, null
+// = sin override), si no hay, el default del concepto (applies_iva) — ya no
+// se decide por clubs.clubs.applies_iva a nivel global, sino por concepto
+// (ver ChargeConcept::resolveAppliesIvaForClub, mismo criterio aquí).
+const resolveConceptAppliesIva = (concept: ConceptOption | null): boolean => {
+    if (!concept) return false;
+    const clubId = cobroClub.value?.id;
+    const clubAmount = clubId != null
+        ? concept.club_amounts?.find((ca) => ca.club_id === clubId)
+        : undefined;
+    return clubAmount?.applies_iva ?? concept.applies_iva ?? false;
+};
+
+const applyConcept = (concept: ConceptOption | undefined) => {
     if (!concept) return;
 
     newItem.value.concept_id = concept.id;
     newItem.value.concept_code = concept.code;
-    newItem.value.importe = concept.default_amount ?? 0;
+    newItem.value.importe = resolveConceptAmount(concept);
 };
 watch(
     () => newItem.value.concept_code,
     (code) => {
         if (!code) return;
 
-        const match = props.conceptOptions.find(
+        const match = availableConceptOptions.value.find(
             c => c.code.toLowerCase() === code.trim().toLowerCase()
         );
 
@@ -329,7 +587,7 @@ watch(
 watch(
     () => newItem.value.concept_id,
     (id) => {
-        const match = props.conceptOptions.find(c => c.id === id);
+        const match = availableConceptOptions.value.find(c => c.id === id);
 
         applyConcept(match);
     },
@@ -347,11 +605,453 @@ const isLockerConcept = computed(
     () => selectedConcept.value?.code?.toUpperCase() === "LOCKERS",
 );
 
+// ── Mensualidad desde "Agregar concepto de cobro" ──
+// Al capturar el concepto MONTHLY_FEE, en vez de un importe a mano, el
+// encargado solo indica cuántos meses agregar. Mientras escribe la cantidad
+// se calcula automáticamente (en vivo, con preview=true — no persiste nada)
+// el subtotal/total de los N meses más antiguos que el socio debe, empezando
+// por el cargo más viejo que ya exista. Solo al confirmar "Agregar" se
+// resuelve de nuevo en modo real (preview=false), lo que crea los cargos de
+// los meses que todavía no existían, y se agregan a la lista de cobros — ver
+// CollectionController::resolveMonthlyFeeMonths.
+const isMonthlyFeeConcept = computed(
+    () => selectedConcept.value?.code?.toUpperCase() === "MONTHLY_FEE",
+);
+
+// Checkbox "¿Es pago de anualidad?" dentro de la misma captura de
+// Mensualidad — se decidió así (en vez de un botón aparte en otro lugar de
+// la pantalla) porque cobranza ya está acostumbrada a este panel; marcarlo
+// solo cambia qué calcula/hace "Agregar", reutilizando el mismo diálogo y
+// endpoints de anualidad (ver confirmAnnualFeePaymentFromPanel/
+// annualPaymentPreview más abajo), no la lista de cobros genérica — el
+// descuento/saldo a favor de la anualidad no encaja ahí.
+const isAnnualFeePayment = ref(false);
+
+// Mismo criterio que AnnualDiscountRule::findApplicable /
+// CollectionController::resolveAnnualDiscountPaymentMonth: diciembre
+// adelanta el año siguiente (se normaliza a "mes 0"), y aplica la regla
+// activa con el pay_by_month más chico que sea >= al mes de pago. Si no hay
+// ninguna regla activa que cubra el mes de HOY, no tiene caso ofrecer el
+// checkbox — no habría descuento ni motivo para pagar la anualidad
+// adelantada en ese periodo.
+const canOfferAnnualPayment = computed(() => {
+    const now = new Date();
+    const paymentMonth = now.getMonth() === 11 ? 0 : now.getMonth() + 1;
+
+    return props.annualDiscountRuleMonths.some((m) => m >= paymentMonth);
+});
+
+const loadInlineAnnualPreview = () => {
+    if (!isAnnualFeePayment.value || !account.value) return;
+    annualPaymentDate.value = nowAsLocalInput();
+    annualCoverageYear.value = null;
+    loadAnnualPaymentPreview();
+};
+
+watch(isAnnualFeePayment, (checked) => {
+    if (checked) {
+        loadInlineAnnualPreview();
+    } else {
+        annualPaymentPreview.value = null;
+    }
+});
+
+const monthlyFeeMonthsCount = ref<number | null>(1);
+const monthlyFeeCalculating = ref(false);
+const monthlyFeeAdding = ref(false);
+const monthlyFeePreviewTotal = ref<number | null>(null);
+// Cuántos meses se pueden agregar como máximo: desde el más antiguo
+// pendiente hasta diciembre del año en curso (ver
+// CollectionController::resolveMonthlyFeeMonths). Se calcula una vez al
+// seleccionar el concepto, pidiendo el tope real (36, el máximo que acepta
+// el backend) en modo preview — así el campo no deja escribir más de lo que
+// en verdad hay disponible, para no confundir al cajero.
+const monthlyFeeMaxMonths = ref<number | null>(null);
+let monthlyFeeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+// Desglose informativo del total ya resuelto (que no cambia): igual que en
+// la captura genérica, el IVA solo se separa si el parque en sesión factura
+// IVA (applies_iva). No hay descuento real sobre la mensualidad — el campo
+// se muestra en $0 nada más para mantener las mismas columnas que los demás
+// conceptos.
+const monthlyFeeSubtotal = computed(() =>
+    monthlyFeePreviewTotal.value === null
+        ? null
+        : resolveConceptAppliesIva(selectedConcept.value)
+            ? round2((monthlyFeePreviewTotal.value * 100) / 116)
+            : round2(monthlyFeePreviewTotal.value),
+);
+const monthlyFeeIva = computed(() =>
+    monthlyFeeSubtotal.value === null
+        ? null
+        : resolveConceptAppliesIva(selectedConcept.value)
+            ? round2((monthlyFeeSubtotal.value * 16) / 100)
+            : 0,
+);
+
+// La anualidad es, en el fondo, un grupo de mensualidades — el desglose
+// Subtotal/IVA se calcula igual (extraído del monto final que en verdad se
+// va a cobrar, payment_amount, que ya incluye IVA si el concepto lo
+// factura en este parque), no un "$0" fijo. El descuento se muestra aparte
+// como dato informativo, no participa en la cuenta Subtotal + IVA = Total.
+const annualSubtotal = computed(() => {
+    if (!annualPaymentPreview.value) return null;
+
+    return resolveConceptAppliesIva(selectedConcept.value)
+        ? round2((annualPaymentPreview.value.payment_amount * 100) / 116)
+        : round2(annualPaymentPreview.value.payment_amount);
+});
+const annualIva = computed(() =>
+    annualSubtotal.value === null
+        ? null
+        : resolveConceptAppliesIva(selectedConcept.value)
+            ? round2((annualSubtotal.value * 16) / 100)
+            : 0,
+);
+
+const resetMonthlyFeeForm = () => {
+    monthlyFeeMonthsCount.value = 1;
+    monthlyFeePreviewTotal.value = null;
+    monthlyFeeMaxMonths.value = null;
+    isAnnualFeePayment.value = false;
+    annualPaymentPreview.value = null;
+};
+
+const probeMonthlyFeeMaxMonths = async () => {
+    if (!account.value) return;
+    try {
+        const { data } = await window.axios.post(route("collections.monthly-fee.resolve"), {
+            membership_account_id: account.value.id,
+            months: 36,
+            preview: true,
+        });
+        monthlyFeeMaxMonths.value = (data.charges as unknown[])?.length ?? null;
+    } catch {
+        monthlyFeeMaxMonths.value = null;
+    }
+};
+
+const calculateMonthlyFeePreview = async () => {
+    if (!account.value || !monthlyFeeMonthsCount.value || monthlyFeeMonthsCount.value < 1) {
+        monthlyFeePreviewTotal.value = null;
+        return;
+    }
+
+    monthlyFeeCalculating.value = true;
+    try {
+        const { data } = await window.axios.post(route("collections.monthly-fee.resolve"), {
+            membership_account_id: account.value.id,
+            months: monthlyFeeMonthsCount.value,
+            preview: true,
+        });
+        monthlyFeePreviewTotal.value = data.total ?? 0;
+    } catch (e: any) {
+        monthlyFeePreviewTotal.value = null;
+        customToastSwal({
+            title: e?.response?.data?.message || "No se pudo calcular el total de las mensualidades.",
+            icon: "error",
+        });
+    } finally {
+        monthlyFeeCalculating.value = false;
+    }
+};
+
+watch(monthlyFeeMonthsCount, () => {
+    if (!isMonthlyFeeConcept.value || isAnnualFeePayment.value) return;
+    if (monthlyFeeDebounceTimer) clearTimeout(monthlyFeeDebounceTimer);
+    monthlyFeeDebounceTimer = setTimeout(calculateMonthlyFeePreview, 400);
+});
+
+const addMonthlyFeeMonths = async () => {
+    if (!account.value) return;
+    if (!monthlyFeeMonthsCount.value || monthlyFeeMonthsCount.value < 1) {
+        customToastSwal({ title: "Indica cuántos meses quieres agregar.", icon: "warning" });
+        return;
+    }
+
+    clearAnnualLineIfPresent();
+    monthlyFeeAdding.value = true;
+    try {
+        const { data } = await window.axios.post(route("collections.monthly-fee.resolve"), {
+            membership_account_id: account.value.id,
+            months: monthlyFeeMonthsCount.value,
+            preview: false,
+        });
+
+        // Una sola fila por cada click de "Agregar" (igual que la captura
+        // genérica) — los meses que resuelve el backend (incluyendo los que
+        // tuvo que crear porque no existían) se consolidan en un único
+        // renglón de cobros; el desglose por mes no se expone en la UI, solo
+        // el total y el rango de periodos cubiertos. Un mismo mes puede
+        // traer más de un cargo real (p. ej. el original de una membresía
+        // que ya no es facturable + el ajuste de la que sí lo es), por eso
+        // cada periodo trae su propio charge_breakdown en vez de un solo id.
+        const periods = data.charges as {
+            balance: number;
+            period_label: string | null;
+            club_code: string | null;
+            charge_breakdown: { id: number; balance: number }[];
+        }[];
+        const newBreakdownCharges = periods
+            .flatMap((period) => period.charge_breakdown)
+            .filter((charge) => !isChargesInCobros(charge.id));
+
+        if (!newBreakdownCharges.length) {
+            customToastSwal({ title: "Esas mensualidades ya estaban en la lista de cobros.", icon: "info" });
+            return;
+        }
+
+        const total = newBreakdownCharges.reduce((sum, c) => sum + Number(c.balance), 0);
+        const firstLabel = periods[0]?.period_label ?? "Mensualidad";
+        const lastLabel = periods[periods.length - 1]?.period_label ?? firstLabel;
+        const rangeLabel = periods.length > 1 ? `${firstLabel} – ${lastLabel}` : firstLabel;
+
+        cobros.value.push({
+            key: `existing-monthlyfee-${newBreakdownCharges[0].id}-${Date.now()}`,
+            type: "existing",
+            concept_id: selectedConcept.value?.id,
+            concept_label: `${selectedConcept.value?.internal_key ?? ""} ${selectedConcept.value?.name ?? "Mensualidad"}`.trim(),
+            detail: `${periods.length} ${periods.length === 1 ? "mensualidad" : "mensualidades"} (${rangeLabel})`,
+            amount: total,
+            is_multi_club: data.is_multi_club ?? false,
+            club_breakdown: data.club_breakdown ?? [],
+            charges: newBreakdownCharges.map((c) => ({ charge_id: c.id, amount: c.balance })),
+        });
+
+        customToastSwal({
+            title: `${periods.length} mensualidad(es) agregada(s).`,
+            icon: "success",
+        });
+        resetNewItem();
+        resetMonthlyFeeForm();
+    } catch (e: any) {
+        customToastSwal({
+            title: e?.response?.data?.message || "No se pudieron agregar las mensualidades.",
+            icon: "error",
+        });
+    } finally {
+        monthlyFeeAdding.value = false;
+    }
+};
+
+// "Agregar" con la anualidad marcada agrega un único renglón especial a la
+// lista de cobros, con el monto NETO ya con el descuento aplicado — se
+// puede combinar con otros conceptos ya agregados (pase diario, casillero,
+// etc., ver registerPayment/CollectionController::storePayment), pero
+// reemplaza cualquier mensualidad suelta que hubiera (son dos formas de
+// cobrar lo mismo) y cualquier otro renglón de anualidad previo. El método
+// de pago se configura después con el mismo diálogo de siempre.
+const confirmAnnualFeePaymentFromPanel = () => {
+    const preview = annualPaymentPreview.value;
+    if (!preview || preview.payment_amount <= 0) return;
+
+    const hadExistingMonthly = cobros.value.some((l) => l.type === "annual" || l.type === "existing");
+
+    cobros.value = cobros.value.filter((l) => l.type !== "annual" && l.type !== "existing");
+    cobros.value.push({
+        key: `annual-${preview.year}-${Date.now()}`,
+        type: "annual",
+        concept_id: selectedConcept.value?.id,
+        concept_label: `${selectedConcept.value?.internal_key ?? ""} ${selectedConcept.value?.name ?? "Mensualidad"}`.trim(),
+        detail: `Anualidad ${preview.year}` + (preview.discount_rule
+            ? ` — descuento ${preview.discount_rule.discount_months} mes(es)`
+            : " — sin descuento"),
+        amount: preview.payment_amount,
+        annual_year: preview.year,
+        annual_discount_amount: preview.discount_amount,
+        is_multi_club: preview.is_multi_club,
+        club_breakdown: preview.club_breakdown,
+    });
+
+    customToastSwal({
+        title: hadExistingMonthly
+            ? "Se reemplazó la mensualidad suelta: la anualidad la cubre completa."
+            : "Anualidad agregada a la lista de cobros.",
+        icon: hadExistingMonthly ? "info" : "success",
+    });
+    resetNewItem();
+    resetMonthlyFeeForm();
+};
+
+watch(isMonthlyFeeConcept, (isMonthly) => {
+    resetMonthlyFeeForm();
+    if (isMonthly) {
+        calculateMonthlyFeePreview();
+        probeMonthlyFeeMaxMonths();
+    }
+});
+
+// No dejar escribir más meses de los que en verdad hay disponibles.
+watch(monthlyFeeMonthsCount, (value) => {
+    if (value && monthlyFeeMaxMonths.value && value > monthlyFeeMaxMonths.value) {
+        monthlyFeeMonthsCount.value = monthlyFeeMaxMonths.value;
+    }
+});
+
+// ── Inscripción desde "Agregar concepto de cobro" ──
+// Este módulo solo cobra: diferir la inscripción/reinscripción a meses se
+// decide en el alta de la cuenta o en la reactivación (ahí ya se crean los N
+// cargos si aplica, ver MembershipChargeService::createInitialCharges /
+// ::createInstallmentCharge). Aquí solo se indica el concepto y la Cantidad:
+// si no se difirió, siempre hay un solo cargo pendiente; si sí se difirió,
+// puede haber varios y "Cantidad" es cuántos de esos cargos (los más
+// antiguos primero) se van a cobrar ahora — mismo mecanismo que "Cantidad de
+// meses" en la mensualidad, pero sin crear nada nuevo (los cargos ya
+// existen). Ver CollectionController::resolveInscriptionInstallments.
+const INSCRIPTION_LIKE_CONCEPT_CODES = ["INSCRIPTION", "CUOTA_REINSCRIPCION", "CHEQUE_REBOTADO_PARQUE2", "CHEQUE_REBOTADO_PARQUE1", "COMISION_CHEQUE_REBOTADO"];
+const isInscriptionConcept = computed(
+    () => INSCRIPTION_LIKE_CONCEPT_CODES.includes(selectedConcept.value?.code?.toUpperCase() ?? ""),
+);
+const inscriptionQuantity = ref<number | null>(1);
+const inscriptionCalculating = ref(false);
+const inscriptionAdding = ref(false);
+const inscriptionPreviewTotal = ref<number | null>(null);
+const inscriptionMaxCount = ref<number | null>(null);
+let inscriptionDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+// Desglose informativo del total ya resuelto (que no cambia) — mismo
+// criterio que mensualidad: el IVA solo se separa si el concepto INSCRIPTION
+// factura IVA en el parque en sesión (ver resolveConceptAppliesIva). No hay
+// descuento real; el campo se muestra en $0 para mantener las mismas
+// columnas que los demás conceptos.
+const inscriptionSubtotal = computed(() =>
+    inscriptionPreviewTotal.value === null
+        ? null
+        : resolveConceptAppliesIva(selectedConcept.value)
+            ? round2((inscriptionPreviewTotal.value * 100) / 116)
+            : round2(inscriptionPreviewTotal.value),
+);
+const inscriptionIva = computed(() =>
+    inscriptionSubtotal.value === null
+        ? null
+        : resolveConceptAppliesIva(selectedConcept.value)
+            ? round2((inscriptionSubtotal.value * 16) / 100)
+            : 0,
+);
+
+const resetInscriptionForm = () => {
+    inscriptionQuantity.value = 1;
+    inscriptionPreviewTotal.value = null;
+    inscriptionMaxCount.value = null;
+};
+
+const calculateInscriptionPreview = async () => {
+    if (!account.value || !inscriptionQuantity.value || inscriptionQuantity.value < 1) {
+        inscriptionPreviewTotal.value = null;
+        return;
+    }
+
+    inscriptionCalculating.value = true;
+    try {
+        const { data } = await window.axios.post(route("collections.inscription.resolve"), {
+            membership_account_id: account.value.id,
+            quantity: inscriptionQuantity.value,
+            concept_code: selectedConcept.value?.code,
+        });
+        inscriptionPreviewTotal.value = data.total ?? 0;
+        inscriptionMaxCount.value = data.available_count ?? null;
+    } catch (e: any) {
+        inscriptionPreviewTotal.value = null;
+        customToastSwal({
+            title: e?.response?.data?.message || `No se pudo calcular el total de ${selectedConcept.value?.name ?? "la inscripción"}.`,
+            icon: "error",
+        });
+    } finally {
+        inscriptionCalculating.value = false;
+    }
+};
+
+watch(isInscriptionConcept, (isInscription) => {
+    resetInscriptionForm();
+    if (isInscription) calculateInscriptionPreview();
+});
+
+watch(inscriptionQuantity, (value) => {
+    if (!isInscriptionConcept.value) return;
+    if (value && inscriptionMaxCount.value && value > inscriptionMaxCount.value) {
+        inscriptionQuantity.value = inscriptionMaxCount.value;
+        return;
+    }
+    if (inscriptionDebounceTimer) clearTimeout(inscriptionDebounceTimer);
+    inscriptionDebounceTimer = setTimeout(calculateInscriptionPreview, 400);
+});
+
+const addInscriptionCharges = async () => {
+    if (!account.value) return;
+    if (!inscriptionQuantity.value || inscriptionQuantity.value < 1) {
+        customToastSwal({ title: "Indica la cantidad a cobrar.", icon: "warning" });
+        return;
+    }
+
+    inscriptionAdding.value = true;
+    try {
+        const { data } = await window.axios.post(route("collections.inscription.resolve"), {
+            membership_account_id: account.value.id,
+            quantity: inscriptionQuantity.value,
+            concept_code: selectedConcept.value?.code,
+        });
+
+        const charges = data.charges as { id: number; balance: number }[];
+        const newCharges = charges.filter((charge) => !isChargesInCobros(charge.id));
+
+        if (!newCharges.length) {
+            customToastSwal({ title: "Ese cargo ya estaba en la lista de cobros.", icon: "info" });
+            return;
+        }
+
+        const total = newCharges.reduce((sum, c) => sum + Number(c.balance), 0);
+        const conceptName = selectedConcept.value?.name ?? "inscripción";
+
+        cobros.value.push({
+            key: `existing-inscription-${newCharges[0].id}-${Date.now()}`,
+            type: "existing",
+            concept_id: selectedConcept.value?.id,
+            concept_label: `${selectedConcept.value?.internal_key ?? ""} ${conceptName}`.trim(),
+            detail: newCharges.length > 1 ? `${newCharges.length} pagos de ${conceptName}` : `Pago de ${conceptName}`,
+            amount: total,
+            charges: newCharges.map((c) => ({ charge_id: c.id, amount: c.balance })),
+        });
+
+        customToastSwal({
+            title: `${newCharges.length} cargo(s) de ${conceptName} agregado(s).`,
+            icon: "success",
+        });
+        resetNewItem();
+        resetInscriptionForm();
+    } catch (e: any) {
+        customToastSwal({
+            title: e?.response?.data?.message || `No se pudo agregar ${selectedConcept.value?.name ?? "la inscripción"}.`,
+            icon: "error",
+        });
+    } finally {
+        inscriptionAdding.value = false;
+    }
+};
+
 const lockerMemberId = ref<number | null>(null);
 const lockerCategory = ref<string | null>(null);
 const lockerFile = ref<File[] | null>(null);
 const lockerQuoteAmount = ref<number | null>(null);
 const lockerLoadingQuote = ref(false);
+
+// Desglose informativo del importe (prorrateado) que ya cobra
+// members.lockers.reserve — igual criterio que mensualidad/inscripción: el
+// IVA solo se separa si el concepto LOCKERS factura IVA en el parque en
+// sesión. No hay descuento real.
+const lockerSubtotal = computed(() =>
+    lockerQuoteAmount.value === null
+        ? null
+        : resolveConceptAppliesIva(selectedConcept.value)
+            ? round2((lockerQuoteAmount.value * 100) / 116)
+            : round2(lockerQuoteAmount.value),
+);
+const lockerIva = computed(() =>
+    lockerSubtotal.value === null
+        ? null
+        : resolveConceptAppliesIva(selectedConcept.value)
+            ? round2((lockerSubtotal.value * 16) / 100)
+            : 0,
+);
 const lockerLoadingAvailable = ref(false);
 const lockerAvailable = ref<{ id: number; number: number }[]>([]);
 const lockerSelectedId = ref<number | null>(null);
@@ -499,7 +1199,7 @@ const assignLocker = async () => {
             key: `locker-${data.charge.id}-${Date.now()}`,
             type: "existing",
             concept_id: selectedConcept.value?.id,
-            concept_label: `${selectedConcept.value?.code ?? "LOCKERS"} ${selectedConcept.value?.name ?? "Casillero"}`,
+            concept_label: `${selectedConcept.value?.internal_key ?? ""} ${selectedConcept.value?.name ?? "Casillero"}`.trim(),
             detail: "Casillero (prorrateado a diciembre)",
             amount: data.charge.amount,
             charges: [{ charge_id: data.charge.id, amount: data.charge.amount }],
@@ -546,11 +1246,74 @@ const emptyDayPassVisitor = (): DayPassVisitorForm => ({
 const dayPassDate = ref("");
 const dayPassVisitors = ref<DayPassVisitorForm[]>([emptyDayPassVisitor()]);
 const dayPassSubmitting = ref(false);
+const dayPassNormalPrice = ref<number | null>(null);
+const dayPassSpecialPrice = ref<number | null>(null);
+const dayPassMinAge = ref<number | null>(null);
+const dayPassMaxAge = ref<number | null>(null);
+const dayPassLoadingPricing = ref(false);
 
 const resetDayPassForm = () => {
     dayPassDate.value = new Date().toISOString().slice(0, 10);
     dayPassVisitors.value = [emptyDayPassVisitor()];
 };
+
+const loadDayPassPricing = async () => {
+    if (!cobroClub.value) return;
+    dayPassLoadingPricing.value = true;
+    try {
+        const { data } = await window.axios.get(route("day-passes.pricing"), {
+            params: { club_id: cobroClub.value.id },
+        });
+        dayPassNormalPrice.value = data.normal_price;
+        dayPassSpecialPrice.value = data.special_price;
+        dayPassMinAge.value = data.min_age;
+        dayPassMaxAge.value = data.max_age;
+    } catch (e: any) {
+        customToastSwal({
+            title: "No se pudo cargar la cuota de pase por día.",
+            icon: "error",
+        });
+    } finally {
+        dayPassLoadingPricing.value = false;
+    }
+};
+
+/** Cuota por visitante según su edad — misma regla que DayPassController::store()
+ *  y guest_lists.variables (MIN_AGE/MAX_AGE/NORMAL_PRICE/SPECIAL_PRICE del
+ *  club): menor a MIN_AGE no paga, entre MIN_AGE y MAX_AGE (inclusive) paga
+ *  la tarifa especial, mayor a MAX_AGE paga la tarifa normal. Es solo un
+ *  estimado para mostrar en pantalla: el monto real se calcula y valida en
+ *  el servidor al registrar el pase. */
+const dayPassVisitorPrice = (visitor: DayPassVisitorForm): number | null => {
+    if (
+        visitor.age === null ||
+        dayPassNormalPrice.value === null ||
+        dayPassSpecialPrice.value === null ||
+        dayPassMinAge.value === null ||
+        dayPassMaxAge.value === null
+    ) {
+        return null;
+    }
+    if (visitor.age < dayPassMinAge.value) return 0;
+    return visitor.age <= dayPassMaxAge.value
+        ? dayPassSpecialPrice.value
+        : dayPassNormalPrice.value;
+};
+const dayPassEstimatedTotal = computed(() =>
+    dayPassVisitors.value.reduce((sum, v) => sum + (dayPassVisitorPrice(v) ?? 0), 0),
+);
+
+// Desglose informativo del total estimado — mismo criterio que los demás
+// conceptos: el IVA solo se separa si GUEST_LIST factura IVA en el parque
+// en sesión. El cargo real lo calcula y valida day-passes.store.
+const dayPassSubtotal = computed(() =>
+    resolveConceptAppliesIva(selectedConcept.value)
+        ? round2((dayPassEstimatedTotal.value * 100) / 116)
+        : round2(dayPassEstimatedTotal.value),
+);
+const dayPassIva = computed(() =>
+    resolveConceptAppliesIva(selectedConcept.value) ? round2((dayPassSubtotal.value * 16) / 100) : 0,
+);
 
 const addDayPassVisitor = () => {
     dayPassVisitors.value.push(emptyDayPassVisitor());
@@ -597,7 +1360,7 @@ const submitDayPass = async () => {
             key: `daypass-${data.charge.id}-${Date.now()}`,
             type: "existing",
             concept_id: selectedConcept.value?.id,
-            concept_label: `${selectedConcept.value?.code ?? "GUEST_LIST"} ${selectedConcept.value?.name ?? "Pase por día"}`,
+            concept_label: `${selectedConcept.value?.internal_key ?? ""} ${selectedConcept.value?.name ?? "Pase por día"}`.trim(),
             detail: `${data.charge.total_visitors} visitante(s) — ${dayPassDate.value}`,
             amount: data.charge.amount,
             charges: [{ charge_id: data.charge.id, amount: data.charge.amount }],
@@ -617,7 +1380,10 @@ const submitDayPass = async () => {
 };
 
 watch(isDayPassConcept, (isDayPass) => {
-    if (isDayPass) resetDayPassForm();
+    if (isDayPass) {
+        resetDayPassForm();
+        loadDayPassPricing();
+    }
 });
 
 // ── Cafetería desde "Agregar concepto de cobro" ──
@@ -649,7 +1415,6 @@ const cafeteriaOpenVisits = ref<
 const cafeteriaLoadingOpenVisits = ref(false);
 const cafeteriaSelectedVisitId = ref<number | null>(null);
 const cafeteriaConsumption = ref<number | null>(null);
-const cafeteriaCheckingOut = ref(false);
 
 const resetCafeteriaForm = () => {
     cafeteriaMode.value = "entrada";
@@ -702,6 +1467,28 @@ const canCheckOutCafeteria = computed(
     () => !!cafeteriaSelectedVisitId.value && cafeteriaConsumption.value !== null && cafeteriaConsumption.value >= 0,
 );
 
+/** Lo que realmente se cobraría al cerrar esta visita — mismo criterio que
+ *  checkOutCafeteria(): $0 si el consumo alcanzó el mínimo (exento), si no
+ *  el mínimo de consumo. */
+const cafeteriaChargeableAmount = computed(() => {
+    if (!selectedCafeteriaVisit.value || cafeteriaConsumption.value === null) return 0;
+    return cafeteriaConsumption.value >= selectedCafeteriaVisit.value.min_consumption
+        ? 0
+        : selectedCafeteriaVisit.value.min_consumption;
+});
+
+// Desglose informativo del monto a cobrar — mismo criterio que los demás
+// conceptos: el IVA solo se separa si CAFETERIA_PASS factura IVA en el
+// parque en sesión.
+const cafeteriaSubtotal = computed(() =>
+    resolveConceptAppliesIva(selectedConcept.value)
+        ? round2((cafeteriaChargeableAmount.value * 100) / 116)
+        : round2(cafeteriaChargeableAmount.value),
+);
+const cafeteriaIva = computed(() =>
+    resolveConceptAppliesIva(selectedConcept.value) ? round2((cafeteriaSubtotal.value * 16) / 100) : 0,
+);
+
 const checkInCafeteria = async () => {
     if (!canCheckInCafeteria.value) {
         customToastSwal({
@@ -736,8 +1523,19 @@ const checkInCafeteria = async () => {
     }
 };
 
-const checkOutCafeteria = async () => {
-    if (!canCheckOutCafeteria.value) {
+/** Visitas abiertas que aún no se agregaron a la lista de cobros. */
+const cafeteriaAvailableVisits = computed(() =>
+    cafeteriaOpenVisits.value.filter(
+        (v) => !cobros.value.some((l) => l.type === "cafeteria_checkout" && l.cafeteria_visit_id === v.id),
+    ),
+);
+
+/** La salida NO se registra aquí — solo se agrega a la lista de cobros. La
+ *  visita se cierra (y el cargo, si aplica, se genera) hasta que se confirme
+ *  el pago en "Registrar cobro" (ver registerPayment/storePayment), para no
+ *  dejar una salida registrada sin que el cobro se haya efectuado. */
+const checkOutCafeteria = () => {
+    if (!canCheckOutCafeteria.value || !selectedCafeteriaVisit.value) {
         customToastSwal({
             title: "Selecciona la visita y captura el consumo.",
             icon: "warning",
@@ -745,41 +1543,27 @@ const checkOutCafeteria = async () => {
         return;
     }
 
-    cafeteriaCheckingOut.value = true;
-    try {
-        const { data } = await window.axios.post(
-            route("cafeteria-visits.checkout", { cafeteriaVisit: cafeteriaSelectedVisitId.value }),
-            {
-                consumption_amount: cafeteriaConsumption.value,
-                as_json: 1,
-            },
-        );
+    const visit = selectedCafeteriaVisit.value;
+    const consumption = cafeteriaConsumption.value as number;
+    const waived = consumption >= visit.min_consumption;
 
-        if (data.charge) {
-            cobros.value.push({
-                key: `cafeteria-${data.charge.id}-${Date.now()}`,
-                type: "existing",
-                concept_id: selectedConcept.value?.id,
-                concept_label: `${selectedConcept.value?.code ?? "CAFETERIA_PASS"} ${selectedConcept.value?.name ?? "Cafetería"}`,
-                detail: `Acceso — ${selectedCafeteriaVisit.value?.visitor_name ?? "visitante"}`,
-                amount: data.charge.amount,
-                charges: [{ charge_id: data.charge.id, amount: data.charge.amount }],
-            });
-        }
+    cobros.value.push({
+        key: `cafeteria-${visit.id}-${Date.now()}`,
+        type: "cafeteria_checkout",
+        concept_id: selectedConcept.value?.id,
+        concept_label: `${selectedConcept.value?.internal_key ?? ""} ${selectedConcept.value?.name ?? "Cafetería"}`.trim(),
+        detail: waived
+            ? `Acceso exento — ${visit.visitor_name}`
+            : `Acceso — ${visit.visitor_name}`,
+        amount: waived ? 0 : visit.min_consumption,
+        cafeteria_visit_id: visit.id,
+        cafeteria_consumption_amount: consumption,
+    });
 
-        customToastSwal({ title: data.message, icon: "success" });
-        resetNewItem();
-        cafeteriaSelectedVisitId.value = null;
-        cafeteriaConsumption.value = null;
-        loadOpenCafeteriaVisits();
-    } catch (e: any) {
-        customToastSwal({
-            title: e?.response?.data?.message || "No se pudo registrar la salida.",
-            icon: "error",
-        });
-    } finally {
-        cafeteriaCheckingOut.value = false;
-    }
+    customToastSwal({ title: "Salida agregada a la lista de cobros.", icon: "success" });
+    resetNewItem();
+    cafeteriaSelectedVisitId.value = null;
+    cafeteriaConsumption.value = null;
 };
 
 /*watch(
@@ -813,34 +1597,30 @@ const checkOutCafeteria = async () => {
     },
 );*/
 
-/*const newSubtotal = computed(
+// El desglose de IVA solo aplica si el parque en sesión factura IVA
+// (clubs.clubs.applies_iva); si no, el subtotal es igual al importe capturado
+// y no hay IVA que sumar. Fórmula cuando sí aplica: subtotal = total×100/116,
+// iva = subtotal×16/100 — redondeando cada paso a 2 decimales.
+const newTotalBeforeDiscount = computed(
     () => Number(newItem.value.importe ?? 0) * Number(newItem.value.cantidad ?? 0),
-);*/
-const newIva = computed(() => {
-    const total =
-        Number(newItem.value.importe ?? 0) *
-        Number(newItem.value.cantidad ?? 0);
-    return total * (16 / 116);
-});
-
-const newSubtotal = computed(() => {
-    const total =
-        Number(newItem.value.importe ?? 0) *
-        Number(newItem.value.cantidad ?? 0);
-
-    return total - newIva.value;
-});
+);
+const newSubtotal = computed(() =>
+    resolveConceptAppliesIva(selectedConcept.value)
+        ? round2((newTotalBeforeDiscount.value * 100) / 116)
+        : round2(newTotalBeforeDiscount.value),
+);
+const newIva = computed(() =>
+    resolveConceptAppliesIva(selectedConcept.value) ? round2((newSubtotal.value * 16) / 100) : 0,
+);
 const newTotal = computed(() =>
     Math.max(
         0,
-        newSubtotal.value -
-            Number(newItem.value.descuento ?? 0) +
-            Number(newIva.value ?? 0),
+        round2(newSubtotal.value - Number(newItem.value.descuento ?? 0) + newIva.value),
     ),
 );
 
 const addNewItemToCobros = () => {
-    const concept = props.conceptOptions.find(
+    const concept = availableConceptOptions.value.find(
         (c) => c.id === newItem.value.concept_id,
     );
     if (!concept) {
@@ -862,10 +1642,12 @@ const addNewItemToCobros = () => {
         key: `new-${concept.id}-${Date.now()}`,
         type: "new",
         concept_id: concept.id,
-        concept_label: `${concept.code} ${concept.name}`,
+        concept_label: `${concept.internal_key} ${concept.name}`,
         description: newItem.value.description || concept.name,
         detail: `${newItem.value.cantidad} x ${formatCurrency(newItem.value.importe)}`,
         amount: Number(newTotal.value.toFixed(2)),
+        quantity: Number(newItem.value.cantidad ?? 1),
+        unit_amount: Number(newItem.value.importe ?? 0),
     });
 
     resetNewItem();
@@ -876,9 +1658,36 @@ const cobros = ref<CobroLine[]>([]);
 const cobrosHeaders = [
     { title: "Concepto", key: "concept_label", sortable: false },
     { title: "Detalle", key: "detail", sortable: false },
-    { title: "Importe", key: "amount", sortable: false, align: "end" },
+    { title: "Subtotal", key: "subtotal", sortable: false, align: "end" },
+    { title: "Descuento ($)", key: "descuento", sortable: false, align: "end" },
+    { title: "IVA ($)", key: "iva", sortable: false, align: "end" },
+    { title: "Total", key: "amount", sortable: false, align: "end" },
     { title: "", key: "actions", sortable: false, align: "end", width: 56 },
 ];
+
+/** Mismo desglose informativo Subtotal/Descuento/IVA/Total que el formulario
+ *  de captura, ahora también en la lista de cobros ya agregados — se resuelve
+ *  por el concepto de cada renglón (ver resolveConceptAppliesIva), no hay un
+ *  descuento real aplicado en ningún flujo todavía. */
+const resolveCobroConcept = (line: CobroLine): ConceptOption | null =>
+    props.conceptOptions.find((c) => c.id === line.concept_id) ?? null;
+
+// La anualidad es un grupo de mensualidades — su Subtotal/IVA se extraen
+// del monto NETO que en verdad se cobra (line.amount, ya con el descuento
+// aplicado), igual que cualquier otro concepto que factura IVA; el
+// descuento se muestra aparte, solo informativo.
+const cobroSubtotal = (line: CobroLine): number =>
+    resolveConceptAppliesIva(resolveCobroConcept(line))
+        ? round2((Number(line.amount ?? 0) * 100) / 116)
+        : round2(Number(line.amount ?? 0));
+
+const cobroDescuento = (line: CobroLine): number =>
+    line.type === "annual" ? round2(Number(line.annual_discount_amount ?? 0)) : 0;
+
+const cobroIva = (line: CobroLine): number =>
+    resolveConceptAppliesIva(resolveCobroConcept(line))
+        ? round2((cobroSubtotal(line) * 16) / 100)
+        : 0;
 
 const removeCobro = (key: string) => {
     cobros.value = cobros.value.filter((line) => line.key !== key);
@@ -890,12 +1699,62 @@ const cobrosTotal = computed(() =>
 
 const paying = ref(false);
 
-const availablePaymentMethods = computed<PaymentMethodItem[]>(() => {
+/** Métodos de pago que se pueden marcar en "Método de pago": los del parque
+ *  de la sesión, más los del OTRO parque del socio (excepto su efectivo: no
+ *  hay caja física de ese parque en este mostrador). Se muestran ambos
+ *  aunque compartan el mismo payment_method_id de catálogo — para el cajero
+ *  son dos medios de cobro distintos (la tarjeta de un parque vs. la del
+ *  otro), por eso cada opción trae su propio option_key (club+método) en vez
+ *  de deduplicarse por id. El pago se sigue registrando completo en el
+ *  parque de la sesión (ver PaymentRegistrationService::registerSplit); esto
+ *  solo amplía qué métodos se pueden elegir, no dónde se registra el dinero. */
+const paymentMethodOptions = computed<PaymentMethodOption[]>(() => {
     if (!cobroClub.value) return [];
-    return (
-        props.clubPaymentMethods.find((c) => c.id === cobroClub.value!.id)
+
+    const sessionClub = cobroClub.value;
+    const sessionMethods: PaymentMethodOption[] = (
+        props.clubPaymentMethods.find((c) => c.id === sessionClub.id)
             ?.payment_methods ?? []
-    );
+    ).map((m) => ({
+        ...m,
+        club_id: sessionClub.id,
+        club_code: sessionClub.code,
+        is_session_club: true,
+        option_key: `${sessionClub.id}-${m.id}`,
+    }));
+
+    // Los métodos del otro parque solo tienen sentido cuando el cobro ACTUAL
+    // incluye algo que se reparte entre parques (p. ej. la mensualidad
+    // combo) — no solo porque el socio sea interclub. Si el socio tiene
+    // cuenta en ambos parques pero lo que se está cobrando ahora es de un
+    // solo parque (p. ej. un cheque rebotado), no tiene caso ofrecer
+    // "Tarjeta de crédito (PE1)": no hay nada que emparejar con ella.
+    const otherClubIds = dialogClubBreakdown.value.length > 1
+        ? clubMemberships.value
+            .map((cm) => cm.club_id)
+            .filter((id): id is number => id !== null && id !== sessionClub.id)
+        : [];
+
+    // Cheque, Tarjeta de crédito y Tarjeta de débito se pueden repartir
+    // entre parques; no hay caja física del otro parque (efectivo) ni
+    // cuenta bancaria compartida para transferencia en este mostrador.
+    const CROSS_CLUB_ALLOWED_CODES = ["CHECK", "CREDIT_CARD", "DEBIT_CARD"];
+
+    const otherMethods: PaymentMethodOption[] = props.clubPaymentMethods
+        .filter((c) => otherClubIds.includes(c.id))
+        .flatMap((c) =>
+            c.payment_methods
+                .filter((m) => CROSS_CLUB_ALLOWED_CODES.includes(m.code))
+                .map((m) => ({
+                    ...m,
+                    club_id: c.id,
+                    club_code: c.code,
+                    is_session_club: false,
+                    option_key: `${c.id}-${m.id}`,
+                })),
+        );
+
+    return [...sessionMethods, ...otherMethods];
 });
 
 /** Desglose por parque a mostrar en el modal, combinando todas las líneas
@@ -904,7 +1763,7 @@ const dialogClubBreakdown = computed<ClubBreakdownItem[]>(() => {
     const byClub = new Map<string, ClubBreakdownItem>();
 
     cobros.value
-        .filter((line) => line.type === "existing" && line.club_breakdown?.length)
+        .filter((line) => (line.type === "existing" || line.type === "annual") && line.club_breakdown?.length)
         .forEach((line) => {
             line.club_breakdown!.forEach((club) => {
                 const key = String(club.club_id ?? club.club_code ?? "");
@@ -921,7 +1780,7 @@ const dialogClubBreakdown = computed<ClubBreakdownItem[]>(() => {
 });
 
 const openPaymentDialog = () => {
-    if (!account.value || !cobroClub.value) {
+    if ((!walkInMode.value && !account.value) || !cobroClub.value) {
         customToastSwal({ title: "Busca primero un socio.", icon: "warning" });
         return;
     }
@@ -935,8 +1794,125 @@ const openPaymentDialog = () => {
     paymentDialog.value = true;
 };
 
-const submitPayment = async (payload: PaymentConfirmPayload) => {
-    if (!account.value || !cobroClub.value) return;
+// El diálogo de método de pago solo CONFIGURA con qué formas se va a
+// cobrar (ya pide su propia confirmación al aceptar, ver
+// PaymentMethodsDialog::confirmPayment) — todavía no registra nada.
+//
+// Por default se propone 100% efectivo por el total (el método más común en
+// el mostrador), así que "Registrar cobro" queda disponible desde que hay
+// algo en la lista de cobros, sin necesidad de abrir "Método de pago". Si el
+// cajero sí necesita otra forma de pago, abre el diálogo y la corrige — lo
+// que capture ahí (manualPaymentOverride) tiene prioridad sobre el default.
+const manualPaymentOverride = ref<PaymentConfirmPayload | null>(null);
+
+const defaultCashPayment = computed<PaymentConfirmPayload | null>(() => {
+    if (!cobrosTotal.value) return null;
+    const cash = paymentMethodOptions.value.find(
+        (m) => m.is_session_club && m.code === "CASH",
+    );
+    if (!cash) return null;
+
+    return {
+        paid_at: nowAsLocalInput(),
+        payments: [{
+            payment_method_id: cash.id,
+            amount: Number(cobrosTotal.value.toFixed(2)),
+            reference: "",
+            bank_name: "",
+            check_number: "",
+        }],
+    };
+});
+
+const configuredPayment = computed<PaymentConfirmPayload | null>(
+    () => manualPaymentOverride.value ?? defaultCashPayment.value,
+);
+
+const handlePaymentMethodsConfigured = (payload: PaymentConfirmPayload) => {
+    manualPaymentOverride.value = payload;
+};
+
+// Si la lista de cobros cambia después de corregir la forma de pago (se
+// agrega o quita algo), lo ya configurado a mano ya no cuadra con el nuevo
+// total — se invalida y vuelve a caer en el default de efectivo (que sí se
+// recalcula solo, ver defaultCashPayment).
+watch(cobrosTotal, () => {
+    manualPaymentOverride.value = null;
+});
+
+const cancelCobros = async () => {
+    if (!cobros.value.length) return;
+
+    const result = await customConfirmSwal({
+        title: "¿Cancelar cobro?",
+        text: "Se vaciará la lista de conceptos agregados. Tendrás que volver a capturarlos si te arrepientes.",
+        icon: "warning",
+        confirmText: "Sí, vaciar lista",
+        cancelText: "Seguir capturando",
+        showLoaderOnConfirm: false,
+    });
+    if (!result?.isConfirmed) return;
+
+    cobros.value = [];
+};
+
+// Vista previa del ticket tras registrar un cobro — reutiliza el mismo
+// componente y endpoint que Tickets/Index.vue (TicketPreview.vue,
+// getTicketBundle/tickets.data), en vez de ir directo a la ventana de
+// impresión sin que el cajero vea antes lo que se va a imprimir.
+const showTicketPreview = ref(false);
+const ticketPreviewLoading = ref(false);
+const previewTickets = ref<TicketData[]>([]);
+const previewPaymentId = ref<number | null>(null);
+
+const openTicketPreview = async (paymentId: number) => {
+    previewPaymentId.value = paymentId;
+    showTicketPreview.value = true;
+    ticketPreviewLoading.value = true;
+    previewTickets.value = [];
+
+    try {
+        previewTickets.value = (await getTicketBundle(paymentId)).tickets;
+    } catch (error) {
+        showTicketPreview.value = false;
+        customToastSwal({ title: "No fue posible cargar el ticket.", icon: "error" });
+    } finally {
+        ticketPreviewLoading.value = false;
+    }
+};
+
+const printPreviewedTicket = async () => {
+    if (!previewPaymentId.value) return;
+
+    try {
+        await printTicket(previewPaymentId.value);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "No fue posible imprimir el ticket.";
+        customToastSwal({ title: message, icon: "error" });
+    }
+};
+
+const registerPayment = async () => {
+    if ((!walkInMode.value && !account.value) || !cobroClub.value || !configuredPayment.value) return;
+
+    const payload = configuredPayment.value;
+
+    const result = await customConfirmSwal({
+        title: "¿Registrar cobro?",
+        text: `Se registrará un cobro por ${formatCurrency(cobrosTotal.value)}. Esta acción no se puede deshacer.`,
+        icon: "question",
+        confirmText: "Sí, registrar",
+        cancelText: "Cancelar",
+        showLoaderOnConfirm: false,
+    });
+    if (!result?.isConfirmed) return;
+
+    // La anualidad se manda como un bloque más del mismo storePayment (ver
+    // CollectionController::storePayment) — el backend resuelve sus propios
+    // cargos/descuento a partir del año, se combina en un solo Payment con
+    // lo demás (pase diario, casillero, etc., ver clearAnnualLineIfPresent
+    // para lo único que sigue sin poder mezclarse: mensualidad suelta).
+    const annualLine = cobros.value.find((l) => l.type === "annual");
 
     const existing_charges = cobros.value
         .filter((l) => l.type === "existing")
@@ -947,33 +1923,58 @@ const submitPayment = async (payload: PaymentConfirmPayload) => {
             concept_id: l.concept_id,
             description: l.description,
             total: l.amount,
+            quantity: l.quantity,
+            unit_amount: l.unit_amount,
+        }));
+    const cafeteria_checkouts = cobros.value
+        .filter((l) => l.type === "cafeteria_checkout")
+        .map((l) => ({
+            visit_id: l.cafeteria_visit_id,
+            consumption_amount: l.cafeteria_consumption_amount,
         }));
 
     paying.value = true;
+    isLoading.value = true;
     try {
-        await window.axios.post(route("collections.payment.store"), {
-            membership_account_id: account.value.id,
+        const { data } = await window.axios.post(route("collections.payment.store"), {
+            membership_account_id: walkInMode.value ? null : account.value?.id,
             club_id: cobroClub.value.id,
-            payment_method_id: payload.payment_method_id,
             paid_at: payload.paid_at,
-            reference: payload.reference,
-            bank_name: payload.bank_name,
-            check_number: payload.check_number,
+            payments: payload.payments,
             existing_charges,
             new_items,
+            cafeteria_checkouts,
+            annual: annualLine
+                ? {
+                    // Mismo año que ya se calculó y se le mostró al cajero
+                    // al agregar el renglón — evita que un paid_at distinto
+                    // (p. ej. si corrigió la fecha ya en el diálogo de
+                    // método de pago) recalcule un año distinto al que en
+                    // verdad se cotizó.
+                    year: annualLine.annual_year,
+                }
+                : null,
         });
 
-        const paymentMethod = availablePaymentMethods.value.find(
-            (m) => m.id === payload.payment_method_id,
-        );
-        const isCardPayment = paymentMethod?.code
-            ?.toUpperCase()
-            .includes("CARD");
+        // El loader compartido solo cubre la petición en sí; lo que sigue
+        // (Swal de éxito, vista previa del ticket) ya tiene su propio
+        // overlay modal, no hace falta encimar los dos.
+        isLoading.value = false;
 
-        paymentDialog.value = false;
+        const isCardPayment = payload.payments.some((p) => {
+            const method = paymentMethodOptions.value.find(
+                (m) => m.id === p.payment_method_id,
+            );
+            return method?.code?.toUpperCase().includes("CARD");
+        });
+
+        manualPaymentOverride.value = null;
         cobros.value = [];
-        // Refresca el estado de cuenta del socio.
-        await runSearch();
+        // Refresca el estado de cuenta del socio — no aplica en una venta
+        // sin cuenta, aquí no hay ningún socio que buscar.
+        if (!walkInMode.value) {
+            await runSearch();
+        }
 
         await Swal.fire({
             icon: "success",
@@ -982,17 +1983,24 @@ const submitPayment = async (payload: PaymentConfirmPayload) => {
             confirmButtonText: "Continuar",
         });
 
-        // La impresión de ticket se conecta más adelante; por ahora solo
-        // se pregunta y se cierra el flujo sin efecto (no hay preConfirm
-        // asíncrono, así que se desactiva el loader del botón de confirmar).
-        await customConfirmSwal({
-            title: "¿Desea imprimir ticket?",
-            text: "",
-            icon: "question",
-            confirmText: "Sí, imprimir",
-            cancelText: "No",
-            showLoaderOnConfirm: false,
-        });
+        // Un id representa todo el grupo del cobro. El módulo de tickets
+        // arma dentro los parques y métodos (ver PaymentTicketService).
+        const paymentId = data.payment_ids?.[0];
+
+        if (paymentId) {
+            const wantsTicket = await customConfirmSwal({
+                title: "¿Desea imprimir ticket?",
+                text: "",
+                icon: "question",
+                confirmText: "Sí, imprimir",
+                cancelText: "No",
+                showLoaderOnConfirm: false,
+            });
+
+            if (wantsTicket.isConfirmed) {
+                await openTicketPreview(paymentId);
+            }
+        }
     } catch (e: any) {
         customToastSwal({
             title: e?.response?.data?.message || "No se pudo registrar el cobro.",
@@ -1000,6 +2008,7 @@ const submitPayment = async (payload: PaymentConfirmPayload) => {
         });
     } finally {
         paying.value = false;
+        isLoading.value = false;
     }
 };
 
@@ -1043,7 +2052,22 @@ const saveNote = async () => {
             <!-- Buscador -->
             <v-card>
                 <v-card-text>
-                    <v-row align="center">
+                    <v-row align="center" no-gutters class="mb-2">
+                        <v-col cols="12">
+                            <v-btn-toggle
+                                :model-value="walkInMode ? 'walk_in' : 'account'"
+                                color="primary"
+                                density="comfortable"
+                                mandatory
+                                @update:model-value="(v) => setWalkInMode(v === 'walk_in')"
+                            >
+                                <v-btn value="account">Buscar socio</v-btn>
+                                <v-btn value="walk_in">Cobro sin cuenta</v-btn>
+                            </v-btn-toggle>
+                        </v-col>
+                    </v-row>
+
+                    <v-row v-if="!walkInMode" align="center">
                         <v-col cols="12" md="8">
                             <v-text-field
                                 v-model="searchTerm"
@@ -1066,94 +2090,53 @@ const saveNote = async () => {
                             />
                         </v-col>
                     </v-row>
+                    <v-alert v-else type="info" variant="tonal" density="compact">
+                        Solo se pueden agregar conceptos que no requieren cuenta de socio (p. ej. un pase diario a un visitante).
+                    </v-alert>
                 </v-card-text>
             </v-card>
 
-            <template v-if="account">
-                <!-- Encabezado del socio -->
-                <v-card color="primary" variant="tonal">
+            <template v-if="account || walkInMode">
+                <!-- Encabezado del socio: solo foto + nombre, lo más limpio
+                     posible — el resto (cuentas, contacto, parques, avisos)
+                     se quitó por pedido explícito, ya no se muestra aquí.
+                     No aplica en una venta sin cuenta, no hay socio. -->
+                <v-card v-if="account" color="primary" variant="tonal">
                     <v-card-text>
-                        <div class="d-flex flex-wrap justify-space-between align-center ga-3">
-                            <div>
+                        <v-row align="center" no-gutters>
+                            <v-col cols="auto" class="mr-4">
+                                <v-avatar size="100">
+                                    <v-img :src="account.photo" cover>
+                                        <template #error>
+                                            <v-icon size="60">
+                                                mdi-account-circle
+                                            </v-icon>
+                                        </template>
+                                    </v-img>
+                                </v-avatar>
+                            </v-col>
+                            <v-col>
                                 <div class="text-caption text-medium-emphasis">Titular</div>
-                                    <v-avatar size="100" class="mb-4">
-                                        <v-img :src="account.photo" cover>
-                                            <template #error>
-                                                <v-icon size="60">
-                                                    mdi-account-circle
-                                                </v-icon>
-                                            </template>
-                                        </v-img>
-                                    </v-avatar>
-                                <div class="text-h6 font-weight-bold">
+                                <div class="text-h6 font-weight-bold d-flex align-center ga-2">
                                     {{ account.holder_name }}
-                                </div>
-                                <div v-if="clubMemberships.length > 1" class="text-body-2">
-                                    <div
-                                        v-for="cm in clubMemberships"
-                                        :key="cm.club_id ?? cm.club_code"
-                                    >
-                                        No. cuenta ({{ cm.club_code }}):
-                                        <strong>{{ cm.membership_number }}</strong>
-                                    </div>
-                                    <span v-if="account.internal_account_number">
-                                        Interna:
-                                        <strong>{{ account.internal_account_number }}</strong>
-                                    </span>
-                                </div>
-                                <div v-else class="text-body-2">
-                                    No. cuenta:
-                                    <strong>{{ account.membership_number }}</strong>
-                                    <span v-if="account.internal_account_number">
-                                        · Interna:
-                                        <strong>{{ account.internal_account_number }}</strong>
-                                    </span>
-                                </div>
-                                <div class="text-caption text-medium-emphasis">
-                                    {{ account.email || "Sin correo" }} ·
-                                    {{ account.phone || "Sin teléfono" }}
-                                </div>
-                            </div>
-                            <div class="text-right">
-                                <div
-                                    v-if="clubMemberships.length > 1"
-                                    class="d-flex flex-wrap justify-end ga-2 mb-2"
-                                >
-                                    <v-chip
-                                        v-for="cm in clubMemberships"
-                                        :key="cm.club_id ?? cm.club_code"
-                                        :color="cm.is_cobro_club ? 'primary' : undefined"
-                                        :variant="cm.is_cobro_club ? 'flat' : 'outlined'"
-                                    >
-                                        {{ cm.club_code }} - {{ cm.club_name }}
-                                    </v-chip>
-                                </div>
-                                <v-chip
-                                    v-else-if="cobroClub"
-                                    color="primary"
-                                    variant="flat"
-                                    class="mb-2"
-                                >
-                                    {{ cobroClub.code }} - {{ cobroClub.name }}
-                                </v-chip>
-                                <div class="d-flex flex-wrap justify-end ga-2">
-                                    <v-chip
-                                        v-for="(s, i) in signals"
-                                        :key="i"
-                                        :color="s.color"
-                                        size="small"
+                                    <BaseButton
+                                        v-if="relatedAccounts.length"
+                                        :icon-only="false"
+                                        icon="mdi-family-tree"
+                                        text="Cuentas relacionadas"
                                         variant="flat"
-                                    >
-                                        {{ s.label }}
-                                    </v-chip>
+                                        color="primary"
+                                        size="small"
+                                        @click="openRelatedAccountsDialog"
+                                    />
                                 </div>
-                            </div>
-                        </div>
+                            </v-col>
+                        </v-row>
                     </v-card-text>
                 </v-card>
 
-                <!-- Tabla 1: cargos pendientes -->
-                <v-card>
+                <!-- Tabla 1: cargos pendientes — no aplica en venta sin cuenta. -->
+                <v-card v-if="!walkInMode">
                     <v-card-title>Cargos </v-card-title>
                     <v-data-table
                         :headers="pendingHeaders"
@@ -1166,14 +2149,40 @@ const saveNote = async () => {
                         <template #item.concept="{ item }">
                             <span class="font-weight-medium">{{ conceptLabel(item) }}</span>
                             <v-chip
+                                v-if="item.period_label"
+                                size="x-small"
+                                class="ml-2"
+                                color="primary"
+                                variant="tonal"
+                            >
+                                {{ item.period_label }}
+                            </v-chip>
+                            <v-chip
                                 v-if="item.is_multi_club"
                                 size="x-small"
                                 class="ml-2"
                                 color="warning"
                                 variant="tonal"
                             >
-                                Dividido entre parques
+                                Ambos parques
                             </v-chip>
+                        </template>
+                        <template #item.club="{ item }">
+                            <v-tooltip v-if="item.is_multi_club" location="top">
+                                <template #activator="{ props: tooltipProps }">
+                                    <span v-bind="tooltipProps" class="text-medium-emphasis">
+                                        {{
+                                            item.club_breakdown
+                                                .map((c) => c.club_code ?? "—")
+                                                .join(" / ")
+                                        }}
+                                    </span>
+                                </template>
+                                <div v-for="club in item.club_breakdown" :key="club.club_id ?? club.club_code">
+                                    {{ club.club_code ?? club.club_name ?? "—" }}: {{ formatCurrency(club.amount) }}
+                                </div>
+                            </v-tooltip>
+                            <span v-else>{{ item.charges[0]?.club_code ?? "—" }}</span>
                         </template>
                         <template #item.rate="{ item }">
                             <span class="text-medium-emphasis">{{ item.rate ?? "—" }}</span>
@@ -1194,24 +2203,35 @@ const saveNote = async () => {
                             {{ formatCurrency(item.unit_amount) }}
                         </template>
                         <template #item.months="{ item }">
-                            {{ item.months }}
+                            <span v-if="item.class_label !== 'A meses'" class="text-medium-emphasis">
+                                No aplica
+                            </span>
+                            <span v-else>{{ item.months }}</span>
                         </template>
                         <template #item.balance="{ item }">
                             <span class="font-weight-bold">{{ formatCurrency(item.balance) }}</span>
                         </template>
-                         <template #item.actions="{ item }">
+                        <template #item.actions="{ item }">
                             <BaseButton
+                                v-if="isConceptOtherClub(item)"
+                                :icon-only="true"
+                                icon="mdi-lock-outline"
+                                variant="text"
+                                disabled
+                                :tooltip="`Este cargo pertenece a ${item.charges[0]?.club_code ?? 'otro parque'}. Cambia el parque de la sesión para cobrarlo.`"
+                            />
+                            <!-- <BaseButton
+                                v-else
                                 :icon-only="false"
-                                size="small"
                                 action="add"
                                 icon="mdi-plus"
                                 text="Agregar"
                                 variant="tonal"
-                                :disabled="isConceptInCobros(item.concept_id)"
-                                tooltip="Agregar este adeudo a la lista de cobros"
+                                :disabled="isChargesInCobros(item.charges[0]?.id ?? null)"
                                 @click="addPendingToCobros(item)"
-                            />
-                        </template> 
+                            /> -->
+                        </template>
+
                     </v-data-table>
 
                     <!-- Resumen del socio -->
@@ -1254,23 +2274,16 @@ const saveNote = async () => {
                     <v-card-title>Agregar concepto de cobro</v-card-title>
                     <v-card-text>
                         <v-row no-gutters class="ga-2">
-                            <v-col cols="6" md="1">
-                                <v-text-field
-                                    v-model="newItem.concept_code"
-                                    label="Código"
-                                    placeholder="Ej. MONTHLY_FEE"
-                                    hide-details="auto"
-                                />
-                            </v-col>
                             <v-col cols="12" md="2">
-                                <v-select
+                                <v-autocomplete
                                     v-model="newItem.concept_id"
                                     :items="conceptSelectItems"
                                     label="Concepto"
                                     hide-details="auto"
+                                    clearable
                                 />
                             </v-col>
-                            <template v-if="!isLockerConcept && !isDayPassConcept && !isCafeteriaConcept">
+                            <template v-if="!isLockerConcept && !isDayPassConcept && !isCafeteriaConcept && !isMonthlyFeeConcept && !isInscriptionConcept">
                                 <v-col cols="6" style="flex-basis: 150px; max-width: 120px;">
                                     <v-text-field
                                         v-model.number="newItem.importe"
@@ -1345,6 +2358,203 @@ const saveNote = async () => {
                                 </v-col>
                             </template>
 
+                            <!-- Mensualidad: al capturar el concepto
+                                 MONTHLY_FEE se reemplaza la captura genérica
+                                 por "cuántos meses agregar". El subtotal/total
+                                 se calcula solo (preview, sin persistir) al
+                                 escribir la cantidad; los cargos reales (y los
+                                 que falten) solo se crean y se agregan a la
+                                 lista de cobros al confirmar "Agregar" (ver
+                                 CollectionController::resolveMonthlyFeeMonths). -->
+                            <template v-else-if="isMonthlyFeeConcept">
+                                <v-col v-if="canOfferAnnualPayment" cols="12">
+                                    <v-checkbox
+                                        v-model="isAnnualFeePayment"
+                                        label="¿Es pago de anualidad?"
+                                        color="primary"
+                                        density="compact"
+                                        hide-details
+                                    />
+                                </v-col>
+
+                                <v-col cols="6" md="2">
+                                    <v-text-field
+                                        v-if="!isAnnualFeePayment"
+                                        v-model.number="monthlyFeeMonthsCount"
+                                        label="Cantidad de meses"
+                                        type="number"
+                                        min="1"
+                                        :max="monthlyFeeMaxMonths ?? undefined"
+                                        hide-details="auto"
+                                    />
+                                    <v-select
+                                        v-else-if="(annualPaymentPreview?.coverage_year_options.length ?? 0) > 1"
+                                        v-model="annualCoverageYear"
+                                        :items="annualPaymentPreview!.coverage_year_options.map((y) => ({ title: `Hasta diciembre ${y}`, value: y }))"
+                                        label="Año a cubrir"
+                                        hide-details="auto"
+                                        :loading="annualPaymentLoading"
+                                        @update:model-value="loadAnnualPaymentPreview"
+                                    />
+                                    <v-text-field
+                                        v-else
+                                        :model-value="annualPaymentPreview ? `Hasta diciembre ${annualPaymentPreview.year}` : '—'"
+                                        label="Cubre"
+                                        readonly
+                                        :loading="annualPaymentLoading"
+                                        hide-details="auto"
+                                    />
+                                </v-col>
+                                <v-col cols="6" md="1">
+                                    <v-text-field
+                                        :model-value="isAnnualFeePayment
+                                            ? (annualSubtotal !== null ? formatCurrency(annualSubtotal) : '—')
+                                            : (monthlyFeeSubtotal !== null ? formatCurrency(monthlyFeeSubtotal) : '—')"
+                                        label="Subtotal"
+                                        readonly
+                                        :loading="isAnnualFeePayment ? annualPaymentLoading : monthlyFeeCalculating"
+                                        hide-details="auto"
+                                    />
+                                </v-col>
+                                <v-col cols="6" md="1">
+                                    <v-text-field
+                                        :model-value="isAnnualFeePayment
+                                            ? (annualPaymentPreview ? formatCurrency(annualPaymentPreview.discount_amount) : '$ 0')
+                                            : '$ 0'"
+                                        label="Descuento ($)"
+                                        readonly
+                                        :loading="isAnnualFeePayment && annualPaymentLoading"
+                                        hide-details="auto"
+                                    />
+                                </v-col>
+                                <v-col cols="6" md="1">
+                                    <v-text-field
+                                        :model-value="isAnnualFeePayment
+                                            ? (annualIva !== null ? formatCurrency(annualIva) : '—')
+                                            : (monthlyFeeIva !== null ? formatCurrency(monthlyFeeIva) : '—')"
+                                        label="IVA ($)"
+                                        readonly
+                                        :loading="isAnnualFeePayment ? annualPaymentLoading : monthlyFeeCalculating"
+                                        hide-details="auto"
+                                    />
+                                </v-col>
+                                <v-col cols="6" md="1">
+                                    <v-text-field
+                                        :model-value="isAnnualFeePayment
+                                            ? (annualPaymentPreview ? formatCurrency(annualPaymentPreview.payment_amount) : '—')
+                                            : (monthlyFeePreviewTotal !== null ? formatCurrency(monthlyFeePreviewTotal) : '—')"
+                                        label="Total"
+                                        readonly
+                                        :loading="isAnnualFeePayment ? annualPaymentLoading : monthlyFeeCalculating"
+                                        hide-details="auto"
+                                    />
+                                </v-col>
+                                <v-col cols="12" md="2" class="d-flex align-center">
+                                    <BaseButton
+                                        v-if="!isAnnualFeePayment"
+                                        :icon-only="false"
+                                        action="add"
+                                        icon="mdi-calendar-plus"
+                                        text="Agregar"
+                                        variant="tonal"
+                                        :loading="monthlyFeeAdding"
+                                        :disabled="monthlyFeeCalculating || monthlyFeePreviewTotal === null"
+                                        @click="addMonthlyFeeMonths"
+                                    />
+                                    <BaseButton
+                                        v-else
+                                        :icon-only="false"
+                                        action="add"
+                                        icon="mdi-calendar-check"
+                                        text="Agregar"
+                                        variant="tonal"
+                                        :disabled="annualPaymentLoading || !annualPaymentPreview || annualPaymentPreview.payment_amount <= 0"
+                                        @click="confirmAnnualFeePaymentFromPanel"
+                                    />
+                                </v-col>
+                                <v-col cols="12">
+                                    <p v-if="!isAnnualFeePayment" class="text-caption text-medium-emphasis mb-0">
+                                        Se agregan empezando por el mes más antiguo pendiente. Si algún
+                                        mes de en medio no se ha generado todavía, se crea automáticamente
+                                        al confirmar "Agregar".
+                                    </p>
+                                    <p v-else class="text-caption text-medium-emphasis mb-0">
+                                        Cubre desde el mes más antiguo pendiente (aunque sea de un año
+                                        anterior) hasta diciembre de {{ annualPaymentPreview?.year ?? "este año" }}.
+                                        Al darle clic en "Agregar" se abre el diálogo para elegir el método
+                                        de pago y confirmar.
+                                    </p>
+                                </v-col>
+                            </template>
+
+                            <!-- Inscripción: este módulo solo cobra, no
+                                 difiere a meses (eso se decide en el alta de
+                                 la cuenta, donde ya se crean los cargos si
+                                 aplica). Aquí solo se indica cuántos de esos
+                                 cargos ya existentes se cobran ahora — igual
+                                 que "Cantidad de meses" en la mensualidad,
+                                 pero sin crear nada (ver
+                                 CollectionController::resolveInscriptionInstallments). -->
+                            <template v-else-if="isInscriptionConcept">
+                                <v-col cols="6" md="2">
+                                    <v-text-field
+                                        v-model.number="inscriptionQuantity"
+                                        label="Cantidad"
+                                        type="number"
+                                        min="1"
+                                        :max="inscriptionMaxCount ?? undefined"
+                                        hide-details="auto"
+                                    />
+                                </v-col>
+                                <v-col cols="6" md="1">
+                                    <v-text-field
+                                        :model-value="inscriptionSubtotal !== null ? formatCurrency(inscriptionSubtotal) : '—'"
+                                        label="Subtotal"
+                                        readonly
+                                        :loading="inscriptionCalculating"
+                                        hide-details="auto"
+                                    />
+                                </v-col>
+                                <v-col cols="6" md="1">
+                                    <v-text-field
+                                        model-value="$ 0"
+                                        label="Descuento ($)"
+                                        readonly
+                                        hide-details="auto"
+                                    />
+                                </v-col>
+                                <v-col cols="6" md="1">
+                                    <v-text-field
+                                        :model-value="inscriptionIva !== null ? formatCurrency(inscriptionIva) : '—'"
+                                        label="IVA ($)"
+                                        readonly
+                                        :loading="inscriptionCalculating"
+                                        hide-details="auto"
+                                    />
+                                </v-col>
+                                <v-col cols="6" md="1">
+                                    <v-text-field
+                                        :model-value="inscriptionPreviewTotal !== null ? formatCurrency(inscriptionPreviewTotal) : '—'"
+                                        label="Total"
+                                        readonly
+                                        :loading="inscriptionCalculating"
+                                        hide-details="auto"
+                                    />
+                                </v-col>
+                                <v-col cols="12" md="2" class="d-flex align-center">
+                                    <BaseButton
+                                        :icon-only="false"
+                                        action="add"
+                                        icon="mdi-calendar-plus"
+                                        text="Agregar"
+                                        variant="tonal"
+                                        :loading="inscriptionAdding"
+                                        :disabled="inscriptionCalculating || inscriptionPreviewTotal === null"
+                                        @click="addInscriptionCharges"
+                                    />
+                                </v-col>
+                            </template>
+
                             <!-- Asignación de casillero: al capturar el
                                  concepto LOCKERS se reemplaza la captura
                                  genérica por el mismo flujo de
@@ -1354,6 +2564,41 @@ const saveNote = async () => {
                                     <v-text-field
                                         :model-value="formatCurrency(newItem.importe)"
                                         label="Importe (prorrateado a diciembre)"
+                                        readonly
+                                        :loading="lockerLoadingQuote"
+                                        hide-details="auto"
+                                    />
+                                </v-col>
+                                <v-col cols="6" md="1">
+                                    <v-text-field
+                                        :model-value="lockerSubtotal !== null ? formatCurrency(lockerSubtotal) : '—'"
+                                        label="Subtotal"
+                                        readonly
+                                        :loading="lockerLoadingQuote"
+                                        hide-details="auto"
+                                    />
+                                </v-col>
+                                <v-col cols="6" md="1">
+                                    <v-text-field
+                                        model-value="$ 0"
+                                        label="Descuento ($)"
+                                        readonly
+                                        hide-details="auto"
+                                    />
+                                </v-col>
+                                <v-col cols="6" md="1">
+                                    <v-text-field
+                                        :model-value="lockerIva !== null ? formatCurrency(lockerIva) : '—'"
+                                        label="IVA ($)"
+                                        readonly
+                                        :loading="lockerLoadingQuote"
+                                        hide-details="auto"
+                                    />
+                                </v-col>
+                                <v-col cols="6" md="1">
+                                    <v-text-field
+                                        :model-value="formatCurrency(newItem.importe)"
+                                        label="Total"
                                         readonly
                                         :loading="lockerLoadingQuote"
                                         hide-details="auto"
@@ -1500,14 +2745,14 @@ const saveNote = async () => {
                                                 hide-details="auto"
                                             />
                                         </v-col>
-                                        <v-col cols="6" md="3">
+                                        <v-col cols="6" md="2">
                                             <v-text-field
                                                 v-model="visitor.last_name"
                                                 label="Apellido"
                                                 hide-details="auto"
                                             />
                                         </v-col>
-                                        <v-col cols="6" md="2">
+                                        <v-col cols="6" md="1">
                                             <v-text-field
                                                 v-model.number="visitor.age"
                                                 label="Edad"
@@ -1516,7 +2761,16 @@ const saveNote = async () => {
                                                 hide-details="auto"
                                             />
                                         </v-col>
-                                        <v-col cols="6" md="3">
+                                        <v-col cols="6" md="2">
+                                            <v-text-field
+                                                :model-value="formatCurrency(dayPassVisitorPrice(visitor))"
+                                                label="Cuota"
+                                                readonly
+                                                :loading="dayPassLoadingPricing"
+                                                hide-details="auto"
+                                            />
+                                        </v-col>
+                                        <v-col cols="6" md="2">
                                             <v-text-field
                                                 v-model="visitor.email"
                                                 label="Correo (opcional)"
@@ -1538,7 +2792,31 @@ const saveNote = async () => {
                                     </v-row>
                                 </v-col>
 
-                                <v-col cols="12" class="d-flex justify-end">
+                                <v-col cols="12" class="d-flex flex-wrap justify-space-between align-center ga-4">
+                                    <div class="d-flex flex-wrap ga-4">
+                                        <div>
+                                            <span class="text-caption text-medium-emphasis">Subtotal</span>
+                                            <div class="text-body-1 font-weight-medium">
+                                                {{ formatCurrency(dayPassSubtotal) }}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span class="text-caption text-medium-emphasis">Descuento ($)</span>
+                                            <div class="text-body-1 font-weight-medium">$ 0</div>
+                                        </div>
+                                        <div>
+                                            <span class="text-caption text-medium-emphasis">IVA ($)</span>
+                                            <div class="text-body-1 font-weight-medium">
+                                                {{ formatCurrency(dayPassIva) }}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span class="text-caption text-medium-emphasis">Total estimado</span>
+                                            <div class="text-h6 font-weight-bold text-primary">
+                                                {{ formatCurrency(dayPassEstimatedTotal) }}
+                                            </div>
+                                        </div>
+                                    </div>
                                     <BaseButton
                                         :icon-only="false"
                                         action="save"
@@ -1619,7 +2897,7 @@ const saveNote = async () => {
                                             class="mb-2"
                                         />
                                         <v-alert
-                                            v-else-if="!cafeteriaOpenVisits.length"
+                                            v-else-if="!cafeteriaAvailableVisits.length"
                                             type="info"
                                             variant="tonal"
                                             density="compact"
@@ -1629,7 +2907,7 @@ const saveNote = async () => {
                                         <v-select
                                             v-else
                                             v-model="cafeteriaSelectedVisitId"
-                                            :items="cafeteriaOpenVisits"
+                                            :items="cafeteriaAvailableVisits"
                                             item-title="visitor_name"
                                             item-value="id"
                                             label="Visita a cerrar"
@@ -1654,14 +2932,37 @@ const saveNote = async () => {
                                             {{ formatCurrency(selectedCafeteriaVisit.min_consumption) }}
                                         </div>
                                     </v-col>
-                                    <v-col cols="12" class="d-flex justify-end">
+                                    <v-col cols="12" class="d-flex flex-wrap justify-space-between align-center ga-4">
+                                        <div class="d-flex flex-wrap ga-4">
+                                            <div>
+                                                <span class="text-caption text-medium-emphasis">Subtotal</span>
+                                                <div class="text-body-1 font-weight-medium">
+                                                    {{ formatCurrency(cafeteriaSubtotal) }}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <span class="text-caption text-medium-emphasis">Descuento ($)</span>
+                                                <div class="text-body-1 font-weight-medium">$ 0</div>
+                                            </div>
+                                            <div>
+                                                <span class="text-caption text-medium-emphasis">IVA ($)</span>
+                                                <div class="text-body-1 font-weight-medium">
+                                                    {{ formatCurrency(cafeteriaIva) }}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <span class="text-caption text-medium-emphasis">Total a cobrar</span>
+                                                <div class="text-h6 font-weight-bold text-primary">
+                                                    {{ formatCurrency(cafeteriaChargeableAmount) }}
+                                                </div>
+                                            </div>
+                                        </div>
                                         <BaseButton
                                             :icon-only="false"
-                                            action="save"
+                                            action="add"
                                             icon="mdi-food-off"
-                                            text="Registrar salida"
+                                            text="Agregar salida a la lista"
                                             variant="tonal"
-                                            :loading="cafeteriaCheckingOut"
                                             :disabled="!canCheckOutCafeteria"
                                             @click="checkOutCafeteria"
                                         />
@@ -1675,6 +2976,7 @@ const saveNote = async () => {
                                     <v-data-table
                                         :headers="cobrosHeaders"
                                         :items="cobros"
+                                        item-value="key"
                                         :items-per-page="-1"
                                         hide-default-footer
                                         no-data-text="Aún no has agregado cobros."
@@ -1690,6 +2992,15 @@ const saveNote = async () => {
                                             >
                                                 {{ item.type === "new" ? "Nuevo" : "Adeudo" }}
                                             </v-chip>
+                                        </template>
+                                        <template #item.subtotal="{ item }">
+                                            {{ formatCurrency(cobroSubtotal(item)) }}
+                                        </template>
+                                        <template #item.descuento="{ item }">
+                                            {{ formatCurrency(cobroDescuento(item)) }}
+                                        </template>
+                                        <template #item.iva="{ item }">
+                                            {{ formatCurrency(cobroIva(item)) }}
                                         </template>
                                         <template #item.amount="{ item }">
                                             <span class="font-weight-bold">{{ formatCurrency(item.amount) }}</span>
@@ -1710,6 +3021,18 @@ const saveNote = async () => {
                                     </v-data-table>
                                     <v-divider />
                                     <v-card-text>
+                                        <v-alert
+                                            v-if="cobros.length && !manualPaymentOverride"
+                                            type="info"
+                                            variant="tonal"
+                                            density="compact"
+                                            class="mb-3"
+                                        >
+                                            No configuraste un método de pago: se cobrará
+                                            {{ formatCurrency(cobrosTotal) }} en efectivo. Si necesitas
+                                            otro método, da clic en "Configurar método(s) de pago".
+                                        </v-alert>
+
                                         <div class="d-flex flex-wrap justify-space-between align-center ga-4">
                                             <div class="d-flex align-center ga-2">
                                                 <span class="text-subtitle-1 font-weight-bold">
@@ -1720,16 +3043,38 @@ const saveNote = async () => {
                                                 </span>
                                             </div>
 
-                                            <BaseButton
-                                                v-if="can.includes('collections.store')"
-                                                :icon-only="false"
-                                                action="save"
-                                                icon="mdi-cash-check"
-                                                text="Efectuar cobro"
-                                                :loading="paying"
-                                                :disabled="!cobros.length"
-                                                @click="openPaymentDialog"
-                                            />
+                                            <div class="d-flex ga-2">
+                                                <BaseButton
+                                                    v-if="can.includes('collections.store')"
+                                                    :icon-only="false"
+                                                    action="save"
+                                                    icon="mdi-cash-check"
+                                                    :text="manualPaymentOverride ? 'Corregir métodos de pago' : 'Configurar método(s) de pago'"
+                                                    variant="tonal"
+                                                    :disabled="!cobros.length || paying"
+                                                    @click="openPaymentDialog"
+                                                />
+                                                <BaseButton
+                                                    v-if="can.includes('collections.store')"
+                                                    :icon-only="false"
+                                                    action="save"
+                                                    icon="mdi-check-circle-outline"
+                                                    text="Registrar cobro"
+                                                    :loading="paying"
+                                                    :disabled="!configuredPayment"
+                                                    @click="registerPayment"
+                                                />
+                                                <BaseButton
+                                                    :icon-only="false"
+                                                    action="cancel"
+                                                    icon="mdi-close-circle-outline"
+                                                    text="Cancelar"
+                                                    variant="text"
+                                                    color="error"
+                                                    :disabled="!cobros.length || paying"
+                                                    @click="cancelCobros"
+                                                />
+                                            </div>
                                         </div>
                                     </v-card-text>
                                 </v-card>
@@ -1742,13 +3087,105 @@ const saveNote = async () => {
                     v-model="paymentDialog"
                     :total="cobrosTotal"
                     :club-breakdown="dialogClubBreakdown"
-                    :payment-methods="availablePaymentMethods"
+                    :payment-methods="paymentMethodOptions"
                     :loading="paying"
-                    @confirm="submitPayment"
+                    @confirm="handlePaymentMethodsConfigured"
                 />
 
-                <!-- Comentarios / incidencias -->
-                <v-card>
+                <!-- Vista previa del ticket tras registrar un cobro — mismo
+                     componente/diálogo que Tickets/Index.vue. -->
+                <v-dialog v-model="showTicketPreview" max-width="520">
+                    <v-card>
+                        <v-card-title>Vista previa del ticket</v-card-title>
+                        <v-card-text>
+                            <div v-if="ticketPreviewLoading" class="text-center pa-8">
+                                <v-progress-circular indeterminate color="primary" />
+                            </div>
+                            <div v-else-if="previewTickets.length">
+                                <TicketPreview
+                                    v-for="ticket in previewTickets"
+                                    :key="ticket.club_id"
+                                    :ticket="ticket"
+                                    class="mb-6"
+                                />
+                            </div>
+                        </v-card-text>
+                        <v-card-actions>
+                            <v-spacer />
+                            <BaseButton action="close" :icon-only="false" text="Cerrar" @click="showTicketPreview = false" />
+                            <BaseButton
+                                icon="mdi-printer-outline"
+                                text="Imprimir"
+                                tooltip="Imprimir"
+                                :icon-only="false"
+                                :disabled="!previewTickets.length"
+                                @click="printPreviewedTicket"
+                            />
+                        </v-card-actions>
+                    </v-card>
+                </v-dialog>
+
+                <!-- Cuentas relacionadas (árbol de origen/derivadas) -->
+                <v-dialog v-model="showRelatedAccountsDialog" max-width="520">
+                    <v-card>
+                        <v-card-title>Cuentas relacionadas</v-card-title>
+                        <v-card-text>
+                            <div class="text-body-2 text-medium-emphasis mb-3">
+                                Elige una cuenta para buscarla directamente.
+                            </div>
+                            <v-radio-group v-model="selectedRelatedAccountId" hide-details>
+                                <v-list density="compact">
+                                    <v-list-item
+                                        v-for="related in relatedAccounts"
+                                        :key="related.id"
+                                        :active="selectedRelatedAccountId === related.id"
+                                        @click="selectedRelatedAccountId = related.id"
+                                    >
+                                        <template #prepend>
+                                            <v-radio :value="related.id" density="compact" />
+                                        </template>
+                                        <template #title>
+                                            {{ related.membership_number || related.internal_account_number || `Cuenta #${related.id}` }}
+                                            — {{ related.holder_name }}
+                                        </template>
+                                        <template #subtitle>
+                                            <span v-if="related.club_code">{{ related.club_code }}</span>
+                                            <v-chip
+                                                size="x-small"
+                                                class="ml-1"
+                                                :color="related.status === 'active' ? 'success' : 'default'"
+                                                variant="tonal"
+                                            >
+                                                {{ related.status === 'active' ? 'Activa' : (related.status || 'Sin estado') }}
+                                            </v-chip>
+                                        </template>
+                                    </v-list-item>
+                                </v-list>
+                            </v-radio-group>
+                        </v-card-text>
+                        <v-card-actions>
+                            <v-spacer />
+                            <BaseButton
+                                action="close"
+                                :icon-only="false"
+                                text="Cerrar"
+                                variant="text"
+                                @click="showRelatedAccountsDialog = false"
+                            />
+                            <BaseButton
+                                action="save"
+                                :icon-only="false"
+                                icon="mdi-check"
+                                text="Aceptar"
+                                :disabled="!selectedRelatedAccountId"
+                                @click="goToRelatedAccount"
+                            />
+                        </v-card-actions>
+                    </v-card>
+                </v-dialog>
+
+                <!-- Comentarios / incidencias — no aplica en venta sin cuenta. -->
+                <v-card v-if="!walkInMode">
                     <v-card-title>Comentarios e incidencias</v-card-title>
                     <v-card-text>
                         <v-row>

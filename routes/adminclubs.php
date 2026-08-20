@@ -12,6 +12,7 @@ use App\Http\Controllers\Web\AdminClub\ReservationController;
 use App\Http\Controllers\Web\AdminClub\AnnouncementController;
 use App\Http\Controllers\Web\AdminClub\BlockedPeriodController;
 use App\Http\Controllers\Web\AdminClub\SystemVariableController;
+use App\Http\Controllers\Web\AdminClub\AppVariableController;
 use App\Http\Controllers\Web\AdminClub\AmenityScheduleController;
 use App\Http\Controllers\Web\AdminClub\BusinessCategoryController;
 use App\Http\Controllers\Web\AdminClub\BillingConceptController;
@@ -49,6 +50,7 @@ use App\Http\Controllers\Web\AdminClub\GuestListPaymentController;
 use App\Http\Controllers\Web\AdminClub\MembershipTypeController;
 use App\Http\Controllers\Web\AdminClub\PaymentMethodController;
 use App\Http\Controllers\Web\AdminClub\TicketController;
+use App\Http\Controllers\Web\AdminClub\PaymentCancellationController;
 use App\Http\Controllers\Web\AdminClub\LockerAssignmentHistoryController;
 use App\Http\Controllers\Web\AdminClub\ClinicalHistoryController;
 use App\Http\Controllers\Web\AdminClub\ClubSettingsController;
@@ -56,6 +58,7 @@ use App\Http\Controllers\Web\AdminClub\CoachController;
 use App\Http\Controllers\Web\AdminClub\SpecialtyController;
 use App\Http\Controllers\Web\AdminClub\ClassScheduleController;
 use App\Http\Controllers\Web\AdminClub\WebsiteContentController;
+use App\Http\Controllers\Web\AdminClub\WebsiteContactController;
 use Illuminate\Support\Facades\Route;
 
 // amenities
@@ -71,6 +74,7 @@ Route::get('/amenity-resource/{amenityResource}/generate-qr', [AmenityResourceCo
 // reservations
 Route::resource('/reservations', ReservationController::class)->only(['index', 'update', 'store'])->names('reservations');
 Route::resource('/system-variables', SystemVariableController::class)->only(['index', 'store', 'update', 'destroy'])->names('system-variables');
+Route::resource('/app-variables', AppVariableController::class)->only(['index', 'store', 'update', 'destroy'])->names('app-variables');
 Route::get('/reservations/calendar', [ReservationController::class, 'calendar'])
     ->name('reservations.calendar');
 Route::post('/reservations/{reservation}/cancel', [ReservationController::class, 'cancel'])
@@ -83,6 +87,7 @@ Route::resource('/guest-list-variables', GuestListVariableController::class)->on
 Route::resource('/guest-list-payments', GuestListPaymentController::class)->only(['index'])->names('guest-list-payments');
 
 Route::get('/day-passes/members-search', [DayPassController::class, 'searchMembers'])->name('day-passes.members-search');
+Route::get('/day-passes/pricing', [DayPassController::class, 'pricing'])->name('day-passes.pricing');
 Route::get('/day-passes/check-incidents', [DayPassController::class, 'checkIncidents'])->name('day-passes.check-incidents');
 Route::get('/day-passes/incidents',  [DayPassController::class, 'indexIncidents'])->name('day-passes.incidents.index');
 Route::post('/day-passes/incidents', [DayPassController::class, 'storeIncident'])->name('day-passes.incidents.store');
@@ -104,7 +109,10 @@ Route::post('/billing/annual-payment', [BillingController::class, 'storeAnnualPa
 // collections desk (módulo de cobranza tipo caja)
 Route::get('/collections', [CollectionController::class, 'index'])->name('collections.index');
 Route::get('/collections/search', [CollectionController::class, 'search'])->name('collections.search');
+Route::post('/collections/monthly-fee/resolve', [CollectionController::class, 'resolveMonthlyFeeMonths'])->name('collections.monthly-fee.resolve');
+Route::post('/collections/inscription/resolve', [CollectionController::class, 'resolveInscriptionInstallments'])->name('collections.inscription.resolve');
 Route::post('/collections/payment', [CollectionController::class, 'storePayment'])->name('collections.payment.store');
+Route::post('/collections/annual-payment/preview', [CollectionController::class, 'previewAnnualPayment'])->name('collections.annual-payment.preview');
 Route::post('/collections/notes', [CollectionController::class, 'storeNote'])->name('collections.notes.store');
 
 // cash cuts
@@ -132,6 +140,18 @@ Route::put('/payment-methods/{paymentMethod}/club-config', [PaymentMethodControl
     ->name('payment-methods.update-club-config');
 Route::get('/tickets', [TicketController::class, 'index'])->name('tickets.index');
 Route::get('/tickets/{payment}/data', [TicketController::class, 'data'])->name('tickets.data');
+
+// Cancelación de pagos (p. ej. cheque rebotado)
+Route::get('/payments/{payment}/cancel/create', [PaymentCancellationController::class, 'create'])
+    ->name('payments.cancel.create');
+Route::post('/payments/{payment}/cancel', [PaymentCancellationController::class, 'store'])
+    ->name('payments.cancel.store');
+Route::get('/payments/group/{paymentGroupId}/cancel/create', [PaymentCancellationController::class, 'groupCreate'])
+    ->name('payments.cancel-group.create');
+Route::get('/payments/group/{paymentGroupId}/summary', [PaymentCancellationController::class, 'groupSummary'])
+    ->name('payments.cancel-group.summary');
+Route::post('/payments/group/{paymentGroupId}/cancel', [PaymentCancellationController::class, 'groupStore'])
+    ->name('payments.cancel-group.store');
 Route::resource('/pricing-rules', PricingRuleController::class)
     ->only(['index', 'store', 'update', 'destroy'])
     ->names('pricing-rules');
@@ -147,6 +167,12 @@ Route::resource('/interclub-package-rules', InterclubPackageRuleController::clas
 Route::get('/fee-schedules', [FeeScheduleController::class, 'index'])->name('fee-schedules.index');
 Route::post('/fee-schedules', [FeeScheduleController::class, 'store'])->name('fee-schedules.store');
 Route::get('/fee-schedules/preview', [FeeScheduleController::class, 'preview'])->name('fee-schedules.preview');
+Route::post('/fee-schedules/annual-discount-rules', [FeeScheduleController::class, 'storeAnnualDiscountRule'])
+    ->name('fee-schedules.annual-discount-rules.store');
+Route::put('/fee-schedules/annual-discount-rules/{annualDiscountRule}', [FeeScheduleController::class, 'updateAnnualDiscountRule'])
+    ->name('fee-schedules.annual-discount-rules.update');
+Route::delete('/fee-schedules/annual-discount-rules/{annualDiscountRule}', [FeeScheduleController::class, 'destroyAnnualDiscountRule'])
+    ->name('fee-schedules.annual-discount-rules.destroy');
 
 Route::resource('/email-configs', EmailConfigController::class)
     ->only(['index', 'store', 'update', 'destroy'])
@@ -350,10 +376,6 @@ Route::post('/website-content/home-cards', [WebsiteContentController::class, 'st
     ->name('website-content.cards.store');
 Route::delete('/website-content/home-cards/{id}', [WebsiteContentController::class, 'destroyCard'])
     ->name('website-content.cards.destroy');
-Route::post('/website-content/virtual-tour/categories', [WebsiteContentController::class, 'storeVirtualTourCategory'])
-    ->name('website-content.virtual-tour.categories.store');
-Route::delete('/website-content/virtual-tour/categories/{id}', [WebsiteContentController::class, 'destroyVirtualTourCategory'])
-    ->name('website-content.virtual-tour.categories.destroy');
 Route::post('/website-content/virtual-tour/images', [WebsiteContentController::class, 'storeVirtualTourImages'])
     ->name('website-content.virtual-tour.images.store');
 Route::delete('/website-content/virtual-tour/images/{id}', [WebsiteContentController::class, 'destroyVirtualTourImage'])
@@ -362,6 +384,8 @@ Route::post('/website-content/events', [WebsiteContentController::class, 'saveEv
     ->name('website-content.events.save');
 Route::delete('/website-content/events/{id}', [WebsiteContentController::class, 'destroyEvent'])
     ->name('website-content.events.destroy');
+Route::get('/website-contacts', [WebsiteContactController::class, 'index'])
+    ->name('website-contacts.index');
 
 // Acts
 Route::prefix('acts')->group(function () {

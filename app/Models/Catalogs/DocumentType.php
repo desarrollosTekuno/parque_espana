@@ -12,6 +12,9 @@ class DocumentType extends Model
 
     protected $guarded = ['id', 'created_at', 'updated_at'];
     protected $table = 'catalogs.document_types';
+    protected $casts = [
+        'is_club_specific' => 'boolean',
+    ];
 
     public function relationships()
     {

@@ -61,22 +61,60 @@ class PaymentController extends Controller
         ]);
 
         $result = $this->getMembershipAccount($request, $club);
+
         if ($result['_err']) {
             return $this->error($result['message'], $result['status']);
         }
+
         $membershipAccount = $result['account'];
 
         $perPage = (int) $request->input('per_page', 15);
 
-        $payments = Payment::with('paymentMethod')
+        $payments = Payment::with([
+            'paymentMethod',
+            'applications.charge.concept',
+        ])
             ->where('membership_account_id', $membershipAccount->id)
             ->where('club_id', $club->id)
-            ->when($request->filled('date_from'), fn ($q) => $q->whereDate('paid_at', '>=', $request->date_from))
-            ->when($request->filled('date_to'), fn ($q) => $q->whereDate('paid_at', '<=', $request->date_to))
+            ->when(
+                $request->filled('date_from'),
+                fn ($q) => $q->whereDate(
+                    'paid_at',
+                    '>=',
+                    $request->date_from
+                )
+            )
+            ->when(
+                $request->filled('date_to'),
+                fn ($q) => $q->whereDate(
+                    'paid_at',
+                    '<=',
+                    $request->date_to
+                )
+            )
             ->when($request->filled('search'), function ($query) use ($request) {
                 $query->where(function ($q) use ($request) {
-                    $q->where('reference', 'like', '%' . $request->search . '%')
-                        ->orWhereHas('paymentMethod', fn ($m) => $m->where('name', 'like', '%' . $request->search . '%'));
+                    $q->where(
+                        'reference',
+                        'like',
+                        '%' . $request->search . '%'
+                    )
+                    ->orWhereHas(
+                        'paymentMethod',
+                        fn ($m) => $m->where(
+                            'name',
+                            'like',
+                            '%' . $request->search . '%'
+                        )
+                    )
+                    ->orWhereHas(
+                        'applications.charge.concept',
+                        fn ($c) => $c->where(
+                            'name',
+                            'like',
+                            '%' . $request->search . '%'
+                        )
+                    );
                 });
             })
             ->orderByDesc('paid_at')
@@ -85,14 +123,20 @@ class PaymentController extends Controller
 
         return $this->ok([
             'currency' => 'MXN',
-            'count'    => $payments->count(),
-            'items'    => $payments->getCollection()->map(fn ($p) => $this->formatPayment($p))->values(),
-            'filters'  => [
+
+            'count' => $payments->count(),
+
+            'items' => $payments->getCollection()
+                ->map(fn ($p) => $this->formatPayment($p))
+                ->values(),
+
+            'filters' => [
                 'search'    => $request->input('search'),
                 'date_from' => $request->input('date_from'),
                 'date_to'   => $request->input('date_to'),
             ],
-            'meta'     => [
+
+            'meta' => [
                 'current_page'   => $payments->currentPage(),
                 'per_page'       => $payments->perPage(),
                 'has_more_pages' => $payments->hasMorePages(),
@@ -234,8 +278,7 @@ class PaymentController extends Controller
         ];
     }
 
-    private function formatPayment(Payment $payment, bool $includeApplications = false): array
-    {
+    private function formatPayment(Payment $payment, bool $includeApplications = false): array {
         $data = [
             'id'                => $payment->id,
             'type'              => 'payment',
@@ -245,14 +288,23 @@ class PaymentController extends Controller
             'amount'            => $payment->amount,
             'paid_at'           => $payment->paid_at,
             'receipt_available' => false,
+
+            'concepts' => $payment->applications
+                ->map(fn ($a) => [
+                    'concept' => $a->charge?->concept?->name,
+                    'amount'  => $a->applied_amount,
+                ])
+                ->values(),
         ];
 
         if ($includeApplications) {
-            $data['applications'] = $payment->applications->map(fn ($a) => [
-                'charge_id' => $a->charge_id,
-                'concept'   => $a->charge?->concept?->name,
-                'amount'    => $a->applied_amount,
-            ])->values();
+            $data['applications'] = $payment->applications
+                ->map(fn ($a) => [
+                    'charge_id' => $a->charge_id,
+                    'concept'   => $a->charge?->concept?->name,
+                    'amount'    => $a->applied_amount,
+                ])
+                ->values();
         }
 
         return $data;
