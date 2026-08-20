@@ -46,6 +46,7 @@ interface MembershipInfo {
     cancelled_at: string | null;
     cancelled_by_name: string | null;
     cancellation_type: string | null;
+    cancellation_reason: string | null;
 }
 
 interface Props {
@@ -106,6 +107,22 @@ const membershipStatusLabel = (status: string) => {
         cancelled: "Cancelada",
     };
     return map[status] ?? status;
+};
+
+const cancellationTypeLabel = (type: string | null) => {
+    const map: Record<string, string> = {
+        voluntary: "Voluntaria",
+        sanction: "Sanción",
+    };
+    return type ? (map[type] ?? type) : "-";
+};
+
+const cancellationTypeColor = (type: string | null) => {
+    const map: Record<string, string> = {
+        voluntary: "warning",
+        sanction: "error",
+    };
+    return type ? (map[type] ?? "default") : "default";
 };
 
 const membershipStatusColor = (status: string) => {
@@ -198,9 +215,18 @@ const submit = () => {
                                     </p>
                                     <p>
                                         <strong>Tipo de baja:</strong>
-                                        <v-chip size="x-small" color="warning" variant="tonal" class="ml-1">
-                                            Voluntaria
+                                        <v-chip
+                                            size="x-small"
+                                            :color="cancellationTypeColor(props.membership.cancellation_type)"
+                                            variant="tonal"
+                                            class="ml-1"
+                                        >
+                                            {{ cancellationTypeLabel(props.membership.cancellation_type) }}
                                         </v-chip>
+                                    </p>
+                                    <p v-if="props.membership.cancellation_reason">
+                                        <strong>Motivo:</strong>
+                                        {{ props.membership.cancellation_reason }}
                                     </p>
                                 </v-col>
                             </v-row>

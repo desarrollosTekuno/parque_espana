@@ -31,6 +31,7 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'carta_recomendacion', 'required' => true, 'multiple' => true, 'files' => 2],
                         ['code' => 'formato_datos_clinicos', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'formato_solicitud_usuario', 'required' => true, 'multiple' => false, 'files' => 1],
                     ]
                 ],
                 // =========================
@@ -44,6 +45,7 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'comprobante_domicilio', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'formato_datos_clinicos', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'formato_solicitud_usuario', 'required' => true, 'multiple' => false, 'files' => 1],
                     ]
                 ],
 
@@ -60,6 +62,7 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'carta_recomendacion', 'required' => true, 'multiple' => true, 'files' => 2],
                         ['code' => 'formato_datos_clinicos', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'formato_solicitud_usuario', 'required' => true, 'multiple' => false, 'files' => 1],
                     ]
                 ],
 
@@ -76,6 +79,7 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'carta_recomendacion', 'required' => true, 'multiple' => true, 'files' => 2],
                         ['code' => 'carta_no_adeudo', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'formato_solicitud_usuario', 'required' => true, 'multiple' => false, 'files' => 1],
                     ]
                 ],
                 // PE1 - IND BEN
@@ -88,6 +92,7 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'carta_recomendacion', 'required' => true, 'multiple' => true, 'files' => 2],
                         ['code' => 'carta_no_adeudo', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'formato_solicitud_usuario', 'required' => true, 'multiple' => false, 'files' => 1],
                     ]
                 ],
                 // PE1 - SOL BEN
@@ -98,6 +103,7 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'ine', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'comprobante_domicilio', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'formato_solicitud_usuario', 'required' => true, 'multiple' => false, 'files' => 1],
                     ]
                 ],
 
@@ -114,6 +120,7 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'carta_recomendacion', 'required' => true, 'multiple' => true, 'files' => 2],
                         ['code' => 'constancia_trabajo', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'formato_solicitud_usuario', 'required' => true, 'multiple' => false, 'files' => 1],
                     ]
                 ],
                 // =========================
@@ -126,6 +133,7 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'ine', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'comprobante_domicilio', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'formato_solicitud_usuario', 'required' => true, 'multiple' => false, 'files' => 1],
                     ]
                 ],
 
@@ -144,6 +152,7 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'carta_recomendacion', 'required' => true, 'multiple' => true, 'files' => 2],
                         ['code' => 'constancia_estudios', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'constancia_trabajo', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'formato_solicitud_usuario', 'required' => true, 'multiple' => false, 'files' => 1],
                     ]
                 ],
 
@@ -159,6 +168,7 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'carta_recomendacion', 'required' => true, 'multiple' => true, 'files' => 2],
                         ['code' => 'constancia_trabajo', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'formato_solicitud_usuario', 'required' => true, 'multiple' => false, 'files' => 1],
                     ]
                 ],
                 // =========================
@@ -171,6 +181,7 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'ine', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'comprobante_domicilio', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'formato_solicitud_usuario', 'required' => true, 'multiple' => false, 'files' => 1],
                     ]
                 ],
 
@@ -188,6 +199,7 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'carta_recomendacion', 'required' => true, 'multiple' => true, 'files' => 2],
                         ['code' => 'constancia_estudios', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'constancia_trabajo', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'formato_solicitud_usuario', 'required' => true, 'multiple' => false, 'files' => 1],
                     ]
                 ],
 
@@ -204,6 +216,7 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'carta_recomendacion', 'required' => true, 'multiple' => true, 'files' => 2],
                         ['code' => 'carta_no_adeudo', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'formato_solicitud_usuario', 'required' => true, 'multiple' => false, 'files' => 1],
                     ]
                 ],
                 // PE2 - IND BEN
@@ -216,6 +229,7 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'carta_recomendacion', 'required' => true, 'multiple' => true, 'files' => 2],
                         ['code' => 'carta_no_adeudo', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'formato_solicitud_usuario', 'required' => true, 'multiple' => false, 'files' => 1],
                     ]
                 ],
                 // PE2 - IND BEN
@@ -226,6 +240,7 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'ine', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'comprobante_domicilio', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'formato_solicitud_usuario', 'required' => true, 'multiple' => false, 'files' => 1],
                     ]
                 ],
 
@@ -242,6 +257,7 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'carta_recomendacion', 'required' => true, 'multiple' => true, 'files' => 2],
                         ['code' => 'carta_doctor_activo', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'formato_solicitud_usuario', 'required' => true, 'multiple' => false, 'files' => 1],
                     ]
                 ],
                 // PE2 - IND DOC
@@ -254,6 +270,7 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'carta_recomendacion', 'required' => true, 'multiple' => true, 'files' => 2],
                         ['code' => 'carta_doctor_activo', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'formato_solicitud_usuario', 'required' => true, 'multiple' => false, 'files' => 1],
                     ]
                 ],
                 // PE2 - SOL DOC
@@ -264,6 +281,7 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'ine', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'comprobante_domicilio', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'formato_solicitud_usuario', 'required' => true, 'multiple' => false, 'files' => 1],
                     ]
                 ],
                 [
@@ -275,6 +293,7 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'carta_recomendacion', 'required' => true, 'multiple' => true, 'files' => 2],
                         ['code' => 'ine', 'required' => true, 'multiple' => true, 'files' => 1],
                         ['code' => 'comprobante_domicilio', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'formato_solicitud_usuario', 'required' => true, 'multiple' => false, 'files' => 1],
                     ],
                 ],
                 [
@@ -288,6 +307,7 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'carta_recomendacion', 'required' => true, 'multiple' => true, 'files' => 2],
                         ['code' => 'ine', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'comprobante_domicilio', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'formato_solicitud_usuario', 'required' => true, 'multiple' => false, 'files' => 1],
                     ],
                 ],
                 [
@@ -298,6 +318,7 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'recibo_pe1_sin_adeudo', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'ine', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'comprobante_domicilio', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'formato_solicitud_usuario', 'required' => true, 'multiple' => false, 'files' => 1],
                     ],
                 ],
                 [
@@ -307,6 +328,7 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'fotografia_infantil', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'ine', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'comprobante_domicilio', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'formato_solicitud_usuario', 'required' => true, 'multiple' => false, 'files' => 1],
                     ],
                 ],
                 [
@@ -318,6 +340,7 @@ class MembershipTypeRequiredDocumentSeeder extends Seeder
                         ['code' => 'recibo_pe1_sin_adeudo', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'ine', 'required' => true, 'multiple' => false, 'files' => 1],
                         ['code' => 'comprobante_domicilio', 'required' => true, 'multiple' => false, 'files' => 1],
+                        ['code' => 'formato_solicitud_usuario', 'required' => true, 'multiple' => false, 'files' => 1],
                     ],
                 ],
 

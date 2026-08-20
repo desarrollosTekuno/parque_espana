@@ -35,6 +35,7 @@ class DatabaseSeeder extends Seeder
             DocumentTypeSeeder::class,
             RelationshipSeeder::class,
             SeparationReasonSeeder::class,
+            CancellationReasonSeeder::class,
             NationalitySeeder::class,
             MaritalStatusSeeder::class,
             BillingConceptSeeder::class,

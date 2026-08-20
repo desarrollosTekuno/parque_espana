@@ -27,15 +27,22 @@ interface MembershipInfo {
     status: string;
 }
 
+interface CancellationReasonOption {
+    id: number;
+    name: string;
+}
+
 interface Props {
     membership: MembershipInfo;
     members: MemberItem[];
+    cancellationReasons: CancellationReasonOption[];
 }
 
 const props = defineProps<Props>();
 
 const form = useForm({
     cancellation_letter: null as File | null,
+    cancellation_reason_id: null as number | null,
     waive_pending_charges: false,
 });
 
@@ -171,6 +178,20 @@ const submit = async () => {
                             <v-card class="pa-4">
                                 <div class="text-subtitle-1 font-weight-bold mb-3">
                                     Documentación requerida
+                                </div>
+
+                                <!-- Motivo de la baja -->
+                                <div class="mb-4">
+                                    <v-select
+                                        v-model="form.cancellation_reason_id"
+                                        :items="props.cancellationReasons"
+                                        item-title="name"
+                                        item-value="id"
+                                        label="Motivo de la baja"
+                                        :rules="[(v: number | null) => !!v || 'Debes indicar el motivo de la baja']"
+                                        :error-messages="form.errors.cancellation_reason_id"
+                                        hide-details="auto"
+                                    />
                                 </div>
 
                                 <!-- Carga de carta de baja -->
