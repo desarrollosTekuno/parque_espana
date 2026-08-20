@@ -893,7 +893,7 @@ watch(
                                     <div class="text-caption text-medium-emphasis">
                                         Saldo total pendiente
                                     </div>
-                                    <div class="text-h6 font-weight-bold mt-2">
+                                    <div class="mt-2 text-h6 font-weight-bold">
                                         {{ formatCurrency(summary.total_outstanding) }}
                                     </div>
                                 </v-card-text>
@@ -905,7 +905,7 @@ watch(
                                     <div class="text-caption text-medium-emphasis">
                                         Saldo vencido
                                     </div>
-                                    <div class="text-h6 font-weight-bold mt-2">
+                                    <div class="mt-2 text-h6 font-weight-bold">
                                         {{
                                             formatCurrency(summary.overdue_outstanding)
                                         }}
@@ -919,7 +919,7 @@ watch(
                                     <div class="text-caption text-medium-emphasis">
                                         Inscripciones pendientes
                                     </div>
-                                    <div class="text-h6 font-weight-bold mt-2">
+                                    <div class="mt-2 text-h6 font-weight-bold">
                                         {{
                                             formatCurrency(
                                                 summary.inscription_outstanding,
@@ -935,10 +935,10 @@ watch(
                                     <div class="text-caption text-medium-emphasis">
                                         Cuentas con saldo
                                     </div>
-                                    <div class="text-h6 font-weight-bold mt-2">
+                                    <div class="mt-2 text-h6 font-weight-bold">
                                         {{ summary.accounts_with_balance }}
                                     </div>
-                                    <div class="text-caption text-medium-emphasis mt-1">
+                                    <div class="mt-1 text-caption text-medium-emphasis">
                                         Mensualidades:
                                         {{
                                             formatCurrency(summary.monthly_outstanding)
@@ -960,18 +960,18 @@ watch(
                             parque al que pertenece.
                         </v-card-subtitle>
 
-                        <v-card-text class="d-flex flex-column ga-3 py-3">
+                        <v-card-text class="py-3 d-flex flex-column ga-3">
                             <v-card
                                 v-for="club in clubPaymentMethods"
                                 :key="club.id"
                                 variant="outlined"
                             >
-                                <v-card-text class=" py-3">
+                                <v-card-text class="py-3 ">
                                     <div class="font-weight-bold">
                                         {{ club.code }} - {{ club.name }}
                                     </div>
 
-                                    <div class="d-flex flex-wrap ga-2 mt-3">
+                                    <div class="flex-wrap mt-3 d-flex ga-2">
                                         <v-chip
                                             v-for="method in club.payment_methods"
                                             :key="method.id"
@@ -1126,7 +1126,7 @@ watch(
                             </template>
 
                             <template #item.clubs="{ item }">
-                                <div class="d-flex flex-wrap ga-2 py-2">
+                                <div class="flex-wrap py-2 d-flex ga-2">
                                     <v-chip
                                         v-for="club in item.clubs"
                                         :key="club.id"
@@ -1140,7 +1140,7 @@ watch(
                             </template>
 
                             <template #item.charge_summary="{ item }">
-                                <div class="d-flex flex-wrap ga-2 py-2">
+                                <div class="flex-wrap py-2 d-flex ga-2">
                                     <v-chip
                                         v-for="concept in item.charge_summary"
                                         :key="`${item.id}-${concept.concept_name}`"
@@ -1198,7 +1198,7 @@ watch(
                             </template>
 
                             <template #item.actions="{ item }">
-                                <div class="d-flex flex-wrap justify-end">
+                                <div class="flex-wrap justify-end d-flex">
                                     <BaseButton
                                         v-if="can.includes('billing.store')"
                                         :icon-only="false"
@@ -1246,7 +1246,7 @@ watch(
                                             <v-row>
                                                 <v-col cols="12" md="8">
                                                     <div
-                                                        class="text-subtitle-1 font-weight-bold mb-3"
+                                                        class="mb-3 text-subtitle-1 font-weight-bold"
                                                     >
                                                         Cargos pendientes
                                                     </div>
@@ -1267,7 +1267,7 @@ watch(
                                                             >
                                                                 <v-card-text>
                                                                     <div
-                                                                        class="d-flex flex-wrap justify-space-between align-start ga-2"
+                                                                        class="flex-wrap d-flex justify-space-between align-start ga-2"
                                                                     >
                                                                         <div>
                                                                             <div
@@ -1306,7 +1306,7 @@ watch(
                                                                     </div>
 
                                                                         <div
-                                                                            class="d-flex flex-wrap ga-2"
+                                                                            class="flex-wrap d-flex ga-2"
                                                                         >
                                                                             <v-chip
                                                                                 size="small"
@@ -1344,7 +1344,7 @@ watch(
                                                                         v-if="
                                                                             charge.description
                                                                         "
-                                                                        class="text-body-2 mt-3"
+                                                                        class="mt-3 text-body-2"
                                                                     >
                                                                         {{
                                                                             charge.description
@@ -1352,7 +1352,7 @@ watch(
                                                                     </div>
 
                                                                     <div
-                                                                        class="text-body-2 mt-3"
+                                                                        class="mt-3 text-body-2"
                                                                     >
                                                                         Parque:
                                                                         <span
@@ -1366,7 +1366,7 @@ watch(
                                                                     </div>
 
                                                                     <div
-                                                                        class="text-body-2 mt-1"
+                                                                        class="mt-1 text-body-2"
                                                                     >
                                                                         Vencimiento:
                                                                         <span
@@ -1381,7 +1381,7 @@ watch(
                                                                     </div>
 
                                                                     <div
-                                                                        class="d-flex flex-wrap ga-2 mt-3"
+                                                                        class="flex-wrap mt-3 d-flex ga-2"
                                                                     >
                                                                         <v-chip
                                                                             size="small"
@@ -1434,7 +1434,7 @@ watch(
                                                                                 charge,
                                                                             )
                                                                         "
-                                                                        class="text-caption text-medium-emphasis mt-3"
+                                                                        class="mt-3 text-caption text-medium-emphasis"
                                                                     >
                                                                         <div
                                                                             v-if="
@@ -1480,7 +1480,7 @@ watch(
                                                                     </div>
 
                                                                     <div
-                                                                        class="text-caption text-medium-emphasis mt-4"
+                                                                        class="mt-4 text-caption text-medium-emphasis"
                                                                     >
                                                                         Importe
                                                                         original:
@@ -1491,7 +1491,7 @@ watch(
                                                                         }}
                                                                     </div>
                                                                     <div
-                                                                        class="text-h6 font-weight-bold mt-1"
+                                                                        class="mt-1 text-h6 font-weight-bold"
                                                                     >
                                                                         Saldo:
                                                                         {{
@@ -1528,7 +1528,7 @@ watch(
                                                                 Resumen rápido
                                                             </div>
                                                             <div
-                                                                class="text-body-2 mt-3"
+                                                                class="mt-3 text-body-2"
                                                             >
                                                                 Titular:
                                                                 <span
@@ -1540,7 +1540,7 @@ watch(
                                                                 </span>
                                                             </div>
                                                             <div
-                                                                class="text-body-2 mt-1"
+                                                                class="mt-1 text-body-2"
                                                             >
                                                                 No. cuenta:
                                                                 <span
@@ -1552,7 +1552,7 @@ watch(
                                                                 </span>
                                                             </div>
                                                             <div
-                                                                class="text-body-2 mt-1"
+                                                                class="mt-1 text-body-2"
                                                             >
                                                                 Próximo
                                                                 vencimiento:
@@ -1567,7 +1567,7 @@ watch(
                                                                 </span>
                                                             </div>
                                                             <div
-                                                                class="text-body-2 mt-1"
+                                                                class="mt-1 text-body-2"
                                                             >
                                                                 Total por
                                                                 cobrar:
@@ -1647,7 +1647,7 @@ watch(
                         aplicará
                     </v-card-subtitle>
 
-                    <v-card-text style="max-height:80vh" class="d-flex flex-column ga-4 overflow-y-auto">
+                    <v-card-text style="max-height:80vh" class="overflow-y-auto d-flex flex-column ga-4">
                     <v-form
                         ref="paymentFormRef"
                         validate-on="input"
@@ -1655,7 +1655,7 @@ watch(
                     >
                         <v-row v-if="selectedPaymentAccount">
                             <v-col cols="12" md="4">
-                                <v-card variant="tonal" color="primary"> 
+                                <v-card variant="tonal" color="primary">
                                     <v-card-text class="py-3">
                                          <v-avatar
                                             size="100"
@@ -1683,7 +1683,7 @@ watch(
                                             }}
                                         </div>
                                         <div
-                                            class="text-caption text-medium-emphasis mt-3"
+                                            class="mt-3 text-caption text-medium-emphasis"
                                         >
                                             No. cuenta
                                         </div>
@@ -1694,12 +1694,12 @@ watch(
                                         </div>
                                         <div
                                             v-if="selectedPaymentAccount.internal_account_number"
-                                            class="text-caption text-primary font-weight-medium mt-1"
+                                            class="mt-1 text-caption text-primary font-weight-medium"
                                         >
                                             <v-icon size="10" class="mr-1">mdi-pound</v-icon>{{ selectedPaymentAccount.internal_account_number }}
                                         </div>
                                         <div
-                                            class="text-caption text-medium-emphasis mt-3"
+                                            class="mt-3 text-caption text-medium-emphasis"
                                         >
                                             Total seleccionado
                                         </div>
@@ -1853,7 +1853,7 @@ watch(
                         </v-alert>
 
                         <div>
-                            <div class="text-subtitle-1 font-weight-bold mb-3">
+                            <div class="mb-3 text-subtitle-1 font-weight-bold">
                                 Cargos a aplicar
                             </div>
 
@@ -1935,7 +1935,7 @@ watch(
                                             </div>
 
                                             <div
-                                                class="d-flex flex-wrap ga-2 mt-3"
+                                                class="flex-wrap mt-3 d-flex ga-2"
                                             >
                                                 <v-chip
                                                     size="small"
@@ -1999,7 +1999,7 @@ watch(
                                                         charge,
                                                     )
                                                 "
-                                                class="text-caption text-medium-emphasis mt-3"
+                                                class="mt-3 text-caption text-medium-emphasis"
                                             >
                                                 <div
                                                     v-if="
@@ -2044,7 +2044,7 @@ watch(
                                                 </div>
                                             </div>
 
-                                            <div class="text-body-2 mt-3">
+                                            <div class="mt-3 text-body-2">
                                                 Saldo pendiente:
                                                 <span class="font-weight-bold">
                                                     {{
@@ -2158,7 +2158,7 @@ watch(
                             <v-card-text class="py-3">
                                 <div class="text-caption text-medium-emphasis">Titular</div>
                                 <div class="font-weight-bold">{{ annualAccount?.holder_name }}</div>
-                                <div class="text-caption text-medium-emphasis mt-2">No. cuenta</div>
+                                <div class="mt-2 text-caption text-medium-emphasis">No. cuenta</div>
                                 <div class="font-weight-medium">{{ annualAccount?.membership_number }}</div>
                             </v-card-text>
                         </v-card>
@@ -2271,7 +2271,7 @@ watch(
 
                             <v-card v-if="annualPreview && !annualPreviewLoading" variant="outlined">
                                 <v-card-text>
-                                    <div class="text-subtitle-2 font-weight-bold mb-3">
+                                    <div class="mb-3 text-subtitle-2 font-weight-bold">
                                         Resumen del pago
                                     </div>
 
@@ -2288,7 +2288,7 @@ watch(
                                             </span>
                                         </div>
 
-                                        <div class="text-body-2 mt-1">
+                                        <div class="mt-1 text-body-2">
                                             Total de cargos pendientes:
                                             <span class="font-weight-medium">{{ formatCurrency(annualPreview.total_balance) }}</span>
                                         </div>
@@ -2306,7 +2306,7 @@ watch(
                                                 Monto del descuento:
                                                 <span class="font-weight-bold">- {{ formatCurrency(annualPreview.discount_amount) }}</span>
                                             </div>
-                                            <div v-if="annualPreview.discount_rule.discount_months < 1" class="text-caption text-medium-emphasis mt-1">
+                                            <div v-if="annualPreview.discount_rule.discount_months < 1" class="mt-1 text-caption text-medium-emphasis">
                                                 El descuento se genera como saldo a favor acumulable.
                                                 Diciembre quedará con saldo pendiente de
                                                 {{ formatCurrency(annualPreview.total_balance / annualPreview.charges_count - annualPreview.discount_amount) }}.
