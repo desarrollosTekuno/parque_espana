@@ -117,23 +117,23 @@ class CommandController extends Controller {
                     'valid_to'     => Carbon::parse($user['valid_to'])->format('Y-m-d\TH:i:s'),
                 ];
             });
-                    
+
             return ['users' => $users->toArray()];
         }
-                    
+
         if ($action === 'delete_user') {
             return ['users' => collect($data['users'])->map(fn($u) => [
                 'employee_id' => $u['employee_id'],
             ])->toArray()];
         }
-                    
+
         if (in_array($action, ['create_card', 'update_card'])) {
             return ['cards' => collect($data['cards'])->map(fn($c) => [
                 'employee_id' => $c['employee_id'],
                 'card_no'     => $c['card_no'],
             ])->toArray()];
         }
-                    
+
         return $data;
     }
 
@@ -142,7 +142,6 @@ class CommandController extends Controller {
         try
         {
             $validator = Validator::make($request->query(), [
-                'ip'        => 'required|string',
                 'club_code' => ['required', new ExistsInSchema('clubs', 'clubs', 'code')],
             ]);
 
@@ -154,15 +153,17 @@ class CommandController extends Controller {
                 ], 422);
             }
 
-            $commands = Command::whereIn('status', ['pending', 'error'])
+            $commands = Command::with('device')
+                ->whereIn('status', ['pending', 'error'])
                 ->where('attempts', '<', 5)
                 ->whereHas('device', function ($query) use ($request) {
-                    $query->where('ip', $request->query('ip'))
-                        ->whereHas('club', function ($q) use ($request) {
+                    $query->whereHas('club', function ($q) use ($request) {
                              $q->where('code', $request->query('club_code'));
                          });
                 })
                 ->get();
+
+            // return $commands;
 
             return response()->json([
                 'success' => true,
