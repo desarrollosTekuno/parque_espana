@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web\AdminClub;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendPushNotificationJob;
 use App\Models\Administrator\Club;
 use App\Models\Billing\AnnualDiscountRule;
 use App\Models\Billing\Charge;
@@ -1298,6 +1299,20 @@ class CollectionController extends Controller
             });
 
             $totalPaid = round($payments->sum('amount'), 2);
+
+            // Notificación push al titular de la cuenta (asíncrona vía
+            // queue) — mismo criterio que BillingController::storePayment.
+            // No aplica en una venta "sin cuenta" (walk-in), ahí no hay
+            // ningún socio a quien notificar.
+            $userId = $account?->primaryHolder?->member?->user_id;
+            if ($userId) {
+                SendPushNotificationJob::dispatch(
+                    $userId,
+                    'Pago registrado',
+                    sprintf('Se registró un pago de $%s en tu cuenta.', number_format($totalPaid, 2)),
+                    ['screen' => 'AccountStatement', 'type' => 'account_statement', 'club_id' => (string) $clubId],
+                );
+            }
 
             return response()->json([
                 'success' => true,
