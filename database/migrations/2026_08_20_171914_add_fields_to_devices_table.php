@@ -15,6 +15,7 @@ return new class extends Migration
             $table->string('user', 50)->nullable()->after('ip');
             $table->string('password', 50)->nullable()->after('user');
             $table->string('port', 10)->nullable()->after('password');
+            $table->boolean('use_https')->default(false);
         });
     }
 
@@ -24,7 +25,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('devices.devices', function (Blueprint $table) {
-            $table->dropColumn(['user', 'password', 'port']);
+            $table->dropColumn(['user', 'password', 'port', 'use_https']);
         });
     }
 };

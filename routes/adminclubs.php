@@ -33,6 +33,7 @@ use App\Http\Controllers\Web\AdminClub\MemberDocumentController;
 use App\Http\Controllers\Web\AdminClub\LockerAssignmentController;
 use App\Http\Controllers\Web\AdminClub\LockerController;
 use App\Http\Controllers\Web\AdminClub\CashCutController;
+use App\Http\Controllers\Web\AdminClub\DocumentGeneratorController;
 use App\Http\Controllers\Web\AdminClub\GlobalCashCutController;
 use App\Http\Controllers\Web\AdminClub\DocumentTypeController;
 use App\Http\Controllers\Web\Administrator\EmailConfigController;
@@ -256,6 +257,10 @@ Route::resource('/files', FileController::class)->only(['index', 'store', 'updat
 Route::post('files/{file}/club-file', [FileController::class, 'uploadClubFile'])->name('files.club-file.upload');
 Route::delete('files/{file}/club-file', [FileController::class, 'destroyClubFile'])->name('files.club-file.destroy');
 Route::post('/files/variables', [FileController::class, 'previewVariables'])->name('files.variables');
+
+
+Route::get('documents/', [DocumentGeneratorController::class, 'index'])->name('index');
+Route::get('documents/{file}/download', [DocumentGeneratorController::class, 'download'])->name('download');
 
 
 // Acts
