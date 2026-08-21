@@ -1421,6 +1421,7 @@ class MemberController extends Controller
             'membership' => $this->buildSourceMembershipPayload($membership),
             'candidateMembers' => $candidateMembers->values(),
             'separationReasons' => $this->buildSeparationReasonOptions(),
+            ...$this->getCreateFormCatalogs(),
         ]);
     }
 
@@ -1455,6 +1456,32 @@ class MemberController extends Controller
                 'separation_reason_id' => ['nullable', new ExistsInSchema('memberships', 'separation_reasons', 'id')],
                 'reason' => ['nullable', 'string', 'max:255'],
                 'reason_document' => ['nullable', 'file'],
+                'member' => ['required', 'array'],
+                'member.first_name' => ['required', 'string', 'max:255'],
+                'member.last_name' => ['required', 'string', 'max:255'],
+                'member.second_last_name' => ['nullable', 'string', 'max:255'],
+                'member.birthdate' => ['nullable', 'date'],
+                'member.birth_place' => ['nullable', 'string', 'max:255'],
+                'member.birth_country_id' => ['nullable', new ExistsInSchema('catalogs', 'countries', 'id')],
+                'member.birth_state_id' => ['nullable', new ExistsInSchema('catalogs', 'states', 'id')],
+                'member.birth_city_id' => ['nullable', new ExistsInSchema('catalogs', 'cities', 'id')],
+                'member.nationality_id' => ['nullable', new ExistsInSchema('catalogs', 'countries', 'id')],
+                'member.marital_status_id' => ['nullable', new ExistsInSchema('catalogs', 'marital_statuses', 'id')],
+                'member.phone' => ['nullable', 'string', 'max:50'],
+                'member.email' => ['nullable', 'email', 'max:255'],
+                'member.occupation' => ['nullable', 'string', 'max:255'],
+                'member.address' => ['nullable', 'array'],
+                'member.address.street' => ['nullable', 'string', 'max:255'],
+                'member.address.neighborhood' => ['nullable', 'string', 'max:255'],
+                'member.address.postal_code' => ['nullable', 'string', 'max:10'],
+                'member.address.country_id' => ['nullable', new ExistsInSchema('catalogs', 'countries', 'id')],
+                'member.address.state_id' => ['nullable', new ExistsInSchema('catalogs', 'states', 'id')],
+                'member.address.city_id' => ['nullable', new ExistsInSchema('catalogs', 'cities', 'id')],
+                'member.address.years_in_city' => ['nullable', 'integer', 'min:0', 'max:999'],
+                'member.employment' => ['nullable', 'array'],
+                'member.employment.company_name' => ['nullable', 'string', 'max:255'],
+                'member.employment.company_address' => ['nullable', 'string', 'max:255'],
+                'member.employment.company_phone' => ['nullable', 'string', 'max:50'],
             ]);
 
             $accountMember = $membership->account->accountMembers
@@ -1565,7 +1592,42 @@ class MemberController extends Controller
 
             $existingAccountGroup = $existingPrimaryMembership?->account?->accountGroup;
 
-            DB::transaction(function () use ($membership, $accountMember, $targetMembershipType, $selectedTargetOption, $titularRelationshipId, $reason, $existingAccountGroup, $existingPrimaryMembership) {
+            $memberData = $validated['member'];
+
+            DB::transaction(function () use ($membership, $accountMember, $targetMembershipType, $selectedTargetOption, $titularRelationshipId, $reason, $existingAccountGroup, $existingPrimaryMembership, $memberData) {
+                $member = $accountMember->member;
+
+                $member->update(array_filter([
+                    'first_name' => $memberData['first_name'] ?? null,
+                    'last_name' => $memberData['last_name'] ?? null,
+                    'second_last_name' => $memberData['second_last_name'] ?? null,
+                    'birthdate' => $memberData['birthdate'] ?? null,
+                    'birth_place' => $memberData['birth_place'] ?? null,
+                    'birth_country_id' => $memberData['birth_country_id'] ?? null,
+                    'birth_state_id' => $memberData['birth_state_id'] ?? null,
+                    'birth_city_id' => $memberData['birth_city_id'] ?? null,
+                    'nationality_id' => $memberData['nationality_id'] ?? null,
+                    'marital_status_id' => $memberData['marital_status_id'] ?? null,
+                    'phone' => $memberData['phone'] ?? null,
+                    'email' => $memberData['email'] ?? null,
+                    'occupation' => $memberData['occupation'] ?? null,
+                ], fn ($value) => $value !== null));
+
+                $addressData = array_filter($memberData['address'] ?? [], fn ($value) => $value !== null && $value !== '');
+                if (!empty($addressData)) {
+                    Address::updateOrCreate([
+                        'member_id' => $member->id,
+                        'is_primary' => true,
+                    ], $addressData);
+                }
+
+                $employmentData = array_filter($memberData['employment'] ?? [], fn ($value) => $value !== null && $value !== '');
+                if (!empty($employmentData)) {
+                    EmploymentInfo::updateOrCreate([
+                        'member_id' => $member->id,
+                    ], $employmentData);
+                }
+
                 $newAccount = $this->createMembershipAccount(
                     club: $membership->club,
                     accountType: $targetMembershipType->allows_multiple_members ? 'family' : 'individual',
@@ -3476,6 +3538,35 @@ class MemberController extends Controller
 
                 return [
                     ...$memberPayload,
+                    'prefill' => [
+                        'first_name' => $accountMember->member?->first_name,
+                        'last_name' => $accountMember->member?->last_name,
+                        'second_last_name' => $accountMember->member?->second_last_name,
+                        'birthdate' => $accountMember->member?->birthdate,
+                        'birth_place' => $accountMember->member?->birth_place,
+                        'birth_country_id' => $accountMember->member?->birth_country_id,
+                        'birth_state_id' => $accountMember->member?->birth_state_id,
+                        'birth_city_id' => $accountMember->member?->birth_city_id,
+                        'nationality_id' => $accountMember->member?->nationality_id,
+                        'marital_status_id' => $accountMember->member?->marital_status_id,
+                        'phone' => $accountMember->member?->phone,
+                        'email' => $accountMember->member?->email,
+                        'occupation' => $accountMember->member?->occupation,
+                        'address' => [
+                            'street' => $accountMember->member?->primaryAddress?->street,
+                            'neighborhood' => $accountMember->member?->primaryAddress?->neighborhood,
+                            'postal_code' => $accountMember->member?->primaryAddress?->postal_code,
+                            'country_id' => $accountMember->member?->primaryAddress?->country_id,
+                            'state_id' => $accountMember->member?->primaryAddress?->state_id,
+                            'city_id' => $accountMember->member?->primaryAddress?->city_id,
+                            'years_in_city' => $accountMember->member?->primaryAddress?->years_in_city,
+                        ],
+                        'employment' => [
+                            'company_name' => $accountMember->member?->employmentInfo?->company_name,
+                            'company_address' => $accountMember->member?->employmentInfo?->company_address,
+                            'company_phone' => $accountMember->member?->employmentInfo?->company_phone,
+                        ],
+                    ],
                     'age' => $age,
                     'has_other_club_membership' => $hasOtherClub,
                     'other_club_name' => $otherClubName,

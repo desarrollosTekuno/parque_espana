@@ -150,7 +150,8 @@ const props = withDefaults(defineProps<Props>(), {
 // ─── Stepper (only for new mode) ──────────────────────────────────────────────
 
 const step = ref(1);
-const steps = ["Datos del familiar", "Documentos", "Confirmación"];
+// const steps = ["Datos del familiar", "Documentos", "Confirmación"];
+const steps = ["Datos del familiar",  "Confirmación"];
 const memberStepRef = ref();
 const documentsStepRef = ref();
 
@@ -638,8 +639,8 @@ const submit = async () => {
                     <v-container class="py-6">
 
                         <!-- Resumen de la cuenta familiar -->
-                        <v-card class="pa-4 mb-4" variant="tonal">
-                            <div class="text-subtitle-1 font-weight-bold mb-2">
+                        <v-card class="mb-4 pa-4" variant="tonal">
+                            <div class="mb-2 text-subtitle-1 font-weight-bold">
                                 Cuenta familiar
                             </div>
                             <p>
@@ -689,11 +690,11 @@ const submit = async () => {
                         <template v-if="mode === 'existing'">
                             <v-form ref="existingFormRef">
                                 <v-card class="pa-4">
-                                    <div class="text-subtitle-1 font-weight-bold mb-4">
+                                    <div class="mb-4 text-subtitle-1 font-weight-bold">
                                         Integrantes disponibles del grupo
                                     </div>
 
-                                    <p class="text-body-2 text-medium-emphasis mb-4">
+                                    <p class="mb-4 text-body-2 text-medium-emphasis">
                                         Estos integrantes ya existen en la otra cuenta del titular
                                         y pueden agregarse a esta cuenta sin crear un registro nuevo.
                                     </p>
@@ -708,7 +709,7 @@ const submit = async () => {
                                             <v-card
                                                 :variant="selectedGroupMemberId === member.member_id ? 'tonal' : 'outlined'"
                                                 :color="selectedGroupMemberId === member.member_id ? 'primary' : undefined"
-                                                class="pa-4 cursor-pointer"
+                                                class="cursor-pointer pa-4"
                                                 style="cursor: pointer;"
                                                 @click="selectedGroupMemberId = member.member_id"
                                             >
@@ -746,7 +747,7 @@ const submit = async () => {
 
                                     <v-divider class="my-4" />
 
-                                    <div class="text-subtitle-2 font-weight-bold mb-3">
+                                    <div class="mb-3 text-subtitle-2 font-weight-bold">
                                         Parentesco en esta cuenta
                                     </div>
 
@@ -764,7 +765,7 @@ const submit = async () => {
                                         </v-col>
                                     </v-row>
 
-                                    <div class="d-flex justify-end ga-2 mt-4">
+                                    <div class="justify-end mt-4 d-flex ga-2">
                                         <v-btn
                                             variant="text"
                                             @click="router.visit(route('members.manage.show', props.membership.id))"
@@ -789,14 +790,12 @@ const submit = async () => {
                         <template v-if="mode === 'new'">
                             <v-stepper v-model="step" :items="steps" show-actions>
 
-                                <!-- ══════════════════════════════
-                                     PASO 1 — Datos del familiar
-                                ══════════════════════════════ -->
+                                <!-- ══════════════════════════════ PASO 1 — Datos del familiar ══════════════════════════════ -->
                                 <template #item.1>
                                     <v-form ref="memberStepRef">
                                         <v-container class="overflow-auto h-[500px]">
                                             <v-card class="pa-4">
-                                                <div class="text-subtitle-1 font-weight-bold mb-4">
+                                                <div class="mb-4 text-subtitle-1 font-weight-bold">
                                                     Datos del nuevo familiar
                                                 </div>
 
@@ -884,7 +883,7 @@ const submit = async () => {
                                                 <template v-if="isSpouseRelationship">
                                                     <v-row class="mt-2">
                                                         <v-col cols="12">
-                                                            <h5 class="text-subtitle-2 font-weight-bold mb-2">
+                                                            <h5 class="mb-2 text-subtitle-2 font-weight-bold">
                                                                 Datos adicionales (cónyuge)
                                                             </h5>
                                                         </v-col>
@@ -980,7 +979,7 @@ const submit = async () => {
                                                     <!-- Domicilio (cónyuge) -->
                                                     <v-row class="mt-2">
                                                         <v-col cols="12">
-                                                            <h5 class="text-subtitle-2 font-weight-bold mb-2">
+                                                            <h5 class="mb-2 text-subtitle-2 font-weight-bold">
                                                                 Domicilio
                                                             </h5>
                                                         </v-col>
@@ -1061,7 +1060,7 @@ const submit = async () => {
                                                     <!-- Información laboral (cónyuge) -->
                                                     <v-row class="mt-2">
                                                         <v-col cols="12">
-                                                            <h5 class="text-subtitle-2 font-weight-bold mb-2">
+                                                            <h5 class="mb-2 text-subtitle-2 font-weight-bold">
                                                                 Información laboral
                                                             </h5>
                                                         </v-col>
@@ -1099,21 +1098,19 @@ const submit = async () => {
                                     </v-form>
                                 </template>
 
-                                <!-- ══════════════════════════════
-                                     PASO 2 — Documentos
-                                ══════════════════════════════ -->
-                                <template #item.2>
+                                <!-- ══════════════════════════════ PASO 2 — Documentos ══════════════════════════════ -->
+                                <!-- <template>
                                     <v-form ref="documentsStepRef">
                                         <v-container class="h-[500px] overflow-auto">
                                             <div class="mb-4">
-                                                <h3 class="text-h6 mb-1">Documentos</h3>
-                                                <p class="text-body-2 text-medium-emphasis mb-0">
+                                                <h3 class="mb-1 text-h6">Documentos</h3>
+                                                <p class="mb-0 text-body-2 text-medium-emphasis">
                                                     Carga los documentos requeridos para este integrante.
                                                 </p>
                                             </div>
 
                                             <v-card class="pa-4">
-                                                <h4 class="text-subtitle-1 font-weight-bold mb-4">
+                                                <h4 class="mb-4 text-subtitle-1 font-weight-bold">
                                                     {{ relationshipName || "Integrante" }}
                                                     <span
                                                         v-if="form.first_name || form.last_name"
@@ -1143,7 +1140,7 @@ const submit = async () => {
                                                         cols="12"
                                                         md="6"
                                                     >
-                                                        <div class="mb-2 d-flex align-center justify-space-between flex-wrap ga-1">
+                                                        <div class="flex-wrap mb-2 d-flex align-center justify-space-between ga-1">
                                                             <span class="font-weight-medium">
                                                                 {{ doc.name }}
                                                                 <span v-if="doc.is_required" class="text-error">*</span>
@@ -1186,17 +1183,15 @@ const submit = async () => {
                                             </v-card>
                                         </v-container>
                                     </v-form>
-                                </template>
+                                </template> -->
 
-                                <!-- ══════════════════════════════
-                                     PASO 3 — Confirmación
-                                ══════════════════════════════ -->
-                                <template #item.3>
+                                <!-- ══════════════════════════════ PASO 3 — Confirmación ══════════════════════════════ -->
+                                <template #item.2>
                                     <v-container class="h-[500px] overflow-auto">
-                                        <h3 class="text-title-large mb-4">Confirmación</h3>
+                                        <h3 class="mb-4 text-title-large">Confirmación</h3>
 
-                                        <v-card class="pa-4 mb-4">
-                                            <p class="text-subtitle-2 font-weight-bold mb-2">
+                                        <v-card class="mb-4 pa-4">
+                                            <p class="mb-2 text-subtitle-2 font-weight-bold">
                                                 Cuenta familiar
                                             </p>
                                             <p>
@@ -1213,8 +1208,8 @@ const submit = async () => {
                                             </p>
                                         </v-card>
 
-                                        <v-card class="pa-4 mb-4">
-                                            <p class="text-subtitle-2 font-weight-bold mb-2">
+                                        <v-card class="mb-4 pa-4">
+                                            <p class="mb-2 text-subtitle-2 font-weight-bold">
                                                 Nuevo familiar
                                             </p>
                                             <p>
@@ -1230,26 +1225,6 @@ const submit = async () => {
                                             <p v-if="form.email">
                                                 <strong>Correo:</strong> {{ form.email }}
                                             </p>
-                                        </v-card>
-
-                                        <!-- Resumen de documentos -->
-                                        <v-card v-if="form.documents.length > 0" class="pa-4 mb-4">
-                                            <p class="text-subtitle-2 font-weight-bold mb-2">
-                                                Documentos a cargar
-                                            </p>
-                                            <v-list density="compact">
-                                                <v-list-item
-                                                    v-for="doc in form.documents"
-                                                    :key="doc.document_type_id"
-                                                    :prepend-icon="doc.files.length > 0 ? 'mdi-check-circle' : 'mdi-circle-outline'"
-                                                    :base-color="doc.files.length > 0 ? 'success' : (doc.is_required ? 'error' : 'default')"
-                                                >
-                                                    {{ doc.name }}
-                                                    <span class="text-caption text-medium-emphasis ml-1">
-                                                        ({{ doc.files.length > 0 ? doc.files.length + ' archivo(s)' : (doc.is_required ? 'Requerido — sin archivo' : 'Opcional — sin archivo') }})
-                                                    </span>
-                                                </v-list-item>
-                                            </v-list>
                                         </v-card>
 
                                         <v-alert type="info" variant="tonal">

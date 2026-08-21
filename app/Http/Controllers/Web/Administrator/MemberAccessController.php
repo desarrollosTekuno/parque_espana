@@ -11,7 +11,6 @@ use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 
 class MemberAccessController extends Controller
@@ -71,7 +70,6 @@ class MemberAccessController extends Controller
         $validator = Validator::make($request->all(), [
             'member_id' => ['required', 'integer'],
             'email'     => ['required', 'email', 'unique:users,email'],
-            'password'  => ['required', 'confirmed', Password::min(8)],
         ]);
 
         if ($validator->fails()) {
@@ -81,6 +79,17 @@ class MemberAccessController extends Controller
                     $validator->errors()->toArray()
                 )
             );
+        }
+
+        $defaultPassword = AppVariable::whereNull('club_id')
+            ->where('name', 'default_user_password')
+            ->value('value');
+
+        if (!$defaultPassword) {
+            return redirect()->back()->withErrors([
+                'messageError' => 'No se encontró la contraseña global por defecto de la app móvil.',
+                'exception'    => '',
+            ]);
         }
 
         DB::beginTransaction();
@@ -104,7 +113,7 @@ class MemberAccessController extends Controller
             $user = User::create([
                 'name'     => $member->full_name,
                 'email'    => $request->email,
-                'password' => Hash::make($request->password),
+                'password' => Hash::make($defaultPassword),
             ]);
 
             $member->update(['user_id' => $user->id, 'email' => $request->email]);
@@ -123,7 +132,7 @@ class MemberAccessController extends Controller
     }
 
     /**
-     * Reinicia la contraseña del usuario con el valor configurado para el club.
+     * Reinicia la contraseña del usuario con el valor global configurado.
      */
     public function resetPassword(Member $member)
     {
@@ -134,13 +143,13 @@ class MemberAccessController extends Controller
                 ], 422);
             }
 
-            $defaultPassword = AppVariable::where('club_id', session('club_id'))
+            $defaultPassword = AppVariable::whereNull('club_id')
                 ->where('name', 'default_user_password')
                 ->value('value');
 
             if (!$defaultPassword) {
                 return response()->json([
-                    'message' => 'No se encontró la contraseña por defecto del club.',
+                    'message' => 'No se encontró la contraseña por defecto de la app móvil.',
                 ], 422);
             }
 

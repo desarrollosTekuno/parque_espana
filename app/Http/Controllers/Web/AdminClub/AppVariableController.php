@@ -30,7 +30,10 @@ class AppVariableController extends Controller {
         $prefix = 'appVariables';
 
         // Query base
-        $query = AppVariable::where('club_id', $clubId);
+        $query = AppVariable::where(function ($query) use ($clubId) {
+            $query->where('club_id', $clubId)
+                ->orWhereNull('club_id');
+        });
 
         if ($search = $request->input("{$prefix}_search")) {
 
@@ -61,20 +64,27 @@ class AppVariableController extends Controller {
     public function store(Request $request)
     {
         try {
+            $scope = $request->name === 'default_user_password' ? 'global' : $request->scope;
+            $clubId = $scope === 'global' ? null : session('club_id');
 
             $validated = $request->validate([
+                'scope' => ['required', Rule::in(['global', 'club'])],
                 'name' => [
                     'required',
                     'string',
                     'max:50',
                     Rule::unique(AppVariable::class, 'name')
-                        ->where(fn ($query) => $query->where('club_id', session('club_id'))),
+                        ->where(fn ($query) => is_null($clubId)
+                            ? $query->whereNull('club_id')
+                            : $query->where('club_id', $clubId)),
                 ],
                 'description' => 'required|string|max:255',
                 'value' => 'required|string|max:100',
             ]);
 
-            AppVariable::create(array_merge($validated, ['club_id' => session('club_id')]));
+            unset($validated['scope']);
+
+            AppVariable::create(array_merge($validated, ['club_id' => $clubId]));
             return redirect()->back()->with('success', 'Variable creada correctamente');
 
         } catch (\Exception $e) {
@@ -88,21 +98,28 @@ class AppVariableController extends Controller {
     public function update(Request $request, AppVariable $appVariable)
     {
         try {
+            $scope = $request->name === 'default_user_password' ? 'global' : $request->scope;
+            $clubId = $scope === 'global' ? null : session('club_id');
 
             $validated = $request->validate([
+                'scope' => ['required', Rule::in(['global', 'club'])],
                 'name' => [
                     'required',
                     'string',
                     'max:50',
                     Rule::unique(AppVariable::class, 'name')
                         ->ignore($appVariable->id)
-                        ->where(fn ($query) => $query->where('club_id', session('club_id'))),
+                        ->where(fn ($query) => is_null($clubId)
+                            ? $query->whereNull('club_id')
+                            : $query->where('club_id', $clubId)),
                 ],
                 'description' => 'required|string|max:255',
                 'value' => 'required|string|max:100',
             ]);
 
-            $appVariable->update($validated);
+            unset($validated['scope']);
+
+            $appVariable->update(array_merge($validated, ['club_id' => $clubId]));
             return redirect()->back()->with('success', 'Variable actualizada correctamente');
 
         } catch (\Exception $e) {

@@ -39,11 +39,16 @@ const virtualTourPreview = ref<string | null>(null);
 const pendingVirtualTourImages = ref<PendingVirtualTourImage[]>([]);
 const savingVirtualTourImages = ref(false);
 const virtualTourImageError = ref("");
+const today = new Date().toLocaleDateString("en-CA");
+const editingCarouselImage = ref<any | null>(null);
 
 /* ====================== useForm ====================== */
 const form = useForm<{ images: File[]; descriptions: string[] }>({
     images: [],
     descriptions: [],
+});
+const descriptionForm = useForm<{ description: string }>({
+    description: "",
 });
 const cardForm = useForm<{ category: string; image: File | null }>({
     category: "",
@@ -65,7 +70,7 @@ const eventForm = useForm<{ id: number | null; title: string; start_date: string
 /* ====================== Computed ====================== */
 const can = computed<string[]>(() => page.props.auth.permissions ?? []);
 const selectedCount = computed(() => form.images.length);
-const cardLimitReached = computed(() => props.homeCards.length >= 8);
+const cardLimitReached = computed(() => props.homeCards.length >= 10);
 
 /* ====================== Funciones ====================== */
 const openFilePicker = () => {
@@ -75,6 +80,8 @@ const openFilePicker = () => {
 const addFiles = (files: File[]) => {
     const imageFiles = files.filter((file) => file.type.startsWith("image/"));
     const available = 5 - props.carouselImages.length - form.images.length;
+
+    form.clearErrors();
 
     if (imageFiles.length > available) {
         customToastSwal({
@@ -100,6 +107,11 @@ const dropFiles = (event: DragEvent) => {
 const removeSelected = (index: number) => {
     form.images = form.images.filter((_, imageIndex) => imageIndex !== index);
     form.descriptions = form.descriptions.filter((_, descriptionIndex) => descriptionIndex !== index);
+    form.clearErrors();
+};
+
+const getCarouselImageError = (index: number) => {
+    return (form.errors as Record<string, string>)[`images.${index}`];
 };
 
 const clearSelection = () => {
@@ -120,7 +132,9 @@ const save = () => {
         },
         onError: (errors) => {
             customToastSwal({
-                title: Object.values(errors)[0] || "No se pudieron guardar las imágenes",
+                title: Object.keys(errors).some((key) => key.startsWith("images."))
+                    ? "Revisa el error indicado en cada imagen"
+                    : Object.values(errors)[0] || "No se pudieron guardar las imágenes",
                 icon: "error",
             });
         },
@@ -145,21 +159,49 @@ const destroy = (image: any) => {
     });
 };
 
-const openCardFilePicker = () => {
-    if (!cardForm.category) {
-        customToastSwal({
-            title: "Primero escribe el nombre de la categoría",
-            icon: "warning",
-        });
+const editDescription = (image: any) => {
+    editingCarouselImage.value = image;
+    descriptionForm.description = image.description ?? "";
+    descriptionForm.clearErrors();
+};
+
+const cancelEditDescription = () => {
+    editingCarouselImage.value = null;
+    descriptionForm.reset();
+    descriptionForm.clearErrors();
+};
+
+const saveDescription = () => {
+    if (!editingCarouselImage.value) {
         return;
     }
 
+    descriptionForm.put(route("website-content.descriptions.update", editingCarouselImage.value.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            editingCarouselImage.value = null;
+            customToastSwal({
+                title: page.props.flash.success || "Descripción actualizada correctamente",
+                icon: "success",
+            });
+        },
+        onError: (errors) => {
+            customToastSwal({
+                title: Object.values(errors)[0] || "No se pudo actualizar la descripción",
+                icon: "error",
+            });
+        },
+    });
+};
+
+const openCardFilePicker = () => {
     cardFileInput.value?.click();
 };
 
 const selectCardFiles = (event: Event) => {
     const input = event.target as HTMLInputElement;
     const file = Array.from(input.files ?? []).find((item) => item.type.startsWith("image/"));
+    cardForm.clearErrors();
     cardForm.image = file ?? null;
     input.value = "";
 };
@@ -182,7 +224,9 @@ const saveCards = () => {
         },
         onError: (errors) => {
             customToastSwal({
-                title: Object.values(errors)[0] || "No se pudo guardar la categoría",
+                title: errors.image
+                    ? "Revisa el error indicado en la imagen"
+                    : Object.values(errors)[0] || "No se pudo guardar la categoría",
                 icon: "error",
             });
         },
@@ -479,11 +523,37 @@ onUnmounted(() => {
                     >
                         <v-card variant="outlined" class="media-card h-100 position-relative">
                             <v-img :src="image.image_url" aspect-ratio="1.5" cover />
-                            <v-card-text class="text-subtitle-1">
+                            <v-card-text
+                                v-if="editingCarouselImage?.id !== image.id"
+                                class="text-subtitle-1"
+                            >
                                 {{ image.description || "Sin descripción" }}
                             </v-card-text>
+                            <v-card-text v-else>
+                                <v-text-field
+                                    v-model="descriptionForm.description"
+                                    label="Descripción corta"
+                                    maxlength="100"
+                                    counter="100"
+                                    density="compact"
+                                    hide-details="auto"
+                                    :error-messages="descriptionForm.errors.description"
+                                />
+                            </v-card-text>
+                            <v-card-actions
+                                v-if="can.includes('website-content.store') && editingCarouselImage?.id !== image.id"
+                                class="justify-end pt-0"
+                            >
+                                <BaseButton action="edit" tooltip="Editar descripción" @click="editDescription(image)" />
+                            </v-card-actions>
+                            <v-card-actions v-else-if="editingCarouselImage?.id === image.id" class="justify-end pt-0">
+                                <v-btn variant="text" @click="cancelEditDescription">Cancelar</v-btn>
+                                <v-btn color="primary" :loading="descriptionForm.processing" @click="saveDescription">
+                                    Guardar
+                                </v-btn>
+                            </v-card-actions>
                             <div
-                                v-if="can.includes('website-content.destroy')"
+                                v-if="can.includes('website-content.destroy') && carouselImages.length > 3"
                                 class="saved-delete-button"
                             >
                                 <BaseButton action="delete" @click="destroy(image)" />
@@ -512,12 +582,22 @@ onUnmounted(() => {
                                     v-model="form.descriptions[index]"
                                     label="Descripción corta"
                                     placeholder="Ej. Natación"
-                                    maxlength="100"
+                                    maxlength="50"
                                     counter="100"
                                     density="compact"
                                     hide-details="auto"
                                     :error-messages="(form.errors as any)[`descriptions.${index}`]"
                                 />
+                                <v-alert
+                                    v-if="getCarouselImageError(index)"
+                                    type="error"
+                                    variant="tonal"
+                                    density="compact"
+                                    class="mt-3"
+                                >
+                                    <div class="font-weight-bold">{{ image.name }}</div>
+                                    <div>{{ getCarouselImageError(index) }}</div>
+                                </v-alert>
                             </v-card-text>
                         </v-card>
                     </v-col>
@@ -575,80 +655,33 @@ onUnmounted(() => {
                 Cards de inicio
             </v-card-title>
             <v-card-subtitle>
-                Cada categoría tiene una sola imagen. Máximo 8 cards.
+                Cada categoría tiene una sola imagen. Máximo 10 cards.
             </v-card-subtitle>
 
             <v-card-text>
+                <div class="mb-4 d-flex align-center ga-2">
+                    <div class="text-h6">Cards guardadas</div>
+                    <v-chip size="small" color="primary" variant="tonal">
+                        {{ homeCards.length }}
+                    </v-chip>
+                    <v-chip v-if="cardForm.image" size="small" color="warning" variant="tonal">
+                        1 pendiente
+                    </v-chip>
+                </div>
+
                 <v-alert v-if="cardLimitReached" type="warning" variant="tonal" class="mb-5">
-                    Llegaste al máximo de 8 cards. Elimina una existente para agregar otra.
+                    Llegaste al máximo de 10 cards. Elimina una existente para agregar otra.
                 </v-alert>
 
+                <input
+                    ref="cardFileInput"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    class="d-none"
+                    @change="selectCardFiles"
+                />
+
                 <v-row>
-                    <v-col v-if="can.includes('website-content.store') && !cardLimitReached" cols="12" sm="6" md="4">
-                        <v-card variant="outlined" class="media-card h-100 position-relative">
-                            <input
-                                ref="cardFileInput"
-                                type="file"
-                                accept="image/jpeg,image/png,image/webp"
-                                class="d-none"
-                                @change="selectCardFiles"
-                            />
-
-                            <div v-if="cardPreview" class="position-relative">
-                                <v-img :src="cardPreview" aspect-ratio="0.75" cover />
-                                <div class="pending-image-label">Pendiente por subir</div>
-                                <v-btn
-                                    class="remove-image-button"
-                                    icon="mdi-close"
-                                    size="x-small"
-                                    color="error"
-                                    @click="cardForm.image = null"
-                                />
-                            </div>
-                            <div
-                                v-else
-                                class="upload-zone card-upload-zone"
-                                role="button"
-                                tabindex="0"
-                                @click="openCardFilePicker"
-                                @keydown.enter="openCardFilePicker"
-                            >
-                                <v-icon icon="mdi-image-plus-outline" size="32" color="primary" />
-                                <div class="mt-2 text-subtitle-1 font-weight-bold">Agregar imagen</div>
-                                <div class="mt-1 text-caption text-medium-emphasis">
-                                    750 × 1000 px · máximo 5 MB
-                                </div>
-                            </div>
-
-                            <v-card-text>
-                                <v-text-field
-                                    v-model="cardForm.category"
-                                    label="Nombre de la categoría"
-                                    maxlength="30"
-                                    density="compact"
-                                    hide-details="auto"
-                                    :error-messages="cardForm.errors.category"
-                                />
-                                <v-alert v-if="cardForm.errors.image" type="error" variant="tonal" class="mt-3">
-                                    {{ cardForm.errors.image }}
-                                </v-alert>
-                            </v-card-text>
-
-                            <v-card-actions class="justify-end pt-0">
-                                <v-btn variant="text" @click="clearCardForm">Cancelar</v-btn>
-                                <v-btn
-                                    color="primary"
-                                    prepend-icon="mdi-content-save"
-                                    :loading="cardForm.processing"
-                                    :disabled="!cardForm.category || !cardForm.image"
-                                    @click="saveCards"
-                                >
-                                    Guardar
-                                </v-btn>
-                            </v-card-actions>
-                        </v-card>
-                    </v-col>
-
                     <v-col
                         v-for="card in homeCards"
                         :key="card.id"
@@ -658,7 +691,7 @@ onUnmounted(() => {
                     >
                         <v-card variant="outlined" class="media-card position-relative">
                             <v-img :src="card.image_url" aspect-ratio="0.75" cover />
-                            <v-card-title>{{ card.category }}</v-card-title>
+                            <v-card-title v-if="card.category">{{ card.category }}</v-card-title>
                             <div
                                 v-if="can.includes('website-content.destroy')"
                                 class="saved-delete-button"
@@ -672,7 +705,69 @@ onUnmounted(() => {
                             </div>
                         </v-card>
                     </v-col>
+
+                    <v-col v-if="cardPreview" cols="12" sm="4" md="3">
+                        <v-card variant="outlined" class="media-card h-100 position-relative">
+                            <v-img :src="cardPreview" aspect-ratio="0.75" cover />
+                            <v-btn
+                                class="remove-image-button"
+                                icon="mdi-close"
+                                size="x-small"
+                                color="error"
+                                @click="clearCardForm"
+                            />
+                            <v-card-text>
+                                <v-text-field
+                                    v-model="cardForm.category"
+                                    label="Nombre de la categoría (opcional)"
+                                    maxlength="30"
+                                    density="compact"
+                                    hide-details="auto"
+                                    :error-messages="cardForm.errors.category"
+                                />
+                                <v-alert v-if="cardForm.errors.image" type="error" variant="tonal" class="mt-3">
+                                    <div class="font-weight-bold">{{ cardForm.image?.name }}</div>
+                                    <div>{{ cardForm.errors.image }}</div>
+                                </v-alert>
+                            </v-card-text>
+                        </v-card>
+                    </v-col>
+
+                    <v-col
+                        v-if="can.includes('website-content.store') && !cardLimitReached && !cardForm.image"
+                        cols="12"
+                        sm="4"
+                        md="3"
+                    >
+                        <div
+                            class="upload-zone card-upload-zone"
+                            role="button"
+                            tabindex="0"
+                            @click="openCardFilePicker"
+                            @keydown.enter="openCardFilePicker"
+                        >
+                            <v-icon icon="mdi-image-plus-outline" size="32" color="primary" />
+                            <div class="mt-2 text-subtitle-1 font-weight-bold">Agregar imagen</div>
+                            <div class="mt-1 text-caption text-medium-emphasis">
+                                750 × 1000 px · máximo 5 MB
+                            </div>
+                        </div>
+                    </v-col>
                 </v-row>
+
+                <div v-if="cardForm.image" class="justify-end mt-4 d-flex align-center ga-2">
+                    <v-btn variant="text" color="error" @click="clearCardForm">
+                        Limpiar selección
+                    </v-btn>
+                    <v-btn
+                        color="primary"
+                        prepend-icon="mdi-upload"
+                        :loading="cardForm.processing"
+                        @click="saveCards"
+                    >
+                        Guardar imagen
+                    </v-btn>
+                </div>
 
                 <v-alert v-if="!homeCards.length" type="info" variant="tonal">
                     No hay categorías registradas.
@@ -758,7 +853,10 @@ onUnmounted(() => {
                                     density="compact"
                                     class="mx-4 mb-4"
                                 >
-                                    {{ getPendingVirtualTourImage(section.name, slot.title)?.error }}
+                                    <div class="font-weight-bold">
+                                        {{ getPendingVirtualTourImage(section.name, slot.title)?.image.name }}
+                                    </div>
+                                    <div>{{ getPendingVirtualTourImage(section.name, slot.title)?.error }}</div>
                                 </v-alert>
                             </v-card>
                             <v-card v-else-if="slot.image" variant="outlined" class="media-card h-100">
@@ -830,7 +928,7 @@ onUnmounted(() => {
                                     v-model="eventForm.title"
                                     label="Título"
                                     placeholder="Ej. Curso de verano"
-                                    maxlength="100"
+                                    maxlength="50"
                                     hide-details="auto"
                                     :error-messages="eventForm.errors.title"
                                 />
@@ -840,6 +938,7 @@ onUnmounted(() => {
                                     v-model="eventForm.start_date"
                                     label="Fecha de inicio"
                                     type="date"
+                                    :min="today"
                                     hide-details="auto"
                                     :error-messages="eventForm.errors.start_date"
                                 />
@@ -849,6 +948,7 @@ onUnmounted(() => {
                                     v-model="eventForm.end_date"
                                     label="Fecha de fin"
                                     type="date"
+                                    :min="eventForm.start_date || today"
                                     hide-details="auto"
                                     :error-messages="eventForm.errors.end_date"
                                 />
@@ -946,6 +1046,7 @@ onUnmounted(() => {
                 </v-alert>
             </v-card-text>
         </v-card>
+
     </AppLayout>
 </template>
 
