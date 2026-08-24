@@ -22,7 +22,10 @@ class ShareClubData
             /** @var \App\Models\User $user */
             $user = Auth::user();
 
-            $clubs = $user->clubs()->select('clubs.id','clubs.name', 'clubs.logo_path')->get();
+            $clubs = $user->clubs()
+                ->select('clubs.id', 'clubs.name', 'clubs.logo_path')
+                ->orderBy('clubs.name')
+                ->get();
 
             if (!session()->has('club_id') && $clubs->count()) {
                 session(['club_id' => $clubs->first()->id]);
