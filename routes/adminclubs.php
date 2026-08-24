@@ -100,6 +100,7 @@ Route::post('/cafeteria-visits', [CafeteriaVisitController::class, 'store'])->na
 Route::post('/cafeteria-visits/{cafeteriaVisit}/checkout', [CafeteriaVisitController::class, 'checkout'])->name('cafeteria-visits.checkout');
 
 Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
+Route::get('/billing/reports/income', [BillingController::class, 'incomeReport'])->name('billing.reports.income');
 Route::get('/billing/charges/export', [BillingController::class, 'exportChargesReport'])->name('billing.charges.export');
 Route::get('/billing/charges', [BillingController::class, 'chargesList'])->name('billing.charges.index');
 Route::post('/billing/payments', [BillingController::class, 'storePayment'])->name('billing.payments.store');
