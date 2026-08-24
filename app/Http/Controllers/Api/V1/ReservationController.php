@@ -10,6 +10,7 @@ use App\Models\AdminClub\Reservation;
 use App\Models\AdminClub\ReservationStatus;
 use App\Models\Members\Member;
 use App\Rules\ExistsInSchema;
+use App\Services\Family\FamilyReservationGuard;
 use App\Services\Reservation\Context\ReservationContext;
 use App\Services\Reservation\Validators\CancelReservationValidator;
 use App\Services\Reservation\Validators\CreateReservationValidator;
@@ -30,13 +31,20 @@ class ReservationController extends Controller
                 'amenity_resource_id' => ['required', new ExistsInSchema('amenities', 'resources', 'id')],
                 'is_class'            => ['nullable', 'boolean'],
                 'coach_id'            => ['nullable', new ExistsInSchema('classes', 'coaches', 'id')],
+                'member_id'           => ['nullable', new ExistsInSchema('members', 'members', 'id')],
             ]);
 
-            $member = Member::where('user_id', $request->user()->id)->first();
+            $holder = Member::where('user_id', $request->user()->id)->first();
 
-            if (!$member) {
+            if (!$holder) {
                 return $this->notFound('No se encontró un socio asociado a este usuario.');
             }
+
+            $member = (new FamilyReservationGuard())->resolveReservingMember(
+                $holder,
+                isset($validated['member_id']) ? (int) $validated['member_id'] : null,
+                (int) $validated['club_id'],
+            );
 
             $amenityResource = AmenityResource::with('amenity')
                 ->where('id', $validated['amenity_resource_id'])->first();

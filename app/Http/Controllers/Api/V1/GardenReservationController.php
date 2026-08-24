@@ -10,7 +10,9 @@ use App\Models\AdminClub\AmenityResource;
 use App\Models\AdminClub\Reservation;
 use App\Models\AdminClub\ReservationStatus;
 use App\Models\Members\Member;
+use App\Services\Family\FamilyReservationGuard;
 use App\Services\Reservation\Context\ReservationContext;
+use App\Services\Reservation\Rules\ReservationsPerDayRule;
 use App\Services\Reservation\Validators\CreateReservationValidator;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -82,11 +84,17 @@ class GardenReservationController extends Controller
         try {
             $validated = $request->validated();
 
-            $member = Member::where('user_id', $request->user()->id)->first();
+            $holder = Member::where('user_id', $request->user()->id)->first();
 
-            if (!$member) {
+            if (!$holder) {
                 return $this->notFound('No se encontró un socio asociado a este usuario.');
             }
+
+            $member = (new FamilyReservationGuard())->resolveReservingMember(
+                $holder,
+                isset($validated['member_id']) ? (int) $validated['member_id'] : null,
+                (int) $validated['club_id'],
+            );
 
             $garden = null;
             $grill = null;
@@ -107,6 +115,16 @@ class GardenReservationController extends Controller
 
             $startDatetime = Carbon::parse($validated['date'])->startOfDay();
             $endDatetime = Carbon::parse($validated['date'])->endOfDay();
+
+            // Se valida una sola vez por solicitud: jardín + asador enlazados cuentan como
+            // una sola reservación del día, no como dos (ver CreateReservationValidator).
+            (new ReservationsPerDayRule())->validate(new ReservationContext(
+                data: [
+                    'start_datetime' => $startDatetime->format('Y-m-d H:i'),
+                    'club_id'        => $validated['club_id'],
+                ],
+                member: $member,
+            ));
 
             $reservations = DB::transaction(function () use (
                 $validated, $member, $request, $garden, $grill, $startDatetime, $endDatetime
@@ -180,7 +198,7 @@ class GardenReservationController extends Controller
             member:          $member,
             user:            $request->user(),
         );
-        (new CreateReservationValidator())->validate($context);
+        (new CreateReservationValidator(includeDailyLimit: false))->validate($context);
 
         return Reservation::create([
             'start_datetime'        => $startDatetime,

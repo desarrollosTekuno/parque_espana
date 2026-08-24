@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Web\AdminClub;
 
-use App\Exports\ChargeReportExport;
 use App\Exports\IncomeReportExport;
 use App\Exports\InterclubIncomeReportExport;
 use App\Http\Controllers\Controller;
@@ -33,34 +32,11 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
-use Maatwebsite\Excel\Facades\Excel;
 
 class BillingController extends Controller {
     public function __construct(
         protected PaymentRegistrationService $paymentRegistrationService,
     ) {
-    }
-
-    public function exportChargesReport(Request $request)
-    {
-        $validated = $request->validate([
-            'start_date' => ['required', 'date'],
-            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
-        ]);
-
-        $tz = config('app.timezone');
-        $clubId = (int) session('club_id');
-        $club = $clubId ? Club::find($clubId) : null;
-
-        $start = Carbon::parse($validated['start_date'], $tz)->startOfDay()->utc();
-        $end = Carbon::parse($validated['end_date'], $tz)->endOfDay()->utc();
-
-        $filename = 'reporte-cobranza-' . $validated['start_date'] . '-a-' . $validated['end_date'] . '.xlsx';
-
-        return Excel::download(
-            new ChargeReportExport($start, $end, $clubId ?: null, $club?->name),
-            $filename,
-        );
     }
 
     public function index(Request $request)

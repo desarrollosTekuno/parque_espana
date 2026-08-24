@@ -28,6 +28,7 @@ class AdminSubRolesSeeder extends Seeder
                 'permissions' => [
                     'profile.show',
                     'billing.index',
+                    'reports.index',
                     'billing.charges.index',
                     'billing.store',
                     'tickets.index',
@@ -180,6 +181,7 @@ class AdminSubRolesSeeder extends Seeder
                 'permissions' => [
                     'profile.show',
                     'billing.index',
+                    'reports.index',
                     'billing.charges.index',
                     'billing.store',
                     'billing.payments.non-cash-cut',

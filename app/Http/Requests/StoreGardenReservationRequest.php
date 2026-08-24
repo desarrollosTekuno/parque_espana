@@ -16,6 +16,7 @@ class StoreGardenReservationRequest extends FormRequest {
     public function rules(): array {
         return [
             'club_id'             => ['required', new ExistsInSchema('clubs', 'clubs', 'id')],
+            'member_id'           => ['nullable', new ExistsInSchema('members', 'members', 'id')],
             'garden_resource_id'  => ['required_without:grill_resource_id', 'nullable', new ExistsInSchema('amenities', 'resources', 'id')],
             'grill_resource_id'   => ['required_without:garden_resource_id', 'nullable', new ExistsInSchema('amenities', 'resources', 'id')],
             'date'                => ['required', 'date_format:Y-m-d', 'after_or_equal:today'],
