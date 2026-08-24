@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\AdminClub;
 
 use App\Exports\ChargeReportExport;
 use App\Exports\IncomeReportExport;
+use App\Exports\InterclubIncomeReportExport;
 use App\Http\Controllers\Controller;
 use App\Models\Administrator\Club;
 use App\Models\Billing\Charge;
@@ -1068,6 +1069,69 @@ class BillingController extends Controller {
         $filename = 'reporte-ingresos-'.$fechaInicio->format('Y-m-d').'-a-'.$fechaFin->format('Y-m-d').'-'.now()->format('H-i-s').'.xlsx';
 
         return Excel::download(new IncomeReportExport($clubName, $fechaInicio, $fechaFin, $payments, $deliveredBy, $logoContent),$filename);
+    }
+
+    public function interclubIncomeReport(Request $request) {
+        $validated = $request->validate([
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+        ]);
+
+        $timezone = config('app.timezone');
+        $fechaInicio = Carbon::parse($validated['start_date'], $timezone);
+        $fechaFin = Carbon::parse($validated['end_date'], $timezone);
+        $clubId = (int) session('club_id');
+        $club = Club::find($clubId);
+        $otherClubCode = match (strtoupper((string) $club?->code)) {
+            'PE1' => 'PE2',
+            'PE2' => 'PE1',
+            default => null,
+        };
+        $otherClub = $otherClubCode ? Club::where('code', $otherClubCode)->first() : null;
+        $logoContent = null;
+        $logoUrl = $this->logoUrl($club->code, $club->logo_url);
+
+        if ($logoUrl && str_starts_with($logoUrl, '/')) {
+            $logoPath = public_path(ltrim($logoUrl, '/'));
+            $logoContent = file_exists($logoPath) ? file_get_contents($logoPath) : null;
+        } elseif ($club->logo_path) {
+            try {
+                $logoContent = Storage::disk('spaces')->get($club->logo_path);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
+        $payments = Payment::query()
+            ->with([
+                'paymentMethod',
+                'applications.charge.concept',
+                'applications.charge.membership.pricingRule',
+            ])
+            ->where('club_id', $clubId)
+            ->where('status', 'registered')
+            ->whereBetween('paid_at', [
+                $fechaInicio->copy()->startOfDay()->utc(),
+                $fechaFin->copy()->endOfDay()->utc(),
+            ])
+            ->get();
+
+        $deliveredBy = $request->user()?->name ?? '';
+        $filename = 'reporte-ingresos-'.$club->code.'-para-'.$otherClub->code.'-'.$fechaInicio->format('Y-m-d').'-a-'.$fechaFin->format('Y-m-d').'-'.now()->format('H-i-s').'.xlsx';
+
+        return Excel::download(
+            new InterclubIncomeReportExport(
+                $club->name,
+                $otherClub->name,
+                $otherClub->id,
+                $fechaInicio,
+                $fechaFin,
+                $payments,
+                $deliveredBy,
+                $logoContent,
+            ),
+            $filename,
+        );
     }
 
     private function logoUrl(?string $clubCode, ?string $configuredLogo): ?string {
