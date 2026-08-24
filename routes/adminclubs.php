@@ -259,8 +259,8 @@ Route::delete('files/{file}/club-file', [FileController::class, 'destroyClubFile
 Route::post('/files/variables', [FileController::class, 'previewVariables'])->name('files.variables');
 
 
-Route::get('documents/', [DocumentGeneratorController::class, 'index'])->name('index');
-Route::get('documents/{file}/download', [DocumentGeneratorController::class, 'download'])->name('download');
+Route::get('file-generator', [DocumentGeneratorController::class, 'index'])->name('file-generator.index');
+Route::get('file-generator/{file}/download', [DocumentGeneratorController::class, 'download'])->name('file-generator.download');
 
 
 // Acts

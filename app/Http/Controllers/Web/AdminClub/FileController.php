@@ -436,7 +436,7 @@ class FileController extends Controller
             $text = strip_tags($content);
 
             // Buscar variables {{ nombre }} o {{nombre}}
-            preg_match_all('/\{\{\s*(\w+)\s*\}\}/', $text, $matches);
+            preg_match_all('/\$\{\s*(\w+)\s*\}/', $text, $matches);
             $variables = array_merge($variables, $matches[1]);
         }
 
