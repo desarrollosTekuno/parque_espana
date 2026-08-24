@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\AdminClub\BusinessAd;
 use App\Models\Billing\Charge;
 use App\Models\Billing\PaymentMethod;
 use App\Models\Members\Member;
@@ -133,6 +134,8 @@ class ChargePaymentController extends Controller
                 sessionClubId: $clubId,
             );
 
+            $this->publishPaidBusinessAds($charges);
+
             return $this->created('Pago procesado correctamente.', [
                 'payment_id'     => $payment->id,
                 'amount'         => $payment->amount,
@@ -241,6 +244,12 @@ class ChargePaymentController extends Controller
                 receivedBy:    null,
                 sessionClubId: $clubId,
             );
+
+            // Los cargos de un anuncio de negocio nunca traen
+            // splits_between_parks, así que siempre viajan completos en
+            // $originalApplications (pagados en esta primera mitad) — no
+            // hay que revisar también la segunda mitad ($mirrorApplications).
+            $this->publishPaidBusinessAds($charges);
         } catch (\Throwable $e) {
             report($e);
             return $this->serverError('Ocurrió un error al procesar el pago. Intenta de nuevo.');
@@ -307,6 +316,30 @@ class ChargePaymentController extends Controller
                 $q->where('club_id', $clubId)->where('is_active', true)
             )
             ->first();
+    }
+
+    /**
+     * Si alguno de los cargos pagados corresponde a un anuncio de negocio ya
+     * aprobado y pendiente de pago (BusinessAdController::approve, que deja
+     * status_id=3 y metadata.business_ad_id en el cargo), lo marca como
+     * publicado — mismo criterio que BillingController/CollectionController::storePayment.
+     */
+    private function publishPaidBusinessAds(Collection $charges): void
+    {
+        $businessAdIds = $charges->pluck('metadata.business_ad_id')->filter()->unique();
+
+        if ($businessAdIds->isEmpty()) {
+            return;
+        }
+
+        BusinessAd::whereIn('id', $businessAdIds)
+            ->where('status_id', 3)
+            ->update([
+                'status_id' => 5,
+                'paid_at' => now(),
+                'published_at' => now(),
+                'expires_at' => now()->addMonth(),
+            ]);
     }
 
     private function buildDescription(MembershipAccount $account, Collection $charges): string

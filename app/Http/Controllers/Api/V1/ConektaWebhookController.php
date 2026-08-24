@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\SendPushNotificationJob;
+use App\Models\AdminClub\BusinessAd;
+use App\Models\Billing\Charge;
 use App\Models\Billing\SpeiOrder;
 use App\Services\Billing\PaymentRegistrationService;
 use Illuminate\Http\Request;
@@ -122,6 +124,30 @@ class ConektaWebhookController extends Controller
                 'status'     => 'paid',
                 'payment_id' => $payment->id,
             ]);
+
+            // Anuncios de negocio: si algún cargo de esta orden SPEI
+            // corresponde a un anuncio ya aprobado y pendiente de pago
+            // (BusinessAdController::approve, que deja status_id=3 y
+            // metadata.business_ad_id en el cargo), se marca como
+            // publicado — mismo criterio que
+            // BillingController/CollectionController::storePayment.
+            $chargeIds = collect($speiOrder->applications)->pluck('charge_id');
+            $businessAdIds = Charge::whereIn('id', $chargeIds)
+                ->get()
+                ->pluck('metadata.business_ad_id')
+                ->filter()
+                ->unique();
+
+            if ($businessAdIds->isNotEmpty()) {
+                BusinessAd::whereIn('id', $businessAdIds)
+                    ->where('status_id', 3)
+                    ->update([
+                        'status_id' => 5,
+                        'paid_at' => now(),
+                        'published_at' => now(),
+                        'expires_at' => now()->addMonth(),
+                    ]);
+            }
 
             // Notificar al socio que su transferencia fue recibida
             $userId = $speiOrder->membershipAccount
