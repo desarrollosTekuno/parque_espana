@@ -18,7 +18,7 @@ class StoreFeedbackTicketRequest extends FormRequest {
             'description' => ['required', 'string', 'max:350'],
             'is_anonymous' => ['nullable', 'boolean'],
             'attachments' => ['nullable', 'array', 'max:5'],
-            'attachments.*' => ['nullable', 'file', 'mimes:jpg,jpeg,png,gif,webp,bmp,tif,tiff,svg', 'max:2048'],
+            'attachments.*' => ['nullable', 'file', 'mimes:jpg,jpeg,png,gif,webp,bmp,tif,tiff,svg,pdf', 'max:2048'],
             'ticket_type_id' => ['required'],
             'category_id' => ['required'],
             'priority_id' => ['required'],

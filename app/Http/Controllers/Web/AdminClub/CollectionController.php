@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\AdminClub;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\SendPushNotificationJob;
+use App\Models\AdminClub\BusinessAd;
 use App\Models\Administrator\Club;
 use App\Models\Billing\AnnualDiscountRule;
 use App\Models\Billing\Charge;
@@ -1299,6 +1300,32 @@ class CollectionController extends Controller
             });
 
             $totalPaid = round($payments->sum('amount'), 2);
+
+            // Anuncios de negocio: si algún cargo existente pagado
+            // corresponde a un anuncio ya aprobado y pendiente de pago
+            // (BusinessAdController::approve, que deja status_id=3 y
+            // metadata.business_ad_id en el cargo), se marca como
+            // publicado — mismo criterio que BillingController::storePayment.
+            $existingChargeIds = $existing->pluck('charge_id')->map(fn ($id) => (int) $id);
+
+            if ($existingChargeIds->isNotEmpty()) {
+                $businessAdIds = Charge::whereIn('id', $existingChargeIds)
+                    ->get()
+                    ->pluck('metadata.business_ad_id')
+                    ->filter()
+                    ->unique();
+
+                if ($businessAdIds->isNotEmpty()) {
+                    BusinessAd::whereIn('id', $businessAdIds)
+                        ->where('status_id', 3)
+                        ->update([
+                            'status_id' => 5,
+                            'paid_at' => now(),
+                            'published_at' => now(),
+                            'expires_at' => now()->addMonth(),
+                        ]);
+                }
+            }
 
             // Notificación push al titular de la cuenta (asíncrona vía
             // queue) — mismo criterio que BillingController::storePayment.
