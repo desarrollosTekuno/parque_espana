@@ -149,19 +149,6 @@ class PaymentTicketService {
             ->unique()
             ->values();
 
-        // Solo tiene caso partir una mensualidad combo 50/50 entre los dos
-        // tickets si de verdad se usó una forma de pago que representa al
-        // OTRO parque (representedClubId, ver PaymentLinePayload.club_id en
-        // el diálogo de métodos de pago) — si el grupo completo se cobró
-        // con formas de pago sin esa etiqueta (p. ej. una sola
-        // transferencia genérica), no hay ningún dinero "del otro parque"
-        // que mostrar aparte.
-        $hasCrossParkPayment = $payments
-            ->map(fn (Payment $item) => $this->representedClubId($item))
-            ->filter()
-            ->unique()
-            ->count() > 1;
-
         $allocations = collect();
 
         foreach ($payments as $payment) {
@@ -177,22 +164,21 @@ class PaymentTicketService {
                 ]);
             } else {
                 foreach ($payment->applications as $application) {
-                    $clubIds = $this->applicationClubIds($application, $payment, $actualMonthlyClubIds, $hasCrossParkPayment);
+                    $clubIds = $this->applicationClubIds($application, $payment, $actualMonthlyClubIds);
 
                     // representedClubId (de dónde viene el dinero de ESTA
                     // forma de pago, ver PaymentLinePayload.club_id) solo
                     // decide el ticket de un cargo de UN solo parque — un
                     // cargo que de verdad se reparte entre dos parques
-                    // (combo interclub CON pago cruzado, ver
-                    // applicationClubIds/$hasCrossParkPayment) se divide
-                    // 50/50 por mes entre ambos tickets, sin importar qué
-                    // forma de pago específica cubrió cada parte: de lo
-                    // contrario, si el cajero no capturó los montos
-                    // exactamente parejos entre las formas de pago de cada
-                    // parque, un ticket terminaba con más meses (o más
-                    // dinero por mes) que el otro, aunque la mensualidad
-                    // combo en realidad es la misma para ambos parques cada
-                    // mes.
+                    // (combo interclub, ver applicationClubIds) SIEMPRE se
+                    // divide 50/50 por mes entre ambos tickets, sin
+                    // importar qué forma de pago específica cubrió cada
+                    // parte: de lo contrario, si el cajero no capturó los
+                    // montos exactamente parejos entre las formas de pago
+                    // de cada parque, un ticket terminaba con más meses (o
+                    // más dinero por mes) que el otro, aunque la
+                    // mensualidad combo en realidad es la misma para ambos
+                    // parques cada mes.
                     if ($clubIds->count() === 1 && $this->representedClubId($payment)) {
                         $clubIds = collect([$this->representedClubId($payment)]);
                     }
@@ -227,8 +213,7 @@ class PaymentTicketService {
     private function applicationClubIds(
         PaymentApplication $application,
         Payment $payment,
-        Collection $actualMonthlyClubIds,
-        bool $hasCrossParkPayment
+        Collection $actualMonthlyClubIds
     ): Collection {
         $charge = $application->charge;
         $chargeClubId = (int) ($charge?->membership?->club_id ?: $payment->club_id);
@@ -237,34 +222,43 @@ class PaymentTicketService {
             return collect([$chargeClubId]);
         }
 
-        $membership = $charge?->membership;
-        $representsCombo = (bool) $membership?->interclub_package_rule_id
-            || (bool) ($membership?->pricingRule?->requires_multiple_clubs ?? false);
-
-        if (! $representsCombo) {
+        // Si el cargo ya viene partido de verdad (InterclubSplitPaymentService,
+        // usado por el pago desde la app: el cargo original se muta a la
+        // mitad y se crea un cargo espejo real en el otro parque, cada uno
+        // con su propio Payment/corte de caja) NO hay que volver a
+        // repartirlo 50/50 aquí — su 'amount' ya es la mitad, y partirlo
+        // de nuevo lo dejaría en una cuarta parte.
+        if ((bool) ($charge?->metadata['interclub_split'] ?? false)) {
             return collect([$chargeClubId]);
         }
 
-        // Aunque la membresía sea un combo interclub, solo tiene sentido
-        // partir el ticket 50/50 entre los dos parques si de verdad hubo
-        // una forma de pago que representa al OTRO parque en este grupo
-        // (ver $hasCrossParkPayment arriba) — si todo se cobró con formas
-        // de pago sin esa etiqueta (p. ej. una sola transferencia
-        // genérica), el ticket se queda completo en el parque donde
-        // realmente se cobró (el de la sesión del pago), no en el parque
-        // "dueño" de la membresía en BD, que puede ser otro.
-        if (! $hasCrossParkPayment) {
-            return collect([(int) $payment->club_id]);
-        }
-
+        // Las membresías primarias activas de TODO el grupo de cuenta (no
+        // solo la dueña de este cargo) — un combo interclub puede repartir
+        // la marca "requires_multiple_clubs"/interclub_package_rule_id en
+        // SOLO uno de los dos lados (p. ej. el lado que calcula el precio
+        // combinado), mientras el otro lado usa su propia regla de precio
+        // "normal" sin esa marca. Si solo se revisara la membresía dueña
+        // del cargo, un cargo que vive del lado "sin marca" nunca se
+        // detectaba como combo, y el ticket de ese parque se quedaba sin
+        // su mitad de la mensualidad.
         $account = $payment->membershipAccount;
         $accounts = $account?->account_group_id && $account?->accountGroup
             ? $account->accountGroup->accounts
             : collect([$account]);
 
-        $clubIds = $accounts
+        $groupMemberships = $accounts
             ->flatMap(fn (MembershipAccount $item) => $item->memberships)
-            ->filter(fn ($item) => $item->is_primary && in_array($item->status, ['active', 'suspended'], true))
+            ->filter(fn ($item) => $item->is_primary && in_array($item->status, ['active', 'suspended'], true));
+
+        $representsCombo = $groupMemberships->contains(
+            fn ($m) => (bool) $m->interclub_package_rule_id || (bool) ($m->pricingRule?->requires_multiple_clubs ?? false)
+        );
+
+        if (! $representsCombo) {
+            return collect([$chargeClubId]);
+        }
+
+        $clubIds = $groupMemberships
             ->pluck('club_id')
             ->filter()
             ->unique()
