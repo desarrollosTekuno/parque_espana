@@ -59,6 +59,7 @@ use App\Http\Controllers\Web\AdminClub\SpecialtyController;
 use App\Http\Controllers\Web\AdminClub\ClassScheduleController;
 use App\Http\Controllers\Web\AdminClub\WebsiteContentController;
 use App\Http\Controllers\Web\AdminClub\WebsiteContactController;
+use App\Http\Controllers\Web\AdminClub\ReportController;
 use Illuminate\Support\Facades\Route;
 
 // amenities
@@ -100,11 +101,14 @@ Route::post('/cafeteria-visits', [CafeteriaVisitController::class, 'store'])->na
 Route::post('/cafeteria-visits/{cafeteriaVisit}/checkout', [CafeteriaVisitController::class, 'checkout'])->name('cafeteria-visits.checkout');
 
 Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
-Route::get('/billing/charges/export', [BillingController::class, 'exportChargesReport'])->name('billing.charges.export');
 Route::get('/billing/charges', [BillingController::class, 'chargesList'])->name('billing.charges.index');
 Route::post('/billing/payments', [BillingController::class, 'storePayment'])->name('billing.payments.store');
 Route::get('/billing/annual-payment/preview', [BillingController::class, 'annualPaymentPreview'])->name('billing.annual-payment.preview');
 Route::post('/billing/annual-payment', [BillingController::class, 'storeAnnualPayment'])->name('billing.annual-payment.store');
+
+// reportes
+Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
+Route::get('/reports/collection/export', [ReportController::class, 'exportCollectionReport'])->name('reports.collection.export');
 
 // collections desk (módulo de cobranza tipo caja)
 Route::get('/collections', [CollectionController::class, 'index'])->name('collections.index');

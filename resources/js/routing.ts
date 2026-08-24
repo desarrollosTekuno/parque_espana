@@ -242,6 +242,14 @@ const routes: Routing[] = [
             },
         ],
     },
+    // Reportes
+    {
+        name: ["reports.index"],
+        title: "Reportes",
+        icon: "mdi-file-chart-outline",
+        value: "reportes",
+        group: null,
+    },
     // Clubs deportivos
     {
         name: ["clubs.index"],
