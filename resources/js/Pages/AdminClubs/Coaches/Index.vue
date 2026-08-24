@@ -86,6 +86,76 @@ const removeAvailability = (index: number) => {
     form.availabilities.splice(index, 1);
 };
 
+const daysOfWeek = [
+    'Domingo',
+    'Lunes',
+    'Martes',
+    'Miércoles',
+    'Jueves',
+    'Viernes',
+    'Sábado',
+];
+
+const formatDay = (day) => {
+    return daysOfWeek[day] ?? '—';
+};
+
+const formatTime = (time) => {
+    if (!time) return '—';
+
+    const [hours, minutes] = time.split(':');
+    const date = new Date();
+
+    date.setHours(Number(hours), Number(minutes), 0);
+
+    return date.toLocaleTimeString('es-MX', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+    });
+};
+const groupedAvailabilities = (availabilities) => {
+    if (!availabilities?.length) return [];
+
+    // Ordenar por día de la semana
+    const sorted = [...availabilities].sort(
+        (a, b) => a.day_of_week - b.day_of_week
+    );
+
+    const groups = [];
+
+    sorted.forEach((availability) => {
+        const lastGroup = groups[groups.length - 1];
+
+        if (
+            lastGroup &&
+            lastGroup.start_time === availability.start_time &&
+            lastGroup.end_time === availability.end_time &&
+            availability.day_of_week === lastGroup.end_day + 1
+        ) {
+            // Es el mismo horario y el día es consecutivo
+            lastGroup.end_day = availability.day_of_week;
+        } else {
+            // Crear nuevo grupo
+            groups.push({
+                start_day: availability.day_of_week,
+                end_day: availability.day_of_week,
+                start_time: availability.start_time,
+                end_time: availability.end_time,
+            });
+        }
+    });
+
+    return groups;
+};
+const formatDayRange = (startDay, endDay) => {
+    const start = formatDay(startDay);
+    const end = formatDay(endDay);
+
+    return startDay === endDay
+        ? start
+        : `${start} - ${end}`;
+};
 const create = () => {
     form.reset();
     newAvailability.value = { day_of_week: null, start_time: "", end_time: "" };
@@ -162,7 +232,7 @@ const headers = [
     { title: "Nombre",         key: "full_name" },
     { title: "Amenidad",       key: "amenity" },
     { title: "Especialidades", key: "specialties" },
-    { title: "Teléfono",       key: "phone" },
+    { title: "Disponibilidad", key: "availabilities" },
     { title: "Acciones",       key: "actions", sortable: false },
 ];
 
@@ -233,9 +303,8 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                     class="ma-2"
                 />
             </template>
-
             <template #item.full_name="{ item }">
-                {{ item.first_name }} {{ item.last_name }} {{ item.second_last_name }}
+                {{ item.first_name }} {{ item.last_name }}
             </template>
 
             <template #item.amenity="{ item }">
@@ -254,6 +323,25 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                     {{ s.name }}
                 </v-chip>
                 <span v-if="!item.specialties?.length">—</span>
+            </template>
+
+            <template #item.availabilities="{ item }">
+                <div v-if="item.availabilities?.length" class="d-flex flex-column ga-1 align-start">
+                    <v-chip
+                        v-for="(availability, index) in groupedAvailabilities(item.availabilities)"
+                        :key="index"
+                        size="small"
+                        class="mr-1"
+                        color="green"
+                        variant="tonal"
+                    >
+                        {{ formatDayRange(availability.start_day, availability.end_day) }}:
+                        {{ formatTime(availability.start_time) }} -
+                        {{ formatTime(availability.end_time) }}
+                    </v-chip>
+                </div>
+
+                <span v-else>—</span>
             </template>
 
             <template #item.actions="{ item }">

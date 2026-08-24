@@ -188,6 +188,9 @@ class PermissionSeeder extends Seeder
             ['module' => 'Cobranza', 'name' => 'collections.index', 'description' => 'Ver módulo de cobranza (caja)', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'collections.store', 'description' => 'Registrar cobros desde el módulo de caja', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'billing.payments.non-cash-cut', 'description' => 'Usar métodos de pago que no afectan corte de caja', 'contexts' => ['web']],
+
+            // Reportes
+            ['module' => 'Reportes', 'name' => 'reports.index', 'description' => 'Ver módulo de reportes', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'billing-concepts.index', 'description' => 'Ver conceptos de cobro', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'billing-concepts.store', 'description' => 'Crear conceptos de cobro', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'billing-concepts.update', 'description' => 'Actualizar conceptos de cobro', 'contexts' => ['web']],

@@ -142,6 +142,7 @@ class AdminClubSeeder extends Seeder
             'acts.store',
             'acts.update',
             'billing.index',
+            'reports.index',
             'billing.store',
             'collections.index',
             'collections.store',
@@ -206,6 +207,7 @@ class AdminClubSeeder extends Seeder
 
             // cobranza
             'billing.index',
+            'reports.index',
             'billing.charges.index',
             'billing.store',
             'billing.payments.non-cash-cut',
