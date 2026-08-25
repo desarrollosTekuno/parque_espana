@@ -6,6 +6,7 @@ use App\Models\Administrator\Club;
 use App\Models\Files\ClubFile;
 use App\Models\Files\ClubFileCounter;
 use App\Models\Files\File;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
@@ -18,47 +19,64 @@ class DocumentGeneratorController extends Controller {
 
     public function __construct()
     {
-        $this->middleware('permission:documents.index')->only('index');
-        $this->middleware('permission:documents.download')->only('download');
+        $this->middleware('permission:file-generator.index')->only('index');
+        $this->middleware('permission:file-generator.download')->only('download');
     }
 
     public function index(Request $request)
     {
         try {
             $clubId = (int) ($request->club_id ?? session('club_id'));
+            $prefix = 'documents';
 
-            // Solo formatos activos que tienen plantilla cargada para este club
-            $documents = File::query()
+            $query = File::query()
                 ->where('is_active', true)
                 ->whereHas('clubFiles', function ($q) use ($clubId) {
                     $q->where('club_id', $clubId)
                       ->where('is_active', true)
                       ->whereNotNull('file_path');
-                })
-                ->orderBy('name')
-                ->get()
-                ->map(function (File $file) {
-                    return [
-                        'id'          => $file->id,
-                        'code'        => $file->code,
-                        'name'        => $file->name,
-                        'description' => $file->description,
-                        'module'      => $file->module,
-                        // Flag para saber en el frontend si necesita input previo
-                        'requires_input' => $this->requiresUserInput($file->code),
-                    ];
                 });
+
+            if ($search = $request->input("{$prefix}_search")) {
+                $like = DB::getDriverName() === 'pgsql' ? 'ilike' : 'like';
+                $query->where(function ($builder) use ($search, $like) {
+                    $builder->where('code', $like, "%{$search}%")
+                        ->orWhere('name', $like, "%{$search}%");
+                });
+            }
+
+            $documents = $query
+                ->orderBy('name')
+                ->paginate(
+                    $request->input("{$prefix}_per_page", 25),
+                    ['*'],
+                    "{$prefix}_page",
+                    $request->input("{$prefix}_page", 1)
+                )
+                ->through(fn (File $file) => [
+                    'id'             => $file->id,
+                    'code'           => $file->code,
+                    'name'           => $file->name,
+                    'description'    => $file->description,
+                    'module'         => $file->module,
+                    'requires_input' => $this->requiresUserInput($file->code),
+                ])
+                ->appends($request->all());
 
             $currentClub = Club::query()->select('id', 'name', 'code')->find($clubId);
 
-            return Inertia::render('AdminClubs/Documents/Index', [
+            return Inertia::render('AdminClubs/FileGenerator/Index', [
                 'documents'   => $documents,
                 'currentClub' => $currentClub,
+                'filters'     => [
+                    'search' => $request->input("{$prefix}_search"),
+                ],
             ]);
         } catch (\Exception $e) {
-            return Inertia::render('AdminClubs/Documents/Index', [
-                'documents'    => [],
+            return Inertia::render('AdminClubs/FileGenerator/Index', [
+                'documents'    => ['data' => [], 'total' => 0],
                 'currentClub'  => null,
+                'filters'      => ['search' => null],
                 'messageError' => $e->getMessage(),
             ]);
         }
@@ -74,33 +92,56 @@ class DocumentGeneratorController extends Controller {
                 ->where('is_active', true)
                 ->firstOrFail();
 
-            // Descarga la plantilla del storage a un archivo temporal
-            $disk           = config('filesystems.default');
-            $templateBytes  = Storage::disk($disk)->get($clubFile->file_path);
-            $tempTemplate   = tempnam(sys_get_temp_dir(), 'tpl_') . '.docx';
+            $templateBytes = Storage::disk('spaces')->get($clubFile->file_path);
+            $tempTemplate  = tempnam(sys_get_temp_dir(), 'tpl_') . '.docx';
             file_put_contents($tempTemplate, $templateBytes);
 
-            // Construye las variables según el formato
-            $variables = $this->buildVariables($file, $clubId, $request);
+            \Log::info('=== INICIO GENERACIÓN DOCUMENTO ===', [
+                'file_code'         => $file->code,
+                'file_name'         => $file->name,
+                'club_id'           => $clubId,
+                'template_path'     => $tempTemplate,
+                'template_size'     => filesize($tempTemplate),
+                'template_exists'   => file_exists($tempTemplate),
+            ]);
 
-            // Procesa la plantilla
-            $processor = new TemplateProcessor($tempTemplate);
+            $variables = $this->buildVariables($file, $clubId, $request);
+            \Log::info('Variables construidas', $variables);
+
+            $processor = new \PhpOffice\PhpWord\TemplateProcessor($tempTemplate);
+
+            // ESTE ES EL LOG CLAVE
+            \Log::info('Variables que PhpWord detecta en la plantilla', [
+                'detectadas' => $processor->getVariables(),
+            ]);
+
             foreach ($variables as $key => $value) {
                 $processor->setValue($key, $value);
+                \Log::info("Reemplazando ${key}", ['valor' => $value]);
             }
 
-            // Guarda el resultado
             $outputPath = tempnam(sys_get_temp_dir(), 'out_') . '.docx';
             $processor->saveAs($outputPath);
 
-            // Limpia la plantilla temporal (el output se borra tras el send)
+            \Log::info('Archivo generado', [
+                'output_path' => $outputPath,
+                'output_size' => filesize($outputPath),
+            ]);
+
             @unlink($tempTemplate);
 
-            $downloadName = Str::slug($file->name) . '-' . now()->format('Ymd-His') . '.docx';
+            $downloadName = \Str::slug($file->name) . '-' . now()->format('Ymd-His') . '.docx';
 
             return response()->download($outputPath, $downloadName)->deleteFileAfterSend(true);
 
         } catch (\Exception $e) {
+            \Log::error('Error generando documento', [
+                'mensaje' => $e->getMessage(),
+                'archivo' => $e->getFile(),
+                'linea'   => $e->getLine(),
+                'trace'   => $e->getTraceAsString(),
+            ]);
+
             return redirect()->back()->withErrors([
                 'messageError' => 'Error al generar el documento.',
                 'exception'    => $e->getMessage(),
@@ -114,7 +155,10 @@ class DocumentGeneratorController extends Controller {
     private function requiresUserInput(string $code): bool
     {
         return match ($code) {
-            'casillero' => true,
+            'SOL_USER_CL' => false,
+            'SOL_USER_SL' => false,
+            'SOL_PERMISSION' => false,
+            'SOL_LOCKER' => true,
             default     => false,
         };
     }
@@ -126,24 +170,29 @@ class DocumentGeneratorController extends Controller {
     private function buildVariables(File $file, int $clubId, Request $request): array
     {
         return match ($file->code) {
-            'casillero' => [
+
+            // Casillero
+            'SOL_LOCKER' => [
                 'folio'  => ClubFileCounter::nextFolio($clubId, $file->id),
-                'genero' => $request->validate([
-                    'genero' => 'required|in:DAMA,CABALLERO,NIÑO',
-                ], [
-                    'genero.required' => 'Debes seleccionar el género del casillero.',
-                    'genero.in'       => 'El género no es válido.',
-                ])['genero'],
+                'gender' => $request->validate([
+                    'gender' => 'required|in:DAMA,CABALLERO,NIÑO',
+                ])['gender'],
+                'year'   => now()->translatedFormat('Y'),
             ],
 
-            'constancia' => [
-                'fecha' => now()->format('d/m/Y'),
+            // Constancia: solo fecha actual
+            'SOL_PERMISSION' => [
+                'day' =>  now()->translatedFormat('d'),
+                'month' => now()->locale('es')->translatedFormat('F'),
+                'year' => now()->translatedFormat('Y'),
             ],
 
-            // Formato con solo folio consecutivo
-            default => [
+            // Estos dos formatos comparten la misma lógica: solo folio
+            'SOL_USER_CL', 'SOL_USER_SL' => [
                 'folio' => ClubFileCounter::nextFolio($clubId, $file->id),
             ],
+
+            default => throw new \Exception("El formato '{$file->code}' no tiene lógica de generación configurada."),
         };
     }
 }

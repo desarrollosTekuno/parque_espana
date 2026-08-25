@@ -325,7 +325,12 @@ class PermissionSeeder extends Seeder
             ['module' => 'Archivos', 'name' => 'files.destroy', 'description' => 'Eliminar formato de archivo', 'contexts' => ['web']],
             ['module' => 'Archivos', 'name' => 'files.club-file.upload', 'description' => 'Subir archivo del club', 'contexts' => ['web']],
             ['module' => 'Archivos', 'name' => 'files.club-file.destroy', 'description' => 'Eliminar archivo del club', 'contexts' => ['web']],
-            ['module' => 'Archivos', 'name' => 'files.variables', 'description' => 'Extracción de variables en Formato', 'contexts' => ['web']]
+            ['module' => 'Archivos', 'name' => 'files.variables', 'description' => 'Extracción de variables en Formato', 'contexts' => ['web']],
+
+            // Documentos
+            ['module' => 'Archivos', 'name' => 'file-generator.index', 'description' => 'Ver documentos del club', 'contexts' => ['web']],
+            ['module' => 'Archivos', 'name' => 'file-generator.download', 'description' => 'Descargar documento', 'contexts' => ['web']],
+
             ];
 
         foreach ($permissions as $permission) {
