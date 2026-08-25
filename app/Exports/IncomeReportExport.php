@@ -69,11 +69,11 @@ class IncomeReportExport implements FromArray, WithEvents, WithTitle {
                 }
             }
 
-            $rows[] = [Date::PHPToExcel($date), null, null, ...$amounts];
+            $rows[] = [Date::PHPToExcel($date), round(array_sum($amounts), 2), null, ...$amounts];
             $date->addDay();
         }
 
-        $rows[] = ['TOTAL', null, null, ...$paymentTotals];
+        $rows[] = ['TOTAL', round(array_sum($paymentTotals), 2), null, ...$paymentTotals];
         $rows[] = array_fill(0, 12, null);
         $rows[] = array_fill(0, 12, null);
         $rows[] = [null, 'Notas y Observaciones', null, null, null, null, null, null, null, null, null, null];
@@ -149,6 +149,9 @@ class IncomeReportExport implements FromArray, WithEvents, WithTitle {
                 $sheet->getStyle("A7:C{$lastDateRow}")->getAlignment()
                     ->setHorizontal(Alignment::HORIZONTAL_CENTER)
                     ->setVertical(Alignment::VERTICAL_CENTER);
+                $sheet->getStyle("B7:B{$totalRow}")
+                    ->getNumberFormat()
+                    ->setFormatCode('"$"#,##0.00;[Red]-"$"#,##0.00;"$"-');
                 $sheet->getStyle("D7:L{$totalRow}")
                     ->getNumberFormat()
                     ->setFormatCode('"$"#,##0.00;[Red]-"$"#,##0.00;"$"-');

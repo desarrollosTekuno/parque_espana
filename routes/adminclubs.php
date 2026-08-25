@@ -104,6 +104,7 @@ Route::post('/cafeteria-visits/{cafeteriaVisit}/checkout', [CafeteriaVisitContro
 Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
 Route::get('/billing/reports/income', [BillingController::class, 'incomeReport'])->name('billing.reports.income');
 Route::get('/billing/reports/interclub-income', [BillingController::class, 'interclubIncomeReport'])->name('billing.reports.interclub-income');
+Route::get('/billing/reports/income-combined', [BillingController::class, 'combinedIncomeReport'])->name('billing.reports.income-combined');
 Route::get('/billing/charges', [BillingController::class, 'chargesList'])->name('billing.charges.index');
 Route::post('/billing/payments', [BillingController::class, 'storePayment'])->name('billing.payments.store');
 Route::get('/billing/annual-payment/preview', [BillingController::class, 'annualPaymentPreview'])->name('billing.annual-payment.preview');

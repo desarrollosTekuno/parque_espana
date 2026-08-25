@@ -208,7 +208,7 @@ class InterclubIncomeReportExport implements FromArray, WithEvents, WithTitle {
                     || (bool) ($membership?->pricingRule?->requires_multiple_clubs ?? false)
                 );
 
-            if (! $charge?->concept?->splits_between_parks && ! $isInterclubMonthlyFee) {
+            if (! $isInterclubMonthlyFee) {
                 return 0;
             }
 
