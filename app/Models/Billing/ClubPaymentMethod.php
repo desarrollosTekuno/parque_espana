@@ -17,6 +17,7 @@ class ClubPaymentMethod extends Model
 
     protected $casts = [
         'is_active' => 'boolean',
+        'conekta_secret_key' => 'encrypted',
     ];
 
     public function club()

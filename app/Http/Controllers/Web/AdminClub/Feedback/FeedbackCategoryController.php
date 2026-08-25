@@ -59,7 +59,7 @@ class FeedbackCategoryController extends Controller {
     public function store(Request $request) {
         $request->validate([
             'name' => 'required|string|max:120',
-            'code' => ['required', 'string', 'max:60', 'regex:/^[A-Za-zÀ-ÿ0-9,\s]+$/u', Rule::unique('feedback.categories', 'code')],
+            'code' => ['required', 'string', 'max:60', 'regex:/^[A-Za-zÀ-ÿ0-9,\s]+$/u', Rule::unique(Category::class, 'code')],
             'description' => 'nullable|string|max:500',
             'is_active' => 'boolean',
         ], [
@@ -89,7 +89,7 @@ class FeedbackCategoryController extends Controller {
     public function update(Request $request, $id) {
         $request->validate([
             'name' => 'required|string|max:120',
-            'code' => ['required', 'string', 'max:60', 'regex:/^[A-Za-zÀ-ÿ0-9,\s]+$/u', Rule::unique('feedback.categories', 'code')->ignore($id)],
+            'code' => ['required', 'string', 'max:60', 'regex:/^[A-Za-zÀ-ÿ0-9,\s]+$/u', Rule::unique(Category::class, 'code')->ignore($id)],
             'description' => 'nullable|string|max:500',
             'is_active' => 'required|boolean',
         ], [

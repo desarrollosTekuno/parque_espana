@@ -55,11 +55,49 @@ class GuestListVariableSeeder extends Seeder
                 'description' => 'Costo por invitado con edad entre 3 y 6 años',
                 'value' => 200,
                 'club_id' => 2
-            ]
+            ],
+            [
+                'code' => 'MIN_AGE',
+                'name' => 'Edad mínima para pagar',
+                'description' => 'Edad mínima para que un invitado tenga que pagar el pase de día',
+                'value' => 3,
+                'club_id' => 1
+            ],
+            [
+                'code' => 'MAX_AGE',
+                'name' => 'Edad máxima para pagar',
+                'description' => 'Edad máxima para que un invitado tenga que pagar el pase de día',
+                'value' => 6,
+                'club_id' => 1
+            ],
+            [
+                'code' => 'MIN_AGE',
+                'name' => 'Edad mínima para pagar',
+                'description' => 'Edad mínima para que un invitado tenga que pagar el pase de día',
+                'value' => 3,
+                'club_id' => 2
+            ],
+            [
+                'code' => 'MAX_AGE',
+                'name' => 'Edad máxima para pagar',
+                'description' => 'Edad máxima para que un invitado tenga que pagar el pase de día',
+                'value' => 6,
+                'club_id' => 2
+            ],
         ];
 
         foreach ($variables as $variable) {
-            GuestListVariable::create($variable);
+            GuestListVariable::updateOrCreate(
+                [
+                    'code' => $variable['code'],
+                    'club_id' => $variable['club_id'],
+                ],
+                [
+                    'name' => $variable['name'],
+                    'description' => $variable['description'],
+                    'value' => $variable['value'],
+                ]
+            );
         }
     }
 }

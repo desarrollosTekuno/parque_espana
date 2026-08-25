@@ -17,4 +17,9 @@ export default defineConfig({
             },
         }),
     ],
+    optimizeDeps: {
+        exclude: ['@schedule-x/calendar']
+    }
 });
+
+

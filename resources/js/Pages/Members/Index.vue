@@ -9,16 +9,20 @@ interface MemberItem {
     id: number;
     membership_id: number | null;
     membership_number: string;
+    internal_account_number: string | null;
     account_club_name: string | null;
     account_club_code: string | null;
     holder_name: string;
     email: string | null;
     phone: string | null;
     monthly_fee: number;
+    spans_multiple_clubs: boolean;
     status: string;
     can_change_membership: boolean;
     can_change_primary_holder: boolean;
     can_separate_member: boolean;
+    can_create_membership: boolean;
+    can_cancel_membership: boolean;
     active_memberships: ActiveMembershipItem[];
 }
 
@@ -120,6 +124,7 @@ const currencyFormatter = new Intl.NumberFormat("es-MX", {
     currency: "MXN",
     maximumFractionDigits: 2,
 });
+
 
 const statusLabel = (status: string) => {
     const map: Record<string, string> = {
@@ -299,6 +304,12 @@ const formatDateTime = (value: string | null) => {
                             <div class="font-weight-medium">
                                 {{ item.membership_number }}
                             </div>
+                            <div
+                                v-if="item.internal_account_number"
+                                class="text-caption text-primary font-weight-medium"
+                            >
+                                <v-icon size="10" class="mr-1">mdi-pound</v-icon>{{ item.internal_account_number }}
+                            </div>
                             <div class="text-caption text-medium-emphasis">
                                 {{ item.account_club_code || "-" }} ·
                                 {{ item.account_club_name || "Sin club" }}
@@ -310,10 +321,10 @@ const formatDateTime = (value: string | null) => {
                                 <div
                                     v-for="membership in item.active_memberships"
                                     :key="membership.id"
-                                    class="border rounded-lg px-3 py-2"
+                                    class="px-3 py-2 border rounded-lg"
                                 >
                                     <div
-                                        class="d-flex flex-wrap align-center justify-space-between ga-2"
+                                        class="flex-wrap d-flex align-center justify-space-between ga-2"
                                     >
                                         <div>
                                             <div class="font-weight-medium">
@@ -324,7 +335,7 @@ const formatDateTime = (value: string | null) => {
                                             </div>
                                         </div>
 
-                                        <div class="d-flex flex-wrap ga-2">
+                                        <div class="flex-wrap d-flex ga-2">
                                             <v-chip
                                                 size="small"
                                                 :color="membership.is_billable ? 'success' : 'default'"
@@ -354,19 +365,11 @@ const formatDateTime = (value: string | null) => {
                                         </div>
                                     </div>
 
-                                    <div class="text-caption text-medium-emphasis mt-2">
-                                        {{
-                                            membership.is_billable
-                                                ? `Cuota a cobrar: ${currencyFormatter.format(membership.monthly_fee_share)}`
-                                                : `Monto referencial: ${currencyFormatter.format(membership.monthly_fee_share)}`
-                                        }}
-                                    </div>
                                     <div
-                                        v-if="membership.monthly_fee_total !== membership.monthly_fee_share"
-                                        class="text-caption text-medium-emphasis"
+                                        v-if="membership.is_billable"
+                                        class="mt-2 text-caption text-medium-emphasis"
                                     >
-                                        Cuota total del esquema:
-                                        {{ currencyFormatter.format(membership.monthly_fee_total) }}
+                                        Cuota a cobrar: {{ currencyFormatter.format(membership.monthly_fee_share) }}
                                     </div>
                                 </div>
                             </div>
@@ -376,8 +379,11 @@ const formatDateTime = (value: string | null) => {
                             <div class="font-weight-bold">
                                 {{ currencyFormatter.format(item.monthly_fee) }}
                             </div>
-                            <div class="text-caption text-medium-emphasis">
-                                Total actual a cobrar
+                            <div class="flex-wrap mt-1 d-flex align-center ga-1">
+                                <span class="text-caption text-medium-emphasis">Total actual a cobrar</span>
+                                <v-chip v-if="item.spans_multiple_clubs" size="x-small" color="info" variant="tonal">
+                                    Ambos parques
+                                </v-chip>
                             </div>
                         </template>
 
@@ -400,7 +406,7 @@ const formatDateTime = (value: string | null) => {
                         </template>
 
                         <template #item.actions="{ item }">
-                            <div class="d-flex flex-wrap justify-end">
+                            <div class="flex-wrap justify-end d-flex">
                                 <BaseButton
                                     :icon-only="false"
                                     action="edit"
@@ -469,6 +475,7 @@ const formatDateTime = (value: string | null) => {
                                 />
 
                                 <BaseButton
+                                    v-if="item.can_create_membership"
                                     :icon-only="false"
                                     action="add"
                                     text="Agregar membresía"
@@ -485,6 +492,7 @@ const formatDateTime = (value: string | null) => {
                                 />
 
                                 <BaseButton
+                                    v-if="item.can_cancel_membership"
                                     :icon-only="false"
                                     action="delete"
                                     text="Dar de baja"
@@ -564,7 +572,7 @@ const formatDateTime = (value: string | null) => {
                                 </template>
 
                                 <template #item.actions="{ item }">
-                                    <div class="d-flex flex-wrap justify-end">
+                                    <div class="flex-wrap justify-end d-flex">
                                         <BaseButton
                                             :icon-only="false"
                                             action="edit"

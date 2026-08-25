@@ -3,10 +3,15 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreFeedbackTicketCommentRequest;
 use App\Http\Requests\StoreFeedbackTicketRequest;
 use App\Models\Administrator\Club;
+use App\Models\Feedback\Category;
+use App\Models\Feedback\Comment;
+use App\Models\Feedback\Priority;
 use App\Models\Feedback\Status;
 use App\Models\Feedback\Ticket;
+use App\Models\Feedback\TicketType;
 use App\Models\Members\Member;
 use App\Services\Email\MailService;
 use App\Traits\HandlesFeedbackTickets;
@@ -21,12 +26,6 @@ class FeedbackTicketMobileController extends Controller
 
     /**
      * GET /api/v1/clubs/{club}/feedback/tickets
-     *
-     * Historial de quejas y sugerencias del socio autenticado.
-     *
-     * Query params opcionales:
-     *   ?type=COMPLAINT|SUGGESTION   filtra por tipo (code)
-     *   ?status=SUBMITTED|IN_REVIEW|RESOLVED|CANCELLED   filtra por estatus (code)
      */
     public function index(Request $request, Club $club): JsonResponse
     {
@@ -42,83 +41,95 @@ class FeedbackTicketMobileController extends Controller
                     }
                 });
 
-            // Filtro por tipo (code del ticket_type)
             if ($request->filled('type')) {
-                $query->whereHas('type', fn($q) => $q->where('code', strtoupper($request->type)));
+                $query->whereHas('type', fn ($q) => $q->where('code', strtoupper($request->type)));
             }
 
-            // Filtro por estatus (code del status)
             if ($request->filled('status')) {
-                $query->whereHas('status', fn($q) => $q->where('code', strtoupper($request->status)));
+                $query->whereHas('status', fn ($q) => $q->where('code', strtoupper($request->status)));
             }
 
             $tickets = $query
                 ->orderByDesc('submitted_at')
                 ->get()
-                ->map(fn($ticket) => $this->formatTicketSummary($ticket))
+                ->map(fn ($ticket) => $this->formatTicketSummary($ticket))
                 ->values();
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Tickets obtenidos correctamente',
-                'tickets' => $tickets,
-            ]);
-
+            return $this->ok($tickets);
         } catch (\Exception $e) {
-            return response()->json([
-                'success'      => false,
-                'message'      => 'Error al obtener tickets',
-                'tickets'      => [],
-                'error_details' => $e->getMessage(),
-            ], 500);
+            report($e);
+            return $this->serverError('Error al obtener tickets.');
+        }
+    }
+
+    /**
+     * GET /api/v1/clubs/{club}/feedback/options
+     *
+     * Catálogos para armar el formulario de "nueva queja/sugerencia": categorías, tipos de ticket y prioridades.
+     */
+    public function options(Club $club): JsonResponse
+    {
+        try {
+            return $this->ok([
+                'categories'   => Category::where('is_active', true)
+                    ->orderBy('name')
+                    ->get()
+                    ->map(fn ($category) => [
+                        'id'          => $category->id,
+                        'name'        => $category->name,
+                        'code'        => $category->code,
+                        'description' => $category->description,
+                    ]),
+                'ticket_types' => TicketType::where('is_active', true)
+                    ->orderBy('name')
+                    ->get()
+                    ->map(fn ($type) => [
+                        'id'   => $type->id,
+                        'name' => $type->name,
+                        'code' => $type->code,
+                    ]),
+                'priorities'   => Priority::where('is_active', true)
+                    ->orderBy('name')
+                    ->get()
+                    ->map(fn ($priority) => [
+                        'id'   => $priority->id,
+                        'name' => $priority->name,
+                        'code' => $priority->code,
+                    ]),
+            ]);
+        } catch (\Exception $e) {
+            report($e);
+            return $this->serverError('Error al obtener los catálogos de feedback.');
         }
     }
 
     /**
      * GET /api/v1/clubs/{club}/feedback/tickets/{ticket}
-     *
-     * Detalle completo de un ticket: datos, adjuntos y comentarios públicos.
      */
     public function show(Request $request, Club $club, Ticket $ticket): JsonResponse
     {
         try {
             $member = Member::where('user_id', $request->user()->id)->first();
 
-            // Verificar que el ticket pertenece al usuario autenticado
             $belongs = $ticket->club_id === $club->id && (
                 $ticket->reported_by_user_id === $request->user()->id ||
                 ($member && $ticket->member_id === $member->id)
             );
 
             if (!$belongs) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Ticket no encontrado',
-                ], 404);
+                return $this->notFound('Ticket no encontrado.');
             }
 
             $ticket->load([
-                'type',
-                'category',
-                'status',
-                'priority',
-                'attachments',
-                // Solo comentarios públicos — los internos son del equipo admin
-                'comments' => fn($q) => $q->where('is_internal', false)->orderBy('created_at'),
+                'type', 'category', 'status', 'priority', 'attachments',
+                'comments'      => fn ($q) => $q->where('is_internal', false)->orderBy('created_at'),
                 'comments.user:id,name',
             ]);
 
-            return response()->json([
-                'success' => true,
-                'ticket'  => $this->formatTicketDetail($ticket),
-            ]);
-
+            return $this->ok($this->formatTicketDetail($ticket));
         } catch (\Exception $e) {
-            return response()->json([
-                'success'       => false,
-                'message'       => 'Error al obtener el ticket',
-                'error_details' => $e->getMessage(),
-            ], 500);
+            report($e);
+            return $this->serverError('Error al obtener el ticket.');
         }
     }
 
@@ -133,11 +144,11 @@ class FeedbackTicketMobileController extends Controller
             $ticketNumber = $this->createTicketNumber((int) $club->id);
 
             if (!$status) {
-                return response()->json(['success' => false, 'message' => 'No se encontro estatus SUBMITTED'], 422);
+                return $this->unprocessable('No se encontró el estatus SUBMITTED.');
             }
 
             if (!$ticketNumber) {
-                return response()->json(['success' => false, 'message' => 'No se pudo generar folio unico para el ticket'], 422);
+                return $this->unprocessable('No se pudo generar un folio único para el ticket.');
             }
 
             $ticket = Ticket::create([
@@ -170,18 +181,10 @@ class FeedbackTicketMobileController extends Controller
 
             $this->sendTicketNotifications($mailService, $ticket);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Ticket creado correctamente',
-                'ticket'  => $ticket,
-            ], 201);
-
+            return $this->created('Ticket creado correctamente.', $ticket);
         } catch (\Exception $e) {
-            return response()->json([
-                'success'       => false,
-                'message'       => 'Error al crear ticket',
-                'error_details' => $e->getMessage(),
-            ], 500);
+            report($e);
+            return $this->serverError('Error al crear el ticket.');
         }
     }
 
@@ -204,18 +207,18 @@ class FeedbackTicketMobileController extends Controller
                 ->first();
 
             if (!$ticketQuery) {
-                return response()->json(['success' => false, 'message' => 'Ticket no encontrado para este usuario'], 404);
+                return $this->notFound('Ticket no encontrado para este usuario.');
             }
 
             $submittedStatus = Status::where('code', 'SUBMITTED')->first();
             $cancelledStatus = Status::where('code', 'CANCELLED')->first();
 
             if (!$submittedStatus || !$cancelledStatus) {
-                return response()->json(['success' => false, 'message' => 'No se encontraron estatus requeridos'], 422);
+                return $this->unprocessable('No se encontraron los estatus requeridos.');
             }
 
             if ((int) $ticketQuery->status_id !== (int) $submittedStatus->id) {
-                return response()->json(['success' => false, 'message' => 'Solo se puede cancelar cuando el ticket esta ENVIADO'], 422);
+                return $this->unprocessable('Solo se puede cancelar cuando el ticket está ENVIADO.');
             }
 
             $ticketQuery->update([
@@ -223,14 +226,48 @@ class FeedbackTicketMobileController extends Controller
                 'closed_at' => now(),
             ]);
 
-            return response()->json(['success' => true, 'message' => 'Ticket cancelado correctamente']);
-
+            return $this->success('Ticket cancelado correctamente.');
         } catch (\Exception $e) {
-            return response()->json([
-                'success'       => false,
-                'message'       => 'Error al cancelar ticket',
-                'error_details' => $e->getMessage(),
-            ], 500);
+            report($e);
+            return $this->serverError('Error al cancelar el ticket.');
+        }
+    }
+
+    /**
+     * POST /api/v1/clubs/{club}/feedback/tickets/{ticket}/comments
+     */
+    public function comment(StoreFeedbackTicketCommentRequest $request, Club $club, Ticket $ticket): JsonResponse
+    {  
+        try {
+            $member = Member::where('user_id', $request->user()->id)->first();
+
+            $belongs = $ticket->club_id === $club->id && (
+                $ticket->reported_by_user_id === $request->user()->id ||
+                ($member && $ticket->member_id === $member->id)
+            );
+
+            if (!$belongs) {
+                return $this->notFound('Ticket no encontrado.');
+            }
+
+            $comment = Comment::create([
+                'ticket_id'   => $ticket->id,
+                'user_id'     => $request->user()->id,
+                'comment'     => $request->comment,
+                'is_internal' => false,
+            ]);
+
+            $comment->load('user:id,name');
+
+            return $this->created('Comentario agregado correctamente.', [
+                'id'         => $comment->id,
+                'body'       => $comment->comment,
+                'author'     => $comment->user?->name ?? 'Usuario',
+                'created_at' => $comment->created_at?->toDateTimeString(),
+            ]);
+        } catch (\Exception $e) {
+            report($e);
+            return $this->serverError('Error al agregar el comentario.');
         }
     }
 
@@ -241,30 +278,30 @@ class FeedbackTicketMobileController extends Controller
     private function formatTicketSummary(Ticket $ticket): array
     {
         return [
-            'id'             => $ticket->id,
-            'ticket_number'  => $ticket->ticket_number ?? '',
-            'title'          => $ticket->title ?? '',
-            'submitted_at'   => $ticket->submitted_at?->toDateTimeString() ?? '',
-            'resolved_at'    => $ticket->resolved_at?->toDateTimeString() ?? '',
-            'closed_at'      => $ticket->closed_at?->toDateTimeString() ?? '',
-            'is_anonymous'   => $ticket->is_anonymous,
-            'ticket_type'    => [
+            'id'            => $ticket->id,
+            'ticket_number' => $ticket->ticket_number ?? '',
+            'title'         => $ticket->title ?? '',
+            'submitted_at'  => $ticket->submitted_at?->toDateTimeString() ?? '',
+            'resolved_at'   => $ticket->resolved_at?->toDateTimeString() ?? '',
+            'closed_at'     => $ticket->closed_at?->toDateTimeString() ?? '',
+            'is_anonymous'  => $ticket->is_anonymous,
+            'ticket_type'   => [
                 'id'   => $ticket->type->id   ?? 0,
                 'name' => $ticket->type->name ?? '',
                 'code' => $ticket->type->code ?? '',
             ],
-            'category'       => [
+            'category'      => [
                 'id'   => $ticket->category->id   ?? 0,
                 'name' => $ticket->category->name ?? '',
                 'code' => $ticket->category->code ?? '',
             ],
-            'status'         => [
+            'status'        => [
                 'id'    => $ticket->status->id    ?? 0,
                 'name'  => $ticket->status->name  ?? '',
                 'code'  => $ticket->status->code  ?? '',
                 'color' => $ticket->status->color ?? '',
             ],
-            'priority'       => [
+            'priority'      => [
                 'id'   => $ticket->priority->id   ?? 0,
                 'name' => $ticket->priority->name ?? '',
                 'code' => $ticket->priority->code ?? '',
@@ -281,12 +318,12 @@ class FeedbackTicketMobileController extends Controller
             'resolution_notes' => $ticket->resolution_notes ?? '',
             'rejection_reason' => $ticket->rejection_reason ?? '',
             'due_at'           => $ticket->due_at ?? '',
-            'attachments'      => $ticket->attachments->map(fn($a) => [
-                'id'         => $a->id,
-                'url'        => $a->public_url,
-                'file_name'  => basename($a->file_path ?? ''),
+            'attachments'      => $ticket->attachments->map(fn ($a) => [
+                'id'        => $a->id,
+                'url'       => $a->public_url,
+                'file_name' => basename($a->file_path ?? ''),
             ])->values(),
-            'comments'         => $ticket->comments->map(fn($c) => [
+            'comments'         => $ticket->comments->map(fn ($c) => [
                 'id'         => $c->id,
                 'body'       => $c->comment,
                 'author'     => $c->user?->name ?? 'Soporte',

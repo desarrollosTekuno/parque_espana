@@ -14,6 +14,7 @@ interface CancellationItem {
     email: string | null;
     membership_type_name: string | null;
     cancellation_type: "voluntary" | "sanction" | null;
+    cancellation_reason: string | null;
     cancelled_at: string | null;
     cancelled_by_name: string | null;
     cancelled_by_id: number | null;
@@ -70,7 +71,7 @@ const options = ref({
 });
 
 const headers = [
-    { title: "No. Socio", key: "membership_number", sortable: true },
+    { title: "No. Usuario", key: "membership_number", sortable: true },
     { title: "Titular", key: "holder_name", sortable: false },
     { title: "Tipo de membresía", key: "membership_type_name", sortable: false },
     { title: "Tipo de baja", key: "cancellation_type", sortable: false },
@@ -226,7 +227,7 @@ function clearFilters() {
                         <v-col cols="12" md="4">
                             <v-text-field
                                 v-model="search"
-                                label="Buscar (No. socio, nombre, correo)"
+                                label="Buscar (No. usuario, nombre, correo)"
                                 prepend-inner-icon="mdi-magnify"
                                 variant="outlined"
                                 density="compact"
@@ -307,7 +308,7 @@ function clearFilters() {
                     no-data-text="No se encontraron registros de bajas."
                     loading-text="Cargando..."
                 >
-                    <!-- No. Socio -->
+                    <!-- No. Usuario -->
                     <template #item.membership_number="{ item }">
                         <span class="font-weight-medium">
                             {{ item.membership_number ?? "-" }}
@@ -339,7 +340,7 @@ function clearFilters() {
                             </v-chip>
                         </div>
                         <div class="text-caption text-medium-emphasis mt-1">
-                            {{ motivoLabel(item.cancellation_type) }}
+                            {{ item.cancellation_reason ?? motivoLabel(item.cancellation_type) }}
                         </div>
                     </template>
 

@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use App\Models\Billing\Charge;
 use Illuminate\Support\Facades\DB;
 use App\Models\AdminClub\BusinessAd;
+use App\Models\AdminClub\PhysicalAd;
+use App\Models\AdminClub\PhysicalAdSize;
 use App\Models\Billing\ChargeConcept;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
@@ -25,37 +27,64 @@ class BusinessAdController extends Controller {
         try {
             $clubId = $request->club_id ?? session('club_id');
             $driver = DB::getDriverName();
+            $like   = $driver === 'pgsql' ? 'ilike' : 'like';
+
+            // ── Anuncios digitales ──────────────────────────────────────────
             $query = BusinessAd::with(['status', 'member', 'category'])->where('club_id', $clubId);
-           // dd($query);
+
             if ($search = $request->input("search")) {
-                $operator = $driver == 'pgsql' ? 'ilike' : 'like';
-                $query->where(function ($q) use ($search, $operator) {
-                    $q->where('name', $operator, "%{$search}%")
-                    ->orWhereHas('category', function($q) use ($search, $operator){
-                        $q->where('name', $operator, "%{$search}%");
+                $query->where(function ($q) use ($search, $like) {
+                    $q->where('name', $like, "%{$search}%")
+                    ->orWhereHas('category', function($q) use ($search, $like){
+                        $q->where('name', $like, "%{$search}%");
                     })
-                    ->orWhereHas('member', function($u) use ($search, $operator){
-                        $u->where('first_name', $operator, "%{$search}%")
-                        ->orWhere('last_name', $operator, "%{$search}%");
+                    ->orWhereHas('member', function($u) use ($search, $like){
+                        $u->where('first_name', $like, "%{$search}%")
+                        ->orWhere('last_name', $like, "%{$search}%");
                     });
                 });
             }
-            $query->orderBy('id', 'desc');
-            //dd($request->all());
-            $ads = $query->paginate(
-                $request->input("per_page", 10)
-            )->withQueryString();
+
+            $ads = $query->orderBy('id', 'desc')
+                ->paginate($request->input("per_page", 10))
+                ->withQueryString();
+
+            // ── Anuncios físicos ────────────────────────────────────────────
+            $physicalQuery = PhysicalAd::with('member')->where('club_id', $clubId);
+
+            if ($physicalSearch = $request->input("physical_search")) {
+                $physicalQuery->whereHas('member', function ($q) use ($physicalSearch, $like) {
+                    $q->where('first_name', $like, "%{$physicalSearch}%")
+                      ->orWhere('last_name', $like, "%{$physicalSearch}%");
+                });
+            }
+
+            $physicalAds = $physicalQuery->orderBy('id', 'desc')
+                ->paginate(
+                    $request->input("physical_per_page", 10),
+                    ['*'],
+                    'physical_page'
+                )
+                ->withQueryString();
+
+            $physicalAdSizes = PhysicalAdSize::where('club_id', $clubId)
+                ->where('is_active', true)
+                ->orderBy('display_order')
+                ->orderBy('id')
+                ->get(['id', 'label', 'price']);
+
             return Inertia::render('AdminClubs/BusinessAds/Index', [
-                'ads' => $ads
+                'ads'             => $ads,
+                'physicalAds'     => $physicalAds,
+                'physicalAdSizes' => $physicalAdSizes,
             ]);
         } catch (\Exception $e) {
             report($e);
             return Inertia::render('AdminClubs/BusinessAds/Index', [
-                'ads' => [
-                    'data' => [],
-                    'total' => 0
-                ],
-                'messageError' => $e->getMessage()
+                'ads'             => ['data' => [], 'total' => 0],
+                'physicalAds'     => ['data' => [], 'total' => 0],
+                'physicalAdSizes' => [],
+                'messageError'    => $e->getMessage(),
             ]);
         }
     }

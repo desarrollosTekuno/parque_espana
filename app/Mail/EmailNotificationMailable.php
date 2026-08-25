@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\Storage;
 class EmailNotificationMailable extends Mailable {
     use Queueable, SerializesModels;
 
+    private string $attachmentDisk = 'spaces';
+
     public function __construct(
         public string $subjectText,
         public string $titleText,
@@ -29,9 +31,14 @@ class EmailNotificationMailable extends Mailable {
 
             $filePath = (string) $attachment['file_path'];
             $fileName = (string) ($attachment['original_name'] ?? basename($filePath));
+
+            if (!Storage::disk($this->attachmentDisk)->exists($filePath)) {
+                continue;
+            }
+
             $attachmentLinks[] = [
                 'name' => $fileName,
-                'url' => Storage::disk('public')->url($filePath),
+                'url' => Storage::disk($this->attachmentDisk)->temporaryUrl($filePath, now()->addMinutes(30)),
             ];
         }
 
@@ -50,17 +57,17 @@ class EmailNotificationMailable extends Mailable {
 
             $filePath = (string) $attachment['file_path'];
             $fileName = (string) ($attachment['original_name'] ?? basename($filePath));
-            $absolutePath = Storage::disk('public')->path($filePath);
 
-            if (!is_file($absolutePath)) {
+            if (!Storage::disk($this->attachmentDisk)->exists($filePath)) {
                 Log::warning('Adjunto no encontrado para correo', [
                     'file_path' => $filePath,
                 ]);
                 continue;
             }
 
-            $mail->attach($absolutePath, [
+            $mail->attachData(Storage::disk($this->attachmentDisk)->get($filePath), $fileName, [
                 'as' => $fileName,
+                'mime' => $attachment['mime_type'] ?? null,
             ]);
         }
 

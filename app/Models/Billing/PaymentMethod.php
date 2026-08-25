@@ -20,6 +20,7 @@ class PaymentMethod extends Model
         'requires_check_number' => 'boolean',
         'affects_cash_cut'     => 'boolean',
         'is_active'            => 'boolean',
+        'show_in_billing'      => 'boolean',
     ];
 
     public const PROVIDER_CONEKTA = 'conekta';

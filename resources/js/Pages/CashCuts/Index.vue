@@ -19,7 +19,7 @@ interface CashCutItem {
     opened_at: string | null;
     closed_at: string | null;
     cashier_name: string | null;
-    global_cash_cut_id: number | null;
+    global_cash_cut_id: number | null; 
 }
 
 interface PaginatedCuts {

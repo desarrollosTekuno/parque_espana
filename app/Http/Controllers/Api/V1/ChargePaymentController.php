@@ -2,56 +2,41 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Exceptions\ConektaChargeRejectedException;
 use App\Http\Controllers\Controller;
+use App\Models\AdminClub\BusinessAd;
 use App\Models\Billing\Charge;
-use App\Models\Billing\ClubPaymentMethod;
 use App\Models\Billing\PaymentMethod;
 use App\Models\Members\Member;
 use App\Models\Members\MemberPaymentSource;
 use App\Models\Memberships\MembershipAccount;
+use App\Services\Billing\InterclubSplitPaymentService;
 use App\Services\Billing\PaymentRegistrationService;
 use App\Services\Payments\ConektaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class ChargePaymentController extends Controller
 {
     public function __construct(
-        private ConektaService             $conekta,
-        private PaymentRegistrationService $paymentService,
+        private ConektaService              $conekta,
+        private PaymentRegistrationService  $paymentService,
+        private InterclubSplitPaymentService $splitService,
     ) {}
 
     /**
      * POST /api/v1/charge-payment
-     *
-     * Cobra uno o más cargos pendientes usando una tarjeta domiciliada.
-     * El cobro se procesa en Conekta y queda registrado en billing.
-     *
-     * Body:
-     * {
-     *   "payment_source_id": 1,          // ID local de la tarjeta (members.payment_sources)
-     *   "club_id": 1,                    // Club al que pertenecen los cargos
-     *   "applications": [
-     *     { "charge_id": 123, "amount": 500.00 },
-     *     { "charge_id": 124, "amount": 250.00 }
-     *   ],
-     *   "notes": "Pago desde app"        // opcional
-     * }
      */
     public function store(Request $request): JsonResponse
     {
-        // 1. Resolver miembro autenticado
         $member = Member::where('user_id', $request->user()->id)->first();
 
         if (!$member) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No se encontró un perfil de socio asociado a este usuario.',
-            ], 404);
+            return $this->notFound('No se encontró un perfil de socio asociado a este usuario.');
         }
 
-        // 2. Validar request
         $validated = $request->validate([
             'payment_source_id'           => ['required', 'integer'],
             'club_id'                     => ['required', 'integer'],
@@ -61,54 +46,66 @@ class ChargePaymentController extends Controller
             'notes'                       => ['nullable', 'string', 'max:500'],
         ]);
 
-        // 3. Validar que la tarjeta pertenezca al miembro
+        $clubId = (int) $validated['club_id'];
         $source = MemberPaymentSource::where('id', $validated['payment_source_id'])
             ->where('member_id', $member->id)
+            ->where('club_id', $clubId)
             ->first();
 
         if (!$source) {
-            return response()->json([
-                'success' => false,
-                'message' => 'La tarjeta seleccionada no está disponible.',
-            ], 404);
+            return $this->notFound('La tarjeta seleccionada no está disponible.');
         }
 
-        // 4. Encontrar el método de pago Conekta habilitado para el club
-        $clubId        = (int) $validated['club_id'];
         $paymentMethod = $this->resolveConektaPaymentMethod($clubId);
 
         if (!$paymentMethod) {
-            return response()->json([
-                'success' => false,
-                'message' => 'El pago con tarjeta no está habilitado para este club. Contacta a administración.',
-            ], 422);
+            return $this->unprocessable('El pago con tarjeta no está habilitado para este club. Contacta a administración.');
         }
 
-        // 5. Resolver la cuenta del miembro en el club
         $account = $member->accounts()
             ->whereHas('memberships', fn ($q) => $q->where('club_id', $clubId)->where('status', 'active'))
             ->first();
 
         if (!$account) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No se encontró una membresía activa en este club.',
-            ], 404);
+            return $this->notFound('No se encontró una membresía activa en este club.');
         }
 
-        // 6. Calcular total en centavos para Conekta
         $totalAmount = collect($validated['applications'])->sum('amount');
         $amountCents = (int) round($totalAmount * 100);
-
-        // 7. Construir descripción del cargo
         $chargeIds   = collect($validated['applications'])->pluck('charge_id');
-        $description = $this->buildDescription($account, $chargeIds->toArray());
+        $charges     = Charge::whereIn('id', $chargeIds)->with('concept')->get();
+
+        $nonPayableCharge = $charges->first(fn (Charge $c) => $c->concept && !$c->concept->is_mobile_payable);
+
+        if ($nonPayableCharge) {
+            return $this->unprocessable(
+                "El concepto \"{$nonPayableCharge->concept->name}\" no está disponible para pago desde la app. Acude a la administración del club."
+            );
+        }
+
+        $splitContext = $this->splitService->resolveContext($member, $clubId, $charges);
+
+        if ($splitContext) {
+            return $this->processSplitPayment(
+                member: $member,
+                account: $account,
+                clubId: $clubId,
+                source: $source,
+                paymentMethod: $paymentMethod,
+                charges: $charges,
+                applications: $validated['applications'],
+                notes: $validated['notes'] ?? null,
+                splitContext: $splitContext,
+            );
+        }
+
+        $description = $this->buildDescription($account, $charges);
 
         try {
-            // 8. Procesar el cobro en Conekta
             $conektaResult = $this->conekta->charge(
                 member:      $member,
                 source:      $source,
+                clubId:      $clubId,
                 amountCents: $amountCents,
                 description: $description,
                 metadata: [
@@ -120,13 +117,11 @@ class ChargePaymentController extends Controller
 
             if ($conektaResult['status'] !== 'paid') {
                 return response()->json([
-                    'success' => false,
                     'message' => 'El pago fue rechazado por el procesador. Verifica los datos de tu tarjeta.',
-                    'conekta_status' => $conektaResult['status'],
+                    'data'    => ['conekta_status' => $conektaResult['status']],
                 ], 422);
             }
 
-            // 9. Registrar el pago en billing
             $payment = $this->paymentService->register(
                 account:       $account,
                 clubId:        $clubId,
@@ -141,41 +136,203 @@ class ChargePaymentController extends Controller
                 sessionClubId: $clubId,
             );
 
-            return response()->json([
-                'success'    => true,
-                'message'    => 'Pago procesado correctamente.',
-                'data'       => [
-                    'payment_id'      => $payment->id,
-                    'amount'          => $payment->amount,
-                    'paid_at'         => $payment->paid_at,
-                    'conekta_order'   => $conektaResult['order_id'],
-                    'conekta_charge'  => $conektaResult['charge_id'],
-                ],
-            ], 201);
+            $this->publishPaidBusinessAds($charges);
 
-        } catch (ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al validar los cargos.',
-                'errors'  => $e->errors(),
-            ], 422);
+            return $this->created('Pago procesado correctamente.', [
+                'payment_id'     => $payment->id,
+                'amount'         => $payment->amount,
+                'paid_at'        => $payment->paid_at,
+                'conekta_order'  => $conektaResult['order_id'],
+                'conekta_charge' => $conektaResult['charge_id'],
+            ]);
         } catch (\Throwable $e) {
             report($e);
-            return response()->json([
-                'success' => false,
-                'message' => 'Ocurrió un error al procesar el pago. Intenta de nuevo.',
-                'error'   => $e->getMessage(),
-            ], 500);
+            return $this->serverError('Ocurrió un error al procesar el pago. Intenta de nuevo.');
         }
     }
 
-    // ──────────────────────────────────────────────────────────────
-    // Helpers
-    // ──────────────────────────────────────────────────────────────
-
     /**
-     * Busca el PaymentMethod con provider='conekta' habilitado para el club.
+     * Cobra un pago que incluye al menos un cargo de un concepto con
+     * splits_between_parks=true, para un socio titular en ambos parques.
+     * Se parte cada cargo elegible a la mitad (ver InterclubSplitPaymentService)
+     * y se hacen DOS cobros Conekta independientes, uno por cuenta comercial —
+     * cada parque termina con su propio cargo pagado y su propio registro en
+     * el corte de caja. El socio nunca ve estos dos pasos, solo mandó un
+     * POST /charge-payment normal.
      */
+    private function processSplitPayment(
+        Member $member,
+        MembershipAccount $account,
+        int $clubId,
+        MemberPaymentSource $source,
+        PaymentMethod $paymentMethod,
+        Collection $charges,
+        array $applications,
+        ?string $notes,
+        array $splitContext,
+    ): JsonResponse {
+        $otherClubId   = $splitContext['club_id'];
+        $otherAccount  = $splitContext['account'];
+        $otherMembership = $splitContext['membership'];
+
+        $otherSource = $this->splitService->resolvePaymentSource($member->id, $otherClubId);
+
+        if (!$otherSource) {
+            return $this->unprocessable(
+                "Para completar este pago necesitas una tarjeta guardada también en {$splitContext['club_name']}. Agrégala e intenta de nuevo."
+            );
+        }
+
+        $otherPaymentMethod = $this->splitService->resolveConektaPaymentMethod($otherClubId);
+
+        if (!$otherPaymentMethod) {
+            return $this->unprocessable(
+                "El pago con tarjeta no está habilitado en {$splitContext['club_name']}. Contacta a administración."
+            );
+        }
+
+        $applicationsByChargeId = collect($applications)->keyBy('charge_id');
+        $description = $this->buildDescription($account, $charges);
+
+        // La partición de cargos (InterclubSplitPaymentService::splitCharge,
+        // que muta el cargo original y crea uno espejo real en el otro
+        // parque) y el registro del pago viven en la MISMA transacción que
+        // el cobro en Conekta: si Conekta rechaza el cobro (o splitCharge
+        // rechaza partir un cargo que ya no tiene saldo, ver
+        // ConektaChargeRejectedException/RuntimeException abajo), todo se
+        // revierte — antes, si el cobro fallaba después de partir el
+        // cargo, el cargo espejo ya partido se quedaba huérfano en BD para
+        // siempre (ver bug histórico: cargo #95, $0 pendiente sin dueño).
+        try {
+            $result = DB::transaction(function () use (
+                $charges, $applicationsByChargeId, $otherAccount, $otherMembership,
+                $member, $source, $clubId, $description, $account, $paymentMethod, $notes
+            ) {
+                $originalApplications = [];
+                $mirrorApplications   = [];
+
+                foreach ($charges as $charge) {
+                    $requestedAmount = round((float) $applicationsByChargeId[$charge->id]['amount'], 2);
+
+                    if ($charge->concept?->splits_between_parks) {
+                        $split = $this->splitService->splitCharge($charge, $otherAccount, $otherMembership);
+                        $originalApplications[] = ['charge_id' => $charge->id, 'amount' => $split['original_share']];
+                        $mirrorApplications[]   = ['charge_id' => $split['mirror_charge']->id, 'amount' => (float) $split['mirror_charge']->balance];
+                    } else {
+                        $originalApplications[] = ['charge_id' => $charge->id, 'amount' => $requestedAmount];
+                    }
+                }
+
+                $originalTotal = round(collect($originalApplications)->sum('amount'), 2);
+
+                $firstResult = $this->conekta->charge(
+                    member:      $member,
+                    source:      $source,
+                    clubId:      $clubId,
+                    amountCents: (int) round($originalTotal * 100),
+                    description: $description,
+                    metadata: [
+                        'membership_account_id' => $account->id,
+                        'club_id'               => $clubId,
+                        'charge_ids'            => collect($originalApplications)->pluck('charge_id')->join(','),
+                        'interclub_split'       => true,
+                    ],
+                );
+
+                if ($firstResult['status'] !== 'paid') {
+                    throw new ConektaChargeRejectedException($firstResult['status']);
+                }
+
+                $this->paymentService->register(
+                    account:       $account,
+                    clubId:        $clubId,
+                    paymentMethod: $paymentMethod,
+                    applications:  $originalApplications,
+                    paidAt:        now()->toDateString(),
+                    reference:     $firstResult['order_id'],
+                    bankName:      null,
+                    checkNumber:   null,
+                    notes:         $notes ?? "Pago procesado vía Conekta (mitad interclub). Cargo: {$firstResult['charge_id']}",
+                    receivedBy:    null,
+                    sessionClubId: $clubId,
+                );
+
+                return ['mirrorApplications' => $mirrorApplications, 'originalTotal' => $originalTotal];
+            });
+
+            $mirrorApplications = $result['mirrorApplications'];
+            $originalTotal       = $result['originalTotal'];
+            $otherTotal          = round(collect($mirrorApplications)->sum('amount'), 2);
+
+            // Los cargos de un anuncio de negocio nunca traen
+            // splits_between_parks, así que siempre viajan completos en
+            // $originalApplications (pagados en esta primera mitad) — no
+            // hay que revisar también la segunda mitad ($mirrorApplications).
+            $this->publishPaidBusinessAds($charges);
+        } catch (ConektaChargeRejectedException $e) {
+            return response()->json([
+                'message' => 'El pago fue rechazado por el procesador. Verifica los datos de tu tarjeta.',
+                'data'    => ['conekta_status' => $e->conektaStatus],
+            ], 422);
+        } catch (\RuntimeException $e) {
+            return $this->unprocessable($e->getMessage());
+        } catch (\Throwable $e) {
+            report($e);
+            return $this->serverError('Ocurrió un error al procesar el pago. Intenta de nuevo.');
+        }
+
+        // A partir de aquí ya se cobró y registró la mitad de este parque —
+        // si algo falla abajo, no se puede deshacer ese cobro, así que se
+        // responde con éxito parcial en vez de un error genérico.
+        try {
+            $secondResult = $this->conekta->charge(
+                member:      $member,
+                source:      $otherSource,
+                clubId:      $otherClubId,
+                amountCents: (int) round($otherTotal * 100),
+                description: $description,
+                metadata: [
+                    'membership_account_id' => $otherAccount->id,
+                    'club_id'               => $otherClubId,
+                    'charge_ids'            => collect($mirrorApplications)->pluck('charge_id')->join(','),
+                    'interclub_split'       => true,
+                ],
+            );
+
+            if ($secondResult['status'] !== 'paid') {
+                return response()->json([
+                    'message' => "Se cobró tu parte en este parque, pero el cobro en {$splitContext['club_name']} fue rechazado. Contacta a administración para completar tu pago.",
+                    'data'    => ['conekta_status' => $secondResult['status'], 'partial' => true],
+                ], 422);
+            }
+
+            $this->paymentService->register(
+                account:       $otherAccount,
+                clubId:        $otherClubId,
+                paymentMethod: $otherPaymentMethod,
+                applications:  $mirrorApplications,
+                paidAt:        now()->toDateString(),
+                reference:     $secondResult['order_id'],
+                bankName:      null,
+                checkNumber:   null,
+                notes:         "Pago procesado vía Conekta (mitad interclub). Cargo: {$secondResult['charge_id']}",
+                receivedBy:    null,
+                sessionClubId: $otherClubId,
+            );
+        } catch (\Throwable $e) {
+            report($e);
+            return response()->json([
+                'message' => "Se cobró tu parte en este parque, pero ocurrió un error al procesar el cobro en {$splitContext['club_name']}. Contacta a administración para completar tu pago.",
+            ], 422);
+        }
+
+        return $this->created('Pago procesado correctamente.', [
+            'amount'  => round($originalTotal + $otherTotal, 2),
+            'paid_at' => now()->toDateString(),
+            'split'   => true,
+        ]);
+    }
+
     private function resolveConektaPaymentMethod(int $clubId): ?PaymentMethod
     {
         return PaymentMethod::query()
@@ -188,16 +345,35 @@ class ChargePaymentController extends Controller
     }
 
     /**
-     * Genera una descripción legible para el cargo en Conekta.
+     * Si alguno de los cargos pagados corresponde a un anuncio de negocio ya
+     * aprobado y pendiente de pago (BusinessAdController::approve, que deja
+     * status_id=3 y metadata.business_ad_id en el cargo), lo marca como
+     * publicado — mismo criterio que BillingController/CollectionController::storePayment.
      */
-    private function buildDescription(MembershipAccount $account, array $chargeIds): string
+    private function publishPaidBusinessAds(Collection $charges): void
     {
-        $charges = Charge::whereIn('id', $chargeIds)
-            ->with('concept')
-            ->get()
-            ->map(fn ($c) => $c->concept?->name ?? "Cargo #{$c->id}")
+        $businessAdIds = $charges->pluck('metadata.business_ad_id')->filter()->unique();
+
+        if ($businessAdIds->isEmpty()) {
+            return;
+        }
+
+        BusinessAd::whereIn('id', $businessAdIds)
+            ->where('status_id', 3)
+            ->update([
+                'status_id' => 5,
+                'paid_at' => now(),
+                'published_at' => now(),
+                'expires_at' => now()->addMonth(),
+            ]);
+    }
+
+    private function buildDescription(MembershipAccount $account, Collection $charges): string
+    {
+        $conceptNames = $charges
+            ->map(fn (Charge $c) => $c->concept?->name ?? "Cargo #{$c->id}")
             ->join(', ');
 
-        return "Cuenta #{$account->membership_number}: {$charges}";
+        return "Cuenta #{$account->membership_number}: {$conceptNames}";
     }
 }

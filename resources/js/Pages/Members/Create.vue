@@ -20,7 +20,7 @@ import { Head, useForm, usePage } from "@inertiajs/vue3";
 import { computed, ref, watch } from "vue";
 
 const page = usePage<any>();
-
+const can = page.props.auth.permissions;
 interface Props {
     membershipTypes?: MembershipType[];
     originMembershipTypes?: MembershipType[];
@@ -122,9 +122,6 @@ interface MemberAddressForm {
     street: string | null;
     neighborhood: string | null;
     postal_code: string | null;
-    city: string | null;
-    state: string | null;
-    country: string | null;
     years_in_city: number | null;
 }
 
@@ -224,6 +221,10 @@ interface MembershipsForm {
     years_in_source_club: number | null;
     source_membership_id: number | null;
     target_club_id: number | null;
+    internal_account_number: string | null;
+    inscription_fee_override: number | null;
+    inscription_discount_document: File | null;
+    installment_months: number | null;
     members: MemberForm[];
 }
 
@@ -420,7 +421,6 @@ const steps = computed(() => [
     form.membershipType?.allows_multiple_members
         ? "Datos y familia"
         : "Datos del titular",
-    "Documentos",
     "Confirmación",
 ]);
 
@@ -460,8 +460,17 @@ const form = useForm<MembershipsForm>({
     years_in_source_club: null,
     source_membership_id: props.sourceMembership?.id ?? null,
     target_club_id: props.targetClub?.id ?? null,
+    internal_account_number: null,
+    inscription_fee_override: null,
+    inscription_discount_document: null,
+    installment_months: null,
     members: [],
 });
+
+const applyInscriptionDiscount = ref(false);
+const discountDocFiles = ref<File[] | null>(null);
+const applyInstallments = ref(false);
+
 
 const createEmptyAddress = (
     defaultCountryId: number | null = null,
@@ -472,9 +481,6 @@ const createEmptyAddress = (
     street: "",
     neighborhood: "",
     postal_code: "",
-    city: "",
-    state: "",
-    country: defaultCountryId ? getCountryName(defaultCountryId) : "",
     years_in_city: null,
 });
 
@@ -767,11 +773,8 @@ const onAddressCountryChange = async (
     countryId: number | null,
 ) => {
     member.address.country_id = countryId;
-    member.address.country = getCountryName(countryId);
     member.address.state_id = null;
-    member.address.state = "";
     member.address.city_id = null;
-    member.address.city = "";
 
     if (countryId) {
         await fetchStates(countryId);
@@ -783,9 +786,7 @@ const onAddressStateChange = async (
     stateId: number | null,
 ) => {
     member.address.state_id = stateId;
-    member.address.state = getStateName(member.address.country_id, stateId);
     member.address.city_id = null;
-    member.address.city = "";
 
     if (stateId) {
         await fetchCities(stateId);
@@ -794,7 +795,6 @@ const onAddressStateChange = async (
 
 const onAddressCityChange = (member: MemberForm, cityId: number | null) => {
     member.address.city_id = cityId;
-    member.address.city = getCityName(member.address.state_id, cityId);
 };
 
 const initializeLocationCatalogsForMembers = async (members: MemberForm[]) => {
@@ -1208,11 +1208,11 @@ const handleNext = async (next: () => void) => {
             return;
             
         }
-        // next();
-        // return;
+         next();
+         return;
     }
 
-    if (step.value === 3) {
+    /*if (step.value === 3) {
         const { valid } = await documentsStepRef.value?.validate();
         if (!valid) {
             // Show an error toast if validation fails
@@ -1226,13 +1226,13 @@ const handleNext = async (next: () => void) => {
     //     return;
     }
 
-    next();
+    next();*/
 };
 
 const handlePrev = (prev: () => void) => {
-    if (step.value === 3) {
+   /* if (step.value === 3) {
         documentsStepRef.value?.resetValidation();
-    }
+    }*/
 
     if (step.value === 2) {
         familyStepRef.value?.resetValidation();
@@ -1242,6 +1242,8 @@ const handlePrev = (prev: () => void) => {
 };
 
 const submit = () => {
+    form.inscription_discount_document = discountDocFiles.value?.[0] ?? null;
+
     form.transform((data) => ({
         source_membership_id: data.source_membership_id,
         target_club_id: data.target_club_id,
@@ -1251,6 +1253,10 @@ const submit = () => {
         has_multiple_clubs: data.has_multiple_clubs,
         source_membership_is_active: data.source_membership_is_active,
         years_in_source_club: data.years_in_source_club,
+        internal_account_number: data.internal_account_number || null,
+        inscription_fee_override: applyInscriptionDiscount.value ? data.inscription_fee_override : null,
+        inscription_discount_document: applyInscriptionDiscount.value ? data.inscription_discount_document : null,
+        installment_months: applyInstallments.value ? data.installment_months : null,
         members: data.members.map((member) => ({
             id: member.id ?? null,
             first_name: member.first_name,
@@ -1313,6 +1319,16 @@ const memberLabel = (member: MemberForm) => {
     if (member.relationship_name) return member.relationship_name;
     return "Familiar";
 };
+
+watch(applyInscriptionDiscount, (val) => {
+    if (!val) {
+        form.inscription_fee_override = null;
+        discountDocFiles.value = null;
+        form.inscription_discount_document = null;
+    } else if (pricingPreview.value) {
+        form.inscription_fee_override = pricingPreview.value.inscription_fee;
+    }
+});
 </script>
 
 <template>
@@ -2007,7 +2023,7 @@ const memberLabel = (member: MemberForm) => {
                                                         v-model="
                                                             member.first_name
                                                         "
-                                                        label="Nombre(s)"
+                                                        label="Nombre(s) *"
                                                         :rules="[required,minLength(2), maxLength(75)]"
                                                         :disabled="
                                                             isIdentityLocked(
@@ -2022,7 +2038,7 @@ const memberLabel = (member: MemberForm) => {
                                                         v-model="
                                                             member.last_name
                                                         "
-                                                        label="Apellido paterno"
+                                                        label="Apellido paterno *"
                                                         :rules="[required,minLength(2), maxLength(50)]"
                                                         :disabled="
                                                             isIdentityLocked(
@@ -2037,7 +2053,7 @@ const memberLabel = (member: MemberForm) => {
                                                         v-model="
                                                             member.second_last_name
                                                         "
-                                                        label="Apellido materno"
+                                                        label="Apellido materno *"
                                                         :disabled="
                                                             isIdentityLocked(
                                                                 member,
@@ -2054,7 +2070,7 @@ const memberLabel = (member: MemberForm) => {
                                                             member.birthdate
                                                         "
                                                         type="date"
-                                                        label="Fecha de nacimiento"
+                                                        label="Fecha de nacimiento *"
                                                         :rules="[
                                                             required,
                                                             birthdateRule(
@@ -2083,7 +2099,7 @@ const memberLabel = (member: MemberForm) => {
                                                         :model-value="
                                                             member.age
                                                         "
-                                                        label="Edad"
+                                                        label="Edad *"
                                                         readonly
                                                     />
                                                 </v-col>
@@ -2105,7 +2121,7 @@ const memberLabel = (member: MemberForm) => {
                                                         :items="countryOptions"
                                                         item-title="title"
                                                         item-value="id"
-                                                        label="País de nacimiento"
+                                                        label="País de nacimiento *"
                                                         :error-messages="
                                                             memberFieldError(
                                                                 index,
@@ -2145,7 +2161,7 @@ const memberLabel = (member: MemberForm) => {
                                                         "
                                                         item-title="name"
                                                         item-value="id"
-                                                        label="Estado de nacimiento"
+                                                        label="Estado de nacimiento *"
                                                         :error-messages="
                                                             memberFieldError(
                                                                 index,
@@ -2185,12 +2201,12 @@ const memberLabel = (member: MemberForm) => {
                                                         "
                                                         :items="
                                                             getCityOptions(
-                                                                member.birth_state_id,
+                                                                member.birth_state_id, 
                                                             )
                                                         "
                                                         item-title="name"
                                                         item-value="id"
-                                                        label="Ciudad de nacimiento"
+                                                        label="Ciudad de nacimiento *"
                                                         :error-messages="
                                                             memberFieldError(
                                                                 index,
@@ -2230,7 +2246,7 @@ const memberLabel = (member: MemberForm) => {
                                                         "
                                                         item-title="title"
                                                         item-value="id"
-                                                        label="Nacionalidad"
+                                                        label="Nacionalidad *"
                                                         
                                                         clearable
                                                         auto-select-first
@@ -2259,7 +2275,7 @@ const memberLabel = (member: MemberForm) => {
                                                         "
                                                         item-title="title"
                                                         item-value="id"
-                                                        label="Estado civil"
+                                                        label="Estado civil *"
                                                         :disabled="
                                                             isSpouseRelationship(
                                                                 member,
@@ -2290,7 +2306,7 @@ const memberLabel = (member: MemberForm) => {
                                                 >
                                                     <v-text-field
                                                         v-model="member.phone"
-                                                        label="Teléfono"
+                                                        label="Teléfono *"
                                                         :rules="
                                                             member.is_primary_holder
                                                                 ? [
@@ -2298,8 +2314,8 @@ const memberLabel = (member: MemberForm) => {
                                                                       validatePhone,
                                                                   ]
                                                                 : [
-                                                                        validatePhone,
-                                                                ]
+                                                                      validatePhone,
+                                                                  ]
                                                         "
                                                     />
                                                 </v-col>
@@ -2307,7 +2323,7 @@ const memberLabel = (member: MemberForm) => {
                                                 <v-col cols="12" md="4">
                                                     <v-text-field
                                                         v-model="member.email"
-                                                        label="Correo"
+                                                        label="Correo *"
                                                         :rules="
                                                             member.is_primary_holder
                                                                 ? [
@@ -2331,7 +2347,7 @@ const memberLabel = (member: MemberForm) => {
                                                         v-model="
                                                             member.occupation
                                                         "
-                                                        label="Ocupación"
+                                                        label="Ocupación *"
                                                         :rules="[required, minLength(2), maxLength(100)]"
                                                     />
                                                 </v-col>
@@ -2349,7 +2365,7 @@ const memberLabel = (member: MemberForm) => {
                                                         v-model="
                                                             member.school_name
                                                         "
-                                                        label="Colegio"
+                                                        label="Colegio *"
                                                         :rules="[required, minLength(3), maxLength(150)]"
                                                     />
                                                 </v-col>
@@ -2374,7 +2390,7 @@ const memberLabel = (member: MemberForm) => {
                                                             member.address
                                                                 .street
                                                         "
-                                                        label="Calle"
+                                                        label="Calle *"
                                                         :rules="[required, minLength(3), maxLength(150)]"
                                                     />
                                                 </v-col>
@@ -2385,7 +2401,7 @@ const memberLabel = (member: MemberForm) => {
                                                             member.address
                                                                 .neighborhood
                                                         "
-                                                        label="Colonia"
+                                                        label="Colonia *"
                                                         :rules="[required, minLength(3), maxLength(150)]"
                                                     />
                                                 </v-col>
@@ -2396,7 +2412,7 @@ const memberLabel = (member: MemberForm) => {
                                                             member.address
                                                                 .postal_code
                                                         "
-                                                        label="Código postal"
+                                                        label="Código postal *"
                                                         :rules="[postalCode]"
                                                     />
                                                 </v-col>
@@ -2410,7 +2426,7 @@ const memberLabel = (member: MemberForm) => {
                                                         :items="countryOptions"
                                                         item-title="title"
                                                         item-value="id"
-                                                        label="País"
+                                                        label="País *"
                                                         :error-messages="
                                                             memberAddressFieldError(
                                                                 index,
@@ -2442,7 +2458,7 @@ const memberLabel = (member: MemberForm) => {
                                                         "
                                                         item-title="name"
                                                         item-value="id"
-                                                        label="Estado del domicilio"
+                                                        label="Estado del domicilio *"
                                                         :error-messages="
                                                             memberAddressFieldError(
                                                                 index,
@@ -2480,7 +2496,7 @@ const memberLabel = (member: MemberForm) => {
                                                         "
                                                         item-title="name"
                                                         item-value="id"
-                                                        label="Ciudad del domicilio"
+                                                        label="Ciudad del domicilio *"
                                                         :error-messages="
                                                             memberAddressFieldError(
                                                                 index,
@@ -2507,7 +2523,7 @@ const memberLabel = (member: MemberForm) => {
                                                             member.address
                                                                 .years_in_city
                                                         "
-                                                        label="Años radicando en la ciudad"
+                                                        label="Años radicando en la ciudad *"
                                                         :rules="[required]"
                                                     />
                                                 </v-col>
@@ -2533,7 +2549,7 @@ const memberLabel = (member: MemberForm) => {
                                                                 .company_name
                                                         "
                                                         label="Empresa"
-                                                        :rules="[required, minLength(2), maxLength(150)]"
+                                                        :rules="[minLength(2), maxLength(150)]"
                                                     />
                                                 </v-col>
 
@@ -2544,7 +2560,7 @@ const memberLabel = (member: MemberForm) => {
                                                                 .company_address
                                                         "
                                                         label="Dirección de la empresa"
-                                                            :rules="[required, minLength(5), maxLength(255)]"
+                                                            :rules="[minLength(5), maxLength(255)]"
                                                     />
                                                 </v-col>
 
@@ -2555,7 +2571,7 @@ const memberLabel = (member: MemberForm) => {
                                                                 .company_phone
                                                         "
                                                         label="Teléfono de la empresa"
-                                                        :rules="[required, validatePhone]"
+                                                        :rules="[validatePhone]"
                                                     />
                                                 </v-col>
                                             </v-row>
@@ -2577,7 +2593,7 @@ const memberLabel = (member: MemberForm) => {
                         </template>
 
                         <!-- STEP 3 -->
-                        <template #item.3>
+                        <!--<template #item.3>
                             <v-form ref="documentsStepRef">
                                 <v-container class="h-[500px] overflow-auto">
                                     <div class="mb-4">
@@ -2644,7 +2660,6 @@ const memberLabel = (member: MemberForm) => {
                                                         </v-chip>
                                                     </div>
 
-                                                    <!-- Documento ya cargado — modo lectura -->
                                                     <div
                                                         v-if="doc.already_uploaded && !doc.update_mode"
                                                         class="d-flex align-center ga-2"
@@ -2669,7 +2684,6 @@ const memberLabel = (member: MemberForm) => {
                                                         </v-btn>
                                                     </div>
 
-                                                    <!-- Upload field: nuevo o en modo actualización -->
                                                     <template v-else>
                                                         <v-btn
                                                             v-if="doc.already_uploaded && doc.update_mode"
@@ -2705,14 +2719,149 @@ const memberLabel = (member: MemberForm) => {
                                     </div>
                                 </v-container>
                             </v-form>
-                        </template>
+                        </template> -->
 
                         <!-- STEP 4 -->
-                        <template #item.4>
+                        <template #item.3>
                             <v-container class="h-[500px] overflow-auto">
                                 <h3 class="text-title-large mb-4">
                                     Confirmación
                                 </h3>
+
+                                <!-- Número de cuenta interno (opcional) -->
+                                <v-card class="pa-4 mb-4">
+                                    <div class="text-subtitle-2 font-weight-medium mb-3">
+                                        <v-icon size="18" class="mr-1">mdi-identifier</v-icon>
+                                        Número de cuenta interno
+                                    </div>
+                                    <v-row>
+                                        <v-col cols="12" md="6">
+                                            <v-text-field
+                                                v-model="form.internal_account_number"
+                                                label="No. cuenta interno"
+                                                placeholder="Ej. 1234, A-001, etc."
+                                                hint="Opcional. Si se captura, no puede repetirse entre cuentas."
+                                                persistent-hint
+                                                clearable
+                                                :error-messages="form.errors.internal_account_number"
+                                                prepend-inner-icon="mdi-pound"
+                                            />
+                                        </v-col>
+                                    </v-row>
+                                </v-card>
+
+                                <!-- Descuento en inscripción -->
+                                <v-card
+                                    v-if="pricingPreview && pricingPreview.inscription_fee > 0 && can.includes('memberships.view-inscription-fee')"
+                                    class="pa-4 mb-4"
+                                >
+                                    <div class="d-flex align-center justify-space-between mb-1">
+                                        <div class="text-subtitle-2 font-weight-medium">
+                                            <v-icon size="18" class="mr-1">mdi-tag-minus</v-icon>
+                                            Descuento en inscripción
+                                        </div>
+                                        <v-switch
+                                            v-model="applyInscriptionDiscount"
+                                            color="primary"
+                                            hide-details
+                                            density="compact"
+                                            label="Aplicar descuento"
+                                        />
+                                    </div>
+
+                                    <div class="text-caption text-medium-emphasis mb-3">
+                                        Inscripción original:
+                                        <strong>{{ currencyFormatter.format(pricingPreview.inscription_fee) }}</strong>
+                                    </div>
+
+                                    <template v-if="applyInscriptionDiscount">
+                                        <v-row>
+                                            <v-col cols="12" md="5">
+                                                <v-text-field
+                                                    v-model.number="form.inscription_fee_override"
+                                                    label="Monto a cobrar de inscripción"
+                                                    type="number"
+                                                    min="0"
+                                                    :max="pricingPreview.inscription_fee"
+                                                    step="0.01"
+                                                    prefix="$"
+                                                    :hint="`Máximo: ${currencyFormatter.format(pricingPreview.inscription_fee)}`"
+                                                    persistent-hint
+                                                    :error-messages="form.errors.inscription_fee_override"
+                                                    :rules="[
+                                                        (v) => v !== null && v !== '' || 'Captura el monto',
+                                                        (v) => Number(v) >= 0 || 'El monto no puede ser negativo',
+                                                        (v) => Number(v) <= pricingPreview!.inscription_fee || `No puede exceder ${currencyFormatter.format(pricingPreview!.inscription_fee)}`,
+                                                    ]"
+                                                />
+                                            </v-col>
+                                            <v-col cols="12" md="7">
+                                                <div class="font-weight-medium text-body-2 mb-1">
+                                                    Documento de respaldo
+                                                    <span class="text-error">*</span>
+                                                </div>
+                                                <CustomFileUploadField
+                                                    v-model="discountDocFiles"
+                                                    label="Seleccionar documento"
+                                                    hint="PDF, JPG o PNG · máx. 5 MB"
+                                                    accept=".pdf,.jpg,.jpeg,.png"
+                                                    :rules="[
+                                                        requiredFileRule,
+                                                        fileTypeRule(['pdf','jpg','jpeg','png']),
+                                                        fileMaxSizeRule(5),
+                                                    ]"
+                                                />
+                                                <div
+                                                    v-if="form.errors.inscription_discount_document"
+                                                    class="text-error text-caption mt-1"
+                                                >
+                                                    {{ form.errors.inscription_discount_document }}
+                                                </div>
+                                            </v-col>
+                                        </v-row>
+                                    </template>
+                                </v-card>
+
+                                <!-- Pagos a meses -->
+                                <v-card class="pa-4 mb-4">
+                                    <div class="d-flex align-center justify-space-between mb-1">
+                                        <div class="text-subtitle-2 font-weight-medium">
+                                            <v-icon size="18" class="mr-1">mdi-calendar-month</v-icon>
+                                            Pagos a meses
+                                        </div>
+                                        <v-switch
+                                            v-model="applyInstallments"
+                                            color="primary"
+                                            hide-details
+                                            density="compact"
+                                            label="Aplicar meses"
+                                            @update:model-value="(v) => { if (!v) form.installment_months = null; }"
+                                        />
+                                    </div>
+
+                                    <template v-if="applyInstallments">
+                                        <v-row>
+                                            <v-col cols="12" md="4">
+                                                <v-text-field
+                                                    v-model.number="form.installment_months"
+                                                    label="Número de meses"
+                                                    type="number"
+                                                    min="1"
+                                                    max="60"
+                                                    step="1"
+                                                    suffix="meses"
+                                                    :error-messages="form.errors.installment_months"
+                                                    :rules="[
+                                                        (v) => (v !== null && v !== '') || 'Captura el número de meses',
+                                                        (v) => Number(v) >= 1 || 'Mínimo 1 mes',
+                                                        (v) => Number(v) <= 60 || 'Máximo 60 meses',
+                                                        (v) => Number.isInteger(Number(v)) || 'Debe ser un número entero',
+                                                    ]"
+                                                />
+                                            </v-col>
+                                        </v-row>
+                                    </template>
+                                </v-card>
 
                                 <v-card class="pa-4 mb-4">
                                     <p v-if="props.isCrossClubRequest">

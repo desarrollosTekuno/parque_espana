@@ -4,12 +4,14 @@ namespace App\Models\Billing;
 
 use App\Models\Administrator\Club;
 use App\Traits\SerializesDates;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ChargeConcept extends Model
 {
-    use HasFactory, SerializesDates;
+    use HasFactory, SerializesDates, SoftDeletes;
 
     protected $guarded = ['id', 'created_at', 'updated_at'];
 
@@ -19,7 +21,11 @@ class ChargeConcept extends Model
         'default_amount' => 'float',
         'is_recurring' => 'boolean',
         'allows_partial_payments' => 'boolean',
+        'is_mobile_payable' => 'boolean',
+        'splits_between_parks' => 'boolean',
+        'applies_iva' => 'boolean',
         'is_active' => 'boolean',
+        'requires_account' => 'boolean',
     ];
 
     public function charges()
@@ -32,24 +38,72 @@ class ChargeConcept extends Model
         return $this->hasMany(ChargeConceptClubAmount::class, 'concept_id');
     }
 
-    public function resolveAmountForClub(Club|int|string|null $club = null): ?float
+    protected function resolveClubOverride(Club|int|string|null $club): ?ChargeConceptClubAmount
     {
         $clubId = $club instanceof Club ? $club->id : ($club !== null ? (int) $club : null);
 
-        if ($clubId) {
-            $configuredAmount = $this->relationLoaded('clubAmounts')
-                ? $this->clubAmounts
-                    ->first(fn (ChargeConceptClubAmount $clubAmount) => (int) $clubAmount->club_id === $clubId && $clubAmount->is_active)
-                : $this->clubAmounts()
-                    ->where('club_id', $clubId)
-                    ->where('is_active', true)
-                    ->first();
+        if (!$clubId) {
+            return null;
+        }
 
-            if ($configuredAmount) {
-                return (float) $configuredAmount->amount;
-            }
+        return $this->relationLoaded('clubAmounts')
+            ? $this->clubAmounts
+                ->first(fn (ChargeConceptClubAmount $clubAmount) => (int) $clubAmount->club_id === $clubId && $clubAmount->is_active)
+            : $this->clubAmounts()
+                ->where('club_id', $clubId)
+                ->where('is_active', true)
+                ->first();
+    }
+
+    public function resolveAmountForClub(Club|int|string|null $club = null): ?float
+    {
+        $configuredAmount = $this->resolveClubOverride($club);
+
+        if ($configuredAmount && $configuredAmount->amount !== null) {
+            return (float) $configuredAmount->amount;
         }
 
         return $this->default_amount !== null ? (float) $this->default_amount : null;
+    }
+
+    /**
+     * Si el concepto factura IVA en el parque dado: primero se busca un
+     * override específico para ese parque en billing.concept_club_amounts
+     * (null en esa columna = sin override); si no hay override, se usa
+     * applies_iva del concepto (billing.concepts.applies_iva). Reemplaza el
+     * criterio anterior de decidirlo por clubs.clubs.applies_iva a nivel
+     * global — ahora es por concepto (y, si aplica, por parque).
+     */
+    public function resolveAppliesIvaForClub(Club|int|string|null $club = null): bool
+    {
+        $configuredAmount = $this->resolveClubOverride($club);
+
+        if ($configuredAmount && $configuredAmount->applies_iva !== null) {
+            return (bool) $configuredAmount->applies_iva;
+        }
+
+        return (bool) $this->applies_iva;
+    }
+
+    /**
+     * Cuota anual del concepto (resolveAmountForClub) prorrateada por los
+     * meses que quedan del año a partir de $asOf (incluyéndolo), hasta
+     * diciembre. Se usa para conceptos de una sola exhibición cuyo periodo de
+     * uso corre hasta fin de año sin importar cuándo se contratan (p. ej.
+     * LOCKERS), para no cobrar el año completo a quien se inscribe a mitad
+     * de año.
+     */
+    public function resolveProratedAnnualAmountForClub(Club|int|string|null $club = null, ?Carbon $asOf = null): ?float
+    {
+        $annualAmount = $this->resolveAmountForClub($club);
+
+        if ($annualAmount === null) {
+            return null;
+        }
+
+        $month = ($asOf ?? now())->month;
+        $monthsRemaining = 12 - $month + 1;
+
+        return round(($annualAmount / 12) * $monthsRemaining, 2);
     }
 }

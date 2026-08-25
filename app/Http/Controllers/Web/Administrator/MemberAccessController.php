@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web\Administrator;
 
 use App\Models\Members\Member;
+use App\Models\MobileApp\AppVariable;
 use App\Models\User;
 use App\Services\MemberAccessService;
 use Illuminate\Http\Request;
@@ -10,7 +11,6 @@ use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 
 class MemberAccessController extends Controller
@@ -19,6 +19,7 @@ class MemberAccessController extends Controller
     {
         $this->middleware('permission:member-access.index')->only('index');
         $this->middleware('permission:member-access.store')->only('store');
+        $this->middleware('permission:member-access.reset-password')->only('resetPassword');
         $this->middleware('permission:member-access.destroy')->only('destroy');
     }
 
@@ -69,7 +70,6 @@ class MemberAccessController extends Controller
         $validator = Validator::make($request->all(), [
             'member_id' => ['required', 'integer'],
             'email'     => ['required', 'email', 'unique:users,email'],
-            'password'  => ['required', 'confirmed', Password::min(8)],
         ]);
 
         if ($validator->fails()) {
@@ -79,6 +79,17 @@ class MemberAccessController extends Controller
                     $validator->errors()->toArray()
                 )
             );
+        }
+
+        $defaultPassword = AppVariable::whereNull('club_id')
+            ->where('name', 'default_user_password')
+            ->value('value');
+
+        if (!$defaultPassword) {
+            return redirect()->back()->withErrors([
+                'messageError' => 'No se encontró la contraseña global por defecto de la app móvil.',
+                'exception'    => '',
+            ]);
         }
 
         DB::beginTransaction();
@@ -102,10 +113,10 @@ class MemberAccessController extends Controller
             $user = User::create([
                 'name'     => $member->full_name,
                 'email'    => $request->email,
-                'password' => Hash::make($request->password),
+                'password' => Hash::make($defaultPassword),
             ]);
 
-            $member->update(['user_id' => $user->id]);
+            $member->update(['user_id' => $user->id, 'email' => $request->email]);
 
             $this->accessService->syncMobileRoles($member->fresh());
 
@@ -117,6 +128,44 @@ class MemberAccessController extends Controller
                 'messageError' => 'Ocurrió un error al otorgar el acceso.',
                 'exception'    => $e->getMessage(),
             ]);
+        }
+    }
+
+    /**
+     * Reinicia la contraseña del usuario con el valor global configurado.
+     */
+    public function resetPassword(Member $member)
+    {
+        try {
+            if (!$member->user_id) {
+                return response()->json([
+                    'message' => 'Este miembro no tiene acceso activo.',
+                ], 422);
+            }
+
+            $defaultPassword = AppVariable::whereNull('club_id')
+                ->where('name', 'default_user_password')
+                ->value('value');
+
+            if (!$defaultPassword) {
+                return response()->json([
+                    'message' => 'No se encontró la contraseña por defecto de la app móvil.',
+                ], 422);
+            }
+
+            $member->user->update([
+                'password' => Hash::make($defaultPassword),
+            ]);
+
+            return response()->json([
+                'message' => 'Contraseña reiniciada con éxito.',
+            ]);
+        } catch (\Exception $e) {
+            report($e);
+
+            return response()->json([
+                'message' => 'Ocurrió un error al reiniciar la contraseña.',
+            ], 500);
         }
     }
 
@@ -136,7 +185,7 @@ class MemberAccessController extends Controller
 
             $user = $member->user;
 
-            $member->update(['user_id' => null]);
+            $member->update(['user_id' => null, 'email' => null]);
 
             $user->tokens()->delete();
             $user->roles()->detach();

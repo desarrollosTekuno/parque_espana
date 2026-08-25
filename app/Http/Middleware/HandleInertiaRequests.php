@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 use App\Models\AdminClub\BusinessAd;
+use App\Models\Administrator\Club;
 use App\Models\Memberships\PendingAgeTransition;
 
 use function Symfony\Component\Clock\now;
@@ -65,9 +66,8 @@ class HandleInertiaRequests extends Middleware
                 'permissions' => $request->user()
                     ? $request->user()
                         ->getAllPermissions()
-                        ->filter(function ($permission) {
-                            return $permission->contexts->contains('value', 'web');
-                        })
+                        ->load('contexts')
+                        ->filter(fn($permission) => $permission->contexts->contains('value', 'web'))
                         ->pluck('name')
                         ->values()
                     : [],
@@ -84,12 +84,24 @@ class HandleInertiaRequests extends Middleware
                 //             ->values()
                 //         : []
                 // )
+
+                'currentClub' => session('club_id'),
+
+                'clubs' => function () use ($request) {
+                    if (!$request->user()) {
+                        return [];
+                    }
+                    return $request->user()
+                        ->clubs()
+                        ->orderBy('clubs.clubs.name')
+                        ->get();
+                },
             ],
 
             'flash' => function () use ($request) {
                 return [
                     'success' => $request->session()->get('success'),
-                    'messageError' => fn () => $request->session()->get('messageError'),
+                    'messageError' => fn () => $request->session()->get('messageError'), 
                 ];
             },
 
@@ -112,7 +124,11 @@ class HandleInertiaRequests extends Middleware
             },
 
             'showingMobileMenu' => false,
-            
+
+            // Para el badge tipo Flutter (EnvironmentBadge.vue) que marca si
+            // la app está en modo sandbox o producción, según APP_ENV.
+            'appEnv' => config('app.env'),
+
         ]);
     }
 }

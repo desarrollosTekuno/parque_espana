@@ -18,7 +18,7 @@ class PaymentMethodController extends Controller
     {
         $this->middleware('permission:payment-methods.index')->only('index');
         $this->middleware('permission:payment-methods.store')->only('store');
-        $this->middleware('permission:payment-methods.update')->only(['update', 'toggleClub']);
+        $this->middleware('permission:payment-methods.update')->only(['update', 'toggleClub', 'updateClubConfig']);
         $this->middleware('permission:payment-methods.destroy')->only('destroy');
     }
 
@@ -40,7 +40,10 @@ class PaymentMethodController extends Controller
                 $query->where(function (Builder $builder) use ($search, $like) {
                     $builder->where('code', $like, "%{$search}%")
                         ->orWhere('name', $like, "%{$search}%")
-                        ->orWhere('description', $like, "%{$search}%");
+                        ->orWhere('description', $like, "%{$search}%")
+                        ->orWhereHas('clubPaymentMethods', function (Builder $q) use ($search, $like) {
+                            $q->where('internal_key', $like, "%{$search}%");
+                        });
                 });
             }
 
@@ -73,6 +76,7 @@ class PaymentMethodController extends Controller
                     return [
                         'id' => $method->id,
                         'code' => $method->code,
+                        'provider' => $method->provider,
                         'name' => $method->name,
                         'description' => $method->description,
                         'requires_reference' => $method->requires_reference,
@@ -80,8 +84,10 @@ class PaymentMethodController extends Controller
                         'requires_check_number' => $method->requires_check_number,
                         'affects_cash_cut' => $method->affects_cash_cut,
                         'is_active' => $method->is_active,
+                        'show_in_billing' => $method->show_in_billing,
                         'club_enabled' => $clubMethod !== null,
                         'club_display_order' => $clubMethod?->display_order ?? 0,
+                        'club_internal_key' => $clubMethod?->internal_key,
                     ];
                 })
                 ->appends($request->all());
@@ -214,6 +220,46 @@ class PaymentMethodController extends Controller
         }
     }
 
+    public function updateClubConfig(Request $request, PaymentMethod $paymentMethod)
+    {
+        try {
+            $clubId = (int) ($request->club_id ?? session('club_id'));
+
+            $validated = $request->validate([
+                'club_id'      => ['required', 'integer'],
+                'internal_key' => [
+                    'nullable',
+                    'string',
+                    'max:100',
+                    (new \App\Rules\UniqueInSchema('billing', 'club_payment_methods', 'internal_key'))
+                        ->where('club_id', $clubId)
+                        ->ignore($paymentMethod->id, 'payment_method_id'),
+                ],
+            ]);
+
+            ClubPaymentMethod::updateOrCreate(
+                [
+                    'club_id'           => $clubId,
+                    'payment_method_id' => $paymentMethod->id,
+                ],
+                [
+                    'internal_key' => isset($validated['internal_key'])
+                        ? trim($validated['internal_key']) ?: null
+                        : null,
+                ]
+            );
+
+            return redirect()->back()->with('success', 'Clave interna actualizada correctamente.');
+        } catch (\Exception $e) {
+            report($e);
+
+            return redirect()->back()->withErrors([
+                'messageError' => 'Ocurrió un error al actualizar la clave interna.',
+                'exception' => $e->getMessage(),
+            ]);
+        }
+    }
+
     protected function validateMethod(Request $request, ?PaymentMethod $method = null): array
     {
         return $request->validate([
@@ -225,11 +271,13 @@ class PaymentMethodController extends Controller
             ],
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:500'],
+            'provider' => ['nullable', 'string', 'max:50'],
             'requires_reference' => ['required', 'boolean'],
             'requires_bank_name' => ['required', 'boolean'],
             'requires_check_number' => ['required', 'boolean'],
             'affects_cash_cut' => ['required', 'boolean'],
             'is_active' => ['required', 'boolean'],
+            'show_in_billing' => ['required', 'boolean'],
         ]);
     }
 
@@ -237,6 +285,7 @@ class PaymentMethodController extends Controller
     {
         return [
             'code' => strtoupper(trim($validated['code'])),
+            'provider' => isset($validated['provider']) ? strtolower(trim($validated['provider'])) : null,
             'name' => trim($validated['name']),
             'description' => isset($validated['description']) ? trim((string) $validated['description']) : null,
             'requires_reference' => (bool) $validated['requires_reference'],
@@ -244,6 +293,7 @@ class PaymentMethodController extends Controller
             'requires_check_number' => (bool) $validated['requires_check_number'],
             'affects_cash_cut' => (bool) $validated['affects_cash_cut'],
             'is_active' => (bool) $validated['is_active'],
+            'show_in_billing' => (bool) $validated['show_in_billing'],
         ];
     }
 }

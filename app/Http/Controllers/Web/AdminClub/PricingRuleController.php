@@ -67,7 +67,6 @@ class PricingRuleController extends Controller
             $sortMap = [
                 'id' => 'id',
                 'priority' => 'priority',
-                'monthly_fee' => 'monthly_fee',
                 'created_at' => 'created_at',
             ];
 
@@ -98,8 +97,8 @@ class PricingRuleController extends Controller
                         'max_age' => $pricingRule->max_age,
                         'requires_origin_family' => (bool) $pricingRule->requires_origin_family,
                         'requires_multiple_clubs' => (bool) $pricingRule->requires_multiple_clubs,
-                        'monthly_fee' => (float) $pricingRule->monthly_fee,
-                        'inscription_fee' => (float) ($pricingRule->inscription_fee ?? 0),
+                        'monthly_fee' => $pricingRule->resolveMonthlyFee(),
+                        'inscription_fee' => $pricingRule->resolveInscriptionFee(),
                         'priority' => (int) $pricingRule->priority,
                         'valid_from' => $pricingRule->valid_from,
                         'valid_until' => $pricingRule->valid_until,
@@ -247,8 +246,6 @@ class PricingRuleController extends Controller
             'max_age' => ['nullable', 'integer', 'min:0', 'max:120'],
             'requires_origin_family' => ['required', 'boolean'],
             'requires_multiple_clubs' => ['required', 'boolean'],
-            'monthly_fee' => ['required', 'numeric', 'min:0'],
-            'inscription_fee' => ['nullable', 'numeric', 'min:0'],
             'priority' => ['required', 'integer', 'min:1', 'max:999999'],
             'valid_from' => ['nullable', 'date'],
             'valid_until' => ['nullable', 'date', 'after_or_equal:valid_from'],

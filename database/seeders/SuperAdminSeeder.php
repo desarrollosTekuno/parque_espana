@@ -46,6 +46,16 @@ class SuperAdminSeeder extends Seeder
             'clubs.store',
             'clubs.update',
             'clubs.destroy',
+            'conekta-credentials.index',
+            'conekta-credentials.update',
+            'specialties.index',
+            'specialties.store',
+            'specialties.update',
+            'specialties.destroy',
+            'website-content.index',
+            'website-content.store',
+            'website-content.destroy',
+            'website-contacts.index',
         );
         $superadmin->syncPermissions($superadminPermissions);
     }

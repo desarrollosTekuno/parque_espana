@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Artisan;
 
 class LocationCatalogsSeeder extends Seeder {
     private array $countries = ['MX', 'ES', 'US'];
+    // private array $countries = ['MX'];
 
     public function run(): void {
         $path = database_path('data');

@@ -4,6 +4,7 @@ namespace App\Models\AdminClub;
 
 use App\Traits\SerializesDates;
 use App\Models\Administrator\Club;
+use App\Models\Classes\Coach;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -20,6 +21,7 @@ class Amenity extends Model
         'description',
         'icon',
         'background_image',
+        'regulation_file',
         'reservation_type',
         'capacity',
         'is_active',
@@ -27,7 +29,7 @@ class Amenity extends Model
     ];
     protected $dates = ['deleted_at'];
 
-    protected $appends = ['icon_url', 'background_image_url'];
+    protected $appends = ['icon_url', 'background_image_url', 'regulation_file_url'];
 
     public function getIconUrlAttribute(): ?string
     {
@@ -43,6 +45,13 @@ class Amenity extends Model
             : null;
     }
 
+    public function getRegulationFileUrlAttribute(): ?string
+    {
+        return $this->regulation_file
+            ? Storage::disk('spaces')->url($this->regulation_file)
+            : null;
+    }
+
     public function club()
     {
         return $this->belongsTo(Club::class, 'club_id');
@@ -55,6 +64,11 @@ class Amenity extends Model
     public function resources()
     {
         return $this->hasMany(AmenityResource::class, 'amenity_id');
+    }
+
+    public function coaches()
+    {
+        return $this->hasMany(Coach::class, 'amenity_id');
     }
 
 }

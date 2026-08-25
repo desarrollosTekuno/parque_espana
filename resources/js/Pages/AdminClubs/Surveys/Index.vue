@@ -48,7 +48,7 @@ const headers = [
     { title: "Preguntas", key: "questions_count", sortable: false, align: "center" as const, width: "110px" },
     { title: "Respuestas", key: "responses_count", sortable: false, align: "center" as const, width: "110px" },
     { title: "Creada", key: "created_at", sortable: true, width: "140px" },
-    { title: "Acciones", key: "actions", sortable: false, align: "end" as const, width: "150px" },
+    { title: "Acciones", key: "actions", sortable: false, align: "start" as const, width: "150px" },
 ];
 
 const loadData = () => {
@@ -189,18 +189,31 @@ const formatDate = (dateStr: string) => {
                     </template>
 
                     <template #item.actions="{ item }">
-                        <v-tooltip text="Ver resultados">
-                            <template #activator="{ props: tp }">
-                                <BaseButton v-bind="tp" icon="mdi-chart-bar" color="purple" @click="results(item)" v-if="can.includes('surveys.results')" />
-                            </template>
-                        </v-tooltip>
-                        <!-- <v-tooltip text="Copiar URL pública">
-                            <template #activator="{ props: tp }">
-                                <BaseButton v-bind="tp" icon="mdi-link-variant" color="teal" @click="copyLink(item)" />
-                            </template>
-                        </v-tooltip> -->
-                        <BaseButton action="edit" @click="edit(item)" v-if="can.includes('surveys.edit')" />
-                        <BaseButton action="delete" @click="destroy(item)" v-if="can.includes('surveys.destroy')" />
+                        <div class="d-flex justify-center align-center ga-2">
+                            <v-tooltip text="Ver resultados">
+                                <template #activator="{ props: tp }">
+                                    <BaseButton
+                                        v-if="can.includes('surveys.results')"
+                                        v-bind="tp"
+                                        icon="mdi-chart-bar"
+                                        color="purple"
+                                        @click="results(item)"
+                                    />
+                                </template>
+                            </v-tooltip>
+
+                            <BaseButton
+                                v-if="can.includes('surveys.edit')"
+                                action="edit"
+                                @click="edit(item)"
+                            />
+
+                            <BaseButton
+                                v-if="can.includes('surveys.destroy')"
+                                action="delete"
+                                @click="destroy(item)"
+                            />
+                        </div>
                     </template>
                 </v-data-table-server>
             </v-card>

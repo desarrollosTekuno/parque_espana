@@ -1,6 +1,7 @@
 <script setup>
 import { Head, useForm } from "@inertiajs/vue3"
 import { computed } from "vue"
+import EnvironmentBadge from "@/Components/EnvironmentBadge.vue";
 
 defineProps({
   status: String,
@@ -17,7 +18,7 @@ const enviarEnlace = () => {
 
 <template>
   <Head title="Recuperar contraseña" />
-
+  <EnvironmentBadge />
   <div class="min-h-screen flex items-center justify-center auth-bg fill-width fill-height">
     <v-card width="500" class="pa-6">
 

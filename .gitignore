@@ -1,5 +1,6 @@
 *.log
 /firebase-credentials.json
+/firebase_credentials.json
 .DS_Store
 .env
 .env.backup
@@ -23,3 +24,4 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+.claude/launch.json

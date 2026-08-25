@@ -95,47 +95,51 @@ class ProcessDomiciliatedPayments extends Command
             return;
         }
 
-        // Obtener la(s) cuenta(s) del socio con membresía activa
-        $accounts = $this->resolveActiveAccounts($member, $filterClubId);
+        // La tarjeta solo es válida en la cuenta Conekta del club donde se
+        // tokenizó — no se puede usar para cobrar cargos de otro club.
+        $clubId = (int) $source->club_id;
 
-        if ($accounts->isEmpty()) {
+        if ($filterClubId && $clubId !== $filterClubId) {
+            return;
+        }
+
+        // Cuenta del socio con membresía activa en ese mismo club
+        $account = $this->resolveActiveAccount($member, $clubId);
+
+        if (!$account) {
             $this->skipped++;
             return;
         }
 
-        foreach ($accounts as $account) {
-            $this->processAccountCharges($account, $source, $periodDate, $dryRun);
-        }
+        $this->processAccountClubCharges($account, $source, $clubId, $periodDate, $dryRun);
     }
 
     // ──────────────────────────────────────────────────────────────
-    // Cobra los cargos pendientes de una cuenta
+    // Cobra los cargos pendientes de una cuenta en el club de la tarjeta
     // ──────────────────────────────────────────────────────────────
 
-    private function processAccountCharges(
+    private function processAccountClubCharges(
         MembershipAccount $account,
         MemberPaymentSource $source,
+        int $clubId,
         Carbon $periodDate,
         bool $dryRun
     ): void {
-        // Agrupar cargos pendientes por club
-        $chargesByClub = $this->resolvePendingCharges($account, $periodDate);
+        $charges = $this->resolvePendingCharges($account, $clubId, $periodDate);
 
-        if ($chargesByClub->isEmpty()) {
+        if ($charges->isEmpty()) {
             $this->skipped++;
             return;
         }
 
-        foreach ($chargesByClub as $clubId => $charges) {
-            $this->chargeClubPendingCharges(
-                account:    $account,
-                source:     $source,
-                clubId:     (int) $clubId,
-                charges:    $charges,
-                periodDate: $periodDate,
-                dryRun:     $dryRun,
-            );
-        }
+        $this->chargeClubPendingCharges(
+            account:    $account,
+            source:     $source,
+            clubId:     $clubId,
+            charges:    $charges,
+            periodDate: $periodDate,
+            dryRun:     $dryRun,
+        );
     }
 
     private function chargeClubPendingCharges(
@@ -179,6 +183,7 @@ class ProcessDomiciliatedPayments extends Command
             $conektaResult = $this->conekta->charge(
                 member:      $member,
                 source:      $source,
+                clubId:      $clubId,
                 amountCents: $amountCents,
                 description: $description,
                 metadata: [
@@ -232,39 +237,34 @@ class ProcessDomiciliatedPayments extends Command
     // ──────────────────────────────────────────────────────────────
 
     /**
-     * Cuentas activas del socio (el socio es titular principal).
+     * Cuenta activa del socio (titular principal) en un club específico.
      */
-    private function resolveActiveAccounts(Member $member, ?int $filterClubId): Collection
+    private function resolveActiveAccount(Member $member, int $clubId): ?MembershipAccount
     {
         return MembershipAccount::query()
             ->whereHas('primaryHolder', fn ($q) => $q->where('member_id', $member->id))
-            ->whereHas('memberships', function ($q) use ($filterClubId) {
-                $q->where('status', 'active')
-                  ->where('is_primary', true);
-
-                if ($filterClubId) {
-                    $q->where('club_id', $filterClubId);
-                }
-            })
-            ->get();
+            ->whereHas('memberships', fn ($q) => $q
+                ->where('status', 'active')
+                ->where('is_primary', true)
+                ->where('club_id', $clubId)
+            )
+            ->first();
     }
 
     /**
-     * Cargos pendientes del período, agrupados por club_id.
+     * Cargos pendientes del período para la cuenta, en un club específico.
      */
-    private function resolvePendingCharges(MembershipAccount $account, Carbon $periodDate): Collection
+    private function resolvePendingCharges(MembershipAccount $account, int $clubId, Carbon $periodDate): Collection
     {
-        $charges = Charge::query()
+        return Charge::query()
             ->with('membership')
             ->where('membership_account_id', $account->id)
+            ->whereHas('membership', fn ($q) => $q->where('club_id', $clubId))
             ->whereIn('status', ['pending', 'partial'])
             ->where('period_year',  (int) $periodDate->format('Y'))
             ->where('period_month', (int) $periodDate->format('m'))
             ->where('balance', '>', 0)
             ->get();
-
-        return $charges->groupBy(fn (Charge $c) => $c->membership?->club_id ?? 0)
-            ->filter(fn ($group, $clubId) => $clubId > 0);
     }
 
     /**

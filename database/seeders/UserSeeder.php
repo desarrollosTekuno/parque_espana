@@ -32,6 +32,13 @@ class UserSeeder extends Seeder
         ]);
         // Assign clubs to the admin club user
         $adminClubs->clubs()->attach([1, 2]); // Assuming club IDs 1 and 2 exist
+        // Crear usuario para integración de apis con página web del club
+        $apiUser = User::factory()->create([
+            'name' => 'Usuario API Web',
+            'email' => 'apiuser@tekuno.mx',
+            'password' => bcrypt('Pa$$w0rd'),
+        ]);
 
     }
 }
+

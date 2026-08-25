@@ -20,16 +20,22 @@ class DatabaseSeeder extends Seeder
             RoleSeeder::class,
             SuperAdminSeeder::class,
             AdminClubSeeder::class,
+            AdminSubRolesSeeder::class,
             LocationCatalogsSeeder::class,
             ClubSeeder::class,
+            ClubAddressSeeder::class,
             UserSeeder::class,
+            // UserCodeSeeder::class,
             SystemVariableSeeder::class,
+            AppVariableSeeder::class,
             NotificationChannelSeeder::class,
             NotificationStatusCatalogSeeder::class,
             EmailConfigSeeder::class,
             ReservationStatusSeeder::class,
             DocumentTypeSeeder::class,
             RelationshipSeeder::class,
+            SeparationReasonSeeder::class,
+            CancellationReasonSeeder::class,
             NationalitySeeder::class,
             MaritalStatusSeeder::class,
             BillingConceptSeeder::class,
@@ -42,8 +48,6 @@ class DatabaseSeeder extends Seeder
             MembershipTypeRequiredDocumentSeeder::class,
             InterclubPackageRuleSeeder::class,
             BillingConceptSeeder::class,
-            PaymentMethodSeeder::class,
-            ClubPaymentMethodSeeder::class,
             LockerSeeder::class,
 
             FeedbackCategoriesSeeder::class,
@@ -52,6 +56,11 @@ class DatabaseSeeder extends Seeder
             FeedbackPrioritiesSeeder::class,
 
             GuestListVariableSeeder::class,
+            PhysicalAdSizeSeeder::class,
+            AnnualDiscountRuleSeeder::class,
+
+            //  php artisan migrate:data "C:\Apache24\htdocs\ParquesEsp\public\Plantilla_Migracion_Casos_Prueba_tmp.xlsx" --only=usuarios,membresias,integrantes
+
         ]);
     }
 }

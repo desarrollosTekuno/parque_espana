@@ -19,7 +19,9 @@ class AmenityResource extends JsonResource
             'name' => $this->name,
             'description' => $this->description,
             'reservation_type' => $this->reservation_type,
-            'slot_durarion_minutes' => $this->slot_duration_minutes,
+            'icon_url' => $this->icon_url,
+            'background_image_url' => $this->background_image_url,
+            'regulation_file_url' => $this->regulation_file_url,
             'club_id' => $this->club_id,
 
             'resources' => AmenityResourceItem::collection(

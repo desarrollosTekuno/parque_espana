@@ -45,7 +45,7 @@ class CashCutController extends Controller
                 $query->where('user_id', $user->id);
             }
 
-            $cuts = $query->paginate(20)->through(fn (CashCut $cut) => $this->buildCutListPayload($cut));
+            $cuts = $query->paginate(20)->through(fn (CashCut $cut) => $this->buildCutListPayload($cut)); 
 
             return Inertia::render('CashCuts/Index', [
                 'cuts' => $cuts,
@@ -111,6 +111,7 @@ class CashCutController extends Controller
             $totalsPerMethod = $this->computeTotalsPerMethod($payments);
             $cashTotal = $totalsPerMethod->firstWhere('code', 'CASH')['total'] ?? 0;
             $cashExpected = round($cashCut->opening_amount + $cashTotal, 2);
+            $cancelledPayments = $this->getCancelledPaymentsForCut($cashCut);
 
             $denominations = $cashCut->denominations->isNotEmpty()
                 ? $cashCut->denominations->map(fn ($d) => [
@@ -137,6 +138,7 @@ class CashCutController extends Controller
                 ],
                 'payments' => $payments,
                 'totalsPerMethod' => $totalsPerMethod,
+                'cancelledPayments' => $cancelledPayments,
                 'denominations' => $denominations,
             ]);
         } catch (\Exception $e) {
@@ -203,17 +205,40 @@ class CashCutController extends Controller
         }
     }
 
-    protected function getPaymentsForCut(CashCut $cashCut): \Illuminate\Support\Collection
+    /**
+     * Query base de los pagos de un corte (mismo cajero, mismo día, mismo
+     * parque de sesión) sin filtrar por status — la comparten
+     * getPaymentsForCut (excluye cancelados) y getCancelledPaymentsForCut
+     * (solo cancelados, para mostrarlos aparte, ver show()).
+     */
+    protected function baseCutPaymentsQuery(CashCut $cashCut)
     {
         $tz = config('app.timezone');
         $start = $cashCut->date->copy()->startOfDay()->setTimezone($tz)->utc();
         $end   = $cashCut->date->copy()->endOfDay()->setTimezone($tz)->utc();
 
         return Payment::with(['paymentMethod', 'membershipAccount'])
-            ->where('club_id', $cashCut->club_id)
             ->where('received_by', $cashCut->user_id)
             ->whereBetween('paid_at', [$start, $end])
             ->whereJsonContains('metadata->settlement_channel', 'cashier')
+            ->where(function ($query) use ($cashCut) {
+                // El corte de caja se rige por el parque que estaba activo en la
+                // sesión del cajero al momento del cobro (metadata.session_club_id),
+                // no por el parque al que pertenece el cargo cobrado. Así, un cobro
+                // de un cargo del otro parque cae en el corte del cajero que lo cobró.
+                $query->whereJsonContains('metadata->session_club_id', $cashCut->club_id)
+                    ->orWhere(function ($fallback) use ($cashCut) {
+                        // Compatibilidad con pagos previos a este campo de metadata.
+                        $fallback->whereNull('metadata->session_club_id')
+                            ->where('club_id', $cashCut->club_id);
+                    });
+            });
+    }
+
+    protected function getPaymentsForCut(CashCut $cashCut): \Illuminate\Support\Collection
+    {
+        return $this->baseCutPaymentsQuery($cashCut)
+            ->where('status', '!=', 'cancelled')
             ->orderBy('paid_at')
             ->get()
             ->map(fn (Payment $p) => [
@@ -224,6 +249,31 @@ class CashCutController extends Controller
                 'payment_method_code' => $p->paymentMethod?->code,
                 'membership_number' => $p->membershipAccount?->membership_number,
                 'reference' => $p->reference,
+            ]);
+    }
+
+    /**
+     * Pagos de este corte que se cancelaron (p. ej. cheque rebotado, ver
+     * PaymentCancellationController) — ya no cuentan en los totales, pero se
+     * muestran aparte para que quede claro por qué el corte no incluye ese
+     * dinero, en vez de que el pago simplemente desaparezca sin dejar rastro.
+     */
+    protected function getCancelledPaymentsForCut(CashCut $cashCut): \Illuminate\Support\Collection
+    {
+        return $this->baseCutPaymentsQuery($cashCut)
+            ->where('status', 'cancelled')
+            ->orderBy('paid_at')
+            ->get()
+            ->map(fn (Payment $p) => [
+                'id' => $p->id,
+                'paid_at' => $p->paid_at?->toIso8601String(),
+                'amount' => (float) $p->amount,
+                'payment_method_name' => $p->paymentMethod?->name,
+                'payment_method_code' => $p->paymentMethod?->code,
+                'membership_number' => $p->membershipAccount?->membership_number,
+                'reference' => $p->reference,
+                'cancelled_at' => $p->cancelled_at?->toIso8601String(),
+                'cancellation_reason' => $p->cancellation_reason,
             ]);
     }
 

@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Memberships\MembershipType;
 use App\Models\Memberships\PricingRule;
+use App\Models\Memberships\PricingRuleFeeHistory;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
@@ -13,9 +14,7 @@ class PricingRuleSeeder extends Seeder
     {
         DB::transaction(function () {
             $types = MembershipType::all()->keyBy('code');
-
-            // Keep the pricing matrix fully synchronized with the business rules.
-            PricingRule::query()->delete();
+            $year = now()->year;
 
             foreach ($this->pricingMatrix() as $item) {
                 $membership = $types[$item['membership_code']] ?? null;
@@ -31,17 +30,32 @@ class PricingRuleSeeder extends Seeder
                         $fromMembershipId = $types[$rule['from_membership_code']]->id ?? null;
                     }
 
-                    PricingRule::create([
-                        'membership_type_id' => $membership->id,
-                        'from_membership_type_id' => $fromMembershipId,
-                        'min_age' => $rule['min_age'],
-                        'max_age' => $rule['max_age'],
-                        'requires_origin_family' => $rule['requires_origin_family'],
-                        'requires_multiple_clubs' => $rule['requires_multiple_clubs'],
-                        'monthly_fee' => $rule['monthly_fee'],
-                        'inscription_fee' => $rule['inscription_fee'],
-                        'priority' => $rule['priority'],
-                    ]);
+                    $pricingRule = PricingRule::updateOrCreate(
+                        [
+                            'membership_type_id'      => $membership->id,
+                            'from_membership_type_id' => $fromMembershipId,
+                            'min_age'                 => $rule['min_age'],
+                            'max_age'                 => $rule['max_age'],
+                            'requires_origin_family'  => $rule['requires_origin_family'],
+                            'requires_multiple_clubs' => $rule['requires_multiple_clubs'],
+                        ],
+                        [
+                            'priority' => $rule['priority'],
+                        ]
+                    );
+
+                    // monthly_fee/inscription_fee viven en el historial por año
+                    // (ver memberships.pricing_rule_fee_history / módulo "Cuotas por año").
+                    PricingRuleFeeHistory::updateOrCreate(
+                        [
+                            'pricing_rule_id' => $pricingRule->id,
+                            'year'            => $year,
+                        ],
+                        [
+                            'monthly_fee'     => $rule['monthly_fee'],
+                            'inscription_fee' => $rule['inscription_fee'],
+                        ]
+                    );
                 }
             }
         });
@@ -51,6 +65,7 @@ class PricingRuleSeeder extends Seeder
     {
         return array_merge(
             $this->pe1Rules(),
+            $this->pe1BenRules(),
             $this->pe2CategoryRules(),
             $this->pe2MonthlyPassRules(),
             $this->pe2PackageRules()
@@ -67,8 +82,8 @@ class PricingRuleSeeder extends Seeder
                     $this->rule(null, 1850, 45000, 5, null, null, false, true),
                     $this->rule('PE1_SOL', 1500, 0, 4),
                     $this->rule('PE1_SOL', 1850, 0, 3, null, null, false, true),
-                    $this->rule('PE1_FAM', 1500, 0, 2),
-                    $this->rule('PE1_FAM', 1850, 0, 1, null, null, false, true),
+                    $this->rule('PE1_FAM', 1500, 0, 2, 27),
+                    $this->rule('PE1_FAM', 1850, 0, 1, 27, null, false, true),
                 ],
             ],
             [
@@ -85,6 +100,39 @@ class PricingRuleSeeder extends Seeder
                 'rules' => [
                     $this->rule('PE1_FAM', 750, 0, 2, 24, 26, true),
                     $this->rule('PE1_FAM', 925, 0, 1, 24, 26, true, true),
+                ],
+            ],
+        ];
+    }
+
+    protected function pe1BenRules(): array
+    {
+        return [
+            [
+                'membership_code' => 'PE1_IND_BEN',
+                'rules' => [
+                    $this->rule(null, 1500, 21250, 6),
+                    $this->rule(null, 1850, 21250, 5, null, null, false, true),
+                    $this->rule('PE1_SOL_BEN', 1500, 0, 4),
+                    $this->rule('PE1_SOL_BEN', 1850, 0, 3, null, null, false, true),
+                    $this->rule('PE1_FAM_BEN', 1500, 0, 2, 27),
+                    $this->rule('PE1_FAM_BEN', 1850, 0, 1, 27, null, false, true),
+                ],
+            ],
+            [
+                'membership_code' => 'PE1_FAM_BEN',
+                'rules' => [
+                    $this->rule(null, 3000, 42500, 4),
+                    $this->rule('PE1_IND_BEN', 3000, 4800, 3),
+                    $this->rule(null, 3700, 42500, 2, null, null, false, true),
+                    $this->rule('PE1_IND_BEN', 3700, 4800, 1, null, null, false, true),
+                ],
+            ],
+            [
+                'membership_code' => 'PE1_SOL_BEN',
+                'rules' => [
+                    $this->rule('PE1_FAM_BEN', 750, 0, 2, 24, 26, true),
+                    $this->rule('PE1_FAM_BEN', 925, 0, 1, 24, 26, true, true),
                 ],
             ],
         ];
@@ -141,8 +189,8 @@ class PricingRuleSeeder extends Seeder
                     $this->rule(null, 1850, $category['individual_inscription_fee'], 5, null, null, false, true),
                     $this->rule($category['solidaria_code'], 1800, 0, 4),
                     $this->rule($category['solidaria_code'], 1850, 0, 3, null, null, false, true),
-                    $this->rule($category['family_code'], 1800, 0, 2),
-                    $this->rule($category['family_code'], 1850, 0, 1, null, null, false, true),
+                    $this->rule($category['family_code'], 1800, 0, 2, 27),
+                    $this->rule($category['family_code'], 1850, 0, 1, 27, null, false, true),
                 ],
             ];
 
@@ -174,13 +222,17 @@ class PricingRuleSeeder extends Seeder
             [
                 'membership_code' => 'PE2_PM_IND',
                 'rules' => [
-                    $this->rule(null, 3600, 0, 1),
+                    $this->rule(null, 3600, 0, 2),
+                    // Familiar -> Individual: a partir de los 24 años.
+                    $this->rule('PE2_PM_FAM', 3600, 0, 1, 24),
                 ],
             ],
             [
                 'membership_code' => 'PE2_PM_FAM',
                 'rules' => [
-                    $this->rule(null, 7200, 0, 1),
+                    $this->rule(null, 7200, 0, 2),
+                    // Individual -> Familiar: solo se cobra la mensualidad, sin restricción de edad.
+                    $this->rule('PE2_PM_IND', 7200, 0, 1),
                 ],
             ],
         ];
@@ -192,13 +244,32 @@ class PricingRuleSeeder extends Seeder
             [
                 'membership_code' => 'PE2_IND_PE1',
                 'rules' => [
-                    $this->rule(null, 1850, 25000, 1),
+                    // Regla histórica (single) — no se toca para no afectar el cobro de
+                    // socios activos ya ligados a ella. La regla multiclub de abajo es la
+                    // que aplica normalmente para este paquete (requiere 5+ años en PE1).
+                    $this->rule(null, 1800, 25000, 1),
+                    $this->rule(null, 1850, 25000, 2, null, null, false, true),
+                    $this->rule('PE2_SOL_PE1', 1800, 0, 6),
+                    $this->rule('PE2_SOL_PE1', 1850, 0, 5, null, null, false, true),
+                    $this->rule('PE2_FAM_PE1', 1800, 0, 4, 27),
+                    $this->rule('PE2_FAM_PE1', 1850, 0, 3, 27, null, false, true),
                 ],
             ],
             [
                 'membership_code' => 'PE2_FAM_PE1',
                 'rules' => [
-                    $this->rule(null, 3700, 50000, 1),
+                    // Regla histórica (single) — no se toca, mismo motivo que arriba.
+                    $this->rule(null, 3600, 50000, 1),
+                    $this->rule(null, 3700, 50000, 2, null, null, false, true),
+                    $this->rule('PE2_IND_PE1', 3600, 4800, 4),
+                    $this->rule('PE2_IND_PE1', 3700, 4800, 3, null, null, false, true),
+                ],
+            ],
+            [
+                'membership_code' => 'PE2_SOL_PE1',
+                'rules' => [
+                    $this->rule('PE2_FAM_PE1', 900, 0, 2, 24, 26, true),
+                    $this->rule('PE2_FAM_PE1', 925, 0, 1, 24, 26, true, true),
                 ],
             ],
         ];

@@ -5,6 +5,7 @@ namespace App\Models\Members;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Storage;
 
 class LockerAssignmentHistory extends Model {
     use HasFactory, SoftDeletes;
@@ -16,6 +17,7 @@ class LockerAssignmentHistory extends Model {
         'new_locker_id',
         'changed_at',
         'changed_by',
+        'file_path',
     ];
     protected $dates = ['deleted_at'];
 
@@ -34,4 +36,21 @@ class LockerAssignmentHistory extends Model {
      {
          return $this->belongsTo(Locker::class);
      }
+
+    public function oldLocker()
+    {
+        return $this->belongsTo(Locker::class, 'old_locker_id');
+    }
+
+    public function newLocker()
+    {
+        return $this->belongsTo(Locker::class, 'new_locker_id');
+    }
+
+    public function getFileUrlAttribute()
+    {
+        return $this->file_path
+            ? Storage::url($this->file_path)
+            : null;
+    }
 }

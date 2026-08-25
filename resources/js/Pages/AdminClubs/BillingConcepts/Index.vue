@@ -9,13 +9,19 @@ import BaseButton from "@/Components/BaseButton.vue";
 interface BillingConceptItem {
     id: number;
     code: string;
+    internal_key: string | null;
     name: string;
     description: string | null;
     default_amount: number | null;
     club_amount: number | null;
     is_recurring: boolean;
     allows_partial_payments: boolean;
+    is_mobile_payable: boolean;
+    splits_between_parks: boolean;
+    applies_iva: boolean;
+    club_applies_iva: boolean | null;
     is_active: boolean;
+    requires_account: boolean;
 }
 
 interface CurrentClub {
@@ -56,6 +62,7 @@ const options = ref({
 const headers = computed(() => [
     // { title: "ID", key: "id" },
     { title: "Concepto", key: "name" },
+    { title: "Clave interna", key: "internal_key", sortable: false },
     { title: "Monto base", key: "default_amount" },
     {
         title: props.currentClub?.code
@@ -83,25 +90,37 @@ const yesNoOptions = [
 interface BillingConceptForm {
     id: number | null;
     code: string;
+    internal_key: string | null;
     name: string;
     description: string | null;
     default_amount: string | number | null;
     club_amount: string | number | null;
     is_recurring: boolean;
     allows_partial_payments: boolean;
+    is_mobile_payable: boolean;
+    splits_between_parks: boolean;
+    applies_iva: boolean;
+    club_applies_iva: boolean | null;
     is_active: boolean;
+    requires_account: boolean;
 }
 
 const form = useForm<BillingConceptForm>({
     id: null,
     code: "",
+    internal_key: null,
     name: "",
     description: null,
     default_amount: null,
     club_amount: null,
     is_recurring: false,
     allows_partial_payments: false,
+    is_mobile_payable: true,
+    splits_between_parks: false,
+    applies_iva: false,
+    club_applies_iva: null,
     is_active: true,
+    requires_account: true,
 });
 
 const resetForm = () => {
@@ -109,13 +128,19 @@ const resetForm = () => {
     form.clearErrors();
     form.id = null;
     form.code = "";
+    form.internal_key = null;
     form.name = "";
     form.description = null;
     form.default_amount = null;
     form.club_amount = null;
     form.is_recurring = false;
     form.allows_partial_payments = false;
+    form.is_mobile_payable = true;
+    form.splits_between_parks = false;
+    form.applies_iva = false;
+    form.club_applies_iva = null;
     form.is_active = true;
+    form.requires_account = true;
 };
 
 const openCreate = () => {
@@ -127,13 +152,19 @@ const openEdit = (item: BillingConceptItem) => {
     resetForm();
     form.id = item.id;
     form.code = item.code;
+    form.internal_key = item.internal_key;
     form.name = item.name;
     form.description = item.description;
     form.default_amount = item.default_amount;
     form.club_amount = item.club_amount;
     form.is_recurring = item.is_recurring;
     form.allows_partial_payments = item.allows_partial_payments;
+    form.is_mobile_payable = item.is_mobile_payable;
+    form.splits_between_parks = item.splits_between_parks;
+    form.applies_iva = item.applies_iva;
+    form.club_applies_iva = item.club_applies_iva;
     form.is_active = item.is_active;
+    form.requires_account = item.requires_account;
     showModal.value = true;
 };
 
@@ -145,6 +176,17 @@ const close = () => {
 const formatAmount = (value: number | null) => {
     return value === null ? "Sin definir" : currencyFormatter.format(value);
 };
+
+// El override del parque en sesión manda si existe; si no, se usa el
+// default del concepto (ver ChargeConcept::resolveAppliesIvaForClub).
+const resolveConceptAppliesIva = (item: BillingConceptItem) =>
+    item.club_applies_iva ?? item.applies_iva;
+
+const clubIvaOverrideOptions = [
+    // { title: "Usar el default del concepto", value: null },
+    { title: "Sí", value: true },
+    { title: "No", value: false },
+];
 
 const save = () => {
     formSendRef.value?.validate().then(({ valid: isValid }: { valid: boolean }) => {
@@ -322,6 +364,13 @@ watch(
                             </div>
                         </template>
 
+                        <template #item.internal_key="{ item }">
+                            <v-chip v-if="item.internal_key" size="small" variant="tonal">
+                                {{ item.internal_key }}
+                            </v-chip>
+                            <span v-else class="text-medium-emphasis">—</span>
+                        </template>
+
                         <template #item.default_amount="{ item }">
                             {{ formatAmount(item.default_amount) }}
                         </template>
@@ -349,6 +398,37 @@ watch(
                                             ? "Permite parcialidades"
                                             : "Sin parcialidades"
                                     }}
+                                </v-chip>
+                                <v-chip
+                                    size="small"
+                                    :color="item.is_mobile_payable ? 'primary' : 'default'"
+                                    variant="tonal"
+                                >
+                                    {{ item.is_mobile_payable ? "Pagable en app" : "No pagable en app" }}
+                                </v-chip>
+                                <v-chip
+                                    v-if="item.splits_between_parks"
+                                    size="small"
+                                    color="info"
+                                    variant="tonal"
+                                >
+                                    Split 50/50
+                                </v-chip>
+                                <v-chip
+                                    size="small"
+                                    :color="resolveConceptAppliesIva(item) ? 'primary' : 'default'"
+                                    variant="tonal"
+                                >
+                                    {{ resolveConceptAppliesIva(item) ? "Facturable" : "No facturable" }}
+                                    <span v-if="item.club_applies_iva !== null" class="ml-1">({{ currentClub?.code }})</span>
+                                </v-chip>
+                                <v-chip
+                                    v-if="!item.requires_account"
+                                    size="small"
+                                    color="warning"
+                                    variant="tonal"
+                                >
+                                    Sin cuenta
                                 </v-chip>
                             </div>
                         </template>
@@ -388,16 +468,27 @@ watch(
                 >
                     <v-card-text>
                         <v-row>
-                            <v-col cols="12" md="4">
+                            <v-col cols="12" md="3">
                                 <v-text-field
                                     v-model="form.code"
                                     label="Código"
                                     :rules="[(value: unknown) => !!value || 'Campo requerido']"
                                     :error-messages="form.errors.code"
+                                    :disabled="form.id !== null"
                                 />
                             </v-col>
 
-                            <v-col cols="12" md="8">
+                            <v-col cols="12" md="3">
+                                <v-text-field
+                                    v-model="form.internal_key"
+                                    label="Clave interna"
+                                    hint="Referencia al catálogo contable/legado, opcional"
+                                    persistent-hint
+                                    :error-messages="form.errors.internal_key"
+                                />
+                            </v-col>
+
+                            <v-col cols="12" md="6">
                                 <v-text-field
                                     v-model="form.name"
                                     label="Nombre"
@@ -440,6 +531,28 @@ watch(
                                 />
                             </v-col>
 
+                            <!-- <v-col cols="12" md="6">
+                                <v-switch
+                                    v-model="form.applies_iva"
+                                    color="primary"
+                                    label="Factura IVA (default)"
+                                    hint="Si este concepto factura IVA cuando no hay un override específico para el parque."
+                                    persistent-hint
+                                />
+                            </v-col> -->
+
+                            <v-col cols="12" md="6">
+                                <v-select
+                                    v-model="form.club_applies_iva"
+                                    :items="clubIvaOverrideOptions"
+                                    :label="currentClub?.code ? `¿Este concepto es facturable?` : 'Si'"
+                                   
+                                    persistent-hint
+                                    :error-messages="form.errors.club_applies_iva"
+                                />
+                            </v-col>
+                            <v-col cols=12></v-col>
+
                             <v-col cols="12" md="4">
                                 <v-switch
                                     v-model="form.is_recurring"
@@ -458,9 +571,39 @@ watch(
 
                             <v-col cols="12" md="4">
                                 <v-switch
+                                    v-model="form.is_mobile_payable"
+                                    color="primary"
+                                    label="Pagable desde la app"
+                                    hint="Si se apaga, la app no podrá cobrar cargos de este concepto."
+                                    persistent-hint
+                                />
+                            </v-col>
+
+                            <v-col cols="12" md="4">
+                                <v-switch
+                                    v-model="form.splits_between_parks"
+                                    color="info"
+                                    label="Divide 50/50 entre parques"
+                                    hint="Solo aplicaría a socios titulares en ambos parques."
+                                    persistent-hint
+                                />
+                            </v-col>
+
+                            <v-col cols="12" md="4">
+                                <v-switch
                                     v-model="form.is_active"
                                     color="success"
                                     label="Activo"
+                                />
+                            </v-col>
+
+                            <v-col cols="12" md="4">
+                                <v-switch
+                                    v-model="form.requires_account"
+                                    color="warning"
+                                    :label="form.requires_account ? 'Requiere cuenta de socio' : 'Se puede vender sin cuenta'"
+                                    hint="Apágalo para conceptos que se venden a cualquiera sin ligarlos a un socio (p. ej. un pase diario a un visitante)."
+                                    persistent-hint
                                 />
                             </v-col>
                         </v-row>

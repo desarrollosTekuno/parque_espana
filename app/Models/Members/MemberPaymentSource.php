@@ -2,6 +2,7 @@
 
 namespace App\Models\Members;
 
+use App\Models\Administrator\Club;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -20,5 +21,10 @@ class MemberPaymentSource extends Model
     public function member()
     {
         return $this->belongsTo(Member::class, 'member_id');
+    }
+
+    public function club()
+    {
+        return $this->belongsTo(Club::class, 'club_id');
     }
 }

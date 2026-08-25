@@ -36,8 +36,8 @@ interface InterclubPackageRuleItem {
     package_code: string;
     min_years_in_source_club: number | null;
     requires_active_source_membership: boolean;
-    monthly_fee: number;
-    inscription_fee: number;
+    monthly_fee: number | null;
+    inscription_fee: number | null;
     priority: number;
     valid_from: string | null;
     valid_until: string | null;
@@ -85,8 +85,8 @@ const headers = [
     { title: "Destino", key: "target", sortable: false },
     { title: "Paquete", key: "package_code", sortable: false },
     { title: "Condiciones", key: "conditions", sortable: false },
-    { title: "Cuota", key: "monthly_fee" },
-    { title: "Inscripción", key: "inscription_fee", sortable: false },
+    { title: "Cuota vigente", key: "monthly_fee", sortable: false },
+    { title: "Inscripción vigente", key: "inscription_fee", sortable: false },
     { title: "Prioridad", key: "priority" },
     { title: "Vigencia", key: "validity", sortable: false },
     { title: "Activa", key: "is_active", sortable: false },
@@ -98,6 +98,8 @@ const currencyFormatter = new Intl.NumberFormat("es-MX", {
     currency: "MXN",
     maximumFractionDigits: 2,
 });
+
+const formatAmount = (value: number | null) => (value === null ? "Sin definir" : currencyFormatter.format(value));
 
 const yesNoOptions = [
     { title: "Todos", value: null },
@@ -172,8 +174,6 @@ interface InterclubPackageRuleForm {
     package_code: string;
     min_years_in_source_club: number | null;
     requires_active_source_membership: boolean;
-    monthly_fee: string | number;
-    inscription_fee: string | number;
     priority: number;
     valid_from: string | null;
     valid_until: string | null;
@@ -189,8 +189,6 @@ const form = useForm<InterclubPackageRuleForm>({
     package_code: "",
     min_years_in_source_club: null,
     requires_active_source_membership: true,
-    monthly_fee: "",
-    inscription_fee: 0,
     priority: 10,
     valid_from: null,
     valid_until: null,
@@ -208,8 +206,6 @@ const resetForm = () => {
     form.package_code = "";
     form.min_years_in_source_club = null;
     form.requires_active_source_membership = true;
-    form.monthly_fee = "";
-    form.inscription_fee = 0;
     form.priority = 10;
     form.valid_from = null;
     form.valid_until = null;
@@ -255,8 +251,6 @@ const openEdit = async (item: InterclubPackageRuleItem) => {
     form.package_code = item.package_code;
     form.min_years_in_source_club = item.min_years_in_source_club;
     form.requires_active_source_membership = item.requires_active_source_membership;
-    form.monthly_fee = item.monthly_fee;
-    form.inscription_fee = item.inscription_fee;
     form.priority = item.priority;
     form.valid_from = item.valid_from;
     form.valid_until = item.valid_until;
@@ -421,6 +415,12 @@ watch(
         <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
             <v-row>
                 <v-col cols="12">
+                    <v-alert type="info" variant="tonal" class="mx-4 mt-4">
+                        Esta pantalla define a qué paquete interclub le aplica cada combinación
+                        de club/membresía. Las cuotas por año se capturan y consultan desde el
+                        módulo <strong>Cuotas por año</strong>.
+                    </v-alert>
+
                     <v-data-table-server
                         fixed-header
                         hover
@@ -525,11 +525,11 @@ watch(
                         </template>
 
                         <template #item.monthly_fee="{ item }">
-                            {{ currencyFormatter.format(item.monthly_fee) }}
+                            {{ formatAmount(item.monthly_fee) }}
                         </template>
 
                         <template #item.inscription_fee="{ item }">
-                            {{ currencyFormatter.format(item.inscription_fee) }}
+                            {{ formatAmount(item.inscription_fee) }}
                         </template>
 
                         <template #item.validity="{ item }">
@@ -570,6 +570,11 @@ watch(
                     :title="`${form.id ? 'Editar paquete' : 'Nuevo paquete interclub'}`"
                 >
                     <v-card-text>
+                        <v-alert v-if="!form.id" type="info" variant="tonal" density="compact" class="mb-4">
+                            Después de guardar, captura la cuota de este paquete en el módulo
+                            Cuotas por año.
+                        </v-alert>
+
                         <v-row>
                             <v-col cols="12" md="6">
                                 <v-select
@@ -638,30 +643,6 @@ watch(
                                     min="1"
                                     :rules="[(value: unknown) => !!value || 'Campo requerido']"
                                     :error-messages="form.errors.priority"
-                                />
-                            </v-col>
-
-                            <v-col cols="12" md="4">
-                                <v-text-field
-                                    v-model="form.monthly_fee"
-                                    label="Cuota mensual"
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    :rules="[(value: unknown) => `${value}` !== '' || 'Campo requerido']"
-                                    :error-messages="form.errors.monthly_fee"
-                                />
-                            </v-col>
-
-                            <v-col cols="12" md="4">
-                                <v-text-field
-                                    v-model="form.inscription_fee"
-                                    label="Inscripción"
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    :rules="[(value: unknown) => `${value}` !== '' || 'Campo requerido']"
-                                    :error-messages="form.errors.inscription_fee"
                                 />
                             </v-col>
 

@@ -7,58 +7,62 @@ use App\Models\DeviceToken;
 use App\Models\Members\Member;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Validator;
 
 class LoginController extends Controller
 {
     public function login(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'email' => 'required',
+        $request->validate([
+            'email'    => 'required|email',
             'password' => 'required',
-            // 'device' => 'required'
         ]);
 
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $validator->errors()
-            ], 422);
-        }
-
         if (!Auth::attempt($request->only('email', 'password'))) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthorized'
-            ], 401);
+            return $this->error('Credenciales incorrectas.', 401);
         }
-        $user = $request->user();
-        $allPermissions = $user->getAllPermissions();
 
-        // Agrupar permisos por club (mobile_club_1 / mobile_club_2)
-        $mobileContexts = ['mobile_club_1', 'mobile_club_2'];
+        $user           = $request->user();
+        $allPermissions = $user->getAllPermissions()->load('contexts');
+
+        $mobileContexts   = ['mobile_club_1', 'mobile_club_2'];
         $permissionsByClub = [];
         foreach ($mobileContexts as $contextValue) {
             $clubPermissions = $allPermissions
-                ->filter(fn($p) => $p->contexts->contains('value', $contextValue))
+                ->filter(fn ($p) => $p->contexts->contains('value', $contextValue))
                 ->pluck('name')
                 ->values();
 
             if ($clubPermissions->isNotEmpty()) {
-                $permissionsByClub[$contextValue == 'mobile_club_1' ? 'PE1' : 'PE2'] = $clubPermissions;
+                $permissionsByClub[$contextValue === 'mobile_club_1' ? 'PE1' : 'PE2'] = $clubPermissions;
             }
         }
 
-        $member = Member::where('user_id', $user->id)->first();
+        $member     = Member::where('user_id', $user->id)->first();
         $memberData = $this->buildMemberData($member, $permissionsByClub);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Login successful',
-            'token' => $user->createToken($request->email)->plainTextToken,
+        return $this->success('Inicio de sesión exitoso.', [
+            'token'  => $user->createToken($request->email)->plainTextToken,
             'member' => $memberData,
         ]);
+    }
+
+    public function logout(Request $request)
+    {
+        try {
+            $fcmToken = $request->input('fcm_token');
+            if ($fcmToken) {
+                DeviceToken::where('token', $fcmToken)
+                    ->where('user_id', $request->user()->id)
+                    ->update(['is_active' => false]);
+            }
+
+            $request->user()->currentAccessToken()->delete();
+
+            return $this->success('Sesión cerrada correctamente.');
+        } catch (\Exception $e) {
+            report($e);
+            return $this->serverError('No se pudo cerrar la sesión.');
+        }
     }
 
     private function buildMemberData(?Member $member, array $permissionsByClub): ?array
@@ -69,7 +73,7 @@ class LoginController extends Controller
 
         $accountMemberships = $member->accountMemberships()
             ->with([
-                'membershipAccount.memberships' => fn($q) => $q
+                'membershipAccount.memberships' => fn ($q) => $q
                     ->where('is_primary', true)
                     ->whereIn('status', ['active', 'suspended'])
                     ->with('club', 'membershipType'),
@@ -79,51 +83,25 @@ class LoginController extends Controller
         $clubs = $accountMemberships->flatMap(function ($accountMember) use ($permissionsByClub) {
             $account = $accountMember->membershipAccount;
 
-            return $account->memberships->map(fn($membership) => [
-                'club_id' => $membership->club_id,
-                'club_name' => $membership->club?->name,
-                'club_code' => $membership->club?->code,
+            return $account->memberships->map(fn ($membership) => [
+                'club_id'               => $membership->club_id,
+                'club_name'             => $membership->club?->name,
+                'club_code'             => $membership->club?->code,
                 'membership_account_id' => $account->id,
-                'membership_number' => $account->membership_number,
-                'membership_type' => $membership->membershipType?->name,
-                'status' => $membership->status,
-                'is_primary_holder' => (bool) $accountMember->is_primary_holder,
-                'permissions' => $permissionsByClub[$membership->club?->code] ?? [],
+                'membership_number'     => $account->membership_number,
+                'membership_type'       => $membership->membershipType?->name,
+                'status'                => $membership->status,
+                'is_primary_holder'     => (bool) $accountMember->is_primary_holder,
+                'permissions'           => $permissionsByClub[$membership->club?->code] ?? [],
             ]);
         })->values();
 
         return [
-            'id' => $member->id,
+            'id'        => $member->id,
             'full_name' => $member->full_name,
-            'email' => $member->email,
-            'phone' => $member->phone,
-            'clubs' => $clubs,
+            'email'     => $member->email,
+            'phone'     => $member->phone,
+            'clubs'     => $clubs,
         ];
-    }
-
-    public function logout(Request $request)
-    {
-        try {
-            // Desactivar el token FCM del dispositivo si se envía
-            $fcmToken = $request->input('fcm_token');
-            if ($fcmToken) {
-                DeviceToken::where('token', $fcmToken)
-                    ->where('user_id', $request->user()->id)
-                    ->update(['is_active' => false]);
-            }
-
-            $request->user()->currentAccessToken()->delete();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Logout successful',
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Logout failed',
-                'error'   => $e->getMessage(),
-            ], 500);
-        }
     }
 }

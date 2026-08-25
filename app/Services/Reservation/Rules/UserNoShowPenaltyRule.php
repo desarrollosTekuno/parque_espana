@@ -13,17 +13,22 @@ class UserNoShowPenaltyRule
 {
     public function validate(ReservationContext $context): void
     {
-        $user = $context->user;
+        $member = $context->member;
 
         // Valida que el usuario no tenga dos inasistencias seguidas
         $hoursPenalty = (int) SystemVariable::where('name', 'horas_suspension_reserva')->first()->value;
 
-        $reservations = Reservation::where('user_id', $user->id)
+        $reservations = Reservation::where('member_id', $member->id)
             ->where('start_datetime', '<', now())
             ->orderBy('start_datetime', 'desc')
             ->limit(40)
             ->get();
 
+        /*dd([
+            'member_id' => $member->id,
+            'total_reservations' => $reservations->count(),
+            'statuses' => $reservations->pluck('reservation_status_id'),
+        ]);*/
         $consecutiveNoShows = 0;
         $lastNoShowDate = null;
         $foundFirstNoShow = false;
@@ -47,7 +52,7 @@ class UserNoShowPenaltyRule
                 }
             }
         }
-
+        // dd($consecutiveNoShows);
         if ($consecutiveNoShows >= 2) {
 
             $unlockDate = $lastNoShowDate->copy()->addHours($hoursPenalty);

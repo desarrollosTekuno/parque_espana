@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import AppLayout from "@/Layouts/AppLayout.vue";
 import BaseButton from "@/Components/BaseButton.vue";
-import PasswordField from "@/Components/PasswordField.vue";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import { Head, router, useForm, usePage } from "@inertiajs/vue3";
 import { debounce } from "lodash";
 import { ref, watch } from "vue";
 import { required, email } from "@/constants/validationRules";
+import axios from "axios";
 
 const can = usePage().props.auth.permissions;
 const page = usePage<any>();
@@ -28,8 +28,6 @@ const selectedMember = ref<any>(null);
 const form = useForm({
     member_id: null as number | null,
     email: "",
-    password: "",
-    password_confirmation: "",
 });
 
 const openGrantAccess = (member: any) => {
@@ -90,15 +88,35 @@ const revokeAccess = (member: any) => {
     });
 };
 
+const resetPassword = async (member: any) => {
+    customConfirmSwal({
+        title: `¿Reiniciar contraseña de ${member.full_name}?`,
+        text: "Se asignará la contraseña global por defecto de la app móvil.",
+    }).then(async (result: any) => {
+        if (result.isConfirmed) {
+            try {
+                const response = await axios.put(route("member-access.reset-password", member.id));
+
+                customToastSwal({
+                    title: response.data.message,
+                    icon: "success",
+                });
+            } catch (e: any) {
+                console.error(e);
+                customToastSwal({
+                    title: `Error: ${e.response?.data?.message ?? "No fue posible reiniciar la contraseña."}`,
+                    icon: "error",
+                });
+            }
+        }
+    });
+};
+
 const close = () => {
     form.reset();
     selectedMember.value = null;
     showModal.value = false;
 };
-
-/* ── Regla de confirmación de contraseña ── */
-const passwordMatchRule = (v: string) =>
-    v === form.password || "Las contraseñas no coinciden";
 
 /* ── DataTable server-side ── */
 const headers = [
@@ -270,6 +288,14 @@ watch([options, search, accessFilter], debounce(fetchItems, 400), { deep: true }
                             </v-icon>
                         </template>
                     </v-tooltip>
+                    <!-- Reiniciar contraseña -->
+                    <BaseButton
+                        v-if="item.user_id && can.includes('member-access.reset-password')"
+                        icon="mdi-lock-reset"
+                        color="warning"
+                        tooltip="Reiniciar contraseña"
+                        @click="resetPassword(item)"
+                    />
                     <!-- Revocar acceso -->
                     <BaseButton
                         v-if="item.user_id && can.includes('member-access.destroy')"
@@ -303,21 +329,9 @@ watch([options, search, accessFilter], debounce(fetchItems, 400), { deep: true }
                                 />
                             </v-col>
                             <v-col cols="12">
-                                <PasswordField
-                                    v-model="form.password"
-                                    label="Contraseña"
-                                />
-                            </v-col>
-                            <v-col cols="12">
-                                <v-text-field
-                                    v-model="form.password_confirmation"
-                                    label="Confirmar contraseña"
-                                    type="password"
-                                    :rules="[required, passwordMatchRule]"
-                                    density="comfortable"
-                                    variant="outlined"
-                                    clearable
-                                />
+                                <v-alert type="info" variant="tonal" density="compact">
+                                    Se asignará la contraseña global configurada para la app móvil.
+                                </v-alert>
                             </v-col>
                         </v-row>
                     </v-card-text>

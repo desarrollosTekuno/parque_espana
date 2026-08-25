@@ -2,6 +2,7 @@
 // routes/Administrator.php
 
 use App\Http\Controllers\Web\Administrator\ClubController;
+use App\Http\Controllers\Web\Administrator\ConektaCredentialController;
 use App\Http\Controllers\Web\Administrator\MemberAccessController;
 use App\Http\Controllers\Web\Administrator\PermissionController;
 use App\Http\Controllers\Web\Administrator\RoleController;
@@ -18,5 +19,10 @@ Route::resource('/clubs', ClubController::class)->names('clubs');
 
 Route::post('/change-club', [ClubController::class, 'changeClub'])->name('change.club');
 
+// Credenciales de Conekta por parque (cada parque opera su propia cuenta comercial)
+Route::get('/conekta-credentials', [ConektaCredentialController::class, 'index'])->name('conekta-credentials.index');
+Route::put('/conekta-credentials', [ConektaCredentialController::class, 'update'])->name('conekta-credentials.update');
+
 // Accesos app móvil
+Route::put('/member-access/{member}/reset-password', [MemberAccessController::class, 'resetPassword'])->name('member-access.reset-password');
 Route::resource('/member-access', MemberAccessController::class)->only(['index', 'store', 'destroy'])->names('member-access')->parameters(['member-access' => 'member']);

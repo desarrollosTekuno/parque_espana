@@ -63,7 +63,9 @@ class DocumentTypeSeeder extends Seeder
                 'name' => 'Carta de Recomendación',
                 'description' => 'Documento que respalda las habilidades y cualidades de una persona, emitido por un tercero.',
                 'allowed_extensions' => 'pdf',
-
+                // Aunque el socio comparta cuenta en varios parques, la carta de
+                // recomendación se emite distinta para cada uno.
+                'is_club_specific' => true,
             ],
             // ine
             [
@@ -113,12 +115,34 @@ class DocumentTypeSeeder extends Seeder
                 'description' => 'Documento que certifica que una persona no tiene adeudos pendientes con el Parque España I.',
                 'allowed_extensions' => 'pdf',
             ],
+            // acta de divorcio en separacion
+            [
+                'code' => 'acta_divorcio',
+                'name' => 'Acta de Divorcio',
+                'description' => 'Documento que respalda la separación del cónyuge por divorcio.',
+                'allowed_extensions' => 'pdf,jpg,png',
+            ],
+            // Formato de solicitud del usuario
+            [
+                'code' => 'formato_solicitud_usuario',
+                'name' => 'Formato de Solicitud del Usuario',
+                'description' => 'Documento que contiene la información y solicitud del usuario.',
+                'allowed_extensions' => 'pdf,jpg,png',
+                // El formato de solicitud es propio de cada parque.
+                'is_club_specific' => true,
+            ],
         ];
 
         foreach ($documentTypes as $type) {
             DocumentType::updateOrCreate(
                 ['code' => $type['code']],
-                ['name' => $type['name'], 'description' => $type['description'], 'allowed_extensions' => $type['allowed_extensions'], 'min_age' => $type['min_age'] ?? null]
+                [
+                    'name' => $type['name'],
+                    'description' => $type['description'],
+                    'allowed_extensions' => $type['allowed_extensions'],
+                    'min_age' => $type['min_age'] ?? null,
+                    'is_club_specific' => $type['is_club_specific'] ?? false,
+                ]
             );
         }
     }

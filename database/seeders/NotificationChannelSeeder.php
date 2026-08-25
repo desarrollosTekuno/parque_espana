@@ -12,7 +12,6 @@ class NotificationChannelSeeder extends Seeder
         $channels = [
             ['name' => 'Push', 'code' => 'push'],
             ['name' => 'Correo', 'code' => 'email'],
-            ['name' => 'Push y correo', 'code' => 'both'],
         ];
 
         foreach ($channels as $channel) {

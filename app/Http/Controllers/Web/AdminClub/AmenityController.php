@@ -28,6 +28,13 @@ class AmenityController extends Controller
             $prefix = 'amenities';
             $driver = DB::getDriverName();
             $query = Amenity::with('schedules')->where('club_id', $clubId);
+            $members = DB::table('members.members')->select('id', 'first_name', 'last_name', DB::raw("CONCAT(first_name, ' ', last_name) as full_name"))->orderBy('full_name')->get();
+
+             if ($search = $request->input("{$prefix}_search")) {
+                $query->where(function ($q) use ($driver, $search) {
+                    $q->where('name', $driver == 'pgsql' ? 'ilike' : 'like', "%{$search}%");
+                });
+            }
 
             if ($search = $request->input("{$prefix}_search")) {
                 $query->where(function ($q) use ($search, $driver) {
@@ -45,6 +52,7 @@ class AmenityController extends Controller
 
             return Inertia::render('AdminClubs/Amenities/Index', [
                 'amenities' => $amenities,
+                'members'   => $members,
             ]);
         } catch (\Exception $e) {
             report($e);
@@ -77,6 +85,14 @@ class AmenityController extends Controller
                 );
             }
 
+            if ($request->hasFile('regulation_file')) {
+                $data['regulation_file'] = $this->uploadAmenityFile(
+                    $request->file('regulation_file'),
+                    $clubId,
+                    'regulations',
+                );
+            }
+
             Amenity::create(array_merge($data, ['club_id' => $clubId]));
 
             return redirect()->back()->with('success', 'Amenidad creada correctamente');
@@ -89,7 +105,7 @@ class AmenityController extends Controller
     {
         try {
             $clubId = session('club_id');
-            $data   = $request->except(['icon', 'background_image']);
+            $data   = $request->except(['icon', 'background_image', 'regulation_file']);
 
             if ($request->hasFile('icon')) {
                 $this->deleteAmenityImage($amenity->icon);
@@ -105,6 +121,14 @@ class AmenityController extends Controller
             } elseif ($request->boolean('remove_background_image')) {
                 $this->deleteAmenityImage($amenity->background_image);
                 $data['background_image'] = null;
+            }
+
+            if ($request->hasFile('regulation_file')) {
+                $this->deleteAmenityImage($amenity->regulation_file);
+                $data['regulation_file'] = $this->uploadAmenityFile($request->file('regulation_file'), $clubId, 'regulations');
+            } elseif ($request->boolean('remove_regulation_file')) {
+                $this->deleteAmenityImage($amenity->regulation_file);
+                $data['regulation_file'] = null;
             }
 
             $amenity->update($data);
@@ -123,16 +147,28 @@ class AmenityController extends Controller
         try {
             $this->deleteAmenityImage($amenity->icon);
             $this->deleteAmenityImage($amenity->background_image);
+            $this->deleteAmenityImage($amenity->regulation_file);
 
             $amenity->delete();
 
             return redirect()->back()->with('success', 'Amenidad eliminada correctamente');
         } catch (\Exception $e) {
-            return redirect()->back()->with('messageError', $e->getMessage());
+            return redirect()->back()->with('messageError', $e->getMessage()); 
         }
     }
 
     private function uploadAmenityImage(\Illuminate\Http\UploadedFile $file, int|string $clubId, string $type): string
+    {
+        $clubCode  = \App\Models\Administrator\Club::find($clubId)?->code ?? $clubId;
+        $directory = "clubs/{$clubCode}/amenities/{$type}";
+        $filename  = Str::uuid() . '.' . $file->getClientOriginalExtension();
+
+        Storage::disk('spaces')->putFileAs($directory, $file, $filename, 'public');
+
+        return "{$directory}/{$filename}";
+    }
+
+    private function uploadAmenityFile(\Illuminate\Http\UploadedFile $file, int|string $clubId, string $type): string
     {
         $clubCode  = \App\Models\Administrator\Club::find($clubId)?->code ?? $clubId;
         $directory = "clubs/{$clubCode}/amenities/{$type}";

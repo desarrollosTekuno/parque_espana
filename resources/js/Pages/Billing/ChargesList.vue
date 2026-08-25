@@ -31,6 +31,8 @@ interface PaymentMethodItem {
     requires_bank_name: boolean;
     requires_check_number: boolean;
     affects_cash_cut: boolean;
+    show_in_billing: boolean;
+    internal_key: string | null;
 }
 
 interface ClubPaymentMethodItem {
@@ -48,6 +50,7 @@ interface ChargeBadge {
 interface ChargeRow {
     id: number;
     membership_number: string | null;
+    internal_account_number: string | null;
     holder_name: string;
     membership_account_id: number | null;
     concept_name: string | null;
@@ -517,7 +520,13 @@ watch([selectedClubId, selectedConceptCode], () => {
                 >
                     <!-- No. Cuenta -->
                     <template #item.membership_number="{ item }">
-                        <span class="font-weight-medium">{{ item.membership_number ?? '—' }}</span>
+                        <div class="font-weight-medium">{{ item.membership_number ?? '—' }}</div>
+                        <div
+                            v-if="item.internal_account_number"
+                            class="text-caption text-primary font-weight-medium"
+                        >
+                            <v-icon size="10" class="mr-1">mdi-pound</v-icon>{{ item.internal_account_number }}
+                        </div>
                     </template>
 
                     <!-- Titular -->
@@ -665,6 +674,12 @@ watch([selectedClubId, selectedConceptCode], () => {
                             <div>
                                 <div class="text-body-2 font-weight-medium">{{ selectedCharge.holder_name }}</div>
                                 <div class="text-caption">{{ selectedCharge.membership_number }}</div>
+                                <div
+                                    v-if="selectedCharge.internal_account_number"
+                                    class="text-caption text-primary font-weight-medium"
+                                >
+                                    <v-icon size="10" class="mr-1">mdi-pound</v-icon>{{ selectedCharge.internal_account_number }}
+                                </div>
                             </div>
                             <v-chip size="small" :color="conceptColor(selectedCharge.concept_code)" variant="tonal">
                                 {{ selectedCharge.concept_name }}
@@ -714,7 +729,7 @@ watch([selectedClubId, selectedConceptCode], () => {
                                 <v-select
                                     v-model="paymentForm.payment_method_id"
                                     :items="selectedPaymentMethods.map((m) => ({
-                                        title: m.name,
+                                        title: m.internal_key ? `${m.name} (${m.internal_key})` : m.name,
                                         value: m.id,
                                     }))"
                                     label="Método de pago"
