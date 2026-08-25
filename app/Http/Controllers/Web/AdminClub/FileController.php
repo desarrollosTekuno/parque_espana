@@ -454,8 +454,8 @@ class FileController extends Controller
             foreach ($sheet->getRowIterator() as $row) {
                 foreach ($row->getCellIterator() as $cell) {
                     $value = (string) $cell->getValue();
-                    if (str_contains($value, '{{')) {
-                        preg_match_all('/\{\{\s*(\w+)\s*\}\}/', $value, $matches);
+                    if (str_contains($value, '{')) {
+                        preg_match_all('/\$\{\s*(\w+)\s*\}/', $value, $matches);
                         $variables = array_merge($variables, $matches[1]);
                     }
                 }

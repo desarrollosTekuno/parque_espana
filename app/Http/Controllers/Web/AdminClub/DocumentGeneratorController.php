@@ -11,9 +11,12 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpWord\TemplateProcessor;
 use Illuminate\Support\Str;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class DocumentGeneratorController extends Controller {
 
@@ -92,54 +95,32 @@ class DocumentGeneratorController extends Controller {
                 ->where('is_active', true)
                 ->firstOrFail();
 
+            // Descarga la plantilla del storage
             $templateBytes = Storage::disk('spaces')->get($clubFile->file_path);
-            $tempTemplate  = tempnam(sys_get_temp_dir(), 'tpl_') . '.docx';
+            $extension     = strtolower(pathinfo($clubFile->file_original_name, PATHINFO_EXTENSION));
+            $tempTemplate  = tempnam(sys_get_temp_dir(), 'tpl_') . '.' . $extension;
             file_put_contents($tempTemplate, $templateBytes);
 
-            \Log::info('=== INICIO GENERACIÓN DOCUMENTO ===', [
-                'file_code'         => $file->code,
-                'file_name'         => $file->name,
-                'club_id'           => $clubId,
-                'template_path'     => $tempTemplate,
-                'template_size'     => filesize($tempTemplate),
-                'template_exists'   => file_exists($tempTemplate),
-            ]);
-
+            // Construye las variables (misma lógica para docx y xlsx)
             $variables = $this->buildVariables($file, $clubId, $request);
-            \Log::info('Variables construidas', $variables);
 
-            $processor = new \PhpOffice\PhpWord\TemplateProcessor($tempTemplate);
-
-            // ESTE ES EL LOG CLAVE
-            \Log::info('Variables que PhpWord detecta en la plantilla', [
-                'detectadas' => $processor->getVariables(),
-            ]);
-
-            foreach ($variables as $key => $value) {
-                $processor->setValue($key, $value);
-                \Log::info("Reemplazando ${key}", ['valor' => $value]);
-            }
-
-            $outputPath = tempnam(sys_get_temp_dir(), 'out_') . '.docx';
-            $processor->saveAs($outputPath);
-
-            \Log::info('Archivo generado', [
-                'output_path' => $outputPath,
-                'output_size' => filesize($outputPath),
-            ]);
+            $outputPath = match ($extension) {
+                'docx' => $this->processDocx($tempTemplate, $variables),
+                'xlsx' => $this->processXlsx($tempTemplate, $variables),
+                default => throw new \Exception("Formato '{$extension}' no soportado."),
+            };
 
             @unlink($tempTemplate);
 
-            $downloadName = \Str::slug($file->name) . '-' . now()->format('Ymd-His') . '.docx';
+            $downloadName = Str::slug($file->name) . '-' . now()->format('Ymd-His') . '.' . $extension;
 
             return response()->download($outputPath, $downloadName)->deleteFileAfterSend(true);
 
         } catch (\Exception $e) {
-            \Log::error('Error generando documento', [
+            Log::error('Error generando documento', [
                 'mensaje' => $e->getMessage(),
                 'archivo' => $e->getFile(),
                 'linea'   => $e->getLine(),
-                'trace'   => $e->getTraceAsString(),
             ]);
 
             return redirect()->back()->withErrors([
@@ -147,6 +128,50 @@ class DocumentGeneratorController extends Controller {
                 'exception'    => $e->getMessage(),
             ]);
         }
+    }
+
+    private function processDocx(string $templatePath, array $variables): string
+    {
+        $processor = new TemplateProcessor($templatePath);
+
+        foreach ($variables as $key => $value) {
+            $processor->setValue($key, $value);
+        }
+
+        $outputPath = tempnam(sys_get_temp_dir(), 'out_') . '.docx';
+        $processor->saveAs($outputPath);
+
+        return $outputPath;
+    }
+
+    private function processXlsx(string $templatePath, array $variables): string
+    {
+        $spreadsheet = IOFactory::load($templatePath);
+
+        foreach ($spreadsheet->getAllSheets() as $sheet) {
+            foreach ($sheet->getRowIterator() as $row) {
+                foreach ($row->getCellIterator() as $cell) {
+                    $value = (string) $cell->getValue();
+
+                    // Solo procesar celdas que contengan al menos una variable
+                    if (!str_contains($value, '${')) {
+                        continue;
+                    }
+
+                    foreach ($variables as $key => $replacement) {
+                        $value = str_replace('${' . $key . '}', (string) $replacement, $value);
+                    }
+
+                    $cell->setValue($value);
+                }
+            }
+        }
+
+        $outputPath = tempnam(sys_get_temp_dir(), 'out_') . '.xlsx';
+        $writer     = new Xlsx($spreadsheet);
+        $writer->save($outputPath);
+
+        return $outputPath;
     }
 
     /**
