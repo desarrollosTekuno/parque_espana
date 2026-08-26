@@ -37,6 +37,7 @@ use App\Http\Controllers\Web\AdminClub\MemberDocumentController;
 use App\Http\Controllers\Web\AdminClub\LockerAssignmentController;
 use App\Http\Controllers\Web\AdminClub\LockerController;
 use App\Http\Controllers\Web\AdminClub\CashCutController;
+use App\Http\Controllers\Web\AdminClub\DocumentGeneratorController;
 use App\Http\Controllers\Web\AdminClub\CollectionController;
 use App\Http\Controllers\Web\AdminClub\GlobalCashCutController;
 use App\Http\Controllers\Web\AdminClub\DocumentTypeController;
@@ -100,7 +101,11 @@ Route::get('/cafeteria-visits/open', [CafeteriaVisitController::class, 'open'])-
 Route::post('/cafeteria-visits', [CafeteriaVisitController::class, 'store'])->name('cafeteria-visits.store');
 Route::post('/cafeteria-visits/{cafeteriaVisit}/checkout', [CafeteriaVisitController::class, 'checkout'])->name('cafeteria-visits.checkout'); */
 
-// Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
+//Reporte de entradas
+Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
+Route::get('/billing/reports/income', [BillingController::class, 'incomeReport'])->name('billing.reports.income');
+Route::get('/billing/reports/interclub-income', [BillingController::class, 'interclubIncomeReport'])->name('billing.reports.interclub-income');
+Route::get('/billing/reports/income-combined', [BillingController::class, 'combinedIncomeReport'])->name('billing.reports.income-combined');
 Route::get('/billing/charges', [BillingController::class, 'chargesList'])->name('billing.charges.index');
 Route::post('/billing/payments', [BillingController::class, 'storePayment'])->name('billing.payments.store');
 Route::get('/billing/annual-payment/preview', [BillingController::class, 'annualPaymentPreview'])->name('billing.annual-payment.preview');
@@ -109,6 +114,7 @@ Route::post('/billing/annual-payment', [BillingController::class, 'storeAnnualPa
 // reportes
 Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
 Route::get('/reports/collection/export', [ReportController::class, 'exportCollectionReport'])->name('reports.collection.export');
+Route::get('/reports/collection/income', [BillingController::class, 'combinedIncomeReport'])->name('reports.collection.income');
 
 // collections desk (módulo de cobranza tipo caja)
 Route::get('/collections', [CollectionController::class, 'index'])->name('collections.index');
@@ -357,6 +363,9 @@ Route::post('files/{file}/club-file', [FileController::class, 'uploadClubFile'])
 Route::delete('files/{file}/club-file', [FileController::class, 'destroyClubFile'])->name('files.club-file.destroy');
 Route::post('/files/variables', [FileController::class, 'previewVariables'])->name('files.variables');
 
+Route::get('file-generator', [DocumentGeneratorController::class, 'index'])->name('file-generator.index');
+Route::get('file-generator/{file}/download', [DocumentGeneratorController::class, 'download'])->name('file-generator.download');
+
 // Historia Clínica
 Route::get('/members/{membership}/clinical-history', [ClinicalHistoryController::class, 'index'])
     ->name('members.clinical-history.index');
@@ -366,6 +375,15 @@ Route::put('/members/{membership}/members/{member}/clinical-history', [ClinicalH
 // Club Settings
 Route::get('/club-settings', [ClubSettingsController::class, 'edit'])->name('club-settings.edit');
 Route::post('/club-settings', [ClubSettingsController::class, 'update'])->name('club-settings.update');
+
+// Clases
+Route::resource('/specialties', SpecialtyController::class)->only(['index', 'store', 'update', 'destroy'])->names('specialties');
+Route::resource('/coaches', CoachController::class)->only(['index', 'store', 'update', 'destroy'])->names('coaches');
+Route::resource('/class-schedules', ClassScheduleController::class)->only(['index', 'store', 'update', 'destroy'])->names('classSchedules');
+
+
+Route::get('documents/', [DocumentGeneratorController::class, 'index'])->name('index');
+Route::get('documents/{file}/download', [DocumentGeneratorController::class, 'download'])->name('download');
 
 // Clases
 // Route::resource('/specialties', SpecialtyController::class)->only(['index', 'store', 'update', 'destroy'])->names('specialties');

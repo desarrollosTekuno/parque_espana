@@ -504,6 +504,12 @@ const routes: Routing[] = [
                 icon: "mdi-file-outline",
                 value: "archivos",
             },
+            {
+                name: "file-generator.index",
+                title: "Descarga de documentos",
+                icon: "mdi-file-download-outline",
+                value: "archivos",
+            }
         ],
     },
     /*
