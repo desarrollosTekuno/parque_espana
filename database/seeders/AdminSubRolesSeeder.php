@@ -365,6 +365,9 @@ class AdminSubRolesSeeder extends Seeder
                     "cash-cuts.store",
                     "cash-cuts.show",
                     "cash-cuts.close",
+                    "lockers.assigned.by.account",
+                    "members.lockers.reserve",
+                    "lockers.available"
                 ]
             ]
 

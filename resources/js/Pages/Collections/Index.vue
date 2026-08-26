@@ -326,6 +326,7 @@ interface AnnualPaymentPreview {
     // uno en diciembre (el actual, por si falta cerrarlo, y el siguiente,
     // para adelantar su anualidad). Ver annualCoverageYear.
     coverage_year_options: number[];
+    concept_label: string;
 }
 
 const annualPaymentLoading = ref(false);
@@ -810,7 +811,7 @@ const addMonthlyFeeMonths = async () => {
             key: `existing-monthlyfee-${newBreakdownCharges[0].id}-${Date.now()}`,
             type: "existing",
             concept_id: selectedConcept.value?.id,
-            concept_label: `${selectedConcept.value?.internal_key ?? ""} ${selectedConcept.value?.name ?? "Mensualidad"}`.trim(),
+            concept_label: `${selectedConcept.value?.internal_key ?? ""} ${data.concept_label ?? selectedConcept.value?.name ?? "Mensualidad"}`.trim(),
             detail: `${periods.length} ${periods.length === 1 ? "mensualidad" : "mensualidades"} (${rangeLabel})`,
             amount: total,
             is_multi_club: data.is_multi_club ?? false,
@@ -852,7 +853,7 @@ const confirmAnnualFeePaymentFromPanel = () => {
         key: `annual-${preview.year}-${Date.now()}`,
         type: "annual",
         concept_id: selectedConcept.value?.id,
-        concept_label: `${selectedConcept.value?.internal_key ?? ""} ${selectedConcept.value?.name ?? "Mensualidad"}`.trim(),
+        concept_label: `${selectedConcept.value?.internal_key ?? ""} ${preview.concept_label ?? selectedConcept.value?.name ?? "Mensualidad"}`.trim(),
         detail: `Anualidad ${preview.year}` + (preview.discount_rule
             ? ` — descuento ${preview.discount_rule.discount_months} mes(es)`
             : " — sin descuento"),

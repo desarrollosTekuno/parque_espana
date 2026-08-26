@@ -344,7 +344,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 v-if="can.includes('roles.update')"
                             />
                             <BaseButton
-                                :disabled="canRole.includes(item.name)"
+                                :disabled="canRole.includes(item.name) || ['socio_dependiente','socio_titular'].includes(item.name)"
                                 @click="destroy(item)"
                                 action="delete"
                                 v-if="can.includes('roles.destroy')"
@@ -372,6 +372,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                     v-model="form.name"
                                     label="Nombre"
                                     :rules="[required, minLength(4), maxLength(50)]"
+                                    :disabled="form.id && ['socio_dependiente','socio_titular'].includes(form.name)"
                                 />
                             </v-col>
                             <v-col cols="12" md="6">

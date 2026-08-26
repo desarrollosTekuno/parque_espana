@@ -23,6 +23,7 @@ use App\Services\AdminClub\CafeteriaCheckoutService;
 use App\Services\Billing\AnnualPaymentService;
 use App\Services\Billing\MembershipChargeService;
 use App\Services\Billing\PaymentRegistrationService;
+use App\Services\Billing\PaymentTicketService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -57,6 +58,7 @@ class CollectionController extends Controller
         protected MembershipChargeService $membershipChargeService,
         protected CafeteriaCheckoutService $cafeteriaCheckoutService,
         protected AnnualPaymentService $annualPaymentService,
+        protected PaymentTicketService $paymentTicketService,
     ) {
     }
 
@@ -389,7 +391,15 @@ class CollectionController extends Controller
                     'concept_id' => $concept?->id,
                     'concept_code' => $concept?->code,
                     'internal_key' => $concept?->internal_key,
-                    'concept_name' => $concept?->name,
+                    // Para mensualidad, el mismo rótulo dinámico que ya usa
+                    // el ticket (Cuota mensualidad / Cuota Mens Parques /
+                    // Cuota Mens. Pase / etc., ver
+                    // PaymentTicketService::resolveMonthlyFeeConceptLabel),
+                    // para que el detalle de cargos pendientes diga lo
+                    // mismo que después va a decir el ticket ya cobrado.
+                    'concept_name' => $isMonthlyFee
+                        ? $this->paymentTicketService->resolveMonthlyFeeConceptLabel($group->first()->membership, $concept?->name ?? 'Mensualidad')
+                        : $concept?->name,
                     // "tasa" queda vacía por ahora (a definir después).
                     'rate' => null,
                     // Cuota: para la mensualidad, la vigente del año en
@@ -764,6 +774,7 @@ class CollectionController extends Controller
             'total' => $total,
             'is_multi_club' => (bool) $comboBreakdown,
             'club_breakdown' => $comboBreakdown ?? collect(),
+            'concept_label' => $this->paymentTicketService->resolveMonthlyFeeConceptLabel($billableMembership, $monthlyConcept->name),
         ]);
     }
 
@@ -871,6 +882,7 @@ class CollectionController extends Controller
             'payment_amount' => $paymentAmount,
             'is_multi_club' => (bool) $comboBreakdown,
             'club_breakdown' => $comboBreakdown ?? collect(),
+            'concept_label' => $this->paymentTicketService->resolveMonthlyFeeConceptLabel($billableMembership, $monthlyConcept->name),
         ]);
     }
 
