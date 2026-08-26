@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use App\Models\AdminClub\Amenity;
 use App\Models\AdminClub\AmenityResource;
+use App\Models\Classes\Coach;
 use App\Models\Members\Member;
 use App\Models\AdminClub\SystemVariable;
 use App\Models\AdminClub\BlockedPeriod;
@@ -106,6 +107,11 @@ class ReservationController extends Controller {
             ->where('name', 'dias_para_crear_reserva')
             ->value('value') ?? 1;
 
+        $coaches = Coach::where('club_id', $clubId)
+            ->select('id', 'amenity_id', 'first_name', 'last_name', 'second_last_name')
+            ->orderBy('first_name')
+            ->get();
+
         return Inertia::render('AdminClubs/Reservations/Index', [
             'reservations' => $reservations,
             'activeStatus' => ReservationStatus::ACTIVA,
@@ -113,6 +119,7 @@ class ReservationController extends Controller {
             'amenities' => $amenities,
             'resources' => $resources,
             'members' => $members,
+            'coaches' => $coaches,
             'diasReserva' => (int) $diasReserva,
         ]);
 
@@ -175,7 +182,15 @@ class ReservationController extends Controller {
                 (new CapacityRule())->validate($grillContext);
             }
 
-            DB::transaction(function () use ($request, $clubId, $isGardenReservation, $grillResource) {
+            $isClass = $request->boolean('is_class');
+            if ($isClass && $request->filled('coach_id')) {
+                $coach = Coach::find($request->coach_id);
+                if (!$coach || $coach->amenity_id != $request->amenity_id) {
+                    throw new \Exception('El profesor seleccionado no es válido para esta amenidad.');
+                }
+            }
+
+            DB::transaction(function () use ($request, $clubId, $isGardenReservation, $grillResource, $isClass) {
                 $reservation = Reservation::create([
                     'member_id' => $request->member_id,
                     'club_id' => $clubId,
@@ -188,6 +203,8 @@ class ReservationController extends Controller {
                     'tables_count' => $isGardenReservation ? $request->tables_count : null,
                     'chairs_count' => $isGardenReservation ? $request->chairs_count : null,
                     'notes' => $isGardenReservation ? $request->notes : null,
+                    'is_class' => $isClass,
+                    'coach_id' => $isClass ? $request->coach_id : null,
                 ]);
 
                 if ($grillResource) {

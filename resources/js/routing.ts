@@ -292,24 +292,18 @@ const routes: Routing[] = [
         ],
     },
     // Clases
-    {
-        name: ["coaches.index", "classSchedules.index"],
+   /* {
+        name: ["specialties.index", "classSchedules.index"],
         title: "Clases",
         icon: "mdi-whistle-outline",
         value: "clasesMenu",
         group: "Clases",
         groupItems: [
-            // {
-            //     name: "specialties.index",
-            //     title: "Especialidades",
-            //     icon: "mdi-tag-multiple-outline",
-            //     value: "especialidades",
-            // },
             {
-                name: "coaches.index",
-                title: "Entrenadores",
-                icon: "mdi-account-star-outline",
-                value: "entrenadores",
+                name: "specialties.index",
+                title: "Especialidades",
+                icon: "mdi-tag-multiple-outline",
+                value: "especialidades",
             },
             {
                 name: "classSchedules.index",
@@ -318,10 +312,10 @@ const routes: Routing[] = [
                 value: "horarios-clases",
             },
         ],
-    },
+    },*/
     // Amenidades
     {
-        name: ["amenities.index", "blockedPeriods.index"],
+        name: ["amenities.index", "blockedPeriods.index", "coaches.index"],
         title: "Amenidades",
         icon: "mdi-beach",
         value: "amenidades",
@@ -338,6 +332,12 @@ const routes: Routing[] = [
                 title: "Bloqueo de recursos",
                 icon: "mdi-calendar-clock-outline",
                 value: "bloqueos",
+            },
+            {
+                name: "coaches.index",
+                title: "Entrenadores",
+                icon: "mdi-account-star-outline",
+                value: "entrenadores",
             },
         ],
     },
