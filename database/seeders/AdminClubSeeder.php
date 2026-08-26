@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Context;
+use App\Models\Permission;
 use App\Models\Role;
 use Illuminate\Database\Seeder;
 
@@ -37,10 +38,6 @@ class AdminClubSeeder extends Seeder
             'blockedPeriods.destroy',
 
             // clases
-            'specialties.index',
-            'specialties.store',
-            'specialties.update',
-            'specialties.destroy',
             'coaches.index',
             'coaches.store',
             'coaches.update',
@@ -119,8 +116,6 @@ class AdminClubSeeder extends Seeder
             'clinical-history.view',
             'history.view',
             'lockers-history.view',
-            'billing.view',
-            'billing.update',
 
             // membresías / integrantes
             'members.index',
@@ -141,9 +136,7 @@ class AdminClubSeeder extends Seeder
             'acts.index',
             'acts.store',
             'acts.update',
-            'billing.index',
             'reports.index',
-            'billing.store',
             'collections.index',
             'collections.store',
             'blockedPeriods.index',
@@ -206,10 +199,7 @@ class AdminClubSeeder extends Seeder
             'lockers.available.for.change',
 
             // cobranza
-            'billing.index',
             'reports.index',
-            'billing.charges.index',
-            'billing.store',
             'billing.payments.non-cash-cut',
             'billing-concepts.index',
             'billing-concepts.store',
@@ -250,9 +240,6 @@ class AdminClubSeeder extends Seeder
             'business-ads.index',
             'business-ads.approve',
             'business-ads.reject',
-            'physical-ads.index',
-            'physical-ads.store',
-            'physical-ad-sizes.index',
             'physical-ad-sizes.store',
             'physical-ad-sizes.update',
             'physical-ad-sizes.destroy',
@@ -261,10 +248,6 @@ class AdminClubSeeder extends Seeder
             'business-categories.update',
             'business-categories.destroy',
 
-            // cafetería
-            'cafeteria-visits.index',
-            'cafeteria-visits.store',
-            'cafeteria-visits.checkout',
 
             // quejas y sugerencias
             'feedback-categories.index',
@@ -334,6 +317,24 @@ class AdminClubSeeder extends Seeder
                 'value' => 'web'
             ])->id
         ]);
-        $adminClubRole->syncPermissions($adminClubPermissions);
+        // syncPermissions() ya quita del rol cualquier permiso que se borre
+        // de $adminClubPermissions de arriba — pero si un nombre se quitó de
+        // PermissionSeeder (catálogo) y por descuido se dejó aquí, ya no
+        // existe como Permission y syncPermissions truena. Se filtra a solo
+        // los que de verdad existen para que el seeder no se caiga por un
+        // desface entre los dos archivos.
+        $existingPermissionNames = Permission::whereIn('name', $adminClubPermissions)
+            ->pluck('name')
+            ->all();
+
+        $missing = array_diff($adminClubPermissions, $existingPermissionNames);
+
+        if (!empty($missing)) {
+            $this->command?->warn(
+                'AdminClubSeeder: se ignoraron permisos que ya no existen en el catálogo: ' . implode(', ', $missing)
+            );
+        }
+
+        $adminClubRole->syncPermissions($existingPermissionNames);
     }
 }

@@ -95,12 +95,12 @@ Route::post('/day-passes/incidents', [DayPassController::class, 'storeIncident']
 Route::resource('/day-passes', DayPassController::class)->only(['index', 'store'])->names('day-passes');
 
 // cafeteria visits
-Route::get('/cafeteria-visits', [CafeteriaVisitController::class, 'index'])->name('cafeteria-visits.index');
+/* Route::get('/cafeteria-visits', [CafeteriaVisitController::class, 'index'])->name('cafeteria-visits.index');
 Route::get('/cafeteria-visits/open', [CafeteriaVisitController::class, 'open'])->name('cafeteria-visits.open');
 Route::post('/cafeteria-visits', [CafeteriaVisitController::class, 'store'])->name('cafeteria-visits.store');
-Route::post('/cafeteria-visits/{cafeteriaVisit}/checkout', [CafeteriaVisitController::class, 'checkout'])->name('cafeteria-visits.checkout');
+Route::post('/cafeteria-visits/{cafeteriaVisit}/checkout', [CafeteriaVisitController::class, 'checkout'])->name('cafeteria-visits.checkout'); */
 
-Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
+// Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
 Route::get('/billing/charges', [BillingController::class, 'chargesList'])->name('billing.charges.index');
 Route::post('/billing/payments', [BillingController::class, 'storePayment'])->name('billing.payments.store');
 Route::get('/billing/annual-payment/preview', [BillingController::class, 'annualPaymentPreview'])->name('billing.annual-payment.preview');
@@ -206,7 +206,7 @@ Route::delete('/business-ads/{id}', [BusinessAdController::class, 'destroy'])->n
 
 // physical_ads
 Route::get('/physical-ads/members-search', [PhysicalAdController::class, 'searchMembers'])->name('physical-ads.members-search');
-Route::post('/physical-ads', [PhysicalAdController::class, 'store'])->name('physical-ads.store');
+// Route::post('/physical-ads', [PhysicalAdController::class, 'store'])->name('physical-ads.store');
 
 // physical_ad_sizes (catálogo de tamaños)
 Route::resource('/physical-ad-sizes', PhysicalAdSizeController::class)
@@ -368,7 +368,7 @@ Route::get('/club-settings', [ClubSettingsController::class, 'edit'])->name('clu
 Route::post('/club-settings', [ClubSettingsController::class, 'update'])->name('club-settings.update');
 
 // Clases
-Route::resource('/specialties', SpecialtyController::class)->only(['index', 'store', 'update', 'destroy'])->names('specialties');
+// Route::resource('/specialties', SpecialtyController::class)->only(['index', 'store', 'update', 'destroy'])->names('specialties');
 Route::resource('/coaches', CoachController::class)->only(['index', 'store', 'update', 'destroy'])->names('coaches');
 Route::resource('/class-schedules', ClassScheduleController::class)->only(['index', 'store', 'update', 'destroy'])->names('classSchedules');
 

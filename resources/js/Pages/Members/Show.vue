@@ -2306,6 +2306,7 @@ console.log(can)
                                 :min="0"
                                 :max="100"
                                 :error-messages="absencePermitForm.errors.charge_percentage"
+                                :disabled="true"
                             />
                         </v-col>
 
