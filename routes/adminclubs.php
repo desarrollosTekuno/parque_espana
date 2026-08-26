@@ -37,8 +37,8 @@ use App\Http\Controllers\Web\AdminClub\MemberDocumentController;
 use App\Http\Controllers\Web\AdminClub\LockerAssignmentController;
 use App\Http\Controllers\Web\AdminClub\LockerController;
 use App\Http\Controllers\Web\AdminClub\CashCutController;
-use App\Http\Controllers\Web\AdminClub\DocumentGeneratorController;
 use App\Http\Controllers\Web\AdminClub\CollectionController;
+use App\Http\Controllers\Web\AdminClub\DocumentGeneratorController;
 use App\Http\Controllers\Web\AdminClub\GlobalCashCutController;
 use App\Http\Controllers\Web\AdminClub\DocumentTypeController;
 use App\Http\Controllers\Web\Administrator\EmailConfigController;
@@ -363,9 +363,6 @@ Route::post('files/{file}/club-file', [FileController::class, 'uploadClubFile'])
 Route::delete('files/{file}/club-file', [FileController::class, 'destroyClubFile'])->name('files.club-file.destroy');
 Route::post('/files/variables', [FileController::class, 'previewVariables'])->name('files.variables');
 
-Route::get('file-generator', [DocumentGeneratorController::class, 'index'])->name('file-generator.index');
-Route::get('file-generator/{file}/download', [DocumentGeneratorController::class, 'download'])->name('file-generator.download');
-
 // Historia Clínica
 Route::get('/members/{membership}/clinical-history', [ClinicalHistoryController::class, 'index'])
     ->name('members.clinical-history.index');
@@ -410,6 +407,10 @@ Route::delete('/website-content/events/{id}', [WebsiteContentController::class, 
     ->name('website-content.events.destroy');
 Route::get('/website-contacts', [WebsiteContactController::class, 'index'])
     ->name('website-contacts.index');
+
+Route::get('file-generator', [DocumentGeneratorController::class, 'index'])->name('file-generator.index');
+Route::get('file-generator/{file}/download', [DocumentGeneratorController::class, 'download'])->name('file-generator.download');
+
 
 // Acts
 Route::prefix('acts')->group(function () {
