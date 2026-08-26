@@ -74,6 +74,10 @@ class PermissionSeeder extends Seeder
             ['module' => 'Reservaciones', 'name' => 'reservations.update', 'description' => 'Actualizar reservaciones', 'contexts' => ['web']],
             ['module' => 'Reservaciones', 'name' => 'reservations.cancel', 'description' => 'Cancelar reservaciones', 'contexts' => ['web']],
             ['module' => 'Reservaciones', 'name' => 'reservations.calendar', 'description' => 'Ver calendario de reservaciones', 'contexts' => ['web']],
+             ['module' => 'Reservaciones', 'name' => 'system-variables.index', 'description' => 'Ver variables de reservaciones', 'contexts' => ['web']],
+            ['module' => 'Reservaciones', 'name' => 'system-variables.store', 'description' => 'Crear variables de reservaciones', 'contexts' => ['web']],
+            ['module' => 'Reservaciones', 'name' => 'system-variables.update', 'description' => 'Actualizar variables de reservaciones', 'contexts' => ['web']],
+            ['module' => 'Reservaciones', 'name' => 'system-variables.destroy', 'description' => 'Eliminar variables de reservaciones', 'contexts' => ['web']],
 
 
             // Comunicación
@@ -98,10 +102,6 @@ class PermissionSeeder extends Seeder
             ['module' => 'Comunicación', 'name' => 'announcements.destroyGalleryImage', 'description' => 'Eliminar imagen de galería de anuncio', 'contexts' => ['web']],
 
             // Sistema
-            ['module' => 'Sistema', 'name' => 'system-variables.index', 'description' => 'Ver variables de sistema', 'contexts' => ['web']],
-            ['module' => 'Sistema', 'name' => 'system-variables.store', 'description' => 'Crear variables de sistema', 'contexts' => ['web']],
-            ['module' => 'Sistema', 'name' => 'system-variables.update', 'description' => 'Actualizar variables de sistema', 'contexts' => ['web']],
-            ['module' => 'Sistema', 'name' => 'system-variables.destroy', 'description' => 'Eliminar variables de sistema', 'contexts' => ['web']],
             ['module' => 'Sistema', 'name' => 'app-variables.index', 'description' => 'Ver variables de app móvil', 'contexts' => ['web']],
             ['module' => 'Sistema', 'name' => 'app-variables.store', 'description' => 'Crear variables de app móvil', 'contexts' => ['web']],
             ['module' => 'Sistema', 'name' => 'app-variables.update', 'description' => 'Actualizar variables de app móvil', 'contexts' => ['web']],
@@ -173,6 +173,7 @@ class PermissionSeeder extends Seeder
             ['module' => 'Membresías', 'name' => 'member-access.destroy', 'description' => 'Revocar acceso a miembros', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.cancel.create', 'description' => 'Crear solicitud de cancelación de cuenta', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.additional-membership.create', 'description' => 'Agregar cuenta de otro parque', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'members.transition.create', 'description' => 'Cambiar el tipo de membresía', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'memberships.view-inscription-fee', 'description' => 'Permitir descuentos en las inscripción', 'contexts' => ['web']],
 
             // Cobranza
@@ -221,9 +222,6 @@ class PermissionSeeder extends Seeder
             ['module' => 'Publicidad', 'name' => 'business-ads.index', 'description' => 'Ver publicidad de negocios', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-ads.approve', 'description' => 'Aprobar publicidad de negocios', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-ads.reject', 'description' => 'Rechazar publicidad de negocios', 'contexts' => ['web']],
-            ['module' => 'Publicidad', 'name' => 'physical-ad-sizes.store', 'description' => 'Crear tamaño de anuncio físico', 'contexts' => ['web']],
-            ['module' => 'Publicidad', 'name' => 'physical-ad-sizes.update', 'description' => 'Actualizar tamaño de anuncio físico', 'contexts' => ['web']],
-            ['module' => 'Publicidad', 'name' => 'physical-ad-sizes.destroy', 'description' => 'Eliminar tamaño de anuncio físico', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-categories.index', 'description' => 'Ver categorías de negocios', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-categories.store', 'description' => 'Crear categorías de negocios', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-categories.update', 'description' => 'Actualizar categorías de negocios', 'contexts' => ['web']],
