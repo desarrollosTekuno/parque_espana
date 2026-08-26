@@ -101,6 +101,7 @@ Route::get('/cafeteria-visits/open', [CafeteriaVisitController::class, 'open'])-
 Route::post('/cafeteria-visits', [CafeteriaVisitController::class, 'store'])->name('cafeteria-visits.store');
 Route::post('/cafeteria-visits/{cafeteriaVisit}/checkout', [CafeteriaVisitController::class, 'checkout'])->name('cafeteria-visits.checkout');
 
+//Reporte de entradas
 Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
 Route::get('/billing/reports/income', [BillingController::class, 'incomeReport'])->name('billing.reports.income');
 Route::get('/billing/reports/interclub-income', [BillingController::class, 'interclubIncomeReport'])->name('billing.reports.interclub-income');
@@ -113,6 +114,7 @@ Route::post('/billing/annual-payment', [BillingController::class, 'storeAnnualPa
 // reportes
 Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
 Route::get('/reports/collection/export', [ReportController::class, 'exportCollectionReport'])->name('reports.collection.export');
+Route::get('/reports/collection/income', [BillingController::class, 'combinedIncomeReport'])->name('reports.collection.income');
 
 // collections desk (módulo de cobranza tipo caja)
 Route::get('/collections', [CollectionController::class, 'index'])->name('collections.index');

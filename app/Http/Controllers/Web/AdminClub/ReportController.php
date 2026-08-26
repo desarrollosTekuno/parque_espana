@@ -10,11 +10,17 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Maatwebsite\Excel\Facades\Excel;
 
-class ReportController extends Controller
-{
-    public function index()
-    {
-        return Inertia::render('Reports/Index');
+class ReportController extends Controller {
+
+    public function index() {
+
+        $clubId = (int) session('club_id');
+        $List = [
+            ['id' => 1, 'name' => 'Reporte de Cobranza'],
+            ['id' => 2, 'name' => 'Reporte de Ingresos D.P.E'],
+        ];
+
+        return Inertia::render('Reports/Index', compact('clubId', 'List'));
     }
 
     public function exportCollectionReport(Request $request)
