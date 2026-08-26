@@ -286,8 +286,6 @@ class AdminClubSeeder extends Seeder
             'guest-list-payments.destroy',
 
             // pases por día
-            'day-passes.index',
-            'day-passes.store',
             'day-passes.incidents.index',
             'day-passes.incidents.store',
 

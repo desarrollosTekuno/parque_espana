@@ -140,12 +140,12 @@ class PermissionSeeder extends Seeder
             ['module' => 'Gestión de membresías', 'name' => 'lockers-history.view', 'description' => 'Gestionar el historial de casilleros de la cuenta.', 'contexts' => ['web']],
 
             // Membresías
-            ['module' => 'Membresías', 'name' => 'members.index', 'description' => 'Ver usuarios del club', 'contexts' => ['web']],
-            ['module' => 'Membresías', 'name' => 'members.create', 'description' => 'Crear usuarios del club', 'contexts' => ['web']],
-            ['module' => 'Membresías', 'name' => 'members.store', 'description' => 'Guardar usuarios del club', 'contexts' => ['web']],
-            ['module' => 'Membresías', 'name' => 'members.edit', 'description' => 'Editar usuarios del club', 'contexts' => ['web']],
-            ['module' => 'Membresías', 'name' => 'members.update', 'description' => 'Actualizar usuarios del club', 'contexts' => ['web']],
-            ['module' => 'Membresías', 'name' => 'members.destroy', 'description' => 'Eliminar usuarios del club', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'members.index', 'description' => 'Ver cuentas del parque', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'members.create', 'description' => 'Crear cuentas del parque', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'members.store', 'description' => 'Guardar cuentas del parque', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'members.edit', 'description' => 'Editar cuentas del parque', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'members.update', 'description' => 'Actualizar cuentas del parque', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'members.destroy', 'description' => 'Eliminar cuentas del parque', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.cancel', 'description' => 'Dar de baja una cuenta', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.reactivate', 'description' => 'Reactivar una cuenta dada de baja voluntaria', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.cancellations.index', 'description' => 'Ver historial de bajas', 'contexts' => ['web']],
@@ -171,8 +171,8 @@ class PermissionSeeder extends Seeder
             ['module' => 'Membresías', 'name' => 'member-access.store', 'description' => 'Asignar acceso a miembros', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'member-access.reset-password', 'description' => 'Reiniciar contraseña de miembros', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'member-access.destroy', 'description' => 'Revocar acceso a miembros', 'contexts' => ['web']],
-            ['module' => 'Membresías', 'name' => 'members.cancel.create', 'description' => 'Dar de baja membresía', 'contexts' => ['web']],
-            ['module' => 'Membresías', 'name' => 'members.additional-membership.create', 'description' => 'Agregar nueva membresía', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'members.cancel.create', 'description' => 'Crear solicitud de cancelación de cuenta', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'members.additional-membership.create', 'description' => 'Agregar cuenta de otro parque', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'memberships.view-inscription-fee', 'description' => 'Permitir descuentos en las inscripción', 'contexts' => ['web']],
 
             // Cobranza
@@ -290,8 +290,6 @@ class PermissionSeeder extends Seeder
             ['module' => 'Listas de Invitados', 'name' => 'guest-list-payments.destroy', 'description' => 'Eliminar pagos de lista de invitados', 'contexts' => ['web']],
 
             // Pases por Día
-            ['module' => 'Pases por Día', 'name' => 'day-passes.index', 'description' => 'Ver pases por día', 'contexts' => ['web']],
-            ['module' => 'Pases por Día', 'name' => 'day-passes.store', 'description' => 'Registrar pase por día', 'contexts' => ['web']],
             ['module' => 'Pases por Día', 'name' => 'day-passes.incidents.index', 'description' => 'Ver incidentes de visitantes', 'contexts' => ['web']],
             ['module' => 'Pases por Día', 'name' => 'day-passes.incidents.store', 'description' => 'Registrar incidente a visitante', 'contexts' => ['web']],
 

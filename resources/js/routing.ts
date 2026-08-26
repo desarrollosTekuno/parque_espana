@@ -93,7 +93,6 @@ const routes: Routing[] = [
                 icon: "mdi-swap-horizontal",
                 value: "paquetes-intermedios",
             },
-
         ],
     },
     {
@@ -104,7 +103,6 @@ const routes: Routing[] = [
             "members.additional-membership.create",
             "members.manage.show",
             "members.family-members.create",
-            "member-access.index",
             "members.cancellations.index",
             "members.age-transitions.index",
         ],
@@ -113,7 +111,6 @@ const routes: Routing[] = [
         value: "membresiasMenu",
         group: "Membresías",
         groupItems: [
-            
             {
                 name: "members.index",
                 title: "Membresías",
@@ -139,14 +136,10 @@ const routes: Routing[] = [
                 value: "transiciones-edad",
                 showBadge: true,
             },
-
         ],
     },
     {
-        name: [
-            "member-access.index",
-            "app-variables.index",
-        ],
+        name: ["member-access.index", "app-variables.index"],
         title: "App móvil",
         icon: "mdi-cellphone-key",
         value: "appMovilMenu",
@@ -299,19 +292,19 @@ const routes: Routing[] = [
         ],
     },
     // Clases
-    /* {
-        name: ["specialties.index", "coaches.index", "classSchedules.index"],
+    {
+        name: ["coaches.index", "classSchedules.index"],
         title: "Clases",
         icon: "mdi-whistle-outline",
         value: "clasesMenu",
         group: "Clases",
         groupItems: [
-            {
-                name: "specialties.index",
-                title: "Especialidades",
-                icon: "mdi-tag-multiple-outline",
-                value: "especialidades",
-            },
+            // {
+            //     name: "specialties.index",
+            //     title: "Especialidades",
+            //     icon: "mdi-tag-multiple-outline",
+            //     value: "especialidades",
+            // },
             {
                 name: "coaches.index",
                 title: "Entrenadores",
@@ -325,7 +318,7 @@ const routes: Routing[] = [
                 value: "horarios-clases",
             },
         ],
-    }, */
+    },
     // Amenidades
     {
         name: ["amenities.index", "blockedPeriods.index"],
@@ -368,17 +361,11 @@ const routes: Routing[] = [
                 icon: "mdi-cog",
                 value: "variables-sistema",
             },
-            {
-                name: "app-variables.index",
-                title: "Variables de App Móvil",
-                icon: "mdi-cellphone-cog",
-                value: "variables-app-movil",
-            }
-        ]
+        ],
     },
     // Listas de invitados
     {
-        name: ["guest-lists.index", "day-passes.index"],
+        name: ["guest-lists.index"],
         title: "Listas de invitados",
         icon: "mdi-account-group-outline",
         value: "listas-invitadosMenu",
@@ -401,12 +388,6 @@ const routes: Routing[] = [
                 title: "Pagos",
                 icon: "mdi-cash",
                 value: "pagos",
-            },
-            {
-                name: "day-passes.index",
-                title: "Pase por Día",
-                icon: "mdi-ticket-account",
-                value: "pase-por-dia",
             },
             {
                 name: "day-passes.incidents.index",
@@ -522,7 +503,7 @@ const routes: Routing[] = [
                 title: "Formatos",
                 icon: "mdi-file-outline",
                 value: "archivos",
-            }
+            },
         ],
     },
     /*

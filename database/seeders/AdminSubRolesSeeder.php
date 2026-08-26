@@ -33,8 +33,6 @@ class AdminSubRolesSeeder extends Seeder
                     'cash-cuts.store',
                     'cash-cuts.show',
                     'cash-cuts.close',
-                    'day-passes.index',
-                    'day-passes.store',
                     'day-passes.incidents.index',
                     'day-passes.incidents.store',
                     'business-ads.index',
