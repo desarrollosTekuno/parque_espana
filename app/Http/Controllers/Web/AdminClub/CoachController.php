@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Web\AdminClub;
 
 use App\Models\AdminClub\Amenity;
 use App\Models\Classes\Coach;
-use App\Models\Classes\Specialty;
 use App\Rules\ExistsInSchema;
 use App\Rules\NoOverlappingAvailabilities;
 use Illuminate\Http\Request;
@@ -23,7 +22,7 @@ class CoachController extends Controller {
     public function index(Request $request) {
         $clubId = $request->club_id ?? session('club_id');
 
-        $coaches = Coach::with(['specialties', 'amenity', 'availabilities'])
+        $coaches = Coach::with(['amenity', 'availabilities'])
             ->where('club_id', $clubId)
             ->when($request->search, fn($q, $s) =>
                 $q->whereRaw("CONCAT(first_name, ' ', last_name, ' ', COALESCE(second_last_name, '')) ILIKE ?", ["%{$s}%"])
@@ -32,17 +31,12 @@ class CoachController extends Controller {
             ->paginate($request->per_page ?? 10)
             ->appends($request->all());
 
-        $specialties = Specialty::where('club_id', $clubId)
-            ->orderBy('name')
-            ->get();
-
         $amenities = Amenity::where('club_id', $clubId)
             ->orderBy('name')
             ->get();
 
         return Inertia::render('AdminClubs/Coaches/Index', [
             'coaches' => $coaches,
-            'specialties' => $specialties,
             'amenities' => $amenities,
         ]);
     }
@@ -57,8 +51,6 @@ class CoachController extends Controller {
             'phone' => ['nullable', 'regex:/^\d{10}$/'],
             'email' => ['nullable', 'email', 'max:120'],
             'amenity_id' => ['required', new ExistsInSchema('amenities', 'amenities', 'id', ['club_id' => $clubId])],
-            'specialties' => ['required', 'array', 'min:1', 'max:2'],
-            'specialties.*' => ['integer'],
             'availabilities' => ['nullable', 'array', new NoOverlappingAvailabilities()],
             'availabilities.*.day_of_week' => ['required', 'integer', 'between:0,6'],
             'availabilities.*.start_time' => ['required', 'date_format:H:i'],
@@ -78,7 +70,6 @@ class CoachController extends Controller {
             'photo' => null,
         ]);
 
-        $coach->specialties()->sync($validated['specialties']);
         $coach->availabilities()->createMany($validated['availabilities'] ?? []);
 
         return redirect()->back()->with('success', 'Entrenador creado correctamente');
@@ -94,8 +85,6 @@ class CoachController extends Controller {
             'phone' => ['nullable', 'regex:/^\d{10}$/'],
             'email' => ['nullable', 'email', 'max:120'],
             'amenity_id' => ['required', new ExistsInSchema('amenities', 'amenities', 'id', ['club_id' => $clubId])],
-            'specialties' => ['required', 'array', 'min:1', 'max:2'],
-            'specialties.*' => ['integer'],
             'availabilities' => ['nullable', 'array', new NoOverlappingAvailabilities()],
             'availabilities.*.day_of_week' => ['required', 'integer', 'between:0,6'],
             'availabilities.*.start_time' => ['required', 'date_format:H:i'],
@@ -112,8 +101,6 @@ class CoachController extends Controller {
             'phone' => $validated['phone'] ?? null,
             'email' => $validated['email'] ?? null,
         ]);
-
-        $coach->specialties()->sync($validated['specialties']);
 
         $coach->availabilities()->delete();
         $coach->availabilities()->createMany($validated['availabilities'] ?? []);
