@@ -14,6 +14,7 @@ use App\Models\Members\Address;
 use App\Models\Members\EmploymentInfo;
 use App\Models\Members\Member;
 use App\Models\Members\MemberDocument;
+use App\Models\Memberships\AccountFiscalData;
 use App\Models\Memberships\AbsencePermit;
 use App\Models\Memberships\InterclubPackageRule;
 use App\Models\Memberships\Membership;
@@ -45,6 +46,7 @@ class MemberController extends Controller
         protected \App\Services\Billing\MembershipPricingService $membershipPricingService
     ) {
         $this->middleware('permission:members.transition.create')->only('createMembershipTransition');
+        $this->middleware('permission:members.update')->only('updateFiscalData');
     }
 
     public function index(Request $request)
@@ -2473,6 +2475,7 @@ class MemberController extends Controller
     {
         $membership->load([
             'account.club',
+            'account.fiscalData',
             'account.primaryHolder.member.primaryAddress',
             'account.primaryHolder.member.primaryAddress.country',
             'account.primaryHolder.member.primaryAddress.state',
@@ -2560,6 +2563,15 @@ class MemberController extends Controller
                     'company_phone'   => $member->employmentInfo?->company_phone,
                 ],
             ],
+            'fiscalData' => $membership->account->fiscalData
+                ? [
+                    'fiscal_name' => $membership->account->fiscalData->fiscal_name,
+                    'rfc' => $membership->account->fiscalData->rfc,
+                    'cfdi_use' => $membership->account->fiscalData->cfdi_use,
+                    'fiscal_regime' => $membership->account->fiscalData->fiscal_regime,
+                    'postal_code' => $membership->account->fiscalData->postal_code,
+                ]
+                : null,
             ...$this->getCreateFormCatalogs(),
         ]);
     }
@@ -3207,6 +3219,46 @@ class MemberController extends Controller
         return redirect()
             ->route('members.manage.show', $membership)
             ->with('success', 'Número de cuenta interno actualizado correctamente.');
+    }
+
+    public function updateFiscalData(Request $request, Membership $membership)
+    {
+        $clubId = session('club_id');
+
+        if ((int) $membership->club_id !== (int) $clubId) {
+            abort(404);
+        }
+
+        $account = $membership->account;
+
+        if (!$account) {
+            abort(404);
+        }
+
+        try {
+            $validated = $request->validate([
+                'fiscal_name' => ['required', 'string', 'max:255'],
+                'rfc' => ['required', 'string', 'max:20'],
+                'cfdi_use' => ['required', 'string', 'max:10'],
+                'fiscal_regime' => ['required', 'string', 'max:10'],
+                'postal_code' => ['required', 'string', 'max:10'],
+            ]);
+
+            AccountFiscalData::query()->updateOrCreate(
+                ['membership_account_id' => $account->id],
+                $validated
+            );
+
+            return redirect()->back()->with('success', 'Datos fiscales actualizados correctamente.');
+        } catch (ValidationException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            report($e);
+
+            return redirect()->back()->withErrors([
+                'messageError' => 'No fue posible guardar los datos fiscales.',
+            ]);
+        }
     }
 
     public function storeDocument(Request $request, Membership $membership)

@@ -261,6 +261,8 @@ Route::get('/members/{membership}/manage', [MemberController::class, 'show'])
     ->name('members.manage.show');
 Route::patch('/members/{membership}/internal-account-number', [MemberController::class, 'updateInternalAccountNumber'])
     ->name('members.internal-account-number.update');
+Route::patch('/members/{membership}/fiscal-data', [MemberController::class, 'updateFiscalData'])
+    ->name('members.fiscal-data.update');
 Route::get('/members/{membership}/history', [MemberController::class, 'membershipHistory'])
     ->name('members.manage.history');
 Route::get('/members/{membership}/billing/charges', [BillingController::class, 'accountCharges'])
