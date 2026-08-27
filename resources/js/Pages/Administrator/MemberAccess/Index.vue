@@ -123,7 +123,6 @@ const headers = [
     { title: "Nombre",          key: "full_name",    sortable: false },
     { title: "Edad",            key: "age",          sortable: false },
     { title: "Email de acceso", key: "access_email", sortable: false },
-    { title: "Clubs",           key: "clubs",        sortable: false },
     { title: "Acceso",          key: "access",       sortable: false },
     { title: "Acciones",        key: "actions",      sortable: false },
 ];
@@ -166,6 +165,14 @@ const fetchItems = async () => {
 };
 
 watch([options, search, accessFilter], debounce(fetchItems, 400), { deep: true });
+
+// El listado ahora se filtra por el parque en sesión (ver
+// MemberAccessController::index) — si se cambia de parque sin recargar la
+// página (selector de club en el header), hay que volver a pedir el listado.
+watch(
+    () => page.props.auth.currentClub,
+    () => fetchItems(),
+);
 </script>
 
 <template>
@@ -239,19 +246,6 @@ watch([options, search, accessFilter], debounce(fetchItems, 400), { deep: true }
                 <template #item.access_email="{ item }">
                     <span v-if="item.user">{{ item.user.email }}</span>
                     <span v-else class="text-grey-lighten-1">—</span>
-                </template>
-
-                <!-- Clubs -->
-                <template #item.clubs="{ item }">
-                    <v-chip
-                        v-for="am in item.account_memberships"
-                        :key="am.id"
-                        class="ma-1"
-                        color="green"
-                        size="small"
-                    >
-                        {{ am.membership_account?.club?.name ?? "—" }}
-                    </v-chip>
                 </template>
 
                 <!-- Estado de acceso -->
