@@ -42,8 +42,9 @@ class MemberController extends Controller
 {
     public function __construct(
         protected MembershipChargeService $membershipChargeService,
-        protected \App\Services\Billing\MembershipPricingService $membershipPricingService 
+        protected \App\Services\Billing\MembershipPricingService $membershipPricingService
     ) {
+        $this->middleware('permission:members.transition.create')->only('createMembershipTransition');
     }
 
     public function index(Request $request)
@@ -156,7 +157,8 @@ class MemberController extends Controller
                         'monthly_fee' => $groupBillingSummary['total'],
                         'spans_multiple_clubs' => $groupBillingSummary['spans_multiple_clubs'],
                         'status' => $currentMembership?->status,
-                        'can_change_membership' => $currentMembership !== null
+                        'can_change_membership' => Gate::allows('members.transition.create')
+                            && $currentMembership !== null
                             && Str::contains($currentMembershipCode, '_IND'),
                         'can_change_primary_holder' => (bool) ($currentMembership?->membershipType?->allows_multiple_members)
                             && (int) $account->account_members_count > 1,

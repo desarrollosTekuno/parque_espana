@@ -509,7 +509,7 @@ const removeMapa = () => {
                                         </div>
                                     </v-col>
                                     <!-- Estado -->
-                                    <v-col cols="12">
+                                    <!-- <v-col cols="12">
                                         <div class="d-flex align-center justify-space-between pa-3 border rounded-lg">
                                             <div>
                                                 <div class="text-body-2 font-weight-medium">Estado del club</div>
@@ -525,7 +525,7 @@ const removeMapa = () => {
                                                 density="compact"
                                             />
                                         </div>
-                                    </v-col>
+                                    </v-col> -->
                                 </v-row>
                             </v-card>
 

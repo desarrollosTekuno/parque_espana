@@ -59,10 +59,6 @@ class PermissionSeeder extends Seeder
             ['module' => 'Amenidades', 'name' => 'amenityResource.downloadQr', 'description' => 'Descargar código QR para recurso de amenidad', 'contexts' => ['web']],
 
             // Clases
-            ['module' => 'Clases', 'name' => 'specialties.index',      'description' => 'Ver especialidades',     'contexts' => ['web']],
-            ['module' => 'Clases', 'name' => 'specialties.store',      'description' => 'Crear especialidades',   'contexts' => ['web']],
-            ['module' => 'Clases', 'name' => 'specialties.update',     'description' => 'Actualizar especialidades', 'contexts' => ['web']],
-            ['module' => 'Clases', 'name' => 'specialties.destroy',    'description' => 'Eliminar especialidades', 'contexts' => ['web']],
             ['module' => 'Clases', 'name' => 'coaches.index',          'description' => 'Ver entrenadores',         'contexts' => ['web']],
             ['module' => 'Clases', 'name' => 'coaches.store',          'description' => 'Crear entrenadores',        'contexts' => ['web']],
             ['module' => 'Clases', 'name' => 'coaches.update',         'description' => 'Actualizar entrenadores',   'contexts' => ['web']],
@@ -78,6 +74,10 @@ class PermissionSeeder extends Seeder
             ['module' => 'Reservaciones', 'name' => 'reservations.update', 'description' => 'Actualizar reservaciones', 'contexts' => ['web']],
             ['module' => 'Reservaciones', 'name' => 'reservations.cancel', 'description' => 'Cancelar reservaciones', 'contexts' => ['web']],
             ['module' => 'Reservaciones', 'name' => 'reservations.calendar', 'description' => 'Ver calendario de reservaciones', 'contexts' => ['web']],
+             ['module' => 'Reservaciones', 'name' => 'system-variables.index', 'description' => 'Ver variables de reservaciones', 'contexts' => ['web']],
+            ['module' => 'Reservaciones', 'name' => 'system-variables.store', 'description' => 'Crear variables de reservaciones', 'contexts' => ['web']],
+            ['module' => 'Reservaciones', 'name' => 'system-variables.update', 'description' => 'Actualizar variables de reservaciones', 'contexts' => ['web']],
+            ['module' => 'Reservaciones', 'name' => 'system-variables.destroy', 'description' => 'Eliminar variables de reservaciones', 'contexts' => ['web']],
 
 
             // Comunicación
@@ -102,10 +102,6 @@ class PermissionSeeder extends Seeder
             ['module' => 'Comunicación', 'name' => 'announcements.destroyGalleryImage', 'description' => 'Eliminar imagen de galería de anuncio', 'contexts' => ['web']],
 
             // Sistema
-            ['module' => 'Sistema', 'name' => 'system-variables.index', 'description' => 'Ver variables de sistema', 'contexts' => ['web']],
-            ['module' => 'Sistema', 'name' => 'system-variables.store', 'description' => 'Crear variables de sistema', 'contexts' => ['web']],
-            ['module' => 'Sistema', 'name' => 'system-variables.update', 'description' => 'Actualizar variables de sistema', 'contexts' => ['web']],
-            ['module' => 'Sistema', 'name' => 'system-variables.destroy', 'description' => 'Eliminar variables de sistema', 'contexts' => ['web']],
             ['module' => 'Sistema', 'name' => 'app-variables.index', 'description' => 'Ver variables de app móvil', 'contexts' => ['web']],
             ['module' => 'Sistema', 'name' => 'app-variables.store', 'description' => 'Crear variables de app móvil', 'contexts' => ['web']],
             ['module' => 'Sistema', 'name' => 'app-variables.update', 'description' => 'Actualizar variables de app móvil', 'contexts' => ['web']],
@@ -142,16 +138,14 @@ class PermissionSeeder extends Seeder
             ['module' => 'Gestión de membresías', 'name' => 'clinical-history.view', 'description' => 'Gestionar la historia clínica de los integrantes asociados a la cuenta.', 'contexts' => ['web']],
             ['module' => 'Gestión de membresías', 'name' => 'history.view', 'description' => 'Gestionar el historial de la cuenta.', 'contexts' => ['web']],
             ['module' => 'Gestión de membresías', 'name' => 'lockers-history.view', 'description' => 'Gestionar el historial de casilleros de la cuenta.', 'contexts' => ['web']],
-            ['module' => 'Gestión de membresías', 'name' => 'billing.view', 'description' => 'Gestionar cargos de facturación de la cuenta.', 'contexts' => ['web']],
-            ['module' => 'Gestión de membresías', 'name' => 'billing.update', 'description' => 'Gestionar el árbol de cuentas.', 'contexts' => ['web']],
 
             // Membresías
-            ['module' => 'Membresías', 'name' => 'members.index', 'description' => 'Ver usuarios del club', 'contexts' => ['web']],
-            ['module' => 'Membresías', 'name' => 'members.create', 'description' => 'Crear usuarios del club', 'contexts' => ['web']],
-            ['module' => 'Membresías', 'name' => 'members.store', 'description' => 'Guardar usuarios del club', 'contexts' => ['web']],
-            ['module' => 'Membresías', 'name' => 'members.edit', 'description' => 'Editar usuarios del club', 'contexts' => ['web']],
-            ['module' => 'Membresías', 'name' => 'members.update', 'description' => 'Actualizar usuarios del club', 'contexts' => ['web']],
-            ['module' => 'Membresías', 'name' => 'members.destroy', 'description' => 'Eliminar usuarios del club', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'members.index', 'description' => 'Ver cuentas del parque', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'members.create', 'description' => 'Crear cuentas del parque', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'members.store', 'description' => 'Guardar cuentas del parque', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'members.edit', 'description' => 'Editar cuentas del parque', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'members.update', 'description' => 'Actualizar cuentas del parque', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'members.destroy', 'description' => 'Eliminar cuentas del parque', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.cancel', 'description' => 'Dar de baja una cuenta', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.reactivate', 'description' => 'Reactivar una cuenta dada de baja voluntaria', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'members.cancellations.index', 'description' => 'Ver historial de bajas', 'contexts' => ['web']],
@@ -177,14 +171,12 @@ class PermissionSeeder extends Seeder
             ['module' => 'Membresías', 'name' => 'member-access.store', 'description' => 'Asignar acceso a miembros', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'member-access.reset-password', 'description' => 'Reiniciar contraseña de miembros', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'member-access.destroy', 'description' => 'Revocar acceso a miembros', 'contexts' => ['web']],
-            ['module' => 'Membresías', 'name' => 'members.cancel.create', 'description' => 'Dar de baja membresía', 'contexts' => ['web']],
-            ['module' => 'Membresías', 'name' => 'members.additional-membership.create', 'description' => 'Agregar nueva membresía', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'members.cancel.create', 'description' => 'Crear solicitud de cancelación de cuenta', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'members.additional-membership.create', 'description' => 'Agregar cuenta de otro parque', 'contexts' => ['web']],
+            ['module' => 'Membresías', 'name' => 'members.transition.create', 'description' => 'Cambiar el tipo de membresía', 'contexts' => ['web']],
             ['module' => 'Membresías', 'name' => 'memberships.view-inscription-fee', 'description' => 'Permitir descuentos en las inscripción', 'contexts' => ['web']],
 
             // Cobranza
-            ['module' => 'Cobranza', 'name' => 'billing.index', 'description' => 'Ver cargos pendientes', 'contexts' => ['web']],
-            ['module' => 'Cobranza', 'name' => 'billing.charges.index', 'description' => 'Ver desglose de cargos pendientes', 'contexts' => ['web']],
-            ['module' => 'Cobranza', 'name' => 'billing.store', 'description' => 'Registrar cobros', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'collections.index', 'description' => 'Ver módulo de cobranza (caja)', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'collections.store', 'description' => 'Registrar cobros desde el módulo de caja', 'contexts' => ['web']],
             ['module' => 'Cobranza', 'name' => 'billing.payments.non-cash-cut', 'description' => 'Usar métodos de pago que no afectan corte de caja', 'contexts' => ['web']],
@@ -230,21 +222,10 @@ class PermissionSeeder extends Seeder
             ['module' => 'Publicidad', 'name' => 'business-ads.index', 'description' => 'Ver publicidad de negocios', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-ads.approve', 'description' => 'Aprobar publicidad de negocios', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-ads.reject', 'description' => 'Rechazar publicidad de negocios', 'contexts' => ['web']],
-            ['module' => 'Publicidad', 'name' => 'physical-ads.index', 'description' => 'Ver anuncios físicos', 'contexts' => ['web']],
-            ['module' => 'Publicidad', 'name' => 'physical-ads.store', 'description' => 'Crear anuncio físico', 'contexts' => ['web']],
-            ['module' => 'Publicidad', 'name' => 'physical-ad-sizes.index', 'description' => 'Ver tamaños de anuncios físicos', 'contexts' => ['web']],
-            ['module' => 'Publicidad', 'name' => 'physical-ad-sizes.store', 'description' => 'Crear tamaño de anuncio físico', 'contexts' => ['web']],
-            ['module' => 'Publicidad', 'name' => 'physical-ad-sizes.update', 'description' => 'Actualizar tamaño de anuncio físico', 'contexts' => ['web']],
-            ['module' => 'Publicidad', 'name' => 'physical-ad-sizes.destroy', 'description' => 'Eliminar tamaño de anuncio físico', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-categories.index', 'description' => 'Ver categorías de negocios', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-categories.store', 'description' => 'Crear categorías de negocios', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-categories.update', 'description' => 'Actualizar categorías de negocios', 'contexts' => ['web']],
             ['module' => 'Publicidad', 'name' => 'business-categories.destroy', 'description' => 'Eliminar categorías de negocios', 'contexts' => ['web']],
-
-            // Cafetería
-            ['module' => 'Cafetería', 'name' => 'cafeteria-visits.index',    'description' => 'Ver ingresos a cafetería',         'contexts' => ['web']],
-            ['module' => 'Cafetería', 'name' => 'cafeteria-visits.store',    'description' => 'Registrar ingreso a cafetería',     'contexts' => ['web']],
-            ['module' => 'Cafetería', 'name' => 'cafeteria-visits.checkout', 'description' => 'Procesar salida de cafetería',      'contexts' => ['web']],
 
             // App Móvil
             ['module' => 'App Móvil', 'name' => 'mobile.reservations.index', 'description' => 'Ver mis reservaciones', 'contexts' => ['mobile_club_1', 'mobile_club_2']],
@@ -307,8 +288,6 @@ class PermissionSeeder extends Seeder
             ['module' => 'Listas de Invitados', 'name' => 'guest-list-payments.destroy', 'description' => 'Eliminar pagos de lista de invitados', 'contexts' => ['web']],
 
             // Pases por Día
-            ['module' => 'Pases por Día', 'name' => 'day-passes.index', 'description' => 'Ver pases por día', 'contexts' => ['web']],
-            ['module' => 'Pases por Día', 'name' => 'day-passes.store', 'description' => 'Registrar pase por día', 'contexts' => ['web']],
             ['module' => 'Pases por Día', 'name' => 'day-passes.incidents.index', 'description' => 'Ver incidentes de visitantes', 'contexts' => ['web']],
             ['module' => 'Pases por Día', 'name' => 'day-passes.incidents.store', 'description' => 'Registrar incidente a visitante', 'contexts' => ['web']],
 
@@ -350,5 +329,23 @@ class PermissionSeeder extends Seeder
 
             $record->contexts()->sync($contextIds);
         }
+
+        // Cualquier permiso que ya no esté en el arreglo de arriba se borra
+        // de verdad del catálogo (no solo se deja huérfano) — se quita
+        // primero de permission_has_contexts (esa tabla no tiene cascade
+        // configurado), luego se borra el permiso: role_has_permissions y
+        // model_has_permissions sí tienen onDelete('cascade'), así que
+        // cualquier rol/usuario que lo tuviera asignado lo pierde
+        // automáticamente.
+        $currentNames = collect($permissions)->pluck('name')->all();
+
+        Permission::whereNotIn('name', $currentNames)
+            ->get()
+            ->each(function (Permission $permission) {
+                $permission->contexts()->detach();
+                $permission->delete();
+            });
+
+        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
     }
 }

@@ -174,7 +174,11 @@ class AmenityController extends Controller
         $directory = "clubs/{$clubCode}/amenities/{$type}";
         $filename  = Str::uuid() . '.' . $file->getClientOriginalExtension();
 
-        Storage::disk('spaces')->putFileAs($directory, $file, $filename, 'public');
+        Storage::disk('spaces')->putFileAs($directory, $file, $filename,  [
+            'visibility' => 'public',
+            'ContentType' => $file->getMimeType(),
+            'ContentDisposition' => 'inline',
+        ]);
 
         return "{$directory}/{$filename}";
     }

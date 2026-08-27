@@ -11,9 +11,8 @@ const page = usePage();
 const can  = page.props.auth.permissions;
 
 interface Props {
-    coaches?:     any;
-    specialties?: any[];
-    amenities?:   any[];
+    coaches?:   any;
+    amenities?: any[];
 }
 
 const props = defineProps<Props>();
@@ -41,7 +40,6 @@ const form = useForm({
     phone:            "",
     email:            "",
     amenity_id:       null as number | null,
-    specialties:      [] as number[],
     availabilities:   [] as { day_of_week: number; start_time: string; end_time: string }[],
 });
 
@@ -171,7 +169,6 @@ const edit = (item: any) => {
     form.phone            = item.phone ?? "";
     form.email            = item.email ?? "";
     form.amenity_id       = item.amenity?.id ?? null;
-    form.specialties      = item.specialties?.map((s: any) => s.id) ?? [];
     form.availabilities   = item.availabilities?.map((a: any) => ({
         day_of_week: a.day_of_week,
         start_time:  a.start_time?.substring(0, 5) ?? "",
@@ -231,7 +228,6 @@ const destroy = (item: any) => {
 const headers = [
     { title: "Nombre",         key: "full_name" },
     { title: "Amenidad",       key: "amenity" },
-    { title: "Especialidades", key: "specialties" },
     { title: "Disponibilidad", key: "availabilities" },
     { title: "Acciones",       key: "actions", sortable: false },
 ];
@@ -309,20 +305,6 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
 
             <template #item.amenity="{ item }">
                 {{ item.amenity?.name ?? "—" }}
-            </template>
-
-            <template #item.specialties="{ item }">
-                <v-chip
-                    v-for="s in item.specialties"
-                    :key="s.id"
-                    size="small"
-                    class="mr-1"
-                    color="primary"
-                    variant="tonal"
-                >
-                    {{ s.name }}
-                </v-chip>
-                <span v-if="!item.specialties?.length">—</span>
             </template>
 
             <template #item.availabilities="{ item }">
@@ -419,25 +401,6 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                     :rules="[required]"
                                     clearable
                                 />
-                            </v-col>
-
-                            <v-col cols="12">
-                                <div class="text-subtitle-2 mb-2">Especialidades</div>
-                                <v-checkbox
-                                    v-for="s in (specialties ?? [])"
-                                    :key="s.id"
-                                    v-model="form.specialties"
-                                    :label="s.name"
-                                    :value="s.id"
-                                    density="compact"
-                                    hide-details
-                                />
-                                <div
-                                    v-if="form.specialties.length === 0"
-                                    class="text-caption text-error mt-1"
-                                >
-                                    Selecciona al menos una especialidad
-                                </div>
                             </v-col>
 
                             <v-col cols="12">
