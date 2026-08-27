@@ -161,13 +161,14 @@ class CommandController extends Controller {
                              $q->where('code', $request->query('club_code'));
                          });
                 })
+                ->orderBy('created_at')
+                ->limit(200)
                 ->get();
-
-            // return $commands;
 
             return response()->json([
                 'success' => true,
                 'message' => 'Comandos obtenidos correctamente',
+                'total' => $commands->count(),
                 'data' => CommandResource::collection($commands)
             ], 200);
 

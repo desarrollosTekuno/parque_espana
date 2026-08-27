@@ -23,6 +23,10 @@ class AccessProvisioningService
      */
     public function provision(MembershipAccountMember $integrante, $cuenta): void
     {
+        if ($integrante->access_code) {
+            return;
+        }
+
         $member = $integrante->member;
 
         if (!$member) {
@@ -39,19 +43,20 @@ class AccessProvisioningService
         }
 
         // 2. Número de tarjeta único (si el integrante aún no tiene uno)
-        $cardNo = $integrante->access_code ?? $this->generateUniqueCardNumber();
+        $cardNo = $this->generateUniqueCardNumber();
+        $validTo = Carbon::now()->addYears(10)->format('Y-m-d H:i:s');
 
-        if (!$integrante->access_code) {
-            $integrante->access_code = $cardNo;
-            $integrante->save();
-        }
+        $integrante->access_code = $cardNo;
+        $integrante->access_valid_until = $validTo;
+        $integrante->save();
+
 
         // 3. Nombre completo
         $fullName = trim("{$member->first_name} {$member->last_name} {$member->second_last_name}");
+        $isActive = $integrante->access_status === 'active';
 
         // 4. Vigencia (no permanente, 10 años a partir de ahora)
         $validFrom = Carbon::now()->format('Y-m-d H:i:s');
-        $validTo = Carbon::now()->addYears(10)->format('Y-m-d H:i:s');
 
         // 5. Un create_user y un create_card por cada dispositivo activo del club
         foreach ($devices as $device) {
@@ -60,7 +65,7 @@ class AccessProvisioningService
                     'employee_id'  => (string) $member->id,
                     'name'         => $fullName,
                     'user_type'    => 'normal',
-                    'is_active'    => true,
+                    'is_active'    => $isActive,
                     'is_permanent' => false,
                     'valid_from'   => $validFrom,
                     'valid_to'     => $validTo,
@@ -100,6 +105,84 @@ class AccessProvisioningService
             'account_member_id' => $integrante->id,
             'data'              => $this->payloadBuilder->build($action, $rawData),
         ]);
+    }
+
+    /**
+    * Actualiza los datos del usuario (nombre, estatus) en los dispositivos.
+    * Usa el access_valid_until ya guardado, sin recalcular fechas.
+    */
+    public function updateUserInfo(MembershipAccountMember $integrante, $cuenta): void
+    {
+        $member = $integrante->member;
+
+        if (!$member) {
+            throw new \RuntimeException("No se encontró el member relacionado (member_id: {$integrante->member_id})");
+        }
+
+        if (!$integrante->access_valid_until) {
+            throw new \RuntimeException("El integrante {$integrante->id} no tiene access_valid_until definido");
+        }
+
+        $devices = Device::where('club_id', $cuenta->club_id)
+            ->where('status', 'active')
+            ->get();
+
+        if ($devices->isEmpty()) {
+            throw new \RuntimeException("No hay dispositivos activos para el club_id {$cuenta->club_id}");
+        }
+
+        $fullName = trim("{$member->first_name} {$member->last_name} {$member->second_last_name}");
+        $isActive = $integrante->access_status === 'active';
+        $validFrom = Carbon::now()->format('Y-m-d H:i:s');
+        $validTo = Carbon::parse($integrante->access_valid_until)->format('Y-m-d H:i:s');
+
+        foreach ($devices as $device) {
+            $this->createCommand('update_user', $integrante, $device, [
+                'users' => [[
+                    'employee_id'  => (string) $member->id,
+                    'name'         => $fullName,
+                    'user_type'    => 'normal',
+                    'is_active'    => $isActive,
+                    'is_permanent' => false,
+                    'valid_from'   => $validFrom,
+                    'valid_to'     => $validTo,
+                ]],
+            ]);
+        }
+    }
+
+    /**
+    * Reasigna un número de tarjeta nuevo a un integrante que YA tiene acceso
+    * dado de alta (usuario ya existe). Solo crea el comando update_card.
+    */
+    public function reassignCard(MembershipAccountMember $integrante, $cuenta): void
+    {
+        $member = $integrante->member;
+    
+        if (!$member) {
+            throw new \RuntimeException("No se encontró el member relacionado (member_id: {$integrante->member_id})");
+        }
+    
+        $devices = Device::where('club_id', $cuenta->club_id)
+            ->where('status', 'active')
+            ->get();
+    
+        if ($devices->isEmpty()) {
+            throw new \RuntimeException("No hay dispositivos activos para el club_id {$cuenta->club_id}");
+        }
+    
+        $newCardNo = $this->generateUniqueCardNumber();
+        $integrante->access_code = $newCardNo;
+        $integrante->save();
+    
+        foreach ($devices as $device) {
+            $this->createCommand('update_card', $integrante, $device, [
+                'cards' => [[
+                    'employee_id' => (string) $member->id,
+                    'card_no'     => $newCardNo,
+                ]],
+            ]);
+        }
     }
 }
 
