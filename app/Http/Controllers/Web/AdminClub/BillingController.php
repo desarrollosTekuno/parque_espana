@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers\Web\AdminClub;
 
+use App\Exports\CombinedIncomeReportExport;
+use App\Exports\IncomeReportExport;
+use App\Exports\InterclubIncomeReportExport;
 use App\Http\Controllers\Controller;
 use App\Models\Administrator\Club;
 use App\Models\Billing\Charge;
@@ -30,16 +33,15 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
+use Maatwebsite\Excel\Facades\Excel;
 
-class BillingController extends Controller
-{
+class BillingController extends Controller {
     public function __construct(
         protected PaymentRegistrationService $paymentRegistrationService,
     ) {
     }
 
-    public function index(Request $request)
-    {
+    public function index(Request $request) {
         try {
             $prefix = 'billing';
             $driver = DB::getDriverName();
@@ -285,7 +287,7 @@ class BillingController extends Controller
         }
     }
 
-    public function storePayment(Request $request) 
+    public function storePayment(Request $request)
     {
         try {
             $validated = $request->validate([
@@ -323,7 +325,7 @@ class BillingController extends Controller
                 receivedBy: $request->user()?->id,
                 sessionClubId: session('club_id')
             );
-            
+
             // Notificación push al titular de la cuenta (asíncrona vía queue)
             $userId = $account->primaryHolder?->member?->user_id;
             if ($userId) {
@@ -352,7 +354,7 @@ class BillingController extends Controller
                     'published_at' => now(),
                     'expires_at' => now()->addMonth()
                 ]);
-            
+
             // Procesar casilleros pagados
             $lockerCharges = $charges->filter(function ($charge) {
                 return isset($charge->metadata['locker_id']);
@@ -387,7 +389,7 @@ class BillingController extends Controller
                         return;
                     }
                     // Evitar duplicados
-                    $alreadyAssigned = LockerAssignment::where('member_id', $memberId) 
+                    $alreadyAssigned = LockerAssignment::where('member_id', $memberId)
                         ->where('year', now()->year)
                         ->whereNull('deleted_at')
                         ->exists();
@@ -845,7 +847,7 @@ class BillingController extends Controller
         ]);
     }
 
-    protected function resolveHolderPhotoUrl(?\App\Models\Members\Member $holder): ?string 
+    protected function resolveHolderPhotoUrl(?\App\Models\Members\Member $holder): ?string
     {
         $photoDocument = $holder?->documents
             ->first(fn (MemberDocument $document) => $document->documentType?->code === 'fotografia_infantil');
@@ -935,8 +937,7 @@ class BillingController extends Controller
         ];
     }
 
-    protected function resolveChargeOriginCode(Charge $charge, array $metadata): string
-    {
+    protected function resolveChargeOriginCode(Charge $charge, array $metadata): string {
         if (($charge->concept?->code ?? null) === 'INSCRIPTION') {
             return 'inscription';
         }
@@ -958,8 +959,7 @@ class BillingController extends Controller
         };
     }
 
-    protected function resolveChargeOriginLabel(string $originCode): string
-    {
+    protected function resolveChargeOriginLabel(string $originCode): string {
         return match ($originCode) {
             'inscription' => 'Inscripción',
             'monthly_cycle' => 'Mensualidad del período',
@@ -972,8 +972,7 @@ class BillingController extends Controller
         };
     }
 
-    protected function resolveChargeBadges(array $metadata): array
-    {
+    protected function resolveChargeBadges(array $metadata): array {
         $badges = [];
 
         if (!empty($metadata['split_mode'])) {
@@ -1005,5 +1004,184 @@ class BillingController extends Controller
         }
 
         return $badges;
+    }
+
+    public function incomeReport(Request $request) {
+        $validated = $request->validate([
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+        ]);
+
+        $timezone = config('app.timezone');
+        $fechaInicio = Carbon::parse($validated['start_date'], $timezone);
+        $fechaFin = Carbon::parse($validated['end_date'], $timezone);
+        $clubId = (int) session('club_id');
+        $club = Club::find($clubId);
+        $clubName = $club?->name ?? 'Parque España II';
+        $logoContent = null;
+        $logoUrl = $this->logoUrl($club?->code, $club?->logo_url);
+
+        if ($logoUrl && str_starts_with($logoUrl, '/')) {
+            $logoPath = public_path(ltrim($logoUrl, '/'));
+            $logoContent = file_exists($logoPath) ? file_get_contents($logoPath) : null;
+        } elseif ($club?->logo_path) {
+            try {
+                $logoContent = Storage::disk('spaces')->get($club->logo_path);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
+        $payments = Payment::query()
+            ->with('paymentMethod')
+            ->where('club_id', $clubId)
+            ->where('status', 'registered')
+            ->whereBetween('paid_at', [
+                $fechaInicio->copy()->startOfDay()->utc(),
+                $fechaFin->copy()->endOfDay()->utc(),
+            ])
+            ->get();
+
+        $deliveredBy = $request->user()?->name ?? '';
+        $filename = 'reporte-ingresos-'.$fechaInicio->format('Y-m-d').'-a-'.$fechaFin->format('Y-m-d').'-'.now()->format('H-i-s').'.xlsx';
+
+        return Excel::download(new IncomeReportExport($clubName, $fechaInicio, $fechaFin, $payments, $deliveredBy, $logoContent),$filename);
+    }
+
+    public function interclubIncomeReport(Request $request) {
+        $validated = $request->validate([
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+        ]);
+
+        $timezone = config('app.timezone');
+        $fechaInicio = Carbon::parse($validated['start_date'], $timezone);
+        $fechaFin = Carbon::parse($validated['end_date'], $timezone);
+        $clubId = (int) session('club_id');
+        $club = Club::find($clubId);
+        $otherClubCode = match (strtoupper((string) $club?->code)) {
+            'PE1' => 'PE2',
+            'PE2' => 'PE1',
+            default => null,
+        };
+        $otherClub = $otherClubCode ? Club::where('code', $otherClubCode)->first() : null;
+        $logoContent = null;
+        $logoUrl = $this->logoUrl($club->code, $club->logo_url);
+
+        if ($logoUrl && str_starts_with($logoUrl, '/')) {
+            $logoPath = public_path(ltrim($logoUrl, '/'));
+            $logoContent = file_exists($logoPath) ? file_get_contents($logoPath) : null;
+        } elseif ($club->logo_path) {
+            try {
+                $logoContent = Storage::disk('spaces')->get($club->logo_path);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
+        $payments = Payment::query()
+            ->with([
+                'paymentMethod',
+                'applications.charge.concept',
+                'applications.charge.membership.pricingRule',
+            ])
+            ->where('club_id', $clubId)
+            ->where('status', 'registered')
+            ->whereBetween('paid_at', [
+                $fechaInicio->copy()->startOfDay()->utc(),
+                $fechaFin->copy()->endOfDay()->utc(),
+            ])
+            ->get();
+
+        $deliveredBy = $request->user()?->name ?? '';
+        $filename = 'reporte-ingresos-'.$club->code.'-para-'.$otherClub->code.'-'.$fechaInicio->format('Y-m-d').'-a-'.$fechaFin->format('Y-m-d').'-'.now()->format('H-i-s').'.xlsx';
+
+        return Excel::download(
+            new InterclubIncomeReportExport(
+                $club->name,
+                $otherClub->name,
+                $otherClub->id,
+                $fechaInicio,
+                $fechaFin,
+                $payments,
+                $deliveredBy,
+                $logoContent,
+            ),
+            $filename,
+        );
+    }
+
+    public function combinedIncomeReport(Request $request) {
+        $validated = $request->validate([
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+        ]);
+
+        $timezone = config('app.timezone');
+        $fechaInicio = Carbon::parse($validated['start_date'], $timezone);
+        $fechaFin = Carbon::parse($validated['end_date'], $timezone);
+        $clubId = (int) session('club_id');
+        $club = Club::find($clubId);
+        $otherClubCode = match (strtoupper((string) $club?->code)) {
+            'PE1' => 'PE2',
+            'PE2' => 'PE1',
+            default => null,
+        };
+        $otherClub = $otherClubCode ? Club::where('code', $otherClubCode)->first() : null;
+
+        abort_if(! $club || ! $otherClub, 422, 'El reporte solo está disponible para PE1 y PE2.');
+
+        $logoContent = null;
+        $logoUrl = $this->logoUrl($club->code, $club->logo_url);
+
+        if ($logoUrl && str_starts_with($logoUrl, '/')) {
+            $logoPath = public_path(ltrim($logoUrl, '/'));
+            $logoContent = file_exists($logoPath) ? file_get_contents($logoPath) : null;
+        } elseif ($club->logo_path) {
+            try {
+                $logoContent = Storage::disk('spaces')->get($club->logo_path);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
+        $payments = Payment::query()
+            ->with([
+                'paymentMethod',
+                'applications.charge.concept',
+                'applications.charge.membership.pricingRule',
+            ])
+            ->where('club_id', $clubId)
+            ->where('status', 'registered')
+            ->whereBetween('paid_at', [
+                $fechaInicio->copy()->startOfDay()->utc(),
+                $fechaFin->copy()->endOfDay()->utc(),
+            ])
+            ->get();
+
+        $deliveredBy = $request->user()?->name ?? '';
+        $filename = 'reporte-ingresos-completo-'.$club->code.'-'.$fechaInicio->format('Y-m-d').'-a-'.$fechaFin->format('Y-m-d').'-'.now()->format('H-i-s').'.xlsx';
+
+        return Excel::download(
+            new CombinedIncomeReportExport(
+                $club->name,
+                $otherClub->name,
+                $otherClub->id,
+                $fechaInicio,
+                $fechaFin,
+                $payments,
+                $deliveredBy,
+                $logoContent,
+            ),
+            $filename,
+        );
+    }
+
+    private function logoUrl(?string $clubCode, ?string $configuredLogo): ?string {
+        return match (strtoupper((string) $clubCode)) {
+            'PE1' => '/assets/images/LogoP1.png',
+            'PE2' => '/assets/images/LogoP2.png',
+            default => $configuredLogo,
+        };
     }
 }

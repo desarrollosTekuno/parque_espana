@@ -26,6 +26,7 @@ interface Props {
     amenities?: any[];
     resources?: any[];
     members?: any[];
+    coaches?: any[];
     diasReserva?: number;
 }
 
@@ -47,10 +48,11 @@ const props = withDefaults(defineProps<Props>(), {
     reservationStatus: null,
     members: () => [],
     resources: () => [],
-    amenities: () => [] 
+    amenities: () => [],
+    coaches: () => []
 });
 
-const { members, amenities, resources } = props
+const { members, amenities, resources, coaches } = props
 
 //filtros calendario
 const filterAmenity = ref(null)
@@ -302,7 +304,8 @@ interface Props {
     reservationStatus?: any;
     amenities?: any[];
     resources?: any[];
-    members?: any[];    
+    members?: any[];
+    coaches?: any[];
 }
 watch(showReservationModal, (open) => {
     if (!open) {
@@ -324,6 +327,8 @@ const reservationForm = useForm({
     tables_count: null,
     chairs_count: null,
     notes: null,
+    is_class: false,
+    coach_id: null,
 })
 
 const createReservation = () => {
@@ -434,8 +439,21 @@ const grillOptions = computed(() => {
     )
 })
 
+// profesores disponibles para la amenidad seleccionada (clases)
+const coachFullName = (coach: any) => {
+    return [coach.first_name, coach.last_name, coach.second_last_name].filter(Boolean).join(' ')
+}
+const filteredCoaches = computed(() => {
+    if (!reservationForm.amenity_id) return []
+    return coaches
+        .filter((c: any) => c.amenity_id === reservationForm.amenity_id)
+        .map((c: any) => ({ id: c.id, full_name: coachFullName(c) }))
+})
+
 watch(() => reservationForm.amenity_id, () => {
     reservationForm.amenity_resource_id = null
+    reservationForm.is_class = false
+    reservationForm.coach_id = null
 })
 watch(() => reservationForm.amenity_resource_id, () => {
     reservationForm.grill_resource_id = null
@@ -443,6 +461,11 @@ watch(() => reservationForm.amenity_resource_id, () => {
     reservationForm.tables_count = null
     reservationForm.chairs_count = null
     reservationForm.notes = null
+})
+watch(() => reservationForm.is_class, (isClass) => {
+    if (!isClass) {
+        reservationForm.coach_id = null
+    }
 })
 
 // Horarios disponibles
@@ -746,6 +769,28 @@ const maxDate = computed(() => {
                                     item-value="id"
                                     label="Recurso"
                                     :disabled="!reservationForm.amenity_id"
+                                />
+                            </v-col>
+
+                            <!-- CLASE / PROFESOR -->
+                            <v-col v-if="reservationForm.amenity_resource_id" cols="12">
+                                <v-switch
+                                    v-model="reservationForm.is_class"
+                                    label="Es una clase"
+                                    color="primary"
+                                    hide-details
+                                />
+                            </v-col>
+                            <v-col v-if="reservationForm.is_class" cols="12">
+                                <v-select
+                                    v-model="reservationForm.coach_id"
+                                    :items="filteredCoaches"
+                                    item-title="full_name"
+                                    item-value="id"
+                                    label="Profesor"
+                                    prepend-inner-icon="mdi-account-tie"
+                                    clearable
+                                    no-data-text="No hay profesores para esta amenidad"
                                 />
                             </v-col>
 

@@ -93,7 +93,6 @@ const routes: Routing[] = [
                 icon: "mdi-swap-horizontal",
                 value: "paquetes-intermedios",
             },
-
         ],
     },
     {
@@ -104,7 +103,6 @@ const routes: Routing[] = [
             "members.additional-membership.create",
             "members.manage.show",
             "members.family-members.create",
-            "member-access.index",
             "members.cancellations.index",
             "members.age-transitions.index",
         ],
@@ -113,7 +111,6 @@ const routes: Routing[] = [
         value: "membresiasMenu",
         group: "Membresías",
         groupItems: [
-            
             {
                 name: "members.index",
                 title: "Membresías",
@@ -139,14 +136,10 @@ const routes: Routing[] = [
                 value: "transiciones-edad",
                 showBadge: true,
             },
-
         ],
     },
     {
-        name: [
-            "member-access.index",
-            "app-variables.index",
-        ],
+        name: ["member-access.index", "app-variables.index"],
         title: "App móvil",
         icon: "mdi-cellphone-key",
         value: "appMovilMenu",
@@ -170,8 +163,6 @@ const routes: Routing[] = [
     {
         name: [
             "collections.index",
-            "billing.index",
-            "billing.charges.index",
             "billing-concepts.index",
             "payment-methods.index",
             "cash-cuts.index",
@@ -210,18 +201,6 @@ const routes: Routing[] = [
                 icon: "mdi-cash-register",
                 value: "cobro-directo",
             },
-            {
-                name: "billing.index",
-                title: "Cargos pendientes",
-                icon: "mdi-receipt-text-outline",
-                value: "cargos-pendientes",
-            },
-            {
-                name: "billing.charges.index",
-                title: "Desglose de cargos",
-                icon: "mdi-format-list-bulleted",
-                value: "desglose-cargos",
-            }, 
             {
                 name: "cash-cuts.index",
                 title: "Cortes de caja",
@@ -313,8 +292,8 @@ const routes: Routing[] = [
         ],
     },
     // Clases
-    {
-        name: ["specialties.index", "coaches.index", "classSchedules.index"],
+   /* {
+        name: ["specialties.index", "classSchedules.index"],
         title: "Clases",
         icon: "mdi-whistle-outline",
         value: "clasesMenu",
@@ -327,22 +306,16 @@ const routes: Routing[] = [
                 value: "especialidades",
             },
             {
-                name: "coaches.index",
-                title: "Entrenadores",
-                icon: "mdi-account-star-outline",
-                value: "entrenadores",
-            },
-            {
                 name: "classSchedules.index",
                 title: "Horarios de clases",
                 icon: "mdi-calendar-clock-outline",
                 value: "horarios-clases",
             },
         ],
-    },
+    },*/
     // Amenidades
     {
-        name: ["amenities.index", "blockedPeriods.index"],
+        name: ["amenities.index", "blockedPeriods.index", "coaches.index"],
         title: "Amenidades",
         icon: "mdi-beach",
         value: "amenidades",
@@ -359,6 +332,12 @@ const routes: Routing[] = [
                 title: "Bloqueo de recursos",
                 icon: "mdi-calendar-clock-outline",
                 value: "bloqueos",
+            },
+            {
+                name: "coaches.index",
+                title: "Entrenadores",
+                icon: "mdi-account-star-outline",
+                value: "entrenadores",
             },
         ],
     },
@@ -382,17 +361,11 @@ const routes: Routing[] = [
                 icon: "mdi-cog",
                 value: "variables-sistema",
             },
-            {
-                name: "app-variables.index",
-                title: "Variables de App Móvil",
-                icon: "mdi-cellphone-cog",
-                value: "variables-app-movil",
-            }
-        ]
+        ],
     },
     // Listas de invitados
     {
-        name: ["guest-lists.index", "day-passes.index", "cafeteria-visits.index"],
+        name: ["guest-lists.index"],
         title: "Listas de invitados",
         icon: "mdi-account-group-outline",
         value: "listas-invitadosMenu",
@@ -417,18 +390,6 @@ const routes: Routing[] = [
                 value: "pagos",
             },
             {
-                name: "day-passes.index",
-                title: "Pase por Día",
-                icon: "mdi-ticket-account",
-                value: "pase-por-dia",
-            },
-            {
-                name: "cafeteria-visits.index",
-                title: "Ingresos Cafetería",
-                icon: "mdi-coffee",
-                value: "cafeteria-visitas",
-            },
-            {
                 name: "day-passes.incidents.index",
                 title: "Incidencias",
                 icon: "mdi-alert-circle-outline",
@@ -446,7 +407,7 @@ const routes: Routing[] = [
     },
     // Publicidad de negocios
     {
-        name: ["business-ads.index", "business-categories.index", "physical-ad-sizes.index"],
+        name: ["business-ads.index", "business-categories.index"],
         title: "Publicidad",
         icon: "mdi-storefront-outline",
         value: "publicidad-negocios",
@@ -464,12 +425,6 @@ const routes: Routing[] = [
                 title: "Publicaciones de negocios",
                 icon: "mdi-storefront-outline",
                 value: "anuncios-activos",
-            },
-            {
-                name: "physical-ad-sizes.index",
-                title: "Tamaños de anuncios físicos",
-                icon: "mdi-ruler",
-                value: "tamanos-anuncios-fisicos",
             },
         ],
     },
@@ -520,12 +475,12 @@ const routes: Routing[] = [
                 icon: "mdi-flag-checkered",
                 value: "feedback-priorities",
             },
-            {
+            /* {
                 name: "feedback.index",
                 title: "Captura de tickets",
                 icon: "mdi-message-text-outline",
                 value: "feedback",
-            },
+            }, */
             {
                 name: "feedback-management.index",
                 title: "Gestion de casos",

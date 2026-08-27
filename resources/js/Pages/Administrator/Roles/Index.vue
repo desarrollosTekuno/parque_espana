@@ -127,6 +127,12 @@ const duplicate = (data: any) => {
     form.description = data.description;
     form.permissions = data.permissions.map((permission: any) => permission.id);
     form.context_id = data.context_id;
+    // El watch de context_id (pensado para el modal de crear/editar) corre
+    // de forma diferida y, si no encuentra nada en caché para este
+    // contexto, resetea form.permissions a [] — sin esto, los permisos que
+    // se acaban de asignar arriba se perdían antes de que el usuario
+    // alcanzara a confirmar el duplicado.
+    permissionsByContext.value[data.context_id] = [...form.permissions];
 
     customConfirmSwal({
         title: "¿Está segur@ que desea duplicar este rol?",
