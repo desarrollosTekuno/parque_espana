@@ -105,6 +105,16 @@ class InterclubSplitPaymentService
         }
 
         $total = round((float) $charge->balance, 2);
+
+        // Si el cargo ya no tiene saldo (p. ej. alguien más ya lo pagó
+        // completo por otro medio segundos antes, ver Cobranza) no hay
+        // nada que repartir — partirlo de todas formas crearía un cargo
+        // espejo real de $0 que se queda pendiente para siempre, sin que
+        // nadie lo vuelva a pagar jamás.
+        if ($total <= 0) {
+            throw new \RuntimeException('Este cargo ya no tiene saldo pendiente — probablemente ya se pagó por otro medio. Actualiza la pantalla e intenta de nuevo.');
+        }
+
         $originalShare = round($total / 2, 2);
         $otherShare = round($total - $originalShare, 2);
 

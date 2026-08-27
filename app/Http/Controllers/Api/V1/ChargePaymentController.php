@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Exceptions\ConektaChargeRejectedException;
 use App\Http\Controllers\Controller;
 use App\Models\AdminClub\BusinessAd;
 use App\Models\Billing\Charge;
@@ -15,6 +16,7 @@ use App\Services\Payments\ConektaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class ChargePaymentController extends Controller
 {
@@ -190,66 +192,90 @@ class ChargePaymentController extends Controller
         }
 
         $applicationsByChargeId = collect($applications)->keyBy('charge_id');
-        $originalApplications  = [];
-        $mirrorApplications    = [];
+        $description = $this->buildDescription($account, $charges);
 
-        foreach ($charges as $charge) {
-            $requestedAmount = round((float) $applicationsByChargeId[$charge->id]['amount'], 2);
-
-            if ($charge->concept?->splits_between_parks) {
-                $split = $this->splitService->splitCharge($charge, $otherAccount, $otherMembership);
-                $originalApplications[] = ['charge_id' => $charge->id, 'amount' => $split['original_share']];
-                $mirrorApplications[]   = ['charge_id' => $split['mirror_charge']->id, 'amount' => (float) $split['mirror_charge']->balance];
-            } else {
-                $originalApplications[] = ['charge_id' => $charge->id, 'amount' => $requestedAmount];
-            }
-        }
-
-        $originalTotal = round(collect($originalApplications)->sum('amount'), 2);
-        $otherTotal    = round(collect($mirrorApplications)->sum('amount'), 2);
-        $description   = $this->buildDescription($account, $charges);
-
+        // La partición de cargos (InterclubSplitPaymentService::splitCharge,
+        // que muta el cargo original y crea uno espejo real en el otro
+        // parque) y el registro del pago viven en la MISMA transacción que
+        // el cobro en Conekta: si Conekta rechaza el cobro (o splitCharge
+        // rechaza partir un cargo que ya no tiene saldo, ver
+        // ConektaChargeRejectedException/RuntimeException abajo), todo se
+        // revierte — antes, si el cobro fallaba después de partir el
+        // cargo, el cargo espejo ya partido se quedaba huérfano en BD para
+        // siempre (ver bug histórico: cargo #95, $0 pendiente sin dueño).
         try {
-            $firstResult = $this->conekta->charge(
-                member:      $member,
-                source:      $source,
-                clubId:      $clubId,
-                amountCents: (int) round($originalTotal * 100),
-                description: $description,
-                metadata: [
-                    'membership_account_id' => $account->id,
-                    'club_id'               => $clubId,
-                    'charge_ids'            => collect($originalApplications)->pluck('charge_id')->join(','),
-                    'interclub_split'       => true,
-                ],
-            );
+            $result = DB::transaction(function () use (
+                $charges, $applicationsByChargeId, $otherAccount, $otherMembership,
+                $member, $source, $clubId, $description, $account, $paymentMethod, $notes
+            ) {
+                $originalApplications = [];
+                $mirrorApplications   = [];
 
-            if ($firstResult['status'] !== 'paid') {
-                return response()->json([
-                    'message' => 'El pago fue rechazado por el procesador. Verifica los datos de tu tarjeta.',
-                    'data'    => ['conekta_status' => $firstResult['status']],
-                ], 422);
-            }
+                foreach ($charges as $charge) {
+                    $requestedAmount = round((float) $applicationsByChargeId[$charge->id]['amount'], 2);
 
-            $this->paymentService->register(
-                account:       $account,
-                clubId:        $clubId,
-                paymentMethod: $paymentMethod,
-                applications:  $originalApplications,
-                paidAt:        now()->toDateString(),
-                reference:     $firstResult['order_id'],
-                bankName:      null,
-                checkNumber:   null,
-                notes:         $notes ?? "Pago procesado vía Conekta (mitad interclub). Cargo: {$firstResult['charge_id']}",
-                receivedBy:    null,
-                sessionClubId: $clubId,
-            );
+                    if ($charge->concept?->splits_between_parks) {
+                        $split = $this->splitService->splitCharge($charge, $otherAccount, $otherMembership);
+                        $originalApplications[] = ['charge_id' => $charge->id, 'amount' => $split['original_share']];
+                        $mirrorApplications[]   = ['charge_id' => $split['mirror_charge']->id, 'amount' => (float) $split['mirror_charge']->balance];
+                    } else {
+                        $originalApplications[] = ['charge_id' => $charge->id, 'amount' => $requestedAmount];
+                    }
+                }
+
+                $originalTotal = round(collect($originalApplications)->sum('amount'), 2);
+
+                $firstResult = $this->conekta->charge(
+                    member:      $member,
+                    source:      $source,
+                    clubId:      $clubId,
+                    amountCents: (int) round($originalTotal * 100),
+                    description: $description,
+                    metadata: [
+                        'membership_account_id' => $account->id,
+                        'club_id'               => $clubId,
+                        'charge_ids'            => collect($originalApplications)->pluck('charge_id')->join(','),
+                        'interclub_split'       => true,
+                    ],
+                );
+
+                if ($firstResult['status'] !== 'paid') {
+                    throw new ConektaChargeRejectedException($firstResult['status']);
+                }
+
+                $this->paymentService->register(
+                    account:       $account,
+                    clubId:        $clubId,
+                    paymentMethod: $paymentMethod,
+                    applications:  $originalApplications,
+                    paidAt:        now()->toDateString(),
+                    reference:     $firstResult['order_id'],
+                    bankName:      null,
+                    checkNumber:   null,
+                    notes:         $notes ?? "Pago procesado vía Conekta (mitad interclub). Cargo: {$firstResult['charge_id']}",
+                    receivedBy:    null,
+                    sessionClubId: $clubId,
+                );
+
+                return ['mirrorApplications' => $mirrorApplications, 'originalTotal' => $originalTotal];
+            });
+
+            $mirrorApplications = $result['mirrorApplications'];
+            $originalTotal       = $result['originalTotal'];
+            $otherTotal          = round(collect($mirrorApplications)->sum('amount'), 2);
 
             // Los cargos de un anuncio de negocio nunca traen
             // splits_between_parks, así que siempre viajan completos en
             // $originalApplications (pagados en esta primera mitad) — no
             // hay que revisar también la segunda mitad ($mirrorApplications).
             $this->publishPaidBusinessAds($charges);
+        } catch (ConektaChargeRejectedException $e) {
+            return response()->json([
+                'message' => 'El pago fue rechazado por el procesador. Verifica los datos de tu tarjeta.',
+                'data'    => ['conekta_status' => $e->conektaStatus],
+            ], 422);
+        } catch (\RuntimeException $e) {
+            return $this->unprocessable($e->getMessage());
         } catch (\Throwable $e) {
             report($e);
             return $this->serverError('Ocurrió un error al procesar el pago. Intenta de nuevo.');
