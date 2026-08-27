@@ -16,7 +16,7 @@ return new class extends Migration
             // que cobranza capture importes equivocados. true por default
             // para no cambiar el comportamiento actual de los conceptos ya
             // existentes.
-            $table->boolean('allows_manual_amount')->default(true)->after('default_amount');
+            $table->boolean('allows_manual_amount')->default(false)->after('default_amount');
         });
     }
 

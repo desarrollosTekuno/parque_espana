@@ -236,6 +236,7 @@ class BillingConceptController extends Controller
             'name' => trim($validated['name']),
             'description' => isset($validated['description']) ? trim((string) $validated['description']) : null,
             'default_amount' => $validated['default_amount'] !== null ? (float) $validated['default_amount'] : null,
+            'allows_manual_amount' => (bool) $validated['allows_manual_amount'],
             'is_recurring' => (bool) $validated['is_recurring'],
             'allows_partial_payments' => (bool) $validated['allows_partial_payments'],
             'is_mobile_payable' => (bool) $validated['is_mobile_payable'],

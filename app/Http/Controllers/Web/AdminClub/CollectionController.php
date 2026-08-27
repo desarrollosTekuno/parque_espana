@@ -78,7 +78,7 @@ class CollectionController extends Controller
         // el criterio anterior de decidirlo por clubs.clubs.applies_iva a
         // nivel global — ver ChargeConcept::resolveAppliesIvaForClub.
         $conceptOptions = ChargeConcept::query()
-            ->select('id', 'code', 'internal_key', 'name', 'default_amount', 'is_recurring', 'allows_partial_payments', 'applies_iva', 'requires_account')
+            ->select('id', 'code', 'internal_key', 'name', 'default_amount', 'allows_manual_amount', 'is_recurring', 'allows_partial_payments', 'applies_iva', 'requires_account')
             ->with(['clubAmounts' => fn ($query) => $query->where('is_active', true)])
             ->where('is_active', true)
             ->orderBy('code')
@@ -89,6 +89,7 @@ class CollectionController extends Controller
                 'internal_key' => $concept->internal_key,
                 'name' => $concept->name,
                 'default_amount' => $concept->default_amount,
+                'allows_manual_amount' => $concept->allows_manual_amount,
                 'is_recurring' => $concept->is_recurring,
                 'allows_partial_payments' => $concept->allows_partial_payments,
                 'applies_iva' => $concept->applies_iva,
@@ -1241,8 +1242,31 @@ class CollectionController extends Controller
                 // Genera un cargo pendiente por cada concepto nuevo y lo agrega
                 // a la lista de aplicaciones a su monto total.
                 foreach ($newItems as $item) {
-                    $total = round((float) $item['total'], 2);
                     $concept = ChargeConcept::find($item['concept_id']);
+                    $quantity = isset($item['quantity']) ? (int) $item['quantity'] : 1;
+
+                    // Si el concepto no permite capturar el importe a mano
+                    // (billing.concepts.allows_manual_amount=false, ver
+                    // BillingConcepts/Index.vue), se ignora por completo lo
+                    // que haya mandado el cliente y se recalcula aquí con el
+                    // monto configurado del parque — así un valor manipulado
+                    // en la petición no puede colar un importe distinto al
+                    // configurado.
+                    if ($concept && !$concept->allows_manual_amount) {
+                        $unitAmount = $concept->resolveAmountForClub($clubId);
+
+                        if ($unitAmount === null) {
+                            throw ValidationException::withMessages([
+                                'new_items' => "El concepto {$concept->name} no tiene un monto configurado.",
+                            ]);
+                        }
+
+                        $unitAmount = round($unitAmount, 2);
+                        $total = round($unitAmount * max($quantity, 1), 2);
+                        $item['unit_amount'] = $unitAmount;
+                    } else {
+                        $total = round((float) $item['total'], 2);
+                    }
 
                     $charge = Charge::create([
                         'membership_account_id' => $account?->id,

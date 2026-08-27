@@ -25,6 +25,7 @@ interface ConceptOption {
     internal_key: string;
     name: string;
     default_amount: number | null;
+    allows_manual_amount: boolean;
     is_recurring: boolean;
     allows_partial_payments: boolean;
     applies_iva: boolean;
@@ -2293,6 +2294,9 @@ const saveNote = async () => {
                                         min="0"
                                         prefix="$"
                                         hide-details="auto"
+                                        :readonly="selectedConcept !== null && !selectedConcept.allows_manual_amount"
+                                        :hint="selectedConcept !== null && !selectedConcept.allows_manual_amount ? 'Importe fijo, no editable' : undefined"
+                                        :persistent-hint="selectedConcept !== null && !selectedConcept.allows_manual_amount"
                                     />
                                 </v-col>
                                 <v-col cols="6" md="1">
