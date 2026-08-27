@@ -62,8 +62,9 @@ class ChargeReportExport implements FromView, ShouldAutoSize, WithEvents
 
             return [
                 'concept_code' => $concept?->code ?? 'SIN_CONCEPTO',
+                'concept_internal_key' => $concept?->internal_key ?? $concept?->code ?? 'SIN_CLAVE',
                 'concept_name' => $concept?->name ?? 'Sin concepto',
-                'user_code' => $charge?->membershipAccount?->membership_number ?? '—',
+                'internal_key' => $charge?->membershipAccount?->internal_account_number ?? '—',
                 'membership_type' => $charge?->membership?->membershipType?->name ?? '—',
                 'paid_at' => $payment?->paid_at?->copy()->setTimezone(config('app.timezone')),
                 'cantidad' => $applied,
@@ -80,6 +81,7 @@ class ChargeReportExport implements FromView, ShouldAutoSize, WithEvents
             ->map(function ($group) {
                 return [
                     'concept_code' => $group->first()['concept_code'],
+                    'concept_internal_key' => $group->first()['concept_internal_key'],
                     'concept_name' => $group->first()['concept_name'],
                     'rows' => $group->values(),
                     'totals' => [

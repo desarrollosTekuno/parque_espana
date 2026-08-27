@@ -1,0 +1,105 @@
+<?php
+
+namespace App\Services\Access;
+
+use App\Models\Devices\Command;
+use App\Models\Devices\Device;
+use App\Models\Memberships\MembershipAccountMember;
+use Carbon\Carbon;
+
+class AccessProvisioningService
+{
+    public function __construct(
+        private CommandPayloadBuilder $payloadBuilder
+    ) {}
+
+    /**
+     * Aprovisiona el acceso (usuario + tarjeta) para un integrante de una cuenta.
+     * Crea los comandos correspondientes (create_user, create_card) por cada
+     * dispositivo activo del club de la cuenta.
+     *
+     * @param  MembershipAccountMember  $integrante
+     * @param  mixed  $cuenta  Registro de memberships.accounts
+     */
+    public function provision(MembershipAccountMember $integrante, $cuenta): void
+    {
+        $member = $integrante->member;
+
+        if (!$member) {
+            throw new \RuntimeException("No se encontró el member relacionado (member_id: {$integrante->member_id})");
+        }
+
+        // 1. Dispositivos activos del club de la cuenta
+        $devices = Device::where('club_id', $cuenta->club_id)
+            ->where('status', 'active')
+            ->get();
+
+        if ($devices->isEmpty()) {
+            throw new \RuntimeException("No hay dispositivos activos para el club_id {$cuenta->club_id}");
+        }
+
+        // 2. Número de tarjeta único (si el integrante aún no tiene uno)
+        $cardNo = $integrante->access_code ?? $this->generateUniqueCardNumber();
+
+        if (!$integrante->access_code) {
+            $integrante->access_code = $cardNo;
+            $integrante->save();
+        }
+
+        // 3. Nombre completo
+        $fullName = trim("{$member->first_name} {$member->last_name} {$member->second_last_name}");
+
+        // 4. Vigencia (no permanente, 10 años a partir de ahora)
+        $validFrom = Carbon::now()->format('Y-m-d H:i:s');
+        $validTo = Carbon::now()->addYears(10)->format('Y-m-d H:i:s');
+
+        // 5. Un create_user y un create_card por cada dispositivo activo del club
+        foreach ($devices as $device) {
+            $this->createCommand('create_user', $integrante, $device, [
+                'users' => [[
+                    'employee_id'  => (string) $member->id,
+                    'name'         => $fullName,
+                    'user_type'    => 'normal',
+                    'is_active'    => true,
+                    'is_permanent' => false,
+                    'valid_from'   => $validFrom,
+                    'valid_to'     => $validTo,
+                ]],
+            ]);
+
+            $this->createCommand('create_card', $integrante, $device, [
+                'cards' => [[
+                    'employee_id' => (string) $member->id,
+                    'card_no'     => $cardNo,
+                ]],
+            ]);
+        }
+    }
+
+    /**
+     * Genera un número de tarjeta aleatorio de 10 dígitos, garantizando que
+     * no exista ya en memberships.account_members.access_code.
+     */
+    private function generateUniqueCardNumber(): string
+    {
+        do {
+            $candidate = (string) random_int(1000000000, 9999999999);
+            $exists = MembershipAccountMember::where('access_code', $candidate)->exists();
+        } while ($exists);
+
+        return $candidate;
+    }
+
+    private function createCommand(string $action, MembershipAccountMember $integrante, Device $device, array $rawData): void
+    {
+        Command::create([
+            'action'            => $action,
+            'status'            => 'pending',
+            'attempts'          => 0,
+            'device_id'         => $device->id,
+            'account_member_id' => $integrante->id,
+            'data'              => $this->payloadBuilder->build($action, $rawData),
+        ]);
+    }
+}
+
