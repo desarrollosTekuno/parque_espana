@@ -114,7 +114,7 @@ Route::post('/billing/annual-payment', [BillingController::class, 'storeAnnualPa
 // reportes
 Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
 Route::get('/reports/collection/export', [ReportController::class, 'exportCollectionReport'])->name('reports.collection.export');
-Route::get('/reports/collection/income', [BillingController::class, 'combinedIncomeReport'])->name('reports.collection.income');
+Route::get('/reports/collection/income', [ReportController::class, 'exportMonthlyAdministrativeIncomeReport'])->name('reports.collection.income');
 
 // collections desk (módulo de cobranza tipo caja)
 Route::get('/collections', [CollectionController::class, 'index'])->name('collections.index');
