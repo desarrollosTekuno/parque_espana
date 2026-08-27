@@ -309,7 +309,7 @@ class CashCutController extends Controller
 
     protected function defaultDenominations(): \Illuminate\Support\Collection
     {
-        return collect([1000, 500, 200, 100, 50, 20, 10, 5, 2, 1, 0.50])
+        return collect([1000, 500, 200, 100, 50, 20, 10, 5, 2, 1, 0.50, 0.20, 0.10])
             ->map(fn ($d) => ['denomination' => $d, 'quantity' => 0, 'subtotal' => 0]);
     }
 }

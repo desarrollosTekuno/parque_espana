@@ -3,9 +3,13 @@
 namespace App\Http\Controllers\Web\AdminClub;
 
 use App\Exports\ChargeReportExport;
+use App\Exports\CashCutExport;
+use App\Exports\GlobalCashCutExport;
 use App\Exports\MonthlyAdministrativeIncomeReportExport;
 use App\Http\Controllers\Controller;
 use App\Models\Administrator\Club;
+use App\Models\Billing\CashCut;
+use App\Models\Billing\GlobalCashCut;
 use App\Models\Billing\Payment;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -21,9 +25,23 @@ class ReportController extends Controller {
             ['id' => 1, 'name' => 'Reporte de Cobranza'],
             ['id' => 2, 'name' => 'Reporte de Ingresos D.P.E'],
             ['id' => 3, 'name' => 'Resumen Administrativo Mensual de Ingresos'],
+            ['id' => 4, 'name' => 'Histórico de cortes de caja'],
         ];
 
-        return Inertia::render('Reports/Index', compact('clubId', 'List'));
+        $cashiers = CashCut::with('cashier:id,name')
+            ->where('club_id', $clubId)
+            ->get()
+            ->pluck('cashier')
+            ->filter()
+            ->unique('id')
+            ->sortBy('name')
+            ->values()
+            ->map(fn ($cashier) => [
+                'id' => $cashier->id,
+                'name' => $cashier->name,
+            ]);
+
+        return Inertia::render('Reports/Index', compact('clubId', 'List', 'cashiers'));
     }
 
     public function exportCollectionReport(Request $request)
@@ -81,5 +99,37 @@ class ReportController extends Controller {
             ),
             $filename,
         );
+    }
+
+    public function exportCashCutsHistoryReport(Request $request)
+    {
+        $validated = $request->validate([
+            'date' => ['required', 'date'],
+            'report_type' => ['required', 'in:individual,global'],
+            'user_id' => ['nullable', 'integer', 'required_if:report_type,individual'],
+        ]);
+
+        $clubId = (int) session('club_id');
+        if ($validated['report_type'] === 'individual') {
+            $cashCut = CashCut::with('cashier:id,name')
+                ->where('club_id', $clubId)
+                ->whereDate('date', $validated['date'])
+                ->where('status', 'closed')
+                ->where('user_id', $validated['user_id'])
+                ->firstOrFail();
+
+            $filename = 'corte-caja-' . $cashCut->date->format('Y-m-d') . '-' . str($cashCut->cashier?->name ?? 'cajero')->slug() . '.xlsx';
+
+            return Excel::download(new CashCutExport($cashCut), $filename);
+        }
+
+        $globalCashCut = GlobalCashCut::where('club_id', $clubId)
+            ->whereDate('date', $validated['date'])
+            ->where('status', 'closed')
+            ->firstOrFail();
+
+        $filename = 'corte-global-' . $globalCashCut->date->format('Y-m-d') . '.xlsx';
+
+        return Excel::download(new GlobalCashCutExport($globalCashCut), $filename);
     }
 }
