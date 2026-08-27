@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\AdminClub;
 
 use App\Exports\ChargeReportExport;
 use App\Exports\CashCutExport;
+use App\Exports\DailyCashReportExport;
 use App\Exports\GlobalCashCutExport;
 use App\Exports\MonthlyAdministrativeIncomeReportExport;
 use App\Http\Controllers\Controller;
@@ -26,6 +27,7 @@ class ReportController extends Controller {
             ['id' => 2, 'name' => 'Reporte de Ingresos D.P.E'],
             ['id' => 3, 'name' => 'Resumen Administrativo Mensual de Ingresos'],
             ['id' => 4, 'name' => 'Histórico de cortes de caja'],
+            ['id' => 5, 'name' => 'Reporte global diario de caja'],
         ];
 
         $cashiers = CashCut::with('cashier:id,name')
@@ -131,5 +133,43 @@ class ReportController extends Controller {
         $filename = 'corte-global-' . $globalCashCut->date->format('Y-m-d') . '.xlsx';
 
         return Excel::download(new GlobalCashCutExport($globalCashCut), $filename);
+    }
+
+    public function exportDailyCashReport(Request $request)
+    {
+        $validated = $request->validate([
+            'date' => ['required', 'date'],
+            'user_id' => ['required', 'integer'],
+        ]);
+
+        $clubId = (int) session('club_id');
+        $club = Club::find($clubId);
+        $cashier = CashCut::with('cashier:id,name')
+            ->where('club_id', $clubId)
+            ->where('user_id', $validated['user_id'])
+            ->firstOrFail()
+            ->cashier;
+
+        $timezone = config('app.timezone');
+        $start = Carbon::parse($validated['date'], $timezone)->startOfDay()->utc();
+        $end = Carbon::parse($validated['date'], $timezone)->endOfDay()->utc();
+
+        $payments = Payment::with([
+                'paymentMethod',
+                'membershipAccount.primaryHolder.member',
+            ])
+            ->where('club_id', $clubId)
+            ->where('received_by', $validated['user_id'])
+            ->whereBetween('paid_at', [$start, $end])
+            ->whereJsonContains('metadata->settlement_channel', 'cashier')
+            ->orderBy('paid_at')
+            ->get();
+
+        $filename = 'reporte-global-diario-caja-' . $validated['date'] . '.xlsx';
+
+        return Excel::download(
+            new DailyCashReportExport($club?->name ?? 'Parque España', $cashier?->name ?? '', $validated['date'], $payments),
+            $filename,
+        );
     }
 }

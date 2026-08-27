@@ -38,9 +38,9 @@ const validateReport = () => {
         return false;
     }
 
-    if (!reportStartDate.value || (selectedReport.value !== 4 && !reportEndDate.value)) {
+    if (!reportStartDate.value || (![4, 5].includes(selectedReport.value ?? 0) && !reportEndDate.value)) {
         customToastSwal({
-            title: selectedReport.value === 4
+            title: [4, 5].includes(selectedReport.value ?? 0)
                 ? "Selecciona la fecha del corte."
                 : "Selecciona la fecha inicial y final del reporte.",
             icon: "warning",
@@ -48,7 +48,7 @@ const validateReport = () => {
         return false;
     }
 
-    if (selectedReport.value !== 4 && reportEndDate.value! < reportStartDate.value) {
+    if (![4, 5].includes(selectedReport.value ?? 0) && reportEndDate.value! < reportStartDate.value) {
         customToastSwal({
             title: "La fecha final no puede ser anterior a la inicial.",
             icon: "warning",
@@ -59,6 +59,14 @@ const validateReport = () => {
     if (selectedReport.value === 4 && reportType.value === "individual" && !cashierId.value) {
         customToastSwal({
             title: "Selecciona el cajero del corte.",
+            icon: "warning",
+        });
+        return false;
+    }
+
+    if (selectedReport.value === 5 && !cashierId.value) {
+        customToastSwal({
+            title: "Selecciona el cajero del reporte.",
             icon: "warning",
         });
         return false;
@@ -78,6 +86,8 @@ const generateReport = async () => {
             reportRoute = "reports.collection.income";
         } else if (selectedReport.value === 4) {
             reportRoute = "reports.cash-cuts.export";
+        } else if (selectedReport.value === 5) {
+            reportRoute = "reports.daily-cash.export";
         }
 
         loading.value = true;
@@ -89,6 +99,11 @@ const generateReport = async () => {
                     report_type: reportType.value,
                     user_id: cashierId.value,
                 }
+                : selectedReport.value === 5
+                  ? {
+                      date: reportStartDate.value,
+                      user_id: cashierId.value,
+                  }
                 : {
                     start_date: reportStartDate.value,
                     end_date: reportEndDate.value,
@@ -133,7 +148,7 @@ const generateReport = async () => {
         <v-card variant="outlined" class="my-2">
             <v-card-title>Generar reporte</v-card-title>
             <v-card-subtitle>
-                {{ selectedReport === 4 ? "Selecciona el tipo y fecha del corte." : "Selecciona el reporte y el rango de fechas." }}
+                {{ selectedReport === 4 ? "Selecciona el tipo y fecha del corte." : selectedReport === 5 ? "Selecciona la fecha y el cajero del reporte." : "Selecciona el reporte y el rango de fechas." }}
             </v-card-subtitle>
 
             <v-card-text>
@@ -153,13 +168,13 @@ const generateReport = async () => {
                     <v-col cols="12" md="4">
                         <v-text-field
                             v-model="reportStartDate"
-                            :label="selectedReport === 4 ? 'Fecha del corte' : 'Fecha inicial'"
+                            :label="[4, 5].includes(selectedReport ?? 0) ? 'Fecha del corte' : 'Fecha inicial'"
                             type="date"
                             hide-details="auto"
                         />
                     </v-col>
 
-                    <v-col v-if="selectedReport !== 4" cols="12" md="4">
+                    <v-col v-if="![4, 5].includes(selectedReport ?? 0)" cols="12" md="4">
                         <v-text-field
                             v-model="reportEndDate"
                             label="Fecha final"
@@ -193,6 +208,17 @@ const generateReport = async () => {
                         </v-col>
 
                     </template>
+
+                    <v-col v-if="selectedReport === 5" cols="12" md="4">
+                        <v-select
+                            v-model="cashierId"
+                            :items="props.cashiers"
+                            item-title="name"
+                            item-value="id"
+                            label="Cajero"
+                            hide-details="auto"
+                        />
+                    </v-col>
                 </v-row>
 
                 <div class="justify-end mt-4 d-flex">
@@ -205,8 +231,9 @@ const generateReport = async () => {
                         :disabled="
                             !selectedReport ||
                             !reportStartDate ||
-                            (selectedReport !== 4 && !reportEndDate) ||
-                            (selectedReport === 4 && reportType === 'individual' && !cashierId)
+                            (![4, 5].includes(selectedReport ?? 0) && !reportEndDate) ||
+                            (selectedReport === 4 && reportType === 'individual' && !cashierId) ||
+                            (selectedReport === 5 && !cashierId)
                         "
                         @click="generateReport"
                     />

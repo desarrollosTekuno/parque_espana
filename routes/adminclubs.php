@@ -116,6 +116,7 @@ Route::get('/reports', [ReportController::class, 'index'])->name('reports.index'
 Route::get('/reports/collection/export', [ReportController::class, 'exportCollectionReport'])->name('reports.collection.export');
 Route::get('/reports/collection/income', [ReportController::class, 'exportMonthlyAdministrativeIncomeReport'])->name('reports.collection.income');
 Route::get('/reports/cash-cuts/export', [ReportController::class, 'exportCashCutsHistoryReport'])->name('reports.cash-cuts.export');
+Route::get('/reports/daily-cash/export', [ReportController::class, 'exportDailyCashReport'])->name('reports.daily-cash.export');
 
 // collections desk (módulo de cobranza tipo caja)
 Route::get('/collections', [CollectionController::class, 'index'])->name('collections.index');
