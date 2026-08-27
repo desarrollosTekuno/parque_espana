@@ -4,13 +4,12 @@ namespace App\Http\Controllers\Web\AdminClub;
 
 use App\Exports\ChargeReportExport;
 use App\Exports\CashCutExport;
+use App\Exports\CfdReportExport;
 use App\Exports\DailyCashReportExport;
-use App\Exports\GlobalCashCutExport;
 use App\Exports\MonthlyAdministrativeIncomeReportExport;
 use App\Http\Controllers\Controller;
 use App\Models\Administrator\Club;
 use App\Models\Billing\CashCut;
-use App\Models\Billing\GlobalCashCut;
 use App\Models\Billing\Payment;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -28,6 +27,7 @@ class ReportController extends Controller {
             ['id' => 3, 'name' => 'Resumen Administrativo Mensual de Ingresos'],
             ['id' => 4, 'name' => 'Histórico de cortes de caja'],
             ['id' => 5, 'name' => 'Reporte global diario de caja'],
+            ['id' => 6, 'name' => 'Reporte de CFD'],
         ];
 
         $cashiers = CashCut::with('cashier:id,name')
@@ -107,32 +107,20 @@ class ReportController extends Controller {
     {
         $validated = $request->validate([
             'date' => ['required', 'date'],
-            'report_type' => ['required', 'in:individual,global'],
-            'user_id' => ['nullable', 'integer', 'required_if:report_type,individual'],
+            'user_id' => ['required', 'integer'],
         ]);
 
         $clubId = (int) session('club_id');
-        if ($validated['report_type'] === 'individual') {
-            $cashCut = CashCut::with('cashier:id,name')
-                ->where('club_id', $clubId)
-                ->whereDate('date', $validated['date'])
-                ->where('status', 'closed')
-                ->where('user_id', $validated['user_id'])
-                ->firstOrFail();
-
-            $filename = 'corte-caja-' . $cashCut->date->format('Y-m-d') . '-' . str($cashCut->cashier?->name ?? 'cajero')->slug() . '.xlsx';
-
-            return Excel::download(new CashCutExport($cashCut), $filename);
-        }
-
-        $globalCashCut = GlobalCashCut::where('club_id', $clubId)
+        $cashCut = CashCut::with('cashier:id,name')
             ->whereDate('date', $validated['date'])
+            ->where('club_id', $clubId)
             ->where('status', 'closed')
+            ->where('user_id', $validated['user_id'])
             ->firstOrFail();
 
-        $filename = 'corte-global-' . $globalCashCut->date->format('Y-m-d') . '.xlsx';
+        $filename = 'corte-caja-' . $cashCut->date->format('Y-m-d') . '-' . str($cashCut->cashier?->name ?? 'cajero')->slug() . '.xlsx';
 
-        return Excel::download(new GlobalCashCutExport($globalCashCut), $filename);
+        return Excel::download(new CashCutExport($cashCut), $filename);
     }
 
     public function exportDailyCashReport(Request $request)
@@ -169,6 +157,42 @@ class ReportController extends Controller {
 
         return Excel::download(
             new DailyCashReportExport($club?->name ?? 'Parque España', $cashier?->name ?? '', $validated['date'], $payments),
+            $filename,
+        );
+    }
+
+    public function exportCfdReport(Request $request)
+    {
+        $validated = $request->validate([
+            'date' => ['required', 'date'],
+        ]);
+
+        $clubId = (int) session('club_id');
+        $club = Club::find($clubId);
+        $timezone = config('app.timezone');
+        $start = Carbon::parse($validated['date'], $timezone)->startOfDay()->utc();
+        $end = Carbon::parse($validated['date'], $timezone)->endOfDay()->utc();
+
+        $payments = Payment::with([
+            'membershipAccount.fiscalData',
+            'membershipAccount.primaryHolder.member',
+            'paymentMethod.clubPaymentMethods' => fn ($query) => $query->where('club_id', $clubId),
+            'applications.charge.membership.membershipType',
+        ])
+            ->where('club_id', $clubId)
+            ->whereBetween('paid_at', [$start, $end])
+            ->orderBy('paid_at')
+            ->get();
+
+        $filename = 'reporte-cfd-'.$validated['date'].'.xlsx';
+
+        return Excel::download(
+            new CfdReportExport(
+                $club?->name ?? 'Parque España',
+                $validated['date'],
+                $payments,
+                strtoupper((string) $club?->code) === 'PE2',
+            ),
             $filename,
         );
     }

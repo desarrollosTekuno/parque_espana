@@ -24,7 +24,6 @@ const props = defineProps<Props>();
 const selectedReport = ref<number | null>(null);
 const reportStartDate = ref<string | null>(null);
 const reportEndDate = ref<string | null>(null);
-const reportType = ref("individual");
 const cashierId = ref<number | null>(null);
 const loading = ref(false);
 
@@ -38,9 +37,9 @@ const validateReport = () => {
         return false;
     }
 
-    if (!reportStartDate.value || (![4, 5].includes(selectedReport.value ?? 0) && !reportEndDate.value)) {
+    if (!reportStartDate.value || (![4, 5, 6].includes(selectedReport.value ?? 0) && !reportEndDate.value)) {
         customToastSwal({
-            title: [4, 5].includes(selectedReport.value ?? 0)
+            title: [4, 5, 6].includes(selectedReport.value ?? 0)
                 ? "Selecciona la fecha del corte."
                 : "Selecciona la fecha inicial y final del reporte.",
             icon: "warning",
@@ -48,7 +47,7 @@ const validateReport = () => {
         return false;
     }
 
-    if (![4, 5].includes(selectedReport.value ?? 0) && reportEndDate.value! < reportStartDate.value) {
+    if (![4, 5, 6].includes(selectedReport.value ?? 0) && reportEndDate.value! < reportStartDate.value) {
         customToastSwal({
             title: "La fecha final no puede ser anterior a la inicial.",
             icon: "warning",
@@ -56,7 +55,7 @@ const validateReport = () => {
         return false;
     }
 
-    if (selectedReport.value === 4 && reportType.value === "individual" && !cashierId.value) {
+    if (selectedReport.value === 4 && !cashierId.value) {
         customToastSwal({
             title: "Selecciona el cajero del corte.",
             icon: "warning",
@@ -88,6 +87,8 @@ const generateReport = async () => {
             reportRoute = "reports.cash-cuts.export";
         } else if (selectedReport.value === 5) {
             reportRoute = "reports.daily-cash.export";
+        } else if (selectedReport.value === 6) {
+            reportRoute = "reports.cfd.export";
         }
 
         loading.value = true;
@@ -96,13 +97,16 @@ const generateReport = async () => {
             const params = selectedReport.value === 4
                 ? {
                     date: reportStartDate.value,
-                    report_type: reportType.value,
                     user_id: cashierId.value,
                 }
                 : selectedReport.value === 5
                   ? {
                       date: reportStartDate.value,
                       user_id: cashierId.value,
+                  }
+                : selectedReport.value === 6
+                  ? {
+                      date: reportStartDate.value,
                   }
                 : {
                     start_date: reportStartDate.value,
@@ -148,7 +152,7 @@ const generateReport = async () => {
         <v-card variant="outlined" class="my-2">
             <v-card-title>Generar reporte</v-card-title>
             <v-card-subtitle>
-                {{ selectedReport === 4 ? "Selecciona el tipo y fecha del corte." : selectedReport === 5 ? "Selecciona la fecha y el cajero del reporte." : "Selecciona el reporte y el rango de fechas." }}
+                {{ selectedReport === 4 ? "Selecciona la fecha y el cajero del corte." : selectedReport === 5 ? "Selecciona la fecha y el cajero del reporte." : selectedReport === 6 ? "Selecciona la fecha del reporte." : "Selecciona el reporte y el rango de fechas." }}
             </v-card-subtitle>
 
             <v-card-text>
@@ -168,13 +172,13 @@ const generateReport = async () => {
                     <v-col cols="12" md="4">
                         <v-text-field
                             v-model="reportStartDate"
-                            :label="[4, 5].includes(selectedReport ?? 0) ? 'Fecha del corte' : 'Fecha inicial'"
+                            :label="[4, 5, 6].includes(selectedReport ?? 0) ? 'Fecha del reporte' : 'Fecha inicial'"
                             type="date"
                             hide-details="auto"
                         />
                     </v-col>
 
-                    <v-col v-if="![4, 5].includes(selectedReport ?? 0)" cols="12" md="4">
+                    <v-col v-if="![4, 5, 6].includes(selectedReport ?? 0)" cols="12" md="4">
                         <v-text-field
                             v-model="reportEndDate"
                             label="Fecha final"
@@ -185,18 +189,6 @@ const generateReport = async () => {
 
                     <template v-if="selectedReport === 4">
                         <v-col cols="12" md="4">
-                            <v-select
-                                v-model="reportType"
-                                :items="[
-                                    { title: 'Individual', value: 'individual' },
-                                    { title: 'Global', value: 'global' },
-                                ]"
-                                label="Tipo de corte"
-                                hide-details="auto"
-                            />
-                        </v-col>
-
-                        <v-col v-if="reportType === 'individual'" cols="12" md="4">
                             <v-select
                                 v-model="cashierId"
                                 :items="props.cashiers"
@@ -231,8 +223,8 @@ const generateReport = async () => {
                         :disabled="
                             !selectedReport ||
                             !reportStartDate ||
-                            (![4, 5].includes(selectedReport ?? 0) && !reportEndDate) ||
-                            (selectedReport === 4 && reportType === 'individual' && !cashierId) ||
+                            (![4, 5, 6].includes(selectedReport ?? 0) && !reportEndDate) ||
+                            (selectedReport === 4 && !cashierId) ||
                             (selectedReport === 5 && !cashierId)
                         "
                         @click="generateReport"
