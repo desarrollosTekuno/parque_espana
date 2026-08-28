@@ -81,7 +81,7 @@ class CollectionController extends Controller
             ->select('id', 'code', 'internal_key', 'name', 'default_amount', 'allows_manual_amount', 'is_recurring', 'allows_partial_payments', 'applies_iva', 'requires_account')
             ->with(['clubAmounts' => fn ($query) => $query->where('is_active', true)])
             ->where('is_active', true)
-            ->orderBy('code')
+            ->orderBy('internal_key')
             ->get()
             ->map(fn (ChargeConcept $concept) => [
                 'id' => $concept->id,
@@ -1142,6 +1142,22 @@ class CollectionController extends Controller
                     $groupAccountIds
                 );
 
+                // No se puede liquidar solo la mensualidad si el socio todavía
+                // debe la inscripción/reinscripción — a diferencia de la
+                // mensualidad (que sí considera todo el grupo, porque un
+                // combo interclub se liquida en un solo pago), la
+                // inscripción es propia de cada parque, así que solo se
+                // revisa la cuenta de este parque (ver search(), que ya
+                // garantiza que $account pertenece al parque de la sesión).
+                $this->ensurePendingInscriptionIsPaidWithMonthlyFee(
+                    $existing->pluck('charge_id')->map(fn ($id) => (int) $id),
+                    isPayingMonthlyFee: $annualRequest !== null || Charge::query()
+                        ->whereIn('id', $existing->pluck('charge_id'))
+                        ->whereHas('concept', fn (Builder $q) => $q->where('code', 'MONTHLY_FEE'))
+                        ->exists(),
+                    accountIds: [$account->id]
+                );
+
                 // Sin filtrar por status: aunque una de las membresías del grupo
                 // ya se haya dado de baja, sus cargos de mensualidad pendientes
                 // de ANTES de la baja siguen siendo cobrables — si aquí solo se
@@ -1482,6 +1498,52 @@ class CollectionController extends Controller
         if ($missingEarlier->isNotEmpty()) {
             throw ValidationException::withMessages([
                 'existing_charges' => 'Hay mensualidades de meses anteriores pendientes. Agrégalas también antes de pagar un mes posterior.',
+            ]);
+        }
+    }
+
+    /**
+     * Lanza una ValidationException si el pago liquida mensualidad (cargos
+     * existentes de MONTHLY_FEE, o un pago de anualidad) sin incluir ningún
+     * cargo de inscripción/reinscripción, cuando el socio tiene inscripción
+     * pendiente en $accountIds — a diferencia de la mensualidad (que sí se
+     * revisa a nivel de todo el grupo interclub), la inscripción es propia
+     * de cada parque, así que aquí normalmente solo se pasa la cuenta del
+     * parque en sesión, no todo el grupo. No se puede pagar solo mensualidad
+     * ignorando por completo la inscripción. Como la inscripción también se
+     * puede diferir a meses (ver resolveInscriptionInstallments), basta con
+     * incluir AL MENOS uno de esos cargos en este mismo pago — no hace falta
+     * liquidar todos los meses de inscripción pendientes de una sola vez,
+     * igual que la mensualidad tampoco exige pagar todos los meses
+     * pendientes juntos.
+     */
+    protected function ensurePendingInscriptionIsPaidWithMonthlyFee(
+        \Illuminate\Support\Collection $existingChargeIds,
+        bool $isPayingMonthlyFee,
+        array $accountIds
+    ): void {
+        if (!$isPayingMonthlyFee) {
+            return;
+        }
+
+        $hasPendingInscription = Charge::query()
+            ->whereIn('membership_account_id', $accountIds)
+            ->whereHas('concept', fn (Builder $q) => $q->whereIn('code', ['INSCRIPTION', 'CUOTA_REINSCRIPCION']))
+            ->whereIn('status', ['pending', 'partial'])
+            ->exists();
+
+        if (!$hasPendingInscription) {
+            return;
+        }
+
+        $includesInscriptionCharge = Charge::query()
+            ->whereIn('id', $existingChargeIds)
+            ->whereHas('concept', fn (Builder $q) => $q->whereIn('code', ['INSCRIPTION', 'CUOTA_REINSCRIPCION']))
+            ->exists();
+
+        if (!$includesInscriptionCharge) {
+            throw ValidationException::withMessages([
+                'existing_charges' => 'El socio tiene inscripción o reinscripción pendiente. Agrega al menos un cargo de inscripción a este pago antes de liquidar solo la mensualidad.',
             ]);
         }
     }

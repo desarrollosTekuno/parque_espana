@@ -15,13 +15,79 @@ class BillingConceptSeeder extends Seeder
         $concepts = [
             [
                 'code' => 'MONTHLY_FEE',
-                'name' => 'Mensualidad',
+                'name' => 'CUOTA MENSUALIDAD',
                 'description' => 'Cargo mensual recurrente de la membresia.',
                 'default_amount' => null,
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
                 'is_active' => true,
                 'internal_key' => '01',
+                'splits_between_parks' => true,
+            ],
+            [
+                'code' => 'MONTHLY_FEE_INTERMEDIATE',
+                'name' => 'CUOTA MENSUALIDAD INTERMEDIO',
+                'description' => 'Cargo mensual recurrente de la membresia.',
+                'default_amount' => null,
+                'is_recurring' => true,
+                'allows_partial_payments' => false,
+                'is_active' => true,
+                'internal_key' => '01I',
+                'splits_between_parks' => true,
+            ],
+            [
+                'code' => 'MONTHLY_FEE_PASS',
+                'name' => 'CUOTA MENS. PASE',
+                'description' => 'Cargo mensual recurrente de la membresia.',
+                'default_amount' => null,
+                'is_recurring' => true,
+                'allows_partial_payments' => false,
+                'is_active' => true,
+                'internal_key' => '08',
+                'splits_between_parks' => true,
+            ],
+            [
+                'code' => 'MONTHLY_FEE_PASS_INTERMEDIATE',
+                'name' => 'CUOTA MENS. PASE  INTERMEDIO',
+                'description' => 'Cargo mensual recurrente de la membresia.',
+                'default_amount' => null,
+                'is_recurring' => true,
+                'allows_partial_payments' => false,
+                'is_active' => true,
+                'internal_key' => '08I',
+                'splits_between_parks' => true,
+            ],
+            [
+                'code' => 'MONTHLY_FEE_PARKS',
+                'name' => ' Cuota Mens Parques',
+                'description' => 'Cargo mensual recurrente de la membresia.',
+                'default_amount' => null,
+                'is_recurring' => true,
+                'allows_partial_payments' => false,
+                'is_active' => true,
+                'internal_key' => '80',
+                'splits_between_parks' => true,
+            ],
+            [
+                'code' => 'MONTHLY_FEE_PARKS_INTERMEDIATE',
+                'name' => '  Cuota Mens Parques Intermedio',
+                'description' => 'Cargo mensual recurrente de la membresia.',
+                'default_amount' => null,
+                'is_recurring' => true,
+                'allows_partial_payments' => false,
+                'is_active' => true,
+                'internal_key' => '80I',
+                'splits_between_parks' => true,
+            ],
+            [
+                'code' => 'MONTHLY_FEE_PARKS_FI',
+                'name' => 'Cuota Mens Parqes F/I',
+                'description' => 'Cargo mensual recurrente de la membresia.',
+                'default_amount' => null,
+                'is_recurring' => true,
+                'allows_partial_payments' => false,
+                'is_active' => true,
+                'internal_key' => '81',
                 'splits_between_parks' => true,
             ],
             [
@@ -46,7 +112,7 @@ class BillingConceptSeeder extends Seeder
             ],
             [
                 'code' => 'LOCKERS',
-                'name' => 'Renta de casilleros',
+                'name' => 'CUOTA CASILLERO',
                 'description' => 'Cargo anual por renta de un casillero.',
                 'default_amount' => 1100,
                 'is_recurring' => false,
@@ -1607,7 +1673,7 @@ class BillingConceptSeeder extends Seeder
             // para actualizarlo/reactivarlo en vez de intentar crear uno
             // nuevo con el mismo 'code' (violaría el unique).
             $chargeConcept = ChargeConcept::withTrashed()->updateOrCreate(
-                ['code' => $concept['code']],
+                ['internal_key' => $concept['internal_key']],
                 $concept
             );
 
