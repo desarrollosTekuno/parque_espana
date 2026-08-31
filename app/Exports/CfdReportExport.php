@@ -85,12 +85,8 @@ class CfdReportExport implements FromArray, ShouldAutoSize, WithEvents, WithStri
                 }
             }
 
-            $membershipType = $applications->contains(
-                fn ($application) => Str::contains(
-                    Str::lower($application->charge?->membership?->membershipType?->name ?? ''),
-                    'familiar'
-                )
-            ) ? 'F' : 'I';
+            $membershipTypeName = $payment->membershipAccount?->memberships->first()?->membershipType?->name ?? '';
+            $membershipType = Str::contains(Str::lower($membershipTypeName), 'familiar') ? 'F' : 'I';
             $paymentMethodIds = $payments->pluck('payment_method_id')->filter()->unique();
             $clubPaymentMethod = $payment->paymentMethod?->clubPaymentMethods->first();
             $paymentMethod = $paymentMethodIds->count() > 1

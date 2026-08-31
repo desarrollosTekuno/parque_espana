@@ -60,7 +60,7 @@ class ReportController extends Controller {
         $start = Carbon::parse($validated['start_date'], $tz)->startOfDay()->utc();
         $end = Carbon::parse($validated['end_date'], $tz)->endOfDay()->utc();
 
-        $filename = 'reporte-cobranza-' . $validated['start_date'] . '-a-' . $validated['end_date'] . '.xlsx';
+        $filename = 'reporte-cobranza_'.now()->format('ymd-Hisu').'.xlsx';
 
         return Excel::download(
             new ChargeReportExport($start, $end, $clubId ?: null, $club?->name),
@@ -89,7 +89,7 @@ class ReportController extends Controller {
             ])
             ->get();
 
-        $filename = 'resumen-administrativo-mensual-'.$validated['start_date'].'-a-'.$validated['end_date'].'.xlsx';
+        $filename = 'resumen-administrativo_'.now()->format('ymd-Hisu').'.xlsx';
 
         return Excel::download(
             new MonthlyAdministrativeIncomeReportExport(
@@ -118,7 +118,7 @@ class ReportController extends Controller {
             ->where('user_id', $validated['user_id'])
             ->firstOrFail();
 
-        $filename = 'corte-caja-' . $cashCut->date->format('Y-m-d') . '-' . str($cashCut->cashier?->name ?? 'cajero')->slug() . '.xlsx';
+        $filename = 'historico-cortes-caja_'.now()->format('ymd-Hisu').'.xlsx';
 
         return Excel::download(new CashCutExport($cashCut), $filename);
     }
@@ -153,7 +153,7 @@ class ReportController extends Controller {
             ->orderBy('paid_at')
             ->get();
 
-        $filename = 'reporte-global-diario-caja-' . $validated['date'] . '.xlsx';
+        $filename = 'reporte-global-caja_'.now()->format('ymd-Hisu').'.xlsx';
 
         return Excel::download(
             new DailyCashReportExport($club?->name ?? 'Parque España', $cashier?->name ?? '', $validated['date'], $payments),
@@ -176,16 +176,21 @@ class ReportController extends Controller {
         $payments = Payment::with([
             'membershipAccount.fiscalData',
             'membershipAccount.primaryHolder.member',
+            'membershipAccount.memberships' => fn ($query) => $query
+                ->where('club_id', $clubId)
+                ->where('is_primary', true)
+                ->whereIn('status', ['active', 'suspended']),
+            'membershipAccount.memberships.membershipType',
             'receiver',
             'paymentMethod.clubPaymentMethods' => fn ($query) => $query->where('club_id', $clubId),
-            'applications.charge.membership.membershipType',
+            'applications',
         ])
             ->where('club_id', $clubId)
             ->whereBetween('paid_at', [$start, $end])
             ->orderBy('paid_at')
             ->get();
 
-        $filename = 'reporte-cfd-'.$validated['date'].'.xlsx';
+        $filename = 'reporte-cfd_'.now()->format('ymd-Hisu').'.xlsx';
 
         return Excel::download(
             new CfdReportExport(

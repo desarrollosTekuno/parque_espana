@@ -1160,7 +1160,7 @@ class BillingController extends Controller {
             ->get();
 
         $deliveredBy = $request->user()?->name ?? '';
-        $filename = 'reporte-ingresos-completo-'.$club->code.'-'.$fechaInicio->format('Y-m-d').'-a-'.$fechaFin->format('Y-m-d').'-'.now()->format('H-i-s').'.xlsx';
+        $filename = 'reporte-ingresos-dpe_'.now()->format('ymd-Hisu').'.xlsx';
 
         return Excel::download(
             new CombinedIncomeReportExport(
