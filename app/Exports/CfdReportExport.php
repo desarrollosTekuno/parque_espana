@@ -22,8 +22,7 @@ class CfdReportExport implements FromArray, ShouldAutoSize, WithEvents, WithStri
         protected string $date,
         protected Collection $payments,
         protected bool $showsTax,
-    ) {
-    }
+    ) {}
 
     public function title(): string
     {
@@ -36,7 +35,7 @@ class CfdReportExport implements FromArray, ShouldAutoSize, WithEvents, WithStri
             [Str::upper($this->clubName)],
             ['REPORTE DE CFD DE '.Str::upper($this->clubName)],
             ['FECHA DEL REPORTE: '.Carbon::parse($this->date)->format('d/m/Y')],
-            array_fill(0, 13, null),
+            array_fill(0, 12, null),
             [
                 'FECHA',
                 'CFD',
@@ -44,7 +43,7 @@ class CfdReportExport implements FromArray, ShouldAutoSize, WithEvents, WithStri
                 'USUARIO',
                 'RFC',
                 'NOMBRE TITULAR',
-                'TIPO DE MEMBRESÍA',
+                'TIPO',
                 'SUBTOTAL',
                 'DESCUENTO',
                 'IMPUESTO',
@@ -54,29 +53,67 @@ class CfdReportExport implements FromArray, ShouldAutoSize, WithEvents, WithStri
             ],
         ];
 
-        foreach ($this->payments as $payment) {
-            $discount = round((float) $payment->applications->sum('discount'), 2);
-            $membershipTypes = $payment->applications
-                ->map(fn ($application) => $application->charge?->membership?->membershipType?->name)
-                ->filter()
-                ->unique()
-                ->implode(' / ');
+        $paymentGroups = $this->payments->groupBy(
+            fn ($payment) => $payment->payment_group_id ?: 'payment-'.$payment->id
+        );
+
+        foreach ($paymentGroups as $payments) {
+            $payment = $payments->sortBy('id')->first();
+            $applications = $payments->flatMap(fn ($item) => $item->applications);
+            $discount = round((float) $applications->sum('discount'), 2);
+            $cashierCode = trim((string) $payment->receiver?->code);
+
+            if ($cashierCode === '') {
+                $words = preg_split('/\s+/', trim(Str::ascii((string) $payment->receiver?->name))) ?: [];
+
+                foreach ($words as $word) {
+                    if ($word !== '') {
+                        $cashierCode .= strtoupper(substr($word, 0, 1));
+                    }
+                }
+            }
+
+            $ticketNumber = $payment->folio;
+
+            if ($payment->folio) {
+                $folioParts = explode('-', $payment->folio);
+                $folioDate = $folioParts[count($folioParts) - 2] ?? null;
+                $folioConsecutive = $folioParts[count($folioParts) - 1] ?? null;
+
+                if ($folioDate && $folioConsecutive && preg_match('/^\d{6}$/', $folioDate) && preg_match('/^\d+$/', $folioConsecutive)) {
+                    $ticketNumber = substr($folioDate, -2).str_pad($folioConsecutive, 3, '0', STR_PAD_LEFT);
+                }
+            }
+
+            $membershipType = $applications->contains(
+                fn ($application) => Str::contains(
+                    Str::lower($application->charge?->membership?->membershipType?->name ?? ''),
+                    'familiar'
+                )
+            ) ? 'F' : 'I';
+            $paymentMethodIds = $payments->pluck('payment_method_id')->filter()->unique();
             $clubPaymentMethod = $payment->paymentMethod?->clubPaymentMethods->first();
+            $paymentMethod = $paymentMethodIds->count() > 1
+                ? 'X'
+                : Str::upper($clubPaymentMethod?->internal_key ?: $payment->paymentMethod?->code ?? '');
+            $subtotal = $payments->sum(
+                fn ($item) => $item->subtotal !== null ? (float) $item->subtotal : (float) $item->amount
+            );
 
             $rows[] = [
                 $payment->paid_at?->copy()->setTimezone(config('app.timezone'))->format('d/m/Y'),
-                '',
-                '',
+                Str::upper($cashierCode),
+                $ticketNumber,
                 Str::upper($payment->membershipAccount?->membership_number ?? ''),
                 Str::upper($payment->membershipAccount?->fiscalData?->rfc ?: 'XAXX010101000'),
                 Str::upper($payment->membershipAccount?->primaryHolder?->member?->full_name ?? ''),
-                Str::upper($membershipTypes),
-                $payment->subtotal !== null ? round((float) $payment->subtotal, 2) : round((float) $payment->amount, 2),
+                $membershipType,
+                round($subtotal, 2),
                 $discount,
-                $this->showsTax ? round((float) ($payment->iva ?? 0), 2) : 'N/A',
-                round((float) $payment->amount, 2),
-                $payment->status === 'cancelled' ? 'C' : '',
-                Str::upper($clubPaymentMethod?->internal_key ?: $payment->paymentMethod?->code ?? ''),
+                $this->showsTax ? round((float) $payments->sum('iva'), 2) : 'N/A',
+                round((float) $payments->sum('amount'), 2),
+                $payments->contains('status', 'cancelled') ? 'C' : '',
+                $paymentMethod,
             ];
         }
 
@@ -88,7 +125,10 @@ class CfdReportExport implements FromArray, ShouldAutoSize, WithEvents, WithStri
         return [
             AfterSheet::class => function (AfterSheet $event) {
                 $sheet = $event->sheet->getDelegate();
-                $lastRow = max(5, 5 + $this->payments->count());
+                $paymentGroups = $this->payments->groupBy(
+                    fn ($payment) => $payment->payment_group_id ?: 'payment-'.$payment->id
+                );
+                $lastRow = max(5, 5 + $paymentGroups->count());
 
                 $sheet->mergeCells('A1:M1');
                 $sheet->mergeCells('A2:M2');

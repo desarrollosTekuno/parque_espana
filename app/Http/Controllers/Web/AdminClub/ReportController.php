@@ -176,6 +176,7 @@ class ReportController extends Controller {
         $payments = Payment::with([
             'membershipAccount.fiscalData',
             'membershipAccount.primaryHolder.member',
+            'receiver',
             'paymentMethod.clubPaymentMethods' => fn ($query) => $query->where('club_id', $clubId),
             'applications.charge.membership.membershipType',
         ])
