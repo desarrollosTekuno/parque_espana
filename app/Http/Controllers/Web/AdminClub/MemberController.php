@@ -35,6 +35,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use App\Rules\UniqueInSchema;
+use App\Services\Access\AccessProvisioningService;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Gate;
@@ -43,7 +44,8 @@ class MemberController extends Controller
 {
     public function __construct(
         protected MembershipChargeService $membershipChargeService,
-        protected \App\Services\Billing\MembershipPricingService $membershipPricingService
+        protected \App\Services\Billing\MembershipPricingService $membershipPricingService,
+        protected AccessProvisioningService $accessProvisioningService
     ) {
         $this->middleware('permission:members.transition.create')->only('createMembershipTransition');
         $this->middleware('permission:members.update')->only('updateFiscalData');
@@ -1238,12 +1240,14 @@ class MemberController extends Controller
                     ]);
                 }
 
-                MembershipAccountMember::create([
+                $newAccountMember = MembershipAccountMember::create([
                     'membership_account_id' => $currentAccountId,
                     'member_id'             => $existingMember->id,
                     'relationship_id'       => $relationship->id,
                     'is_primary_holder'     => false,
                 ]);
+
+                $this->provisionMemberAccess($newAccountMember, $membership->account);
 
                 return redirect()
                     ->route('members.manage.show', $membership)
@@ -1374,6 +1378,14 @@ class MemberController extends Controller
             if ($createdMemberId && !empty($documentsRaw)) {
                 $this->uploadMemberDocuments([$createdMemberId => $documentsRaw]);
             }
+
+            if ($createdMemberId) {
+                $membership->account->load('accountMembers');
+                $newAccountMember = $membership->account->accountMembers->firstWhere('member_id', $createdMemberId);
+                if ($newAccountMember) {
+                    $this->provisionMemberAccess($newAccountMember, $membership->account);
+            }
+}
 
             return redirect()
                 ->route('members.manage.show', $membership)
@@ -2361,6 +2373,14 @@ class MemberController extends Controller
                             ],
                         ],
                     ]);
+                }
+            }
+
+            // ── Provision access to members ────────────────────────────────
+            if (!$sameClubTransition && $savedMembershipAccount) {
+                $savedMembershipAccount->loadMissing('accountMembers');
+                foreach ($savedMembershipAccount->accountMembers as $accountMember) {
+                    $this->provisionMemberAccess($accountMember, $savedMembershipAccount);
                 }
             }
 
@@ -4383,5 +4403,15 @@ class MemberController extends Controller
             'messageError' => $firstMessage,
             'exception' => '',
         ]));
+    }
+
+    //Da de alta el acceso (usuario + tarjeta) de un integrante agregado a una cuenta.
+    protected function provisionMemberAccess(MembershipAccountMember $accountMember, MembershipAccount $account): void
+    {
+        try {
+            $this->accessProvisioningService->provision($accountMember, $account);
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 }
