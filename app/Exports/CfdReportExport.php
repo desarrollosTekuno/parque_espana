@@ -4,6 +4,7 @@ namespace App\Exports;
 
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithEvents;
@@ -26,29 +27,29 @@ class CfdReportExport implements FromArray, ShouldAutoSize, WithEvents, WithStri
 
     public function title(): string
     {
-        return 'Reporte CFD';
+        return 'REPORTE CFD';
     }
 
     public function array(): array
     {
         $rows = [
-            [$this->clubName],
-            ['Reporte de CFD de '.$this->clubName],
-            ['Fecha del reporte: '.Carbon::parse($this->date)->format('d/m/Y')],
+            [Str::upper($this->clubName)],
+            ['REPORTE DE CFD DE '.Str::upper($this->clubName)],
+            ['FECHA DEL REPORTE: '.Carbon::parse($this->date)->format('d/m/Y')],
             array_fill(0, 13, null),
             [
-                'Fecha',
+                'FECHA',
                 'CFD',
                 'Num.',
-                'Usuario',
+                'USUARIO',
                 'RFC',
-                'Nombre titular',
-                'Tipo de membresía',
-                'Subtotal',
-                'Descuento',
-                'Impuesto',
-                'Total',
-                'Canc.',
+                'NOMBRE TITULAR',
+                'TIPO DE MEMBRESÍA',
+                'SUBTOTAL',
+                'DESCUENTO',
+                'IMPUESTO',
+                'TOTAL',
+                'CANC.',
                 'M.P.',
             ],
         ];
@@ -66,16 +67,16 @@ class CfdReportExport implements FromArray, ShouldAutoSize, WithEvents, WithStri
                 $payment->paid_at?->copy()->setTimezone(config('app.timezone'))->format('d/m/Y'),
                 '',
                 '',
-                $payment->membershipAccount?->membership_number ?? '',
-                $payment->membershipAccount?->fiscalData?->rfc ?: 'XAXX010101000',
-                $payment->membershipAccount?->primaryHolder?->member?->full_name ?? '',
-                $membershipTypes,
+                Str::upper($payment->membershipAccount?->membership_number ?? ''),
+                Str::upper($payment->membershipAccount?->fiscalData?->rfc ?: 'XAXX010101000'),
+                Str::upper($payment->membershipAccount?->primaryHolder?->member?->full_name ?? ''),
+                Str::upper($membershipTypes),
                 $payment->subtotal !== null ? round((float) $payment->subtotal, 2) : round((float) $payment->amount, 2),
                 $discount,
                 $this->showsTax ? round((float) ($payment->iva ?? 0), 2) : 'N/A',
                 round((float) $payment->amount, 2),
                 $payment->status === 'cancelled' ? 'C' : '',
-                $clubPaymentMethod?->internal_key ?: $payment->paymentMethod?->code,
+                Str::upper($clubPaymentMethod?->internal_key ?: $payment->paymentMethod?->code ?? ''),
             ];
         }
 
