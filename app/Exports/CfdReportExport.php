@@ -15,8 +15,7 @@ use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
 
-class CfdReportExport implements FromArray, ShouldAutoSize, WithEvents, WithStrictNullComparison, WithTitle
-{
+class CfdReportExport implements FromArray, ShouldAutoSize, WithEvents, WithStrictNullComparison, WithTitle {
     public function __construct(
         protected string $clubName,
         protected string $date,
@@ -24,13 +23,11 @@ class CfdReportExport implements FromArray, ShouldAutoSize, WithEvents, WithStri
         protected bool $showsTax,
     ) {}
 
-    public function title(): string
-    {
+    public function title(): string {
         return 'REPORTE CFD';
     }
 
-    public function array(): array
-    {
+    public function array(): array {
         $rows = [
             [Str::upper($this->clubName)],
             ['REPORTE DE CFD DE '.Str::upper($this->clubName)],
@@ -116,8 +113,7 @@ class CfdReportExport implements FromArray, ShouldAutoSize, WithEvents, WithStri
         return $rows;
     }
 
-    public function registerEvents(): array
-    {
+    public function registerEvents(): array {
         return [
             AfterSheet::class => function (AfterSheet $event) {
                 $sheet = $event->sheet->getDelegate();
