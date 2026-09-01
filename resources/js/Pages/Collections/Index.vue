@@ -253,7 +253,6 @@ const sessionClubInfo = computed<ClubInfo | null>(() => {
 const cobroClub = computed(() =>
     walkInMode.value ? sessionClubInfo.value : (result.value?.cobro_club ?? null),
 );
-const clubMemberships = computed(() => result.value?.club_memberships ?? []);
 const accountMembers = computed(() => result.value?.account_members ?? []);
 const billingMembershipId = computed(
     () => result.value?.billing_membership_id ?? null,
@@ -608,16 +607,28 @@ const isLockerConcept = computed(
 );
 
 // ── Mensualidad desde "Agregar concepto de cobro" ──
-// Al capturar el concepto MONTHLY_FEE, en vez de un importe a mano, el
-// encargado solo indica cuántos meses agregar. Mientras escribe la cantidad
-// se calcula automáticamente (en vivo, con preview=true — no persiste nada)
-// el subtotal/total de los N meses más antiguos que el socio debe, empezando
+// Al capturar cualquier concepto de la familia de mensualidad (MONTHLY_FEE,
+// MONTHLY_FEE_PARKS, etc. — ver MembershipChargeService::MONTHLY_FEE_FAMILY_CODES,
+// el mismo concepto puede cambiar de un mes a otro según la composición de la
+// membresía en ese periodo), en vez de un importe a mano, el encargado solo
+// indica cuántos meses agregar. Mientras escribe la cantidad se calcula
+// automáticamente (en vivo, con preview=true — no persiste nada) el
+// subtotal/total de los N meses más antiguos que el socio debe, empezando
 // por el cargo más viejo que ya exista. Solo al confirmar "Agregar" se
 // resuelve de nuevo en modo real (preview=false), lo que crea los cargos de
 // los meses que todavía no existían, y se agregan a la lista de cobros — ver
 // CollectionController::resolveMonthlyFeeMonths.
+const MONTHLY_FEE_FAMILY_CODES = [
+    "MONTHLY_FEE",
+    "MONTHLY_FEE_INTERMEDIATE",
+    "MONTHLY_FEE_PASS",
+    "MONTHLY_FEE_PASS_INTERMEDIATE",
+    "MONTHLY_FEE_PARKS",
+    "MONTHLY_FEE_PARKS_INTERMEDIATE",
+    "MONTHLY_FEE_PARKS_FI",
+];
 const isMonthlyFeeConcept = computed(
-    () => selectedConcept.value?.code?.toUpperCase() === "MONTHLY_FEE",
+    () => MONTHLY_FEE_FAMILY_CODES.includes(selectedConcept.value?.code?.toUpperCase() ?? ""),
 );
 
 // Checkbox "¿Es pago de anualidad?" dentro de la misma captura de
@@ -726,6 +737,7 @@ const probeMonthlyFeeMaxMonths = async () => {
             membership_account_id: account.value.id,
             months: 36,
             preview: true,
+            concept_id: selectedConcept.value?.id,
         });
         monthlyFeeMaxMonths.value = (data.charges as unknown[])?.length ?? null;
     } catch {
@@ -745,6 +757,7 @@ const calculateMonthlyFeePreview = async () => {
             membership_account_id: account.value.id,
             months: monthlyFeeMonthsCount.value,
             preview: true,
+            concept_id: selectedConcept.value?.id,
         });
         monthlyFeePreviewTotal.value = data.total ?? 0;
     } catch (e: any) {
@@ -778,6 +791,7 @@ const addMonthlyFeeMonths = async () => {
             membership_account_id: account.value.id,
             months: monthlyFeeMonthsCount.value,
             preview: false,
+            concept_id: selectedConcept.value?.id,
         });
 
         // Una sola fila por cada click de "Agregar" (igual que la captura
@@ -1731,11 +1745,15 @@ const paymentMethodOptions = computed<PaymentMethodOption[]>(() => {
     // cuenta en ambos parques pero lo que se está cobrando ahora es de un
     // solo parque (p. ej. un cheque rebotado), no tiene caso ofrecer
     // "Tarjeta de crédito (PE1)": no hay nada que emparejar con ella.
-    const otherClubIds = dialogClubBreakdown.value.length > 1
-        ? clubMemberships.value
-            .map((cm) => cm.club_id)
-            .filter((id): id is number => id !== null && id !== sessionClub.id)
-        : [];
+    //
+    // Se toma el club_id directo de dialogClubBreakdown (no de
+    // clubMemberships, que solo lista membresías ACTIVAS): un concepto de
+    // "ambos parques" (MONTHLY_FEE_PARKS y variantes) sigue repartiéndose
+    // entre los dos parques aunque la membresía del otro ya esté dada de
+    // baja — ver CollectionController::resolveHistoricalParksClubBreakdown.
+    const otherClubIds = dialogClubBreakdown.value
+        .map((c) => c.club_id)
+        .filter((id): id is number => id !== null && id !== sessionClub.id);
 
     // Cheque, Tarjeta de crédito y Tarjeta de débito se pueden repartir
     // entre parques; no hay caja física del otro parque (efectivo) ni

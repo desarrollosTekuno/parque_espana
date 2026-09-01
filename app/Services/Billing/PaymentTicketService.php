@@ -7,10 +7,9 @@ use App\Models\Administrator\Club;
 use App\Models\Billing\Charge;
 use App\Models\Billing\Payment;
 use App\Models\Billing\PaymentApplication;
-use App\Models\Memberships\InterclubPackageRule;
-use App\Models\Memberships\Membership;
 use App\Models\Memberships\MembershipAccount;
 use App\Models\User;
+use App\Services\Billing\MembershipChargeService;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -146,7 +145,7 @@ class PaymentTicketService {
     private function ticketAllocations(Collection $payments, Payment $requestedPayment): Collection {
         $actualMonthlyClubIds = $payments
             ->flatMap(fn (Payment $item) => $item->applications)
-            ->filter(fn (PaymentApplication $application) => $application->charge?->concept?->code === 'MONTHLY_FEE')
+            ->filter(fn (PaymentApplication $application) => in_array($application->charge?->concept?->code, MembershipChargeService::MONTHLY_FEE_FAMILY_CODES, true))
             ->map(fn (PaymentApplication $application) => $application->charge?->membership?->club_id)
             ->filter()
             ->unique()
@@ -221,7 +220,7 @@ class PaymentTicketService {
         $charge = $application->charge;
         $chargeClubId = (int) ($charge?->membership?->club_id ?: $payment->club_id);
 
-        if ($charge?->concept?->code !== 'MONTHLY_FEE' || $actualMonthlyClubIds->count() > 1) {
+        if (!in_array($charge?->concept?->code, MembershipChargeService::MONTHLY_FEE_FAMILY_CODES, true) || $actualMonthlyClubIds->count() > 1) {
             return collect([$chargeClubId]);
         }
 
@@ -271,121 +270,6 @@ class PaymentTicketService {
         return $clubIds->count() > 1 ? $clubIds : collect([$chargeClubId]);
     }
 
-    /**
-     * Texto del concepto para un cargo de mensualidad, según cuántos
-     * parques cubre la membresía del socio y de qué tipo es cada lado
-     * (familiar/individual vs. solidaria vs. pase mensual):
-     *   - 1 parque, no solidaria, no pase -> "Cuota mensualidad"
-     *   - 1 parque, solidaria              -> "Cuota mensualidad intermedia"
-     *   - 1 parque, pase mensual           -> "Cuota Mens. Pase"
-     *   - 2 parques, ninguna solidaria (mismo tipo o no) -> "Cuota Mens Parques"
-     *   - 2 parques, ambas solidarias -> "Cuota Mens Parques Intermedio"
-     *   - 2 parques, una familiar y otra individual (combo F/I reconocido
-     *     en memberships.interclub_package_rules) -> "Cuota Mens Parqes F/I"
-     *   - 2 parques, cualquier otra mezcla (solidaria + familiar/individual,
-     *     pase mensual en cualquiera de los dos lados, etc. — combinaciones
-     *     que no deberían darse en la práctica) -> nombre genérico del
-     *     concepto ("Mensualidad").
-     */
-    /**
-     * Recibe la membresía directamente (no un Charge) para poder
-     * reutilizarse también donde todavía no existe un cargo real — p. ej.
-     * el panel "Cantidad de meses" en modo preview, o el pago de
-     * anualidad — además de CollectionController::search() (detalle de
-     * cargos pendientes) y el ticket ya cobrado.
-     */
-    public function resolveMonthlyFeeConceptLabel(?Membership $membership, string $genericLabel = 'Mensualidad'): string {
-        if (!$membership) {
-            return $genericLabel;
-        }
-
-        $account = $membership->account;
-
-        $accounts = $account?->account_group_id && $account?->accountGroup
-            ? $account->accountGroup->accounts
-            : collect([$account])->filter();
-
-        // Una membresía primaria activa por parque — si el grupo tuviera
-        // más de una activa en el mismo club (no debería pasar) se toma la
-        // primera, sin importar cuál.
-        $membershipByClub = $accounts
-            ->flatMap(fn (MembershipAccount $item) => $item->memberships)
-            ->filter(fn ($item) => $item->is_primary && in_array($item->status, ['active', 'suspended'], true))
-            ->groupBy('club_id')
-            ->map(fn (Collection $memberships) => $memberships->first());
-
-        if ($membershipByClub->count() <= 1) {
-            $kind = $this->resolveMembershipKind($membershipByClub->first() ?? $membership);
-
-            return match ($kind) {
-                'pm' => 'Cuota Mens. Pase',
-                'sol' => 'Cuota mensualidad intermedia',
-                default => 'Cuota mensualidad',
-            };
-        }
-
-        $kinds = $membershipByClub
-            ->map(fn (Membership $m) => $this->resolveMembershipKind($m))
-            ->values();
-        $distinctKinds = $kinds->unique()->values();
-
-        // Pase mensual en cualquiera de los dos lados (o los dos) no tiene
-        // un combo definido entre parques — se cae al nombre genérico.
-        if ($distinctKinds->contains('pm')) {
-            return $genericLabel;
-        }
-
-        if ($distinctKinds->count() === 1) {
-            return $distinctKinds->first() === 'sol' ? 'Cuota Mens Parques Intermedio' : 'Cuota Mens Parques';
-        }
-
-        // Mixto: solo se etiqueta como combo F/I si de verdad es familiar +
-        // individual (no una solidaria mezclada con otra cosa, combinación
-        // que no debería darse en la práctica) Y existe un
-        // memberships.interclub_package_rules real que conecte esos dos
-        // tipos de membresía específicos.
-        if ($distinctKinds->diff(['fam', 'ind'])->isEmpty() && $this->isRecognizedFamIndCombo($membershipByClub)) {
-            return 'Cuota Mens Parqes F/I';
-        }
-
-        return $genericLabel;
-    }
-
-    /** 'sol' | 'fam' | 'ind' | 'pm' | 'other', según el código del tipo de membresía. */
-    private function resolveMembershipKind(?Membership $membership): string {
-        $code = strtoupper((string) $membership?->membershipType?->code);
-
-        if (Str::contains($code, '_PM_')) return 'pm';
-        if (Str::contains($code, '_SOL')) return 'sol';
-        if (Str::contains($code, '_FAM')) return 'fam';
-        if (Str::contains($code, '_IND')) return 'ind';
-
-        return 'other';
-    }
-
-    /**
-     * @param  Collection<int, Membership>  $membershipByClub
-     */
-    private function isRecognizedFamIndCombo(Collection $membershipByClub): bool {
-        $typeIds = $membershipByClub
-            ->pluck('membership_type_id')
-            ->filter()
-            ->unique()
-            ->values();
-
-        if ($typeIds->count() !== 2) {
-            return false;
-        }
-
-        return InterclubPackageRule::query()
-            ->where('is_active', true)
-            ->where(function ($query) use ($typeIds) {
-                $query->where(fn ($q) => $q->where('source_membership_type_id', $typeIds[0])->where('target_membership_type_id', $typeIds[1]))
-                    ->orWhere(fn ($q) => $q->where('source_membership_type_id', $typeIds[1])->where('target_membership_type_id', $typeIds[0]));
-            })
-            ->exists();
-    }
-
     private function representedClubId(Payment $payment): ?int {
         $clubId = $payment->metadata['represents_club_id'] ?? null;
 
@@ -424,9 +308,12 @@ class PaymentTicketService {
                 return [
                     'charge_id' => $charge?->id,
                     'codigo' => $charge?->concept?->internal_key ?: $charge?->concept?->code,
-                    'concepto' => $charge?->concept?->code === 'MONTHLY_FEE'
-                        ? $this->resolveMonthlyFeeConceptLabel($charge->membership, $charge->concept?->name ?? 'Mensualidad')
-                        : $charge?->concept?->name,
+                    // El nombre del concepto ya refleja la composición
+                    // correcta (individual/familiar/solidaria/pase mensual,
+                    // un parque o combo) porque se eligió al crear el cargo
+                    // (ver MembershipChargeService::resolveMonthlyFeeConcept)
+                    // — no hace falta recalcularlo aquí en tiempo real.
+                    'concepto' => $charge?->concept?->name,
                     'descripcion' => $charge?->description,
                     'cantidad' => $capturedQuantity > 1 ? $capturedQuantity : 1,
                     'importe_unitario' => $allocation['subtotal'],
