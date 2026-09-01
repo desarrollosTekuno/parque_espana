@@ -97,7 +97,7 @@ class CfdReportExport implements FromArray, ShouldAutoSize, WithEvents, WithStri
                 $payment->paid_at?->copy()->setTimezone(config('app.timezone'))->format('d/m/Y'),
                 Str::upper($cashierCode),
                 $ticketNumber,
-                Str::upper($payment->membershipAccount?->membership_number ?? ''),
+                Str::upper($payment->membershipAccount?->internal_account_number ?? ''),
                 Str::upper($payment->membershipAccount?->fiscalData?->rfc ?: 'XAXX010101000'),
                 Str::upper($payment->membershipAccount?->primaryHolder?->member?->full_name ?? ''),
                 $membershipType,
