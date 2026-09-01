@@ -158,23 +158,23 @@ class AccessProvisioningService
     public function reassignCard(MembershipAccountMember $integrante, $cuenta): void
     {
         $member = $integrante->member;
-    
+
         if (!$member) {
             throw new \RuntimeException("No se encontró el member relacionado (member_id: {$integrante->member_id})");
         }
-    
+
         $devices = Device::where('club_id', $cuenta->club_id)
             ->where('status', 'active')
             ->get();
-    
+
         if ($devices->isEmpty()) {
             throw new \RuntimeException("No hay dispositivos activos para el club_id {$cuenta->club_id}");
         }
-    
+
         $newCardNo = $this->generateUniqueCardNumber();
         $integrante->access_code = $newCardNo;
         $integrante->save();
-    
+
         foreach ($devices as $device) {
             $this->createCommand('update_card', $integrante, $device, [
                 'cards' => [[
@@ -183,6 +183,41 @@ class AccessProvisioningService
                 ]],
             ]);
         }
+    }
+
+    /**
+     * Revoca el acceso de un integrante (baja de cuenta). Crea el comando
+     * delete_user por cada dispositivo activo del club, y limpia el
+     * access_code para dejarlo disponible de nuevo.
+     */
+    public function revokeAccess(MembershipAccountMember $integrante, $cuenta): void
+    {
+        $member = $integrante->member;
+    
+        if (!$member) {
+            throw new \RuntimeException("No se encontró el member relacionado (member_id: {$integrante->member_id})");
+        }
+    
+        // Si nunca tuvo acceso dado de alta, no hay nada que revocar
+        if (!$integrante->access_code) {
+            return;
+        }
+    
+        $devices = Device::where('club_id', $cuenta->club_id)
+            ->where('status', 'active')
+            ->get();
+    
+        foreach ($devices as $device) {
+            $this->createCommand('delete_user', $integrante, $device, [
+                'users' => [[
+                    'employee_id' => (string) $member->id,
+                ]],
+            ]);
+        }
+    
+        $integrante->access_code = null;
+        $integrante->access_valid_until = null;
+        $integrante->save();
     }
 }
 
