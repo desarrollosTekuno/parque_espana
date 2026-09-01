@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web\AdminClub;
 use App\Models\Memberships\AccountReactivation;
 use App\Models\Memberships\Membership;
 use App\Models\Memberships\MembershipAccountMember;
+use App\Services\Access\AccessProvisioningService;
 use App\Services\Billing\MembershipChargeService;
 use App\Services\Billing\MembershipPricingService;
 use Illuminate\Http\Request;
@@ -17,7 +18,8 @@ class AccountReactivationController extends Controller
 {
     public function __construct(
         protected MembershipChargeService $membershipChargeService,
-        protected MembershipPricingService $membershipPricingService
+        protected MembershipPricingService $membershipPricingService,
+        protected AccessProvisioningService $accessProvisioningService
     ) {
         $this->middleware('permission:members.reactivate');
     }
@@ -146,7 +148,7 @@ class AccountReactivationController extends Controller
             ]);
         }
 
-        $membership->load(['account.memberships', 'account.primaryHolder.member']);
+        $membership->load(['account.memberships', 'account.primaryHolder.member', 'account.accountMembers']);
 
         $account = $membership->account;
 
@@ -287,6 +289,19 @@ class AccountReactivationController extends Controller
             ]);
 
             DB::commit();
+
+            foreach ($account->accountMembers as $accountMember)
+            {
+                try {
+                    $this->accessProvisioningService->provision($accountMember, $account);
+                } catch (\Throwable $e) {
+                    Log::error('Error al reaprovisionar acceso físico tras reactivación', [
+                        'account_member_id' => $accountMember->id,
+                        'member_id' => $accountMember->member_id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
 
             Log::info('Cuenta reactivada', [
                 'membership_account_id' => $account->id,
