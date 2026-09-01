@@ -3,6 +3,7 @@
 namespace App\Services\Access;
 
 use App\Models\Devices\Command;
+use App\Models\Devices\DailyPassCard;
 use App\Models\Devices\Device;
 use App\Models\Memberships\MembershipAccountMember;
 use Carbon\Carbon;
@@ -60,7 +61,7 @@ class AccessProvisioningService
 
         // 5. Un create_user y un create_card por cada dispositivo activo del club
         foreach ($devices as $device) {
-            $this->createCommand('create_user', $integrante, $device, [
+            $this->createCommand('create_user', $integrante->id, $device, [
                 'users' => [[
                     'employee_id'  => (string) $member->id,
                     'name'         => $fullName,
@@ -72,7 +73,7 @@ class AccessProvisioningService
                 ]],
             ]);
 
-            $this->createCommand('create_card', $integrante, $device, [
+            $this->createCommand('create_card', $integrante->id, $device, [
                 'cards' => [[
                     'employee_id' => (string) $member->id,
                     'card_no'     => $cardNo,
@@ -85,24 +86,25 @@ class AccessProvisioningService
      * Genera un número de tarjeta aleatorio de 10 dígitos, garantizando que
      * no exista ya en memberships.account_members.access_code.
      */
-    private function generateUniqueCardNumber(): string
+    public function generateUniqueCardNumber(): string
     {
         do {
             $candidate = (string) random_int(1000000000, 9999999999);
-            $exists = MembershipAccountMember::where('access_code', $candidate)->exists();
+            $exists = MembershipAccountMember::where('access_code', $candidate)->exists()
+                || DailyPassCard::where('card_no', $candidate)->where('status', 'active')->exists();
         } while ($exists);
 
         return $candidate;
     }
 
-    private function createCommand(string $action, MembershipAccountMember $integrante, Device $device, array $rawData): void
+    public function createCommand(string $action, ?int $accountMemberId, Device $device, array $rawData): void
     {
         Command::create([
             'action'            => $action,
             'status'            => 'pending',
             'attempts'          => 0,
             'device_id'         => $device->id,
-            'account_member_id' => $integrante->id,
+            'account_member_id' => $accountMemberId,
             'data'              => $this->payloadBuilder->build($action, $rawData),
         ]);
     }
@@ -137,7 +139,7 @@ class AccessProvisioningService
         $validTo = Carbon::parse($integrante->access_valid_until)->format('Y-m-d H:i:s');
 
         foreach ($devices as $device) {
-            $this->createCommand('update_user', $integrante, $device, [
+            $this->createCommand('update_user', $integrante->id, $device, [
                 'users' => [[
                     'employee_id'  => (string) $member->id,
                     'name'         => $fullName,
@@ -176,7 +178,7 @@ class AccessProvisioningService
         $integrante->save();
 
         foreach ($devices as $device) {
-            $this->createCommand('update_card', $integrante, $device, [
+            $this->createCommand('update_card', $integrante->id, $device, [
                 'cards' => [[
                     'employee_id' => (string) $member->id,
                     'card_no'     => $newCardNo,
@@ -193,28 +195,28 @@ class AccessProvisioningService
     public function revokeAccess(MembershipAccountMember $integrante, $cuenta): void
     {
         $member = $integrante->member;
-    
+
         if (!$member) {
             throw new \RuntimeException("No se encontró el member relacionado (member_id: {$integrante->member_id})");
         }
-    
+
         // Si nunca tuvo acceso dado de alta, no hay nada que revocar
         if (!$integrante->access_code) {
             return;
         }
-    
+
         $devices = Device::where('club_id', $cuenta->club_id)
             ->where('status', 'active')
             ->get();
-    
+
         foreach ($devices as $device) {
-            $this->createCommand('delete_user', $integrante, $device, [
+            $this->createCommand('delete_user', $integrante->id, $device, [
                 'users' => [[
                     'employee_id' => (string) $member->id,
                 ]],
             ]);
         }
-    
+
         $integrante->access_code = null;
         $integrante->access_valid_until = null;
         $integrante->save();
