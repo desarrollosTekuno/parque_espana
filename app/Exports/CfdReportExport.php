@@ -58,17 +58,10 @@ class CfdReportExport implements FromArray, ShouldAutoSize, WithEvents, WithStri
             $payment = $payments->sortBy('id')->first();
             $applications = $payments->flatMap(fn ($item) => $item->applications);
             $discount = round((float) $applications->sum('discount'), 2);
-            $cashierCode = trim((string) $payment->receiver?->code);
-
-            if ($cashierCode === '') {
-                $words = preg_split('/\s+/', trim(Str::ascii((string) $payment->receiver?->name))) ?: [];
-
-                foreach ($words as $word) {
-                    if ($word !== '') {
-                        $cashierCode .= strtoupper(substr($word, 0, 1));
-                    }
-                }
-            }
+            $cashierName = trim((string) $payment->receiver?->name);
+            $cashierCode = $cashierName === ''
+                ? ''
+                : strtoupper(Str::ascii(mb_substr($cashierName, 0, 1)));
 
             $ticketNumber = $payment->folio;
 

@@ -551,22 +551,7 @@ class PaymentTicketService {
     }
 
     private function cashierCode(?User $cashier): ?string {
-        $code = trim((string) $cashier?->code);
-
-        if ($code !== '') {
-            return strtoupper($code);
-        }
-
-        $words = preg_split('/\s+/', trim(Str::ascii((string) $cashier?->name))) ?: [];
-        $initials = '';
-
-        foreach ($words as $word) {
-            if ($word !== '') {
-                $initials .= strtoupper(substr($word, 0, 1));
-            }
-        }
-
-        return $initials !== '' ? $initials : null;
+        return $this->cashierInitial($cashier);
     }
 
     private function lockerCodes(?MembershipAccount $account, int $clubId): array {
