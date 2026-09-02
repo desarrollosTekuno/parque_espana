@@ -13,4 +13,12 @@ class DailyPassCard extends Model {
 
     protected $guarded = ['id', 'created_at', 'updated_at'];
     protected $dates = ['deleted_at'];
+
+    public function device() {
+        return $this->belongsTo(Device::class);
+    }
+
+    public function guestUser() {
+        return $this->belongsTo(GuestUser::class);
+    }
 }

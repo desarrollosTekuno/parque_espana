@@ -113,6 +113,32 @@ class GuestPassProvisioningService
 
         return $guestUser;
     }
+
+    /**
+     * Expira una tarjeta de pase diario: crea el comando delete_card en el
+     * dispositivo, decrementa el contador del guest_user, y marca la fila
+     * como expired.
+    */
+    public function expireCard(DailyPassCard $dailyPassCard): void
+    {
+        $guestUser = $dailyPassCard->guestUser;
+        $device = $dailyPassCard->device;
+
+        if (!$guestUser || !$device) {
+            throw new \RuntimeException("La tarjeta {$dailyPassCard->id} referencia un guest_user o device que ya no existe en la base de datos");
+        }
+
+        $this->accessProvisioningService->createCommand('delete_card', null, $device, [
+            'cards' => [[
+                'employee_id' => $guestUser->employee_id,
+                'card_no'     => $dailyPassCard->card_no,
+            ]],
+        ]);
+
+        $guestUser->decrement('active_cards_count');
+
+        $dailyPassCard->update(['status' => 'expired']);
+    }
 }
 
 
