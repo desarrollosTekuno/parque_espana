@@ -51,6 +51,7 @@ interface AbsencePermitItem {
     blocks_reservations: boolean;
     notes: string | null;
     approved_at: string | null;
+    can_be_cancelled: boolean;
 }
 
 interface MemberAddress {
@@ -1556,12 +1557,18 @@ console.log(can)
                                                     <div class="font-weight-medium">{{ formatDate(absencePermit.start_date) }} a {{ formatDate(absencePermit.end_date) }}</div>
                                                     <div class="text-caption text-medium-emphasis">{{ absencePermit.charge_concept_name ?? "Permiso" }} · {{ absencePermit.charge_percentage }}% sobre cuota cobrable</div>
                                                 </div>
-                                                <div class="flex-wrap d-flex ga-2">
+                                                <div class="flex-wrap d-flex align-center ga-2">
                                                     <v-chip size="small" :color="statusColor(absencePermit.status)" variant="tonal">{{ statusLabel(absencePermit.status) }}</v-chip>
-                                                    <v-btn v-if="['approved', 'active'].includes(absencePermit.status)" color="error" size="small" variant="text"
+                                                    <v-btn v-if="absencePermit.can_be_cancelled" color="error" size="small" variant="text"
                                                         @click="cancelAbsencePermit(absencePermit.id)">
                                                         Cancelar
                                                     </v-btn>
+                                                    <span
+                                                        v-else-if="['approved', 'active'].includes(absencePermit.status)"
+                                                        class="text-caption text-medium-emphasis"
+                                                    >
+                                                        Ya no se puede cancelar (tiene pago aplicado)
+                                                    </span>
                                                 </div>
                                             </div>
                                             <div class="mt-2 text-body-2">

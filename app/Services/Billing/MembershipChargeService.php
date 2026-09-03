@@ -48,6 +48,15 @@ class MembershipChargeService
     ];
 
     /**
+     * Los mismos dos códigos de permiso por ausencia, para cuando se
+     * necesita solo la lista (p. ej. CollectionController los exime del
+     * filtro de "ya venció" al listar Cargos — createFutureChargesForAbsencePermit
+     * los crea a propósito por adelantado, así que deben verse desde que
+     * se registra el permiso, no hasta que llegue su fecha de vencimiento).
+     */
+    public const ABSENCE_PERMIT_CONCEPT_CODES = ['CUOTA_PERMISO', 'CUOTA_75_PERMISO'];
+
+    /**
      * Concepto a usar por cada tipo de permiso por ausencia y el porcentaje
      * de la mensualidad que le corresponde cobrar — ver
      * resolveMonthlyFeeConceptForPeriod y MemberController::storeAbsencePermit.
@@ -391,6 +400,140 @@ class MembershipChargeService
                         'concept_code' => $newConcept->code,
                         'absence_permit_reconciled_at' => now()->toDateTimeString(),
                     ]),
+                ]);
+            });
+    }
+
+    /**
+     * Crea de una vez los cargos de los meses que cubre un permiso por
+     * ausencia recién registrado, aunque sean meses futuros — a diferencia
+     * del ciclo mensual normal (que solo genera el mes actual conforme
+     * llega), aquí se adelantan todos los meses del rango para que el
+     * permiso se refleje en Cobranza desde que se registra, sin esperar a
+     * que cada mes "llegue". createRecurringMonthlyCharge ya no duplica un
+     * periodo que ya tenga cargo (de cualquier concepto de la familia).
+     */
+    public function createFutureChargesForAbsencePermit(
+        ?int $accountGroupId,
+        ?int $membershipAccountId,
+        Carbon $startDate,
+        Carbon $endDate
+    ): void {
+        $accountIds = $accountGroupId
+            ? MembershipAccount::where('account_group_id', $accountGroupId)->pluck('id')->all()
+            : array_filter([$membershipAccountId]);
+
+        if (empty($accountIds)) {
+            return;
+        }
+
+        $memberships = Membership::query()
+            ->whereIn('membership_account_id', $accountIds)
+            ->where('is_primary', true)
+            ->where('status', 'active')
+            ->where('is_billable', true)
+            ->get();
+
+        $periodEnd = $endDate->copy()->startOfMonth();
+
+        foreach ($memberships as $membership) {
+            $cursor = $startDate->copy()->startOfMonth();
+
+            while ($cursor->lte($periodEnd)) {
+                $this->createRecurringMonthlyCharge($membership, $cursor->copy());
+                $cursor->addMonthNoOverflow();
+            }
+        }
+    }
+
+    /**
+     * true si ya hay algún pago (parcial o total) aplicado a los cargos de
+     * CUOTA_PERMISO/CUOTA_75_PERMISO dentro del rango del permiso — en ese
+     * caso no debe poder cancelarse (ver MemberController::cancelAbsencePermit),
+     * porque cancelChargesForAbsencePermit cancela los cargos, y uno con
+     * dinero real aplicado no se puede cancelar así nada más.
+     */
+    public function hasPaidChargesForAbsencePermit(
+        ?int $accountGroupId,
+        ?int $membershipAccountId,
+        Carbon $startDate,
+        Carbon $endDate
+    ): bool {
+        $accountIds = $accountGroupId
+            ? MembershipAccount::where('account_group_id', $accountGroupId)->pluck('id')->all()
+            : array_filter([$membershipAccountId]);
+
+        if (empty($accountIds)) {
+            return false;
+        }
+
+        $periodStart = $startDate->copy()->startOfMonth();
+        $periodEnd = $endDate->copy()->startOfMonth();
+
+        return Charge::query()
+            ->whereIn('membership_account_id', $accountIds)
+            ->whereHas('concept', fn (Builder $c) => $c->whereIn('code', self::ABSENCE_PERMIT_CONCEPT_CODES))
+            ->whereIn('status', ['partial', 'paid'])
+            ->whereNotNull('period_year')
+            ->whereNotNull('period_month')
+            ->get(['period_year', 'period_month'])
+            ->contains(function (Charge $charge) use ($periodStart, $periodEnd) {
+                $period = Carbon::create((int) $charge->period_year, (int) $charge->period_month, 1);
+
+                return $period->gte($periodStart) && $period->lte($periodEnd);
+            });
+    }
+
+    /**
+     * Cancela (no revierte a mensualidad normal) los cargos pendientes que
+     * quedaron bajo el concepto del permiso al cancelarlo — a diferencia de
+     * reconcilePendingMonthlyChargesForAbsencePermit (que se usa al
+     * REGISTRAR un permiso, y sí revierte al monto/concepto normal), aquí
+     * simplemente se cancelan: si el socio en verdad sigue debiendo esos
+     * meses, se regenerarán con el concepto y monto normales la próxima vez
+     * que se les busque en Cobranza o corra el ciclo mensual (un cargo
+     * cancelado no cuenta como "ya existe" para hasMonthlyChargeForPeriod).
+     * Solo debe llamarse después de confirmar con hasPaidChargesForAbsencePermit
+     * que no hay pagos aplicados.
+     */
+    public function cancelChargesForAbsencePermit(
+        ?int $accountGroupId,
+        ?int $membershipAccountId,
+        Carbon $startDate,
+        Carbon $endDate,
+        ?int $cancelledBy = null
+    ): void {
+        $accountIds = $accountGroupId
+            ? MembershipAccount::where('account_group_id', $accountGroupId)->pluck('id')->all()
+            : array_filter([$membershipAccountId]);
+
+        if (empty($accountIds)) {
+            return;
+        }
+
+        $periodStart = $startDate->copy()->startOfMonth();
+        $periodEnd = $endDate->copy()->startOfMonth();
+        $now = now();
+
+        Charge::query()
+            ->whereIn('membership_account_id', $accountIds)
+            ->whereHas('concept', fn (Builder $c) => $c->whereIn('code', self::ABSENCE_PERMIT_CONCEPT_CODES))
+            ->where('status', 'pending')
+            ->whereNotNull('period_year')
+            ->whereNotNull('period_month')
+            ->get()
+            ->each(function (Charge $charge) use ($periodStart, $periodEnd, $cancelledBy, $now) {
+                $period = Carbon::create((int) $charge->period_year, (int) $charge->period_month, 1);
+
+                if ($period->lt($periodStart) || $period->gt($periodEnd)) {
+                    return;
+                }
+
+                $charge->update([
+                    'status' => 'cancelled',
+                    'cancelled_at' => $now,
+                    'cancelled_by' => $cancelledBy,
+                    'cancellation_reason' => 'Permiso por ausencia cancelado',
                 ]);
             });
     }

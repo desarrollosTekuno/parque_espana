@@ -919,6 +919,16 @@ class MemberController extends Controller
                     startDate: $startDate,
                     endDate: $endDate
                 );
+
+                // Adelanta los cargos de los meses que cubre el permiso,
+                // aunque sean futuros — así se ven en Cobranza desde que se
+                // registra, sin esperar a que cada mes llegue.
+                $this->membershipChargeService->createFutureChargesForAbsencePermit(
+                    accountGroupId: $accountGroup?->id,
+                    membershipAccountId: $membership->membership_account_id,
+                    startDate: $startDate,
+                    endDate: $endDate
+                );
             });
 
             return redirect()
@@ -966,19 +976,38 @@ class MemberController extends Controller
                 ]);
             }
 
-            $absencePermit->update([
-                'status' => 'cancelled',
-            ]);
-
-            // Revierte al monto completo los cargos de mensualidad pendientes
-            // que se habían ajustado por este permiso — al quedar cancelado,
-            // resolveApplicableAbsencePermit ya no lo encuentra, así que
-            // previewMonthlyFeeAmount recalcula sin el descuento.
-            $this->membershipChargeService->reconcilePendingMonthlyChargesForAbsencePermit(
+            // No se puede cancelar si ya hay un pago (parcial o total)
+            // aplicado a alguno de los cargos del permiso — cancelarlo
+            // cancelaría ese cargo, y uno con dinero real de por medio no se
+            // puede cancelar así nada más.
+            $hasPaidCharges = $this->membershipChargeService->hasPaidChargesForAbsencePermit(
                 accountGroupId: $accountGroupId,
                 membershipAccountId: $membership->membership_account_id,
                 startDate: Carbon::parse($absencePermit->start_date),
                 endDate: Carbon::parse($absencePermit->end_date)
+            );
+
+            if ($hasPaidCharges) {
+                return redirect()->back()->withErrors([
+                    'messageError' => 'No se puede cancelar: ya hay un pago aplicado a algún cargo de este permiso.',
+                    'exception' => '',
+                ]);
+            }
+
+            $absencePermit->update([
+                'status' => 'cancelled',
+            ]);
+
+            // Cancela (no revierte a mensualidad normal) los cargos
+            // pendientes del permiso — si el socio en verdad sigue debiendo
+            // esos meses, se regeneran con el monto normal la próxima vez
+            // que se les busque en Cobranza o corra el ciclo mensual.
+            $this->membershipChargeService->cancelChargesForAbsencePermit(
+                accountGroupId: $accountGroupId,
+                membershipAccountId: $membership->membership_account_id,
+                startDate: Carbon::parse($absencePermit->start_date),
+                endDate: Carbon::parse($absencePermit->end_date),
+                cancelledBy: $request->user()?->id
             );
 
             return redirect()
@@ -3174,6 +3203,19 @@ class MemberController extends Controller
 
     protected function buildAbsencePermitPayload(AbsencePermit $absencePermit): array
     {
+        $isFinalized = in_array($absencePermit->status, ['cancelled', 'finished'], true);
+
+        // Solo se puede cancelar si el permiso sigue vigente/programado Y no
+        // hay ya un pago aplicado a alguno de sus cargos (ver
+        // MemberController::cancelAbsencePermit) — evita ofrecer el botón
+        // "Cancelar" para algo que el backend de todos modos va a rechazar.
+        $canBeCancelled = !$isFinalized && !$this->membershipChargeService->hasPaidChargesForAbsencePermit(
+            accountGroupId: $absencePermit->account_group_id,
+            membershipAccountId: $absencePermit->membership_account_id,
+            startDate: Carbon::parse($absencePermit->start_date),
+            endDate: Carbon::parse($absencePermit->end_date)
+        );
+
         return [
             'id' => $absencePermit->id,
             'start_date' => $absencePermit->start_date,
@@ -3186,6 +3228,7 @@ class MemberController extends Controller
             'blocks_reservations' => (bool) $absencePermit->blocks_reservations,
             'notes' => $absencePermit->notes,
             'approved_at' => optional($absencePermit->approved_at)?->toDateTimeString(),
+            'can_be_cancelled' => $canBeCancelled,
         ];
     }
 
