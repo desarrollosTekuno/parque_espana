@@ -60,7 +60,9 @@ const generateReport = async () => {
         let reportRoute = "reports.collection.export";
 
         if (selectedReport.value === 2) {
-            reportRoute = "billing.reports.income";
+            reportRoute = "billing.reports.income-combined";
+        } else if (selectedReport.value === 3) {
+            reportRoute = "reports.collection.income";
         }
 
         loading.value = true;

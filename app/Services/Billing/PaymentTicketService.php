@@ -4,10 +4,12 @@ namespace App\Services\Billing;
 
 use App\Models\Billing\ClubPaymentMethod;
 use App\Models\Administrator\Club;
+use App\Models\Billing\Charge;
 use App\Models\Billing\Payment;
 use App\Models\Billing\PaymentApplication;
 use App\Models\Memberships\MembershipAccount;
 use App\Models\User;
+use App\Services\Billing\MembershipChargeService;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -143,7 +145,7 @@ class PaymentTicketService {
     private function ticketAllocations(Collection $payments, Payment $requestedPayment): Collection {
         $actualMonthlyClubIds = $payments
             ->flatMap(fn (Payment $item) => $item->applications)
-            ->filter(fn (PaymentApplication $application) => $application->charge?->concept?->code === 'MONTHLY_FEE')
+            ->filter(fn (PaymentApplication $application) => in_array($application->charge?->concept?->code, MembershipChargeService::MONTHLY_FEE_FAMILY_CODES, true))
             ->map(fn (PaymentApplication $application) => $application->charge?->membership?->club_id)
             ->filter()
             ->unique()
@@ -218,7 +220,7 @@ class PaymentTicketService {
         $charge = $application->charge;
         $chargeClubId = (int) ($charge?->membership?->club_id ?: $payment->club_id);
 
-        if ($charge?->concept?->code !== 'MONTHLY_FEE' || $actualMonthlyClubIds->count() > 1) {
+        if (!in_array($charge?->concept?->code, MembershipChargeService::MONTHLY_FEE_FAMILY_CODES, true) || $actualMonthlyClubIds->count() > 1) {
             return collect([$chargeClubId]);
         }
 
@@ -306,6 +308,11 @@ class PaymentTicketService {
                 return [
                     'charge_id' => $charge?->id,
                     'codigo' => $charge?->concept?->internal_key ?: $charge?->concept?->code,
+                    // El nombre del concepto ya refleja la composición
+                    // correcta (individual/familiar/solidaria/pase mensual,
+                    // un parque o combo) porque se eligió al crear el cargo
+                    // (ver MembershipChargeService::resolveMonthlyFeeConcept)
+                    // — no hace falta recalcularlo aquí en tiempo real.
                     'concepto' => $charge?->concept?->name,
                     'descripcion' => $charge?->description,
                     'cantidad' => $capturedQuantity > 1 ? $capturedQuantity : 1,

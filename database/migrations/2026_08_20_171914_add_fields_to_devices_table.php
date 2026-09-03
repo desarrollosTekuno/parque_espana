@@ -25,7 +25,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('devices.devices', function (Blueprint $table) {
-            $table->dropColumn(['user', 'password', 'port', 'use_https']);
+            // $table->dropColumn(['user', 'password', 'port', 'use_https']);
         });
     }
 };

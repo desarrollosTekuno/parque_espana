@@ -10,6 +10,7 @@ use App\Models\Billing\Payment;
 use App\Models\Billing\PaymentApplication;
 use App\Models\Memberships\Membership;
 use App\Models\Memberships\MembershipAccount;
+use App\Services\Billing\MembershipChargeService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -62,7 +63,7 @@ class AnnualPaymentService
                 ->whereIn('membership_account_id', $accountIds)
                 ->where('period_year', '<=', $year)
                 ->whereIn('status', ['pending', 'partial'])
-                ->whereHas('concept', fn ($q) => $q->where('code', 'MONTHLY_FEE'))
+                ->whereHas('concept', fn ($q) => $q->whereIn('code', MembershipChargeService::MONTHLY_FEE_FAMILY_CODES))
                 ->orderBy('period_year')
                 ->orderBy('period_month')
                 ->get();
@@ -193,7 +194,7 @@ class AnnualPaymentService
             ->whereIn('membership_account_id', $accountIds)
             ->where('period_year', '<=', $year)
             ->whereIn('status', ['pending', 'partial'])
-            ->whereHas('concept', fn ($q) => $q->where('code', 'MONTHLY_FEE'))
+            ->whereHas('concept', fn ($q) => $q->whereIn('code', MembershipChargeService::MONTHLY_FEE_FAMILY_CODES))
             ->orderBy('period_year')
             ->orderBy('period_month')
             ->lockForUpdate()

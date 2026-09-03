@@ -114,7 +114,7 @@ Route::post('/billing/annual-payment', [BillingController::class, 'storeAnnualPa
 // reportes
 Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
 Route::get('/reports/collection/export', [ReportController::class, 'exportCollectionReport'])->name('reports.collection.export');
-Route::get('/reports/collection/income', [BillingController::class, 'combinedIncomeReport'])->name('reports.collection.income');
+Route::get('/reports/collection/income', [ReportController::class, 'exportMonthlyAdministrativeIncomeReport'])->name('reports.collection.income');
 
 // collections desk (módulo de cobranza tipo caja)
 Route::get('/collections', [CollectionController::class, 'index'])->name('collections.index');
@@ -384,6 +384,41 @@ Route::get('documents/{file}/download', [DocumentGeneratorController::class, 'do
 
 // Clases
 // Route::resource('/specialties', SpecialtyController::class)->only(['index', 'store', 'update', 'destroy'])->names('specialties');
+Route::resource('/coaches', CoachController::class)->only(['index', 'store', 'update', 'destroy'])->names('coaches');
+Route::resource('/class-schedules', ClassScheduleController::class)->only(['index', 'store', 'update', 'destroy'])->names('classSchedules');
+
+// Página web
+Route::resource('/website-content', WebsiteContentController::class)
+    ->only(['index', 'store', 'destroy'])
+    ->names('website-content');
+Route::put('/website-content/{id}/description', [WebsiteContentController::class, 'updateDescription'])
+    ->name('website-content.descriptions.update');
+Route::post('/website-content/home-cards', [WebsiteContentController::class, 'storeCard'])
+    ->name('website-content.cards.store');
+Route::delete('/website-content/home-cards/{id}', [WebsiteContentController::class, 'destroyCard'])
+    ->name('website-content.cards.destroy');
+Route::post('/website-content/virtual-tour/images', [WebsiteContentController::class, 'storeVirtualTourImages'])
+    ->name('website-content.virtual-tour.images.store');
+Route::delete('/website-content/virtual-tour/images/{id}', [WebsiteContentController::class, 'destroyVirtualTourImage'])
+    ->name('website-content.virtual-tour.images.destroy');
+Route::post('/website-content/events', [WebsiteContentController::class, 'saveEvent'])
+    ->name('website-content.events.save');
+Route::delete('/website-content/events/{id}', [WebsiteContentController::class, 'destroyEvent'])
+    ->name('website-content.events.destroy');
+Route::get('/website-contacts', [WebsiteContactController::class, 'index'])
+    ->name('website-contacts.index');
+// Historia Clínica
+Route::get('/members/{membership}/clinical-history', [ClinicalHistoryController::class, 'index'])
+    ->name('members.clinical-history.index');
+Route::put('/members/{membership}/members/{member}/clinical-history', [ClinicalHistoryController::class, 'upsert'])
+    ->name('members.clinical-history.upsert');
+
+// Club Settings
+Route::get('/club-settings', [ClubSettingsController::class, 'edit'])->name('club-settings.edit');
+Route::post('/club-settings', [ClubSettingsController::class, 'update'])->name('club-settings.update');
+
+// Clases
+Route::resource('/specialties', SpecialtyController::class)->only(['index', 'store', 'update', 'destroy'])->names('specialties');
 Route::resource('/coaches', CoachController::class)->only(['index', 'store', 'update', 'destroy'])->names('coaches');
 Route::resource('/class-schedules', ClassScheduleController::class)->only(['index', 'store', 'update', 'destroy'])->names('classSchedules');
 
