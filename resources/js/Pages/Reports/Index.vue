@@ -89,6 +89,8 @@ const generateReport = async () => {
             reportRoute = "reports.daily-cash.export";
         } else if (selectedReport.value === 6) {
             reportRoute = "reports.cfd.export";
+        } else if (selectedReport.value === 7) {
+            reportRoute = "reports.cash-collection-by-user.export";
         }
 
         loading.value = true;
@@ -152,7 +154,7 @@ const generateReport = async () => {
         <v-card variant="outlined" class="my-2">
             <v-card-title>Generar reporte</v-card-title>
             <v-card-subtitle>
-                {{ selectedReport === 4 ? "Selecciona la fecha y el cajero del corte." : selectedReport === 5 ? "Selecciona la fecha y el cajero del reporte." : selectedReport === 6 ? "Selecciona la fecha del reporte." : "Selecciona el reporte y el rango de fechas." }}
+                {{ selectedReport === 4 ? "Selecciona la fecha y el cajero del corte." : selectedReport === 5 ? "Selecciona la fecha y el cajero del reporte." : selectedReport === 6 ? "Selecciona la fecha del reporte." : selectedReport === 7 ? "Selecciona el rango de fechas del formato." : "Selecciona el reporte y el rango de fechas." }}
             </v-card-subtitle>
 
             <v-card-text>
