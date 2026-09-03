@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\AdminClub;
 
 use Illuminate\Routing\Controller;
 use App\Models\Administrator\Club;
+use App\Models\Billing\Charge;
 use App\Models\Catalogs\City;
 use App\Models\Catalogs\Country;
 use App\Models\Catalogs\DocumentType;
@@ -486,6 +487,32 @@ class MemberController extends Controller
                 $billingSplitMode
             );
             $inscriptionFee = (float) ($pricing['inscription_fee'] ?? 0);
+
+            // Mismo ajuste que en store(): si el socio todavía tiene
+            // inscripción pendiente, la vista previa debe reflejar el 50%
+            // de la inscripción completa del tipo destino (regla "IF"),
+            // no la cuota de "cambio de tipo" — para que lo que se muestra
+            // aquí coincida con lo que en verdad se va a cobrar.
+            $inscriptionFeeLabel = 'Inscripción';
+
+            if ($sameClubTransition && $sourceMembership) {
+                $inscriptionFee = $this->resolveIfConceptInscriptionFee(
+                    account: $sourceMembership->account,
+                    targetMembershipType: $membershipType,
+                    age: $age,
+                    hasMultipleClubs: $hasMultipleClubs,
+                    fallbackFee: $inscriptionFee
+                );
+
+                // Este cargo no es una inscripción nueva sino el concepto
+                // "IF" (cambio de tipo dentro de la misma cuenta) — la
+                // etiqueta debe reflejar el cambio, no confundirse con una
+                // inscripción real.
+                if ($inscriptionFee > 0 && $fromMembershipType) {
+                    $inscriptionFeeLabel = "Cambio de {$fromMembershipType->name} a {$membershipType->name}";
+                }
+            }
+
             $additionalMonthlyCharge = $this->resolveAdditionalMonthlyCharge(
                 currentMonthlyFee: $currentMonthlyFee,
                 newMonthlyFeeTotal: $newMonthlyFeeTotal,
@@ -507,6 +534,7 @@ class MemberController extends Controller
                 'monthly_fee_total' => $newMonthlyFeeTotal,
                 'monthly_fee_share' => $newMonthlyFeeShare,
                 'inscription_fee' => $inscriptionFee,
+                'inscription_fee_label' => $inscriptionFeeLabel,
                 'total_due' => $amountDueToday,
                 'amount_due_today' => $amountDueToday,
                 'rule_type' => $pricing['rule_type'] ?? null,
@@ -2069,7 +2097,7 @@ class MemberController extends Controller
             $savedMembershipAccount  = null;
             $savedPrimaryMemberId    = null;
 
-            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership, $sameClubTransition, $sourceAccountMembersById, $reusableSourceMemberIds, $internalAccountNumber, $inscriptionFeeOverride, $installmentMonths, &$savedMemberDocuments, &$savedMembershipAccount, &$savedPrimaryMemberId) {
+            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership, $sameClubTransition, $sourceAccountMembersById, $reusableSourceMemberIds, $internalAccountNumber, $inscriptionFeeOverride, $installmentMonths, $primaryAge, $hasMultipleClubs, &$savedMemberDocuments, &$savedMembershipAccount, &$savedPrimaryMemberId) {
                 $sourceAccount = $sourceMembership?->account;
 
                 $membershipAccount = $sameClubTransition
@@ -2266,10 +2294,18 @@ class MemberController extends Controller
                         )
                         ->firstWhere('id', $sourceMembership->id) ?? $sourceMembership->fresh(['membershipType', 'account.primaryHolder']);
 
+                    $ifConceptFee = $inscriptionFeeOverride ?? $this->resolveIfConceptInscriptionFee(
+                        account: $sourceMembership->account,
+                        targetMembershipType: $membershipType,
+                        age: $primaryAge,
+                        hasMultipleClubs: $hasMultipleClubs,
+                        fallbackFee: (float) ($pricing['inscription_fee'] ?? 0)
+                    );
+
                     $this->membershipChargeService->createInitialCharges(
                         membership: $sourceMembership,
                         monthlyFee: (float) $pricing['monthly_fee'],
-                        inscriptionFee: $inscriptionFeeOverride ?? (float) ($pricing['inscription_fee'] ?? 0),
+                        inscriptionFee: $ifConceptFee,
                         metadata: [
                             'charge_origin' => 'same_account_transition',
                             'previous_membership_type_id' => $previousMembershipTypeId,
@@ -3848,6 +3884,47 @@ class MemberController extends Controller
         ];
     }
 
+    /**
+     * Cuota del cargo "IF" (cambio de tipo dentro de la misma cuenta): si el
+     * socio todavía tiene inscripción/reinscripción pendiente de pago (no
+     * terminó de liquidar su alta original), no se usa la cuota de "cambio
+     * de tipo" de pricing rules — en su lugar se cobra el 50% de la
+     * inscripción completa que le correspondería a alguien que se da de
+     * alta nueva directamente en el tipo destino (regla de origen null),
+     * ya que la inscripción original sigue viva como adeudo aparte.
+     */
+    protected function resolveIfConceptInscriptionFee(
+        MembershipAccount $account,
+        MembershipType $targetMembershipType,
+        ?int $age,
+        bool $hasMultipleClubs,
+        float $fallbackFee
+    ): float {
+        $hasPendingInscription = Charge::query()
+            ->where('membership_account_id', $account->id)
+            ->whereHas('concept', fn (Builder $q) => $q->whereIn(
+                'code',
+                MembershipChargeService::INSCRIPTION_FAMILY_CODES
+            ))
+            ->whereIn('status', ['pending', 'partial'])
+            ->exists();
+
+        if (!$hasPendingInscription) {
+            return $fallbackFee;
+        }
+
+        $baseRule = $this->membershipPricingService->resolvePricingRule(
+            membershipTypeId: $targetMembershipType->id,
+            fromMembershipTypeId: null,
+            age: $this->membershipPricingService->shouldApplyAgeFilter($targetMembershipType) ? $age : null,
+            hasMultipleClubs: $hasMultipleClubs
+        );
+
+        $baseInscriptionFee = (float) ($baseRule?->resolveInscriptionFee() ?? 0);
+
+        return round($baseInscriptionFee * 0.5, 2);
+    }
+
     protected function resolveInterclubPackageRule(
         int $targetClubId,
         MembershipType $membershipType,
@@ -4142,13 +4219,20 @@ class MemberController extends Controller
         $formattedInscriptionFee = number_format($inscriptionFee, 2);
         $formattedAmountDueToday = number_format($amountDueToday, 2);
 
+        // Un cambio de tipo dentro de la misma cuenta cobra el concepto "IF",
+        // no una inscripción real — el texto debe reflejarlo para no
+        // confundir al usuario (ver resolveIfConceptInscriptionFee).
+        $inscriptionNoun = $sameClubTransition ? 'el cambio de tipo' : 'la inscripción';
+        $inscriptionConjunctionPhrase = $sameClubTransition ? 'y cambio de tipo' : 'e inscripción';
+        $inscriptionDePhrase = $sameClubTransition ? 'de cambio de tipo' : 'de inscripción';
+
         if ($currentMonthlyFee === null) {
             $message = $newMonthlyFeeTotal === $newMonthlyFeeShare
                 ? "La mensualidad de este parque será de $$formattedNewMonthlyFeeShare."
                 : "La cuota total del esquema será de $$formattedNewMonthlyFeeTotal y en este parque se cobrará $$formattedNewMonthlyFeeShare al mes.";
 
             if ($inscriptionFee > 0) {
-                return $message . " Hoy se pagarán $$formattedAmountDueToday considerando mensualidad e inscripción.";
+                return $message . " Hoy se pagarán $$formattedAmountDueToday considerando mensualidad $inscriptionConjunctionPhrase.";
             }
 
             return $message . " Hoy se pagará $$formattedAmountDueToday.";
@@ -4166,7 +4250,7 @@ class MemberController extends Controller
                 : "Esta membresía mantendrá un cobro independiente de $" . number_format($newMonthlyFeeShare, 2) . " al mes en este parque.";
 
             if ($inscriptionFee > 0) {
-                return $message . " Hoy se pagarán $" . number_format($amountDueToday, 2) . " considerando mensualidad e inscripción.";
+                return $message . " Hoy se pagarán $" . number_format($amountDueToday, 2) . " considerando mensualidad $inscriptionConjunctionPhrase.";
             }
 
             return $message . " Hoy se pagará $" . number_format($amountDueToday, 2) . ".";
@@ -4183,14 +4267,14 @@ class MemberController extends Controller
                 $message .= " Hoy se cobrará un ajuste de $$formattedAdditionalCharge";
 
                 if ($inscriptionFee > 0) {
-                    $message .= " más $$formattedInscriptionFee de inscripción";
+                    $message .= " más $$formattedInscriptionFee $inscriptionDePhrase";
                 }
 
                 return $message . ", para un total de $$formattedAmountDueToday.";
             }
 
             if ($inscriptionFee > 0) {
-                return $message . " Hoy solo se cobrará la inscripción por $$formattedInscriptionFee.";
+                return $message . " Hoy solo se cobrará $inscriptionNoun por $$formattedInscriptionFee.";
             }
 
             return $message . " Hoy no se generará cobro adicional.";
@@ -4200,7 +4284,7 @@ class MemberController extends Controller
             $message = "La cuota total del esquema bajará de $$formattedCurrentMonthlyFee a $$formattedNewMonthlyFeeTotal. En este parque se cobrará $$formattedNewMonthlyFeeShare al mes.";
 
             if ($inscriptionFee > 0) {
-                return $message . " No se generará saldo a favor; hoy solo se cobrará la inscripción por $$formattedInscriptionFee.";
+                return $message . " No se generará saldo a favor; hoy solo se cobrará $inscriptionNoun por $$formattedInscriptionFee.";
             }
 
             return $message . " No se generará saldo a favor ni cobro adicional hoy.";
@@ -4213,7 +4297,7 @@ class MemberController extends Controller
         $message .= " En este parque se cobrará $$formattedNewMonthlyFeeShare al mes.";
 
         if ($inscriptionFee > 0) {
-            return $message . " Hoy solo se cobrará la inscripción por $$formattedInscriptionFee.";
+            return $message . " Hoy solo se cobrará $inscriptionNoun por $$formattedInscriptionFee.";
         }
 
         return $message . " Hoy no se generará cobro adicional.";

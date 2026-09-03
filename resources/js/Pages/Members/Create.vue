@@ -237,6 +237,10 @@ interface PricingPreview {
     monthly_fee_total: number;
     monthly_fee_share: number;
     inscription_fee: number;
+    // "Inscripción" para una alta normal; para un cambio de tipo dentro de
+    // la misma cuenta (concepto IF), algo como "Cambio de Individual a
+    // Familiar" — ver MemberController::pricingPreview().
+    inscription_fee_label: string;
     total_due: number;
     amount_due_today: number;
     rule_type: string | null;
@@ -1919,7 +1923,9 @@ watch(applyInscriptionDiscount, (val) => {
                                                     >
                                                         <span
                                                             class="text-medium-emphasis"
-                                                            >Inscripción</span
+                                                            >{{
+                                                                pricingPreview.inscription_fee_label
+                                                            }}</span
                                                         >
                                                         <span>{{
                                                             currencyFormatter.format(
@@ -2275,7 +2281,9 @@ watch(applyInscriptionDiscount, (val) => {
                                                     >
                                                         <span
                                                             class="text-medium-emphasis"
-                                                            >Inscripción</span
+                                                            >{{
+                                                                pricingPreview.inscription_fee_label
+                                                            }}</span
                                                         >
                                                         <span>{{
                                                             currencyFormatter.format(
