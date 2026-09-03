@@ -92,7 +92,7 @@ class BillingConceptSeeder extends Seeder
             ],
             [
                 'code' => 'INSCRIPTION',
-                'name' => 'Inscripción',
+                'name' => 'CUOTA INSCRIPCION',
                 'description' => 'Cargo de inscripción o alta de membresía.',
                 'default_amount' => null,
                 'is_recurring' => false,
@@ -268,7 +268,7 @@ class BillingConceptSeeder extends Seeder
                 'default_amount' => null,
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
-                'is_active' => false,
+                'is_active' => true,
                 'internal_key' => '061',
             ],
             [
@@ -316,7 +316,7 @@ class BillingConceptSeeder extends Seeder
                 'default_amount' => null,
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
-                'is_active' => false,
+                'is_active' => true,
                 'internal_key' => '09',
             ],
             [
@@ -326,7 +326,7 @@ class BillingConceptSeeder extends Seeder
                 'default_amount' => null,
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
-                'is_active' => false,
+                'is_active' => true,
                 'internal_key' => '091',
             ],
             [
@@ -356,7 +356,7 @@ class BillingConceptSeeder extends Seeder
                 'default_amount' => null,
                 'is_recurring' => true,
                 'allows_partial_payments' => false,
-                'is_active' => false,
+                'is_active' => true,
                 'internal_key' => '09I',
             ],
             [
@@ -1575,7 +1575,7 @@ class BillingConceptSeeder extends Seeder
                 'default_amount' => null,
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
-                'is_active' => false,
+                'is_active' => true,
                 'internal_key' => 'IF',
             ],
             [

@@ -1111,7 +1111,10 @@ class CollectionController extends Controller
         $validated = $request->validate([
             'membership_account_id' => ['required', new ExistsInSchema('memberships', 'accounts', 'id')],
             'quantity' => ['required', 'integer', 'min:1'],
-            'concept_code' => ['sometimes', 'string', Rule::in(['INSCRIPTION', 'CUOTA_REINSCRIPCION', 'CHEQUE_REBOTADO_PARQUE2', 'CHEQUE_REBOTADO_PARQUE1', 'COMISION_CHEQUE_REBOTADO'])],
+            'concept_code' => ['sometimes', 'string', Rule::in(array_merge(
+                MembershipChargeService::INSCRIPTION_FAMILY_CODES,
+                ['CHEQUE_REBOTADO_PARQUE2', 'CHEQUE_REBOTADO_PARQUE1', 'COMISION_CHEQUE_REBOTADO']
+            ))],
         ]);
 
         $conceptCode = $validated['concept_code'] ?? 'INSCRIPTION';
@@ -1668,7 +1671,7 @@ class CollectionController extends Controller
 
         $hasPendingInscription = Charge::query()
             ->whereIn('membership_account_id', $accountIds)
-            ->whereHas('concept', fn (Builder $q) => $q->whereIn('code', ['INSCRIPTION', 'CUOTA_REINSCRIPCION']))
+            ->whereHas('concept', fn (Builder $q) => $q->whereIn('code', MembershipChargeService::INSCRIPTION_FAMILY_CODES))
             ->whereIn('status', ['pending', 'partial'])
             ->exists();
 
@@ -1678,7 +1681,7 @@ class CollectionController extends Controller
 
         $includesInscriptionCharge = Charge::query()
             ->whereIn('id', $existingChargeIds)
-            ->whereHas('concept', fn (Builder $q) => $q->whereIn('code', ['INSCRIPTION', 'CUOTA_REINSCRIPCION']))
+            ->whereHas('concept', fn (Builder $q) => $q->whereIn('code', MembershipChargeService::INSCRIPTION_FAMILY_CODES))
             ->exists();
 
         if (!$includesInscriptionCharge) {

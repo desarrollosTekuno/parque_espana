@@ -63,6 +63,23 @@ class MembershipChargeService
             ->all();
     }
 
+    /**
+     * Todos los códigos de la "familia" de conceptos de inscripción — un
+     * cargo de inscripción puede quedar guardado bajo cualquiera de estos
+     * según el tipo de membresía (ver resolveInscriptionConcept), y
+     * cualquier verificación de "¿el socio tiene inscripción pendiente?"
+     * debe reconocerlos todos, no solo el genérico INSCRIPTION. Incluye
+     * también CUOTA_REINSCRIPCION (reactivación de cuenta) porque comparte
+     * el mismo criterio de "inscripción pendiente" en Cobranza.
+     */
+    public const INSCRIPTION_FAMILY_CODES = [
+        'INSCRIPTION',
+        'CUOTA_REINSCRIPCION',
+        'CUOTA_INSCRIPCION_BENEFICENCIA',
+        'CUOTA_INSCRIPCION_ESPANOLES',
+        'CUOTA_INSCRIPCION_PARQUE_I',
+    ];
+
     public function synchronizeMembershipFees(
         Membership $membership,
         ?float $groupTotalMonthlyFee = null,
@@ -603,7 +620,7 @@ class MembershipChargeService
         if ($inscriptionFee > 0) {
             $this->createInstallmentCharge(
                 membership: $membership,
-                conceptCode: 'INSCRIPTION',
+                conceptCode: $this->resolveInscriptionConcept($membership)->code,
                 totalAmount: $inscriptionFee,
                 installmentMonths: $installmentMonths,
                 metadata: $metadata,
@@ -749,6 +766,41 @@ class MembershipChargeService
         }
 
         return $this->resolveConcept('MONTHLY_FEE');
+    }
+
+    /**
+     * El ChargeConcept correcto para el cargo de inscripción de esta
+     * membresía, según la clasificación de su TIPO de membresía (no
+     * depende de combo con otro parque, a diferencia de la mensualidad):
+     *   - Tipo "beneficencia" (sufijo _BEN, en cualquiera de los dos
+     *     parques) -> CUOTA_INSCRIPCION_BENEFICENCIA
+     *   - Tipo "ascendencia española" (sufijo _ASC, solo existe en Parque
+     *     España 2) -> CUOTA_INSCRIPCION_ESPANOLES
+     *   - Tipo "paquete Parque España 1" (sufijo _PE1, solo existe en
+     *     Parque España 2) -> CUOTA_INSCRIPCION_PARQUE_I
+     *   - Cualquier otro tipo (individual/familiar normal en Parque España 1,
+     *     o "externos" en Parque España 2, más cualquier tipo sin
+     *     inscripción real como Doctores o Pase Mensual, que de todos
+     *     modos nunca llegan aquí porque su cuota de inscripción resuelve
+     *     a $0 vía pricing rules) -> INSCRIPTION (genérico)
+     */
+    public function resolveInscriptionConcept(Membership $membership): ChargeConcept
+    {
+        $code = strtoupper((string) $membership->membershipType?->code);
+
+        if (Str::contains($code, '_BEN')) {
+            return $this->resolveConcept('CUOTA_INSCRIPCION_BENEFICENCIA');
+        }
+
+        if (Str::contains($code, '_ASC')) {
+            return $this->resolveConcept('CUOTA_INSCRIPCION_ESPANOLES');
+        }
+
+        if (Str::contains($code, '_PE1')) {
+            return $this->resolveConcept('CUOTA_INSCRIPCION_PARQUE_I');
+        }
+
+        return $this->resolveConcept('INSCRIPTION');
     }
 
     /** 'sol' | 'fam' | 'ind' | 'pm' | 'other', según el código del tipo de membresía. */

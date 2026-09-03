@@ -934,7 +934,19 @@ watch(monthlyFeeMonthsCount, (value) => {
 // antiguos primero) se van a cobrar ahora — mismo mecanismo que "Cantidad de
 // meses" en la mensualidad, pero sin crear nada nuevo (los cargos ya
 // existen). Ver CollectionController::resolveInscriptionInstallments.
-const INSCRIPTION_LIKE_CONCEPT_CODES = ["INSCRIPTION", "CUOTA_REINSCRIPCION", "CHEQUE_REBOTADO_PARQUE2", "CHEQUE_REBOTADO_PARQUE1", "COMISION_CHEQUE_REBOTADO"];
+const INSCRIPTION_LIKE_CONCEPT_CODES = [
+    "INSCRIPTION",
+    "CUOTA_REINSCRIPCION",
+    // Variantes de inscripción según el tipo de membresía (beneficencia,
+    // ascendencia española, paquete Parque España 1) — ver
+    // MembershipChargeService::INSCRIPTION_FAMILY_CODES / resolveInscriptionConcept.
+    "CUOTA_INSCRIPCION_BENEFICENCIA",
+    "CUOTA_INSCRIPCION_ESPANOLES",
+    "CUOTA_INSCRIPCION_PARQUE_I",
+    "CHEQUE_REBOTADO_PARQUE2",
+    "CHEQUE_REBOTADO_PARQUE1",
+    "COMISION_CHEQUE_REBOTADO",
+];
 const isInscriptionConcept = computed(
     () => INSCRIPTION_LIKE_CONCEPT_CODES.includes(selectedConcept.value?.code?.toUpperCase() ?? ""),
 );
@@ -2340,10 +2352,10 @@ const saveNote = async () => {
                             </v-col>
                             <template v-if="!isLockerConcept && !isDayPassConcept && !isCafeteriaConcept && !isMonthlyFeeConcept && !isInscriptionConcept">
                                 <v-col cols="6" style="flex-basis: 150px; max-width: 120px;">
-                                    <v-text-field
-                                        v-model.number="newItem.importe"
+                                    <v-number-input
+                                        v-model="newItem.importe"
                                         label="Importe"
-                                        type="number"
+                                        control-variant="stacked"
                                         min="0"
                                         prefix="$"
                                         hide-details="auto"
@@ -2353,10 +2365,10 @@ const saveNote = async () => {
                                     />
                                 </v-col>
                                 <v-col cols="6" md="1">
-                                    <v-text-field
-                                        v-model.number="newItem.cantidad"
+                                    <v-number-input
+                                        v-model="newItem.cantidad"
                                         label="Cantidad"
-                                        type="number"
+                                        control-variant="stacked"
                                         min="1"
                                         hide-details="auto"
                                     />
@@ -2371,10 +2383,10 @@ const saveNote = async () => {
                                     />
                                 </v-col>
                                 <v-col cols="6" md="1">
-                                    <v-text-field
-                                        v-model.number="newItem.descuento"
+                                    <v-number-input
+                                        v-model="newItem.descuento"
                                         label="Descuento ($)"
-                                        type="number"
+                                        control-variant="stacked"
                                         min="0"
                                         prefix="$"
                                         hide-details="auto"
@@ -2436,11 +2448,11 @@ const saveNote = async () => {
                                 </v-col>
 
                                 <v-col cols="6" md="2">
-                                    <v-text-field
+                                    <v-number-input
                                         v-if="!isAnnualFeePayment"
-                                        v-model.number="monthlyFeeMonthsCount"
+                                        v-model="monthlyFeeMonthsCount"
                                         label="Cantidad de meses"
-                                        type="number"
+                                        control-variant="stacked"
                                         min="1"
                                         :max="monthlyFeeMaxMonths ?? undefined"
                                         hide-details="auto"
@@ -2555,10 +2567,10 @@ const saveNote = async () => {
                                  CollectionController::resolveInscriptionInstallments). -->
                             <template v-else-if="isInscriptionConcept">
                                 <v-col cols="6" md="2">
-                                    <v-text-field
-                                        v-model.number="inscriptionQuantity"
+                                    <v-number-input
+                                        v-model="inscriptionQuantity"
                                         label="Cantidad"
-                                        type="number"
+                                        control-variant="stacked"
                                         min="1"
                                         :max="inscriptionMaxCount ?? undefined"
                                         hide-details="auto"
@@ -2811,10 +2823,10 @@ const saveNote = async () => {
                                             />
                                         </v-col>
                                         <v-col cols="6" md="1">
-                                            <v-text-field
-                                                v-model.number="visitor.age"
+                                            <v-number-input
+                                                v-model="visitor.age"
                                                 label="Edad"
-                                                type="number"
+                                                control-variant="stacked"
                                                 min="0"
                                                 hide-details="auto"
                                             />
@@ -2973,10 +2985,10 @@ const saveNote = async () => {
                                         />
                                     </v-col>
                                     <v-col cols="12" md="3">
-                                        <v-text-field
-                                            v-model.number="cafeteriaConsumption"
+                                        <v-number-input
+                                            v-model="cafeteriaConsumption"
                                             label="Consumo ($)"
-                                            type="number"
+                                            control-variant="stacked"
                                             min="0"
                                             prefix="$"
                                             hide-details="auto"
