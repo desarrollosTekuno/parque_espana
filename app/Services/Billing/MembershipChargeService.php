@@ -38,6 +38,23 @@ class MembershipChargeService
         'MONTHLY_FEE_PARKS',
         'MONTHLY_FEE_PARKS_INTERMEDIATE',
         'MONTHLY_FEE_PARKS_FI',
+        // Mensualidad cobrada durante un permiso por ausencia (ver
+        // resolveMonthlyFeeConceptForPeriod) — sigue siendo "la mensualidad
+        // del periodo", solo que a un porcentaje reducido, así que debe
+        // contar igual para "¿ya se cobró este mes?", el orden de pago y el
+        // agrupado en Cobranza.
+        'CUOTA_PERMISO',
+        'CUOTA_75_PERMISO',
+    ];
+
+    /**
+     * Concepto a usar por cada tipo de permiso por ausencia y el porcentaje
+     * de la mensualidad que le corresponde cobrar — ver
+     * resolveMonthlyFeeConceptForPeriod y MemberController::storeAbsencePermit.
+     */
+    public const ABSENCE_PERMIT_CONCEPT_PERCENTAGES = [
+        'CUOTA_PERMISO' => 25.0,
+        'CUOTA_75_PERMISO' => 75.0,
     ];
 
     /**
@@ -209,7 +226,7 @@ class MembershipChargeService
         bool $ignoreBillableState = false
     ): bool {
         $chargeDate = ($periodDate ?? now())->copy()->startOfMonth();
-        $monthlyConcept = $this->resolveMonthlyFeeConcept($membership, $chargeDate);
+        $monthlyConcept = $this->resolveMonthlyFeeConceptForPeriod($membership, $chargeDate);
 
         if (!$ignoreBillableState && !(bool) $membership->is_billable) {
             return false;
@@ -309,7 +326,13 @@ class MembershipChargeService
      * Cobranza) se queda con el monto completo para siempre, aunque el
      * permiso ya esté vigente para ese mes: previewMonthlyFeeAmount /
      * createRecurringMonthlyCharge solo aplican el descuento a cargos que
-     * TODAVÍA no existen.
+     * TODAVÍA no existen. También reasigna el concepto (p. ej. de
+     * MONTHLY_FEE a CUOTA_PERMISO al registrar el permiso, o de vuelta a
+     * MONTHLY_FEE al cancelarlo) — ver resolveMonthlyFeeConceptForPeriod.
+     *
+     * Se revisan todos los cargos de la familia de mensualidad (incluyendo
+     * CUOTA_PERMISO/CUOTA_75_PERMISO, por si ya traían el concepto de OTRO
+     * permiso vigente antes de este), no solo MONTHLY_FEE.
      *
      * Solo toca cargos en status 'pending' (balance == amount, nada
      * aplicado todavía) — uno 'partial' o 'paid' ya tiene dinero real de
@@ -330,13 +353,13 @@ class MembershipChargeService
             return;
         }
 
-        $monthlyConcept = $this->resolveConcept('MONTHLY_FEE');
         $periodStart = $startDate->copy()->startOfMonth();
         $periodEnd = $endDate->copy()->startOfMonth();
+        $monthlyFamilyConceptIds = $this->resolveMonthlyFeeFamilyConceptIds();
 
         Charge::query()
             ->with('membership')
-            ->where('concept_id', $monthlyConcept->id)
+            ->whereIn('concept_id', $monthlyFamilyConceptIds)
             ->whereIn('membership_account_id', $accountIds)
             ->where('status', 'pending')
             ->whereNotNull('period_year')
@@ -350,15 +373,22 @@ class MembershipChargeService
                 }
 
                 $newAmount = $this->previewMonthlyFeeAmount($charge->membership, $period);
+                $newConcept = $this->resolveMonthlyFeeConceptForPeriod($charge->membership, $period);
 
-                if (round($newAmount, 2) === round((float) $charge->amount, 2)) {
+                if (
+                    round($newAmount, 2) === round((float) $charge->amount, 2)
+                    && $newConcept->id === $charge->concept_id
+                ) {
                     return;
                 }
 
                 $charge->update([
+                    'concept_id' => $newConcept->id,
                     'amount' => $newAmount,
                     'balance' => $newAmount,
+                    'allows_partial_payments' => (bool) $newConcept->allows_partial_payments,
                     'metadata' => array_merge($charge->metadata ?? [], [
+                        'concept_code' => $newConcept->code,
                         'absence_permit_reconciled_at' => now()->toDateTimeString(),
                     ]),
                 ]);
@@ -546,7 +576,7 @@ class MembershipChargeService
         ?string $inscriptionConceptCode = null
     ): void {
         $chargeDate = ($chargeDate ?? now())->copy()->startOfDay();
-        $monthlyConcept = $this->resolveMonthlyFeeConcept($membership, $chargeDate);
+        $monthlyConcept = $this->resolveMonthlyFeeConceptForPeriod($membership, $chargeDate);
         $groupMemberships = $this->resolveGroupPrimaryMemberships($membership, $chargeDate);
         $splitAcrossGroup = $this->shouldSplitMonthlyChargesAcrossGroup($groupMemberships);
 
@@ -767,6 +797,28 @@ class MembershipChargeService
         }
 
         return $this->resolveConcept('MONTHLY_FEE');
+    }
+
+    /**
+     * Concepto de mensualidad a usar para un cargo de $chargeDate: si hay un
+     * permiso por ausencia vigente para ese periodo (ver
+     * resolveApplicableAbsencePermit) y tiene un concepto de permiso
+     * asociado (CUOTA_PERMISO / CUOTA_75_PERMISO), ese concepto reemplaza al
+     * que normalmente correspondería por composición — así el cargo se
+     * distingue en Cobranza y en el ticket como "cuota de permiso" en vez de
+     * verse como mensualidad normal con un monto reducido sin explicación.
+     * Sin permiso aplicable (o sin concepto asociado, para permisos viejos
+     * migrados), se resuelve igual que siempre.
+     */
+    public function resolveMonthlyFeeConceptForPeriod(Membership $membership, Carbon $chargeDate): ChargeConcept
+    {
+        $absencePermit = $this->resolveApplicableAbsencePermit($membership, $chargeDate);
+
+        if ($absencePermit?->charge_concept_id) {
+            return $absencePermit->chargeConcept ?? $this->resolveMonthlyFeeConcept($membership, $chargeDate);
+        }
+
+        return $this->resolveMonthlyFeeConcept($membership, $chargeDate);
     }
 
     /**

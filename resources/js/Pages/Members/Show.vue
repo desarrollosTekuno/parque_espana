@@ -44,6 +44,8 @@ interface AbsencePermitItem {
     start_date: string;
     end_date: string;
     charge_percentage: number;
+    charge_concept_code: string | null;
+    charge_concept_name: string | null;
     status: string;
     blocks_facility_access: boolean;
     blocks_reservations: boolean;
@@ -153,6 +155,12 @@ interface AccountTree {
     derived: AccountTreeNode[];
 }
 
+interface AbsencePermitConceptOption {
+    code: string;
+    name: string;
+    percentage: number;
+}
+
 interface Props {
     membership: SourceMembership;
     account: MembershipAccount;
@@ -160,6 +168,7 @@ interface Props {
     canAddFamilyMembers?: boolean;
     canChangePrimaryHolder?: boolean;
     canSeparateMembers?: boolean;
+    absencePermitConcepts?: AbsencePermitConceptOption[];
 }
 
 const can = usePage().props.auth.permissions;
@@ -169,6 +178,7 @@ const props = withDefaults(defineProps<Props>(), {
     canAddFamilyMembers: false,
     canChangePrimaryHolder: false,
     canSeparateMembers: false,
+    absencePermitConcepts: () => [],
 });
 
 // Membership history (server-side paginated)
@@ -241,9 +251,28 @@ const permitFiles = ref<File[] | null>(null);
 const absencePermitForm = useForm({
     start_month: "",
     end_month: "",
-    charge_percentage: 25,
+    charge_concept_code: null as string | null,
     notes: "",
     absence_permit_document: null as File | null,
+});
+
+const selectedAbsencePermitConcept = computed(() =>
+    props.absencePermitConcepts.find(
+        (option) => option.code === absencePermitForm.charge_concept_code,
+    ) ?? null,
+);
+
+// Estimado en vivo mientras se llena el formulario (antes de guardar) —
+// se basa en la cuota cobrable actual de la cuenta, igual que
+// absence_permit_preview_fee del backend para un permiso ya activo.
+const absencePermitFormPreviewFee = computed(() => {
+    if (!selectedAbsencePermitConcept.value) return null;
+
+    return (
+        (props.account.current_monthly_fee *
+            selectedAbsencePermitConcept.value.percentage) /
+        100
+    );
 });
 
 const permitDocRules = [
@@ -331,7 +360,7 @@ const addressSummary = (member: AccountMemberItem) => {
 const openAbsencePermitDialog = () => {
     absencePermitForm.reset();
     absencePermitForm.clearErrors();
-    absencePermitForm.charge_percentage = 25;
+    absencePermitForm.charge_concept_code = null;
     permitFiles.value = null;
     absencePermitFormRef.value = null;
     showAbsencePermitDialog.value = true;
@@ -349,7 +378,7 @@ const submitAbsencePermit = async () => {
         onSuccess: () => {
             showAbsencePermitDialog.value = false;
             absencePermitForm.reset();
-            absencePermitForm.charge_percentage = 25;
+            absencePermitForm.charge_concept_code = null;
             permitFiles.value = null;
         },
         onError: () => {
@@ -1494,9 +1523,13 @@ console.log(can)
                                         </v-col>
                                         <v-col cols="12" md="4">
                                             <v-card variant="tonal" class="pa-4 h-100">
-                                                <div class="text-caption text-medium-emphasis">Porcentaje durante permiso</div>
+                                                <div class="text-caption text-medium-emphasis">Permiso aplicado</div>
                                                 <div class="text-h6 font-weight-bold">
-                                                    {{ props.account.current_absence_permit ? `${props.account.current_absence_permit.charge_percentage}%` : "25%" }}
+                                                    {{
+                                                        props.account.current_absence_permit
+                                                            ? `${props.account.current_absence_permit.charge_concept_name ?? "Permiso"} (${props.account.current_absence_permit.charge_percentage}%)`
+                                                            : "Sin permiso activo"
+                                                    }}
                                                 </div>
                                                 <div class="mt-2 text-body-2">Aplicado sobre membresías cobrables del titular.</div>
                                             </v-card>
@@ -1521,7 +1554,7 @@ console.log(can)
                                             <div class="flex-wrap d-flex align-center justify-space-between ga-2">
                                                 <div>
                                                     <div class="font-weight-medium">{{ formatDate(absencePermit.start_date) }} a {{ formatDate(absencePermit.end_date) }}</div>
-                                                    <div class="text-caption text-medium-emphasis">{{ absencePermit.charge_percentage }}% sobre cuota cobrable</div>
+                                                    <div class="text-caption text-medium-emphasis">{{ absencePermit.charge_concept_name ?? "Permiso" }} · {{ absencePermit.charge_percentage }}% sobre cuota cobrable</div>
                                                 </div>
                                                 <div class="flex-wrap d-flex ga-2">
                                                     <v-chip size="small" :color="statusColor(absencePermit.status)" variant="tonal">{{ statusLabel(absencePermit.status) }}</v-chip>
@@ -2296,18 +2329,28 @@ console.log(can)
                         </v-col>
 
                         <v-col cols="12">
-                            <v-text-field
-                                v-model.number="absencePermitForm.charge_percentage"
-                                label="Porcentaje a cobrar (%)"
-                                type="number"
+                            <v-select
+                                v-model="absencePermitForm.charge_concept_code"
+                                label="Permiso a aplicar"
+                                :items="props.absencePermitConcepts"
+                                item-title="name"
+                                item-value="code"
                                 density="compact"
                                 variant="outlined"
-                                suffix="%"
-                                :min="0"
-                                :max="100"
-                                :error-messages="absencePermitForm.errors.charge_percentage"
-                                :disabled="true"
-                            />
+                                :rules="[selectRequired]"
+                                :error-messages="absencePermitForm.errors.charge_concept_code"
+                            >
+                                <template #item="{ props: itemProps, item }">
+                                    <v-list-item v-bind="itemProps" :subtitle="`Se cobra el ${item.raw.percentage}% de la mensualidad`" />
+                                </template>
+                            </v-select>
+                        </v-col>
+
+                        <v-col v-if="absencePermitFormPreviewFee !== null" cols="12">
+                            <v-alert type="info" variant="tonal" density="compact">
+                                Se cobrará {{ selectedAbsencePermitConcept?.percentage }}% de la mensualidad ({{ currencyFormatter.format(props.account.current_monthly_fee) }}):
+                                <strong>{{ currencyFormatter.format(absencePermitFormPreviewFee) }}</strong> al mes mientras el permiso esté vigente.
+                            </v-alert>
                         </v-col>
 
                         <v-col cols="12">

@@ -35,6 +35,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use App\Rules\UniqueInSchema;
 use App\Services\Access\AccessProvisioningService;
 use Illuminate\Validation\ValidationException;
@@ -702,7 +703,30 @@ class MemberController extends Controller
                 && $account->accountMembers->count() > 1,
             'canSeparateMembers' => (bool) $membership->membershipType?->allows_multiple_members
                 && $account->accountMembers->where('is_primary_holder', false)->isNotEmpty(),
+            'absencePermitConcepts' => $this->resolveAbsencePermitConceptOptions(),
         ]);
+    }
+
+    /**
+     * Los dos permisos por ausencia seleccionables en el formulario, en el
+     * mismo orden que MembershipChargeService::ABSENCE_PERMIT_CONCEPT_PERCENTAGES
+     * (CUOTA_PERMISO = 25%, CUOTA_75_PERMISO = 75%).
+     */
+    protected function resolveAbsencePermitConceptOptions(): array
+    {
+        $concepts = \App\Models\Billing\ChargeConcept::query()
+            ->whereIn('code', array_keys(MembershipChargeService::ABSENCE_PERMIT_CONCEPT_PERCENTAGES))
+            ->get()
+            ->keyBy('code');
+
+        return collect(MembershipChargeService::ABSENCE_PERMIT_CONCEPT_PERCENTAGES)
+            ->map(fn (float $percentage, string $code) => [
+                'code' => $code,
+                'name' => $concepts->get($code)?->name ?? $code,
+                'percentage' => $percentage,
+            ])
+            ->values()
+            ->all();
     }
 
     public function membershipHistory(Request $request, Membership $membership)
@@ -778,14 +802,22 @@ class MemberController extends Controller
             $validated = $request->validate([
                 'start_month' => ['required', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/'],
                 'end_month'   => ['required', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/'],
-                'charge_percentage' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
+                'charge_concept_code' => [
+                    'required',
+                    Rule::in(array_keys(MembershipChargeService::ABSENCE_PERMIT_CONCEPT_PERCENTAGES)),
+                ],
                 'notes' => ['nullable', 'string', 'max:1000'],
                 'absence_permit_document' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
             ], [
+                'charge_concept_code.required' => 'Selecciona qué permiso quieres aplicar.',
+                'charge_concept_code.in' => 'El permiso seleccionado no es válido.',
                 'absence_permit_document.required' => 'El documento de solicitud de permiso por ausencia es obligatorio.',
                 'absence_permit_document.mimes' => 'El documento debe ser un archivo PDF, JPG o PNG.',
                 'absence_permit_document.max' => 'El documento no debe superar los 5 MB.',
             ]);
+
+            $chargeConcept = \App\Models\Billing\ChargeConcept::where('code', $validated['charge_concept_code'])->firstOrFail();
+            $chargePercentage = MembershipChargeService::ABSENCE_PERMIT_CONCEPT_PERCENTAGES[$validated['charge_concept_code']];
 
             $startDate = Carbon::createFromFormat('Y-m', $validated['start_month'])->startOfMonth()->startOfDay();
             $endDate   = Carbon::createFromFormat('Y-m', $validated['end_month'])->endOfMonth()->startOfDay();
@@ -841,14 +873,15 @@ class MemberController extends Controller
                 ]);
             }
 
-            DB::transaction(function () use ($request, $membership, $accountGroup, $primaryHolder, $startDate, $endDate, $validated) {
+            DB::transaction(function () use ($request, $membership, $accountGroup, $primaryHolder, $startDate, $endDate, $validated, $chargeConcept, $chargePercentage) {
                 AbsencePermit::create([
                     'account_group_id' => $accountGroup?->id,
                     'membership_account_id' => $membership->membership_account_id,
                     'primary_member_id' => $primaryHolder->member_id,
                     'start_date' => $startDate->toDateString(),
                     'end_date' => $endDate->toDateString(),
-                    'charge_percentage' => (float) ($validated['charge_percentage'] ?? 25),
+                    'charge_concept_id' => $chargeConcept->id,
+                    'charge_percentage' => $chargePercentage,
                     'status' => $this->resolveAbsencePermitStatus($startDate, $endDate),
                     'blocks_facility_access' => true,
                     'blocks_reservations' => true,
@@ -3146,6 +3179,8 @@ class MemberController extends Controller
             'start_date' => $absencePermit->start_date,
             'end_date' => $absencePermit->end_date,
             'charge_percentage' => (float) $absencePermit->charge_percentage,
+            'charge_concept_code' => $absencePermit->chargeConcept?->code,
+            'charge_concept_name' => $absencePermit->chargeConcept?->name,
             'status' => $absencePermit->status,
             'blocks_facility_access' => (bool) $absencePermit->blocks_facility_access,
             'blocks_reservations' => (bool) $absencePermit->blocks_reservations,
@@ -3197,6 +3232,7 @@ class MemberController extends Controller
         }
 
         return AbsencePermit::query()
+            ->with('chargeConcept')
             ->where(function (Builder $scope) use ($account) {
                 if ($account->account_group_id) {
                     $scope->where('account_group_id', $account->account_group_id);

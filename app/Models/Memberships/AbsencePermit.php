@@ -2,6 +2,7 @@
 
 namespace App\Models\Memberships;
 
+use App\Models\Billing\ChargeConcept;
 use App\Models\Members\Member;
 use App\Traits\SerializesDates;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -35,5 +36,10 @@ class AbsencePermit extends Model
     public function primaryMember()
     {
         return $this->belongsTo(Member::class, 'primary_member_id');
+    }
+
+    public function chargeConcept()
+    {
+        return $this->belongsTo(ChargeConcept::class, 'charge_concept_id');
     }
 }
