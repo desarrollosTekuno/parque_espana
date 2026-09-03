@@ -463,9 +463,51 @@ class CollectionController extends Controller
                         'club_id' => $charge->membership?->club_id,
                         'club_code' => $charge->membership?->club?->code,
                     ])->values(),
+                    'is_up_to_date' => false,
                 ];
             })
             ->values();
+
+        // Si el socio no tiene ningún mes de mensualidad vencido/pendiente
+        // (nada que cobrar hoy), la tabla de Cargos se queda sin ningún
+        // renglón de mensualidad — pero el encargado de todos modos
+        // necesita saber CUÁL concepto (01, 80, 80I, 81, etc.) le
+        // corresponde para poder adelantar un mes desde "Agregar concepto
+        // de cobro", sin tener que probarlos uno por uno en el selector.
+        // Se agrega aquí un renglón puramente informativo (0 meses, $0 de
+        // saldo, sin acción de "Agregar" — esa columna ya está deshabilitada
+        // para toda la tabla) con el concepto que resolvería HOY según la
+        // composición vigente (ver MembershipChargeService::resolveMonthlyFeeConcept).
+        $hasPendingMonthlyRow = $pendingConcepts->contains(
+            fn (array $row) => in_array($row['concept_code'], MembershipChargeService::MONTHLY_FEE_FAMILY_CODES, true)
+        );
+
+        if (!$hasPendingMonthlyRow && $billableMembership) {
+            $applicableConcept = $this->membershipChargeService->resolveMonthlyFeeConcept($billableMembership);
+            $currentYearFee = round((float) ($billableMembership->resolveLiveMonthlyFee(now()->year) ?? 0), 2);
+
+            $pendingConcepts->push([
+                'concept_id' => $applicableConcept->id,
+                'concept_code' => $applicableConcept->code,
+                'internal_key' => $applicableConcept->internal_key,
+                'concept_name' => $applicableConcept->name,
+                'rate' => null,
+                'fee' => $currentYearFee,
+                'class_label' => 'A meses',
+                'unit_amount' => 0.0,
+                'months' => 0,
+                'balance' => 0.0,
+                'is_multi_club' => false,
+                'club_breakdown' => collect(),
+                'period_year' => null,
+                'period_month' => null,
+                'period_label' => null,
+                'charges' => collect(),
+                // Marca este renglón como informativo (socio al corriente),
+                // para que el frontend lo distinga de un adeudo real.
+                'is_up_to_date' => true,
+            ]);
+        }
 
         // ── Resumen ──
         // Mismo criterio que la tabla de Cargos: solo el concepto de "ambos

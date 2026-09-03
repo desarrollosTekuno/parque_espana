@@ -362,7 +362,7 @@ watch(
 
                         <template #item.name="{ item }">
                             <div class="font-weight-medium">
-                                {{ item.code }} · {{ item.name }}
+                                {{ item.internal_key }} · {{ item.name }}
                             </div>
                             <div class="text-caption text-medium-emphasis">
                                 {{ item.description || "Sin descripción" }}

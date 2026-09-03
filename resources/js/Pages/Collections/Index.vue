@@ -85,6 +85,11 @@ interface PendingConcept {
     period_month: number | null;
     period_label: string | null;
     charges: PendingChargeRef[];
+    // true solo en el renglón informativo que se agrega cuando el socio no
+    // tiene ningún mes de mensualidad vencido — muestra qué concepto le
+    // corresponde hoy (para elegirlo en "Agregar concepto de cobro") sin
+    // representar un adeudo real.
+    is_up_to_date?: boolean;
 }
 interface AccountInfo {
     id: number;
@@ -896,6 +901,21 @@ watch(isMonthlyFeeConcept, (isMonthly) => {
         probeMonthlyFeeMaxMonths();
     }
 });
+
+// Cambiar de un concepto de mensualidad a OTRO concepto de mensualidad
+// (p. ej. de 80I a 81) no dispara el watch de arriba — isMonthlyFeeConcept
+// se queda en true en ambos casos, no hay transición que detectar — así
+// que sin esto el subtotal se quedaba pegado al del concepto anterior en
+// vez de recalcularse (o mostrar $0) para el nuevo.
+watch(
+    () => newItem.value.concept_id,
+    () => {
+        if (!isMonthlyFeeConcept.value) return;
+        resetMonthlyFeeForm();
+        calculateMonthlyFeePreview();
+        probeMonthlyFeeMaxMonths();
+    },
+);
 
 // No dejar escribir más meses de los que en verdad hay disponibles.
 watch(monthlyFeeMonthsCount, (value) => {
@@ -2082,7 +2102,8 @@ const saveNote = async () => {
                                 @update:model-value="(v) => setWalkInMode(v === 'walk_in')"
                             >
                                 <v-btn value="account">Buscar socio</v-btn>
-                                <v-btn value="walk_in">Cobro sin cuenta</v-btn>
+                                <!-- Cobros sin cuenta -->
+                                <!-- <v-btn value="walk_in">Cobro sin cuenta</v-btn> -->
                             </v-btn-toggle>
                         </v-col>
                     </v-row>
@@ -2186,6 +2207,20 @@ const saveNote = async () => {
                             >
                                 Ambos parques
                             </v-chip>
+                            <v-tooltip v-if="item.is_up_to_date" location="top">
+                                <template #activator="{ props: tooltipProps }">
+                                    <v-chip
+                                        v-bind="tooltipProps"
+                                        size="x-small"
+                                        class="ml-2"
+                                        color="success"
+                                        variant="tonal"
+                                    >
+                                        Al corriente
+                                    </v-chip>
+                                </template>
+                                Sin meses vencidos — este es el concepto que le corresponde hoy si quieres adelantar un mes desde "Agregar concepto de cobro".
+                            </v-tooltip>
                         </template>
                         <template #item.club="{ item }">
                             <v-tooltip v-if="item.is_multi_club" location="top">
