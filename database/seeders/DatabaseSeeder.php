@@ -24,6 +24,7 @@ class DatabaseSeeder extends Seeder
             LocationCatalogsSeeder::class,
             ClubSeeder::class,
             ClubAddressSeeder::class,
+            ClubContactSeeder::class,
             UserSeeder::class,
             // UserCodeSeeder::class,
             SystemVariableSeeder::class,

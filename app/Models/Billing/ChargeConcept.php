@@ -19,6 +19,7 @@ class ChargeConcept extends Model
 
     protected $casts = [
         'default_amount' => 'float',
+        'allows_manual_amount' => 'boolean',
         'is_recurring' => 'boolean',
         'allows_partial_payments' => 'boolean',
         'is_mobile_payable' => 'boolean',

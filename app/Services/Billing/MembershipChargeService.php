@@ -5,15 +5,81 @@ namespace App\Services\Billing;
 use App\Models\Memberships\AbsencePermit;
 use App\Models\Billing\Charge;
 use App\Models\Billing\ChargeConcept;
+use App\Models\Memberships\InterclubPackageRule;
 use App\Models\Memberships\Membership;
 use App\Models\Memberships\MembershipAccount;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class MembershipChargeService
 {
+    /**
+     * Todos los códigos de la "familia" de conceptos de mensualidad — un
+     * socio puede pasar de uno a otro con el tiempo (p. ej. de
+     * MONTHLY_FEE_PARKS a MONTHLY_FEE al dar de baja la membresía del otro
+     * parque, o al revés al agregarla/reactivarla; ver
+     * resolveMonthlyFeeConcept) sin que eso signifique que un periodo ya
+     * cobrado con el concepto ANTERIOR deba volver a cobrarse con el nuevo.
+     * Cualquier verificación de "¿ya se cobró mensualidad este periodo?"
+     * debe considerar TODA la familia, no solo el concepto que se usaría
+     * hoy — de lo contrario se duplica (o se recalcula de más) el cargo del
+     * periodo en cuanto cambia la clasificación de la membresía. También la
+     * usa CollectionController para reconocer cualquiera de estos códigos
+     * como "es mensualidad" en Cobranza.
+     */
+    public const MONTHLY_FEE_FAMILY_CODES = [
+        'MONTHLY_FEE',
+        'MONTHLY_FEE_INTERMEDIATE',
+        'MONTHLY_FEE_PASS',
+        'MONTHLY_FEE_PASS_INTERMEDIATE',
+        'MONTHLY_FEE_PARKS',
+        'MONTHLY_FEE_PARKS_INTERMEDIATE',
+        'MONTHLY_FEE_PARKS_FI',
+    ];
+
+    /**
+     * Subconjunto de la familia que representa "ambos parques" (combo) de
+     * verdad — a diferencia de MONTHLY_FEE_FAMILY_CODES completo, que
+     * también incluye los de un solo parque. Un cargo pendiente puede
+     * quedar guardado bajo un concepto de un solo parque (p. ej.
+     * MONTHLY_FEE) de ANTES de que existiera el combo — ese cargo no debe
+     * etiquetarse "Ambos parques" solo porque la membresía HOY sí sea
+     * combo (ver CollectionController::search, resolveComboClubBreakdown).
+     */
+    public const MONTHLY_FEE_PARKS_CODES = [
+        'MONTHLY_FEE_PARKS',
+        'MONTHLY_FEE_PARKS_INTERMEDIATE',
+        'MONTHLY_FEE_PARKS_FI',
+    ];
+
+    public function resolveMonthlyFeeFamilyConceptIds(): array
+    {
+        return ChargeConcept::query()
+            ->whereIn('code', self::MONTHLY_FEE_FAMILY_CODES)
+            ->pluck('id')
+            ->all();
+    }
+
+    /**
+     * Todos los códigos de la "familia" de conceptos de inscripción — un
+     * cargo de inscripción puede quedar guardado bajo cualquiera de estos
+     * según el tipo de membresía (ver resolveInscriptionConcept), y
+     * cualquier verificación de "¿el socio tiene inscripción pendiente?"
+     * debe reconocerlos todos, no solo el genérico INSCRIPTION. Incluye
+     * también CUOTA_REINSCRIPCION (reactivación de cuenta) porque comparte
+     * el mismo criterio de "inscripción pendiente" en Cobranza.
+     */
+    public const INSCRIPTION_FAMILY_CODES = [
+        'INSCRIPTION',
+        'CUOTA_REINSCRIPCION',
+        'CUOTA_INSCRIPCION_BENEFICENCIA',
+        'CUOTA_INSCRIPCION_ESPANOLES',
+        'CUOTA_INSCRIPCION_PARQUE_I',
+    ];
+
     public function synchronizeMembershipFees(
         Membership $membership,
         ?float $groupTotalMonthlyFee = null,
@@ -143,7 +209,7 @@ class MembershipChargeService
         bool $ignoreBillableState = false
     ): bool {
         $chargeDate = ($periodDate ?? now())->copy()->startOfMonth();
-        $monthlyConcept = $this->resolveConcept('MONTHLY_FEE');
+        $monthlyConcept = $this->resolveMonthlyFeeConcept($membership, $chargeDate);
 
         if (!$ignoreBillableState && !(bool) $membership->is_billable) {
             return false;
@@ -164,7 +230,13 @@ class MembershipChargeService
             return false;
         }
 
-        if ($this->hasMonthlyChargeForPeriod($membership, $chargeDate, $monthlyConcept->id)) {
+        // No se pasa un concepto específico: cualquier concepto de la
+        // familia de mensualidad ya cobrado este periodo cuenta como "ya
+        // existe", sin importar si se cobró bajo un concepto distinto al
+        // que se resolvería hoy (p. ej. la membresía era combo cuando se
+        // cobró y ahora ya no lo es, o viceversa) — ver
+        // resolveMonthlyFeeFamilyConceptIds.
+        if ($this->hasMonthlyChargeForPeriod($membership, $chargeDate)) {
             return false;
         }
 
@@ -296,14 +368,14 @@ class MembershipChargeService
     public function hasMonthlyChargeForPeriod(
         Membership $membership,
         ?Carbon $periodDate = null,
-        ?int $conceptId = null
+        ?array $conceptIds = null
     ): bool {
         $chargeDate = ($periodDate ?? now())->copy()->startOfMonth();
-        $conceptId ??= $this->resolveConcept('MONTHLY_FEE')->id;
+        $conceptIds ??= $this->resolveMonthlyFeeFamilyConceptIds();
 
         return Charge::query()
             ->where('membership_id', $membership->id)
-            ->where('concept_id', $conceptId)
+            ->whereIn('concept_id', $conceptIds)
             ->where('period_year', (int) $chargeDate->format('Y'))
             ->where('period_month', (int) $chargeDate->format('m'))
             ->where('status', '!=', 'cancelled')
@@ -327,11 +399,14 @@ class MembershipChargeService
      */
     public function ensureMonthlyChargesUpToToday(Membership $billableMembership, array $groupAccountIds): void
     {
-        $monthlyConcept = $this->resolveConcept('MONTHLY_FEE');
+        // Solo se usa para detectar huecos (cualquier concepto de la
+        // familia cuenta como "ya cobrado ese periodo") — createRecurringMonthlyCharge
+        // resuelve por su cuenta el concepto correcto al crear el cargo.
+        $monthlyFeeConceptIds = $this->resolveMonthlyFeeFamilyConceptIds();
         $currentPeriod = now()->startOfMonth();
 
         $earliestCharge = Charge::query()
-            ->where('concept_id', $monthlyConcept->id)
+            ->whereIn('concept_id', $monthlyFeeConceptIds)
             ->whereIn('membership_account_id', $groupAccountIds)
             ->whereNotNull('period_year')
             ->whereNotNull('period_month')
@@ -359,7 +434,7 @@ class MembershipChargeService
             }
 
             $existsForPeriod = Charge::query()
-                ->where('concept_id', $monthlyConcept->id)
+                ->whereIn('concept_id', $monthlyFeeConceptIds)
                 ->whereIn('membership_account_id', $groupAccountIds)
                 ->where('period_year', $cursor->year)
                 ->where('period_month', $cursor->month)
@@ -470,7 +545,7 @@ class MembershipChargeService
         ?int $installmentMonths = null
     ): void {
         $chargeDate = ($chargeDate ?? now())->copy()->startOfDay();
-        $monthlyConcept = $this->resolveConcept('MONTHLY_FEE');
+        $monthlyConcept = $this->resolveMonthlyFeeConcept($membership, $chargeDate);
         $groupMemberships = $this->resolveGroupPrimaryMemberships($membership, $chargeDate);
         $splitAcrossGroup = $this->shouldSplitMonthlyChargesAcrossGroup($groupMemberships);
 
@@ -545,7 +620,7 @@ class MembershipChargeService
         if ($inscriptionFee > 0) {
             $this->createInstallmentCharge(
                 membership: $membership,
-                conceptCode: 'INSCRIPTION',
+                conceptCode: $this->resolveInscriptionConcept($membership)->code,
                 totalAmount: $inscriptionFee,
                 installmentMonths: $installmentMonths,
                 metadata: $metadata,
@@ -619,6 +694,155 @@ class MembershipChargeService
             ->where('code', $code)
             ->where('is_active', true)
             ->firstOrFail();
+    }
+
+    /**
+     * El ChargeConcept correcto para la mensualidad de esta membresía en el
+     * periodo indicado ($asOfDate, default hoy) según su composición —
+     * individual/familiar, solidaria, o pase mensual; en un solo parque o en
+     * combo con la membresía que tenga en el otro parque a esa fecha (mismo
+     * account_group_id):
+     *   - 1 parque, individual o familiar -> MONTHLY_FEE
+     *   - 1 parque, solidaria -> MONTHLY_FEE_INTERMEDIATE
+     *   - 1 parque, pase mensual -> MONTHLY_FEE_PASS
+     *   - 2 parques, mismo tipo (individual+individual o familiar+familiar)
+     *     -> MONTHLY_FEE_PARKS
+     *   - 2 parques, solidaria+solidaria -> MONTHLY_FEE_PARKS_INTERMEDIATE
+     *   - 2 parques, individual+familiar cruzado (combo F/I reconocido en
+     *     memberships.interclub_package_rules) -> MONTHLY_FEE_PARKS_FI
+     *   - 2 parques, pase mensual en cualquiera de los dos lados, o
+     *     cualquier otra mezcla que no debería darse en la práctica
+     *     (solidaria mezclada con otra cosa) -> MONTHLY_FEE (genérico)
+     *
+     * $asOfDate se acota por start_date/end_date de cada membresía (vía
+     * resolveGroupPrimaryMemberships, ya usado para el reparto de montos) —
+     * así, al rellenar meses atrasados de ANTES de que existiera un combo
+     * (p. ej. se agregó la membresía del otro parque hoy, pero faltan meses
+     * de cuando todavía era de un solo parque), esos meses viejos siguen
+     * clasificando como un solo parque en vez de combo, y viceversa para
+     * meses viejos de antes de una baja.
+     *
+     * La detección de combo es puramente por composición (¿existe membresía
+     * vigente en el otro parque, y de qué tipo?) — no depende de
+     * billing_split_mode. Esto es intencional: hay flujos (p. ej.
+     * transición de edad solidaria->individual) que a propósito dejan
+     * billing_split_mode='single' aunque el socio sí tenga membresía en
+     * ambos parques; el concepto debe reflejar la composición real de
+     * cualquier forma.
+     */
+    public function resolveMonthlyFeeConcept(Membership $membership, ?Carbon $asOfDate = null): ChargeConcept
+    {
+        $asOfDate = ($asOfDate ?? now())->copy()->startOfDay();
+        $groupMemberships = $this->resolveGroupPrimaryMemberships($membership, $asOfDate);
+        $membershipByClub = $groupMemberships->groupBy('club_id')->map(fn (Collection $ms) => $ms->first());
+
+        if ($membershipByClub->count() <= 1) {
+            $kind = $this->resolveMembershipKind($membershipByClub->first() ?? $membership);
+
+            return match ($kind) {
+                'pm' => $this->resolveConcept('MONTHLY_FEE_PASS'),
+                'sol' => $this->resolveConcept('MONTHLY_FEE_INTERMEDIATE'),
+                default => $this->resolveConcept('MONTHLY_FEE'),
+            };
+        }
+
+        $kinds = $membershipByClub
+            ->map(fn (Membership $m) => $this->resolveMembershipKind($m))
+            ->values();
+        $distinctKinds = $kinds->unique()->values();
+
+        if ($distinctKinds->contains('pm')) {
+            return $this->resolveConcept('MONTHLY_FEE');
+        }
+
+        if ($distinctKinds->count() === 1) {
+            return $distinctKinds->first() === 'sol'
+                ? $this->resolveConcept('MONTHLY_FEE_PARKS_INTERMEDIATE')
+                : $this->resolveConcept('MONTHLY_FEE_PARKS');
+        }
+
+        if ($distinctKinds->diff(['fam', 'ind'])->isEmpty() && $this->isRecognizedFamIndCombo($membershipByClub)) {
+            return $this->resolveConcept('MONTHLY_FEE_PARKS_FI');
+        }
+
+        return $this->resolveConcept('MONTHLY_FEE');
+    }
+
+    /**
+     * El ChargeConcept correcto para el cargo de inscripción de esta
+     * membresía, según la clasificación de su TIPO de membresía (no
+     * depende de combo con otro parque, a diferencia de la mensualidad):
+     *   - Tipo "beneficencia" (sufijo _BEN, en cualquiera de los dos
+     *     parques) -> CUOTA_INSCRIPCION_BENEFICENCIA
+     *   - Tipo "ascendencia española" (sufijo _ASC, solo existe en Parque
+     *     España 2) -> CUOTA_INSCRIPCION_ESPANOLES
+     *   - Tipo "paquete Parque España 1" (sufijo _PE1, solo existe en
+     *     Parque España 2) -> CUOTA_INSCRIPCION_PARQUE_I
+     *   - Cualquier otro tipo (individual/familiar normal en Parque España 1,
+     *     o "externos" en Parque España 2, más cualquier tipo sin
+     *     inscripción real como Doctores o Pase Mensual, que de todos
+     *     modos nunca llegan aquí porque su cuota de inscripción resuelve
+     *     a $0 vía pricing rules) -> INSCRIPTION (genérico)
+     */
+    public function resolveInscriptionConcept(Membership $membership): ChargeConcept
+    {
+        $code = strtoupper((string) $membership->membershipType?->code);
+
+        if (Str::contains($code, '_BEN')) {
+            return $this->resolveConcept('CUOTA_INSCRIPCION_BENEFICENCIA');
+        }
+
+        if (Str::contains($code, '_ASC')) {
+            return $this->resolveConcept('CUOTA_INSCRIPCION_ESPANOLES');
+        }
+
+        if (Str::contains($code, '_PE1')) {
+            return $this->resolveConcept('CUOTA_INSCRIPCION_PARQUE_I');
+        }
+
+        return $this->resolveConcept('INSCRIPTION');
+    }
+
+    /** 'sol' | 'fam' | 'ind' | 'pm' | 'other', según el código del tipo de membresía. */
+    protected function resolveMembershipKind(?Membership $membership): string
+    {
+        $code = strtoupper((string) $membership?->membershipType?->code);
+
+        if (Str::contains($code, '_PM_')) return 'pm';
+        if (Str::contains($code, '_SOL')) return 'sol';
+        if (Str::contains($code, '_FAM')) return 'fam';
+        if (Str::contains($code, '_IND')) return 'ind';
+
+        return 'other';
+    }
+
+    /**
+     * Si de verdad existe un memberships.interclub_package_rules activo que
+     * conecte los dos tipos de membresía específicos del grupo — el combo
+     * F/I solo se reconoce cuando la regla real lo respalda, no solo porque
+     * una membresía sea familiar y la otra individual.
+     *
+     * @param  Collection<int, Membership>  $membershipByClub
+     */
+    protected function isRecognizedFamIndCombo(Collection $membershipByClub): bool
+    {
+        $typeIds = $membershipByClub
+            ->pluck('membership_type_id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($typeIds->count() !== 2) {
+            return false;
+        }
+
+        return InterclubPackageRule::query()
+            ->where('is_active', true)
+            ->where(function ($query) use ($typeIds) {
+                $query->where(fn ($q) => $q->where('source_membership_type_id', $typeIds[0])->where('target_membership_type_id', $typeIds[1]))
+                    ->orWhere(fn ($q) => $q->where('source_membership_type_id', $typeIds[1])->where('target_membership_type_id', $typeIds[0]));
+            })
+            ->exists();
     }
 
     protected function resolveMonthlyDueDate(Carbon $chargeDate): Carbon
@@ -838,13 +1062,19 @@ class MembershipChargeService
         array $metadata = [],
         bool $dryRun = false
     ): Collection {
-        $concept ??= $this->resolveConcept('MONTHLY_FEE');
         $membershipCount = $groupMemberships->count();
         $results = collect();
 
         if ($membershipCount === 0 || $groupTotalMonthlyFee <= 0) {
             return $results;
         }
+
+        // Sin override explícito (p. ej. desde createInitialCharges, que ya
+        // lo resolvió una vez para la membresía que disparó el alta), se
+        // resuelve dinámicamente según la composición del grupo a la fecha
+        // del cargo — cualquier membresía del grupo da el mismo resultado,
+        // la clasificación es a nivel de grupo, no por lado.
+        $concept ??= $this->resolveMonthlyFeeConcept($groupMemberships->first(), $chargeDate);
 
         $splitAmount = round($groupTotalMonthlyFee / $membershipCount, 2);
         $allocated = 0.0;
@@ -872,9 +1102,15 @@ class MembershipChargeService
                 chargeDate: $chargeDate
             );
 
+            // Cualquier concepto de la familia cuenta como "ya cargado" este
+            // periodo — no solo $concept, que es el que se usaría HOY: si la
+            // clasificación del grupo cambió desde que se generó un cargo
+            // previo de este mismo periodo (p. ej. combo -> individual por
+            // una baja a mitad de mes), ese cargo anterior debe seguir
+            // contando para no cobrar de más.
             $alreadyChargedToThisMembership = (float) Charge::query()
                 ->where('membership_id', $groupMembership->id)
-                ->where('concept_id', $concept->id)
+                ->whereIn('concept_id', $this->resolveMonthlyFeeFamilyConceptIds())
                 ->where('period_year', (int) $chargeDate->format('Y'))
                 ->where('period_month', (int) $chargeDate->format('m'))
                 ->where('status', '!=', 'cancelled')

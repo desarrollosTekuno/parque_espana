@@ -14,6 +14,7 @@ interface BillingConceptItem {
     description: string | null;
     default_amount: number | null;
     club_amount: number | null;
+    allows_manual_amount: boolean;
     is_recurring: boolean;
     allows_partial_payments: boolean;
     is_mobile_payable: boolean;
@@ -95,6 +96,7 @@ interface BillingConceptForm {
     description: string | null;
     default_amount: string | number | null;
     club_amount: string | number | null;
+    allows_manual_amount: boolean;
     is_recurring: boolean;
     allows_partial_payments: boolean;
     is_mobile_payable: boolean;
@@ -113,6 +115,7 @@ const form = useForm<BillingConceptForm>({
     description: null,
     default_amount: null,
     club_amount: null,
+    allows_manual_amount: true,
     is_recurring: false,
     allows_partial_payments: false,
     is_mobile_payable: true,
@@ -133,6 +136,7 @@ const resetForm = () => {
     form.description = null;
     form.default_amount = null;
     form.club_amount = null;
+    form.allows_manual_amount = true;
     form.is_recurring = false;
     form.allows_partial_payments = false;
     form.is_mobile_payable = true;
@@ -157,6 +161,7 @@ const openEdit = (item: BillingConceptItem) => {
     form.description = item.description;
     form.default_amount = item.default_amount;
     form.club_amount = item.club_amount;
+    form.allows_manual_amount = item.allows_manual_amount;
     form.is_recurring = item.is_recurring;
     form.allows_partial_payments = item.allows_partial_payments;
     form.is_mobile_payable = item.is_mobile_payable;
@@ -357,7 +362,7 @@ watch(
 
                         <template #item.name="{ item }">
                             <div class="font-weight-medium">
-                                {{ item.code }} · {{ item.name }}
+                                {{ item.internal_key }} · {{ item.name }}
                             </div>
                             <div class="text-caption text-medium-emphasis">
                                 {{ item.description || "Sin descripción" }}
@@ -429,6 +434,14 @@ watch(
                                     variant="tonal"
                                 >
                                     Sin cuenta
+                                </v-chip>
+                                <v-chip
+                                    v-if="!item.allows_manual_amount"
+                                    size="small"
+                                    color="warning"
+                                    variant="tonal"
+                                >
+                                    Importe fijo
                                 </v-chip>
                             </div>
                         </template>
@@ -603,6 +616,16 @@ watch(
                                     color="warning"
                                     :label="form.requires_account ? 'Requiere cuenta de socio' : 'Se puede vender sin cuenta'"
                                     hint="Apágalo para conceptos que se venden a cualquiera sin ligarlos a un socio (p. ej. un pase diario a un visitante)."
+                                    persistent-hint
+                                />
+                            </v-col>
+
+                            <v-col cols="12" md="4">
+                                <v-switch
+                                    v-model="form.allows_manual_amount"
+                                    color="warning"
+                                    :label="form.allows_manual_amount ? 'Permite capturar importe a mano' : 'Importe fijo (no editable)'"
+                                    hint="Apágalo para que en Cobranza el importe quede fijo al monto configurado (base o del parque) y no se pueda escribir a mano."
                                     persistent-hint
                                 />
                             </v-col>

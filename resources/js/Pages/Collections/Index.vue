@@ -25,6 +25,7 @@ interface ConceptOption {
     internal_key: string;
     name: string;
     default_amount: number | null;
+    allows_manual_amount: boolean;
     is_recurring: boolean;
     allows_partial_payments: boolean;
     applies_iva: boolean;
@@ -84,6 +85,11 @@ interface PendingConcept {
     period_month: number | null;
     period_label: string | null;
     charges: PendingChargeRef[];
+    // true solo en el renglón informativo que se agrega cuando el socio no
+    // tiene ningún mes de mensualidad vencido — muestra qué concepto le
+    // corresponde hoy (para elegirlo en "Agregar concepto de cobro") sin
+    // representar un adeudo real.
+    is_up_to_date?: boolean;
 }
 interface AccountInfo {
     id: number;
@@ -252,7 +258,6 @@ const sessionClubInfo = computed<ClubInfo | null>(() => {
 const cobroClub = computed(() =>
     walkInMode.value ? sessionClubInfo.value : (result.value?.cobro_club ?? null),
 );
-const clubMemberships = computed(() => result.value?.club_memberships ?? []);
 const accountMembers = computed(() => result.value?.account_members ?? []);
 const billingMembershipId = computed(
     () => result.value?.billing_membership_id ?? null,
@@ -326,6 +331,7 @@ interface AnnualPaymentPreview {
     // uno en diciembre (el actual, por si falta cerrarlo, y el siguiente,
     // para adelantar su anualidad). Ver annualCoverageYear.
     coverage_year_options: number[];
+    concept_label: string;
 }
 
 const annualPaymentLoading = ref(false);
@@ -606,16 +612,28 @@ const isLockerConcept = computed(
 );
 
 // ── Mensualidad desde "Agregar concepto de cobro" ──
-// Al capturar el concepto MONTHLY_FEE, en vez de un importe a mano, el
-// encargado solo indica cuántos meses agregar. Mientras escribe la cantidad
-// se calcula automáticamente (en vivo, con preview=true — no persiste nada)
-// el subtotal/total de los N meses más antiguos que el socio debe, empezando
+// Al capturar cualquier concepto de la familia de mensualidad (MONTHLY_FEE,
+// MONTHLY_FEE_PARKS, etc. — ver MembershipChargeService::MONTHLY_FEE_FAMILY_CODES,
+// el mismo concepto puede cambiar de un mes a otro según la composición de la
+// membresía en ese periodo), en vez de un importe a mano, el encargado solo
+// indica cuántos meses agregar. Mientras escribe la cantidad se calcula
+// automáticamente (en vivo, con preview=true — no persiste nada) el
+// subtotal/total de los N meses más antiguos que el socio debe, empezando
 // por el cargo más viejo que ya exista. Solo al confirmar "Agregar" se
 // resuelve de nuevo en modo real (preview=false), lo que crea los cargos de
 // los meses que todavía no existían, y se agregan a la lista de cobros — ver
 // CollectionController::resolveMonthlyFeeMonths.
+const MONTHLY_FEE_FAMILY_CODES = [
+    "MONTHLY_FEE",
+    "MONTHLY_FEE_INTERMEDIATE",
+    "MONTHLY_FEE_PASS",
+    "MONTHLY_FEE_PASS_INTERMEDIATE",
+    "MONTHLY_FEE_PARKS",
+    "MONTHLY_FEE_PARKS_INTERMEDIATE",
+    "MONTHLY_FEE_PARKS_FI",
+];
 const isMonthlyFeeConcept = computed(
-    () => selectedConcept.value?.code?.toUpperCase() === "MONTHLY_FEE",
+    () => MONTHLY_FEE_FAMILY_CODES.includes(selectedConcept.value?.code?.toUpperCase() ?? ""),
 );
 
 // Checkbox "¿Es pago de anualidad?" dentro de la misma captura de
@@ -724,6 +742,7 @@ const probeMonthlyFeeMaxMonths = async () => {
             membership_account_id: account.value.id,
             months: 36,
             preview: true,
+            concept_id: selectedConcept.value?.id,
         });
         monthlyFeeMaxMonths.value = (data.charges as unknown[])?.length ?? null;
     } catch {
@@ -743,6 +762,7 @@ const calculateMonthlyFeePreview = async () => {
             membership_account_id: account.value.id,
             months: monthlyFeeMonthsCount.value,
             preview: true,
+            concept_id: selectedConcept.value?.id,
         });
         monthlyFeePreviewTotal.value = data.total ?? 0;
     } catch (e: any) {
@@ -776,6 +796,7 @@ const addMonthlyFeeMonths = async () => {
             membership_account_id: account.value.id,
             months: monthlyFeeMonthsCount.value,
             preview: false,
+            concept_id: selectedConcept.value?.id,
         });
 
         // Una sola fila por cada click de "Agregar" (igual que la captura
@@ -810,7 +831,7 @@ const addMonthlyFeeMonths = async () => {
             key: `existing-monthlyfee-${newBreakdownCharges[0].id}-${Date.now()}`,
             type: "existing",
             concept_id: selectedConcept.value?.id,
-            concept_label: `${selectedConcept.value?.internal_key ?? ""} ${selectedConcept.value?.name ?? "Mensualidad"}`.trim(),
+            concept_label: `${selectedConcept.value?.internal_key ?? ""} ${data.concept_label ?? selectedConcept.value?.name ?? "Mensualidad"}`.trim(),
             detail: `${periods.length} ${periods.length === 1 ? "mensualidad" : "mensualidades"} (${rangeLabel})`,
             amount: total,
             is_multi_club: data.is_multi_club ?? false,
@@ -852,7 +873,7 @@ const confirmAnnualFeePaymentFromPanel = () => {
         key: `annual-${preview.year}-${Date.now()}`,
         type: "annual",
         concept_id: selectedConcept.value?.id,
-        concept_label: `${selectedConcept.value?.internal_key ?? ""} ${selectedConcept.value?.name ?? "Mensualidad"}`.trim(),
+        concept_label: `${selectedConcept.value?.internal_key ?? ""} ${preview.concept_label ?? selectedConcept.value?.name ?? "Mensualidad"}`.trim(),
         detail: `Anualidad ${preview.year}` + (preview.discount_rule
             ? ` — descuento ${preview.discount_rule.discount_months} mes(es)`
             : " — sin descuento"),
@@ -881,6 +902,21 @@ watch(isMonthlyFeeConcept, (isMonthly) => {
     }
 });
 
+// Cambiar de un concepto de mensualidad a OTRO concepto de mensualidad
+// (p. ej. de 80I a 81) no dispara el watch de arriba — isMonthlyFeeConcept
+// se queda en true en ambos casos, no hay transición que detectar — así
+// que sin esto el subtotal se quedaba pegado al del concepto anterior en
+// vez de recalcularse (o mostrar $0) para el nuevo.
+watch(
+    () => newItem.value.concept_id,
+    () => {
+        if (!isMonthlyFeeConcept.value) return;
+        resetMonthlyFeeForm();
+        calculateMonthlyFeePreview();
+        probeMonthlyFeeMaxMonths();
+    },
+);
+
 // No dejar escribir más meses de los que en verdad hay disponibles.
 watch(monthlyFeeMonthsCount, (value) => {
     if (value && monthlyFeeMaxMonths.value && value > monthlyFeeMaxMonths.value) {
@@ -898,7 +934,19 @@ watch(monthlyFeeMonthsCount, (value) => {
 // antiguos primero) se van a cobrar ahora — mismo mecanismo que "Cantidad de
 // meses" en la mensualidad, pero sin crear nada nuevo (los cargos ya
 // existen). Ver CollectionController::resolveInscriptionInstallments.
-const INSCRIPTION_LIKE_CONCEPT_CODES = ["INSCRIPTION", "CUOTA_REINSCRIPCION", "CHEQUE_REBOTADO_PARQUE2", "CHEQUE_REBOTADO_PARQUE1", "COMISION_CHEQUE_REBOTADO"];
+const INSCRIPTION_LIKE_CONCEPT_CODES = [
+    "INSCRIPTION",
+    "CUOTA_REINSCRIPCION",
+    // Variantes de inscripción según el tipo de membresía (beneficencia,
+    // ascendencia española, paquete Parque España 1) — ver
+    // MembershipChargeService::INSCRIPTION_FAMILY_CODES / resolveInscriptionConcept.
+    "CUOTA_INSCRIPCION_BENEFICENCIA",
+    "CUOTA_INSCRIPCION_ESPANOLES",
+    "CUOTA_INSCRIPCION_PARQUE_I",
+    "CHEQUE_REBOTADO_PARQUE2",
+    "CHEQUE_REBOTADO_PARQUE1",
+    "COMISION_CHEQUE_REBOTADO",
+];
 const isInscriptionConcept = computed(
     () => INSCRIPTION_LIKE_CONCEPT_CODES.includes(selectedConcept.value?.code?.toUpperCase() ?? ""),
 );
@@ -1729,11 +1777,15 @@ const paymentMethodOptions = computed<PaymentMethodOption[]>(() => {
     // cuenta en ambos parques pero lo que se está cobrando ahora es de un
     // solo parque (p. ej. un cheque rebotado), no tiene caso ofrecer
     // "Tarjeta de crédito (PE1)": no hay nada que emparejar con ella.
-    const otherClubIds = dialogClubBreakdown.value.length > 1
-        ? clubMemberships.value
-            .map((cm) => cm.club_id)
-            .filter((id): id is number => id !== null && id !== sessionClub.id)
-        : [];
+    //
+    // Se toma el club_id directo de dialogClubBreakdown (no de
+    // clubMemberships, que solo lista membresías ACTIVAS): un concepto de
+    // "ambos parques" (MONTHLY_FEE_PARKS y variantes) sigue repartiéndose
+    // entre los dos parques aunque la membresía del otro ya esté dada de
+    // baja — ver CollectionController::resolveHistoricalParksClubBreakdown.
+    const otherClubIds = dialogClubBreakdown.value
+        .map((c) => c.club_id)
+        .filter((id): id is number => id !== null && id !== sessionClub.id);
 
     // Cheque, Tarjeta de crédito y Tarjeta de débito se pueden repartir
     // entre parques; no hay caja física del otro parque (efectivo) ni
@@ -2062,7 +2114,8 @@ const saveNote = async () => {
                                 @update:model-value="(v) => setWalkInMode(v === 'walk_in')"
                             >
                                 <v-btn value="account">Buscar socio</v-btn>
-                                <v-btn value="walk_in">Cobro sin cuenta</v-btn>
+                                <!-- Cobros sin cuenta -->
+                                <!-- <v-btn value="walk_in">Cobro sin cuenta</v-btn> -->
                             </v-btn-toggle>
                         </v-col>
                     </v-row>
@@ -2166,6 +2219,20 @@ const saveNote = async () => {
                             >
                                 Ambos parques
                             </v-chip>
+                            <v-tooltip v-if="item.is_up_to_date" location="top">
+                                <template #activator="{ props: tooltipProps }">
+                                    <v-chip
+                                        v-bind="tooltipProps"
+                                        size="x-small"
+                                        class="ml-2"
+                                        color="success"
+                                        variant="tonal"
+                                    >
+                                        Al corriente
+                                    </v-chip>
+                                </template>
+                                Sin meses vencidos — este es el concepto que le corresponde hoy si quieres adelantar un mes desde "Agregar concepto de cobro".
+                            </v-tooltip>
                         </template>
                         <template #item.club="{ item }">
                             <v-tooltip v-if="item.is_multi_club" location="top">
@@ -2285,20 +2352,23 @@ const saveNote = async () => {
                             </v-col>
                             <template v-if="!isLockerConcept && !isDayPassConcept && !isCafeteriaConcept && !isMonthlyFeeConcept && !isInscriptionConcept">
                                 <v-col cols="6" style="flex-basis: 150px; max-width: 120px;">
-                                    <v-text-field
-                                        v-model.number="newItem.importe"
+                                    <v-number-input
+                                        v-model="newItem.importe"
                                         label="Importe"
-                                        type="number"
+                                        control-variant="stacked"
                                         min="0"
                                         prefix="$"
                                         hide-details="auto"
+                                        :readonly="selectedConcept !== null && !selectedConcept.allows_manual_amount"
+                                        :hint="selectedConcept !== null && !selectedConcept.allows_manual_amount ? 'Importe fijo, no editable' : undefined"
+                                        :persistent-hint="selectedConcept !== null && !selectedConcept.allows_manual_amount"
                                     />
                                 </v-col>
                                 <v-col cols="6" md="1">
-                                    <v-text-field
-                                        v-model.number="newItem.cantidad"
+                                    <v-number-input
+                                        v-model="newItem.cantidad"
                                         label="Cantidad"
-                                        type="number"
+                                        control-variant="stacked"
                                         min="1"
                                         hide-details="auto"
                                     />
@@ -2313,10 +2383,10 @@ const saveNote = async () => {
                                     />
                                 </v-col>
                                 <v-col cols="6" md="1">
-                                    <v-text-field
-                                        v-model.number="newItem.descuento"
+                                    <v-number-input
+                                        v-model="newItem.descuento"
                                         label="Descuento ($)"
-                                        type="number"
+                                        control-variant="stacked"
                                         min="0"
                                         prefix="$"
                                         hide-details="auto"
@@ -2378,11 +2448,11 @@ const saveNote = async () => {
                                 </v-col>
 
                                 <v-col cols="6" md="2">
-                                    <v-text-field
+                                    <v-number-input
                                         v-if="!isAnnualFeePayment"
-                                        v-model.number="monthlyFeeMonthsCount"
+                                        v-model="monthlyFeeMonthsCount"
                                         label="Cantidad de meses"
-                                        type="number"
+                                        control-variant="stacked"
                                         min="1"
                                         :max="monthlyFeeMaxMonths ?? undefined"
                                         hide-details="auto"
@@ -2497,10 +2567,10 @@ const saveNote = async () => {
                                  CollectionController::resolveInscriptionInstallments). -->
                             <template v-else-if="isInscriptionConcept">
                                 <v-col cols="6" md="2">
-                                    <v-text-field
-                                        v-model.number="inscriptionQuantity"
+                                    <v-number-input
+                                        v-model="inscriptionQuantity"
                                         label="Cantidad"
-                                        type="number"
+                                        control-variant="stacked"
                                         min="1"
                                         :max="inscriptionMaxCount ?? undefined"
                                         hide-details="auto"
@@ -2753,10 +2823,10 @@ const saveNote = async () => {
                                             />
                                         </v-col>
                                         <v-col cols="6" md="1">
-                                            <v-text-field
-                                                v-model.number="visitor.age"
+                                            <v-number-input
+                                                v-model="visitor.age"
                                                 label="Edad"
-                                                type="number"
+                                                control-variant="stacked"
                                                 min="0"
                                                 hide-details="auto"
                                             />
@@ -2915,10 +2985,10 @@ const saveNote = async () => {
                                         />
                                     </v-col>
                                     <v-col cols="12" md="3">
-                                        <v-text-field
-                                            v-model.number="cafeteriaConsumption"
+                                        <v-number-input
+                                            v-model="cafeteriaConsumption"
                                             label="Consumo ($)"
-                                            type="number"
+                                            control-variant="stacked"
                                             min="0"
                                             prefix="$"
                                             hide-details="auto"
