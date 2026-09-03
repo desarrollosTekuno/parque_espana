@@ -950,6 +950,7 @@ const INSCRIPTION_LIKE_CONCEPT_CODES = [
     "CHEQUE_REBOTADO_PARQUE2",
     "CHEQUE_REBOTADO_PARQUE1",
     "COMISION_CHEQUE_REBOTADO",
+    "IF"
 ];
 const isInscriptionConcept = computed(
     () => INSCRIPTION_LIKE_CONCEPT_CODES.includes(selectedConcept.value?.code?.toUpperCase() ?? ""),

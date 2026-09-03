@@ -25,7 +25,7 @@ return new class extends Migration
     {
         Schema::table('billing.concepts', function (Blueprint $table) {
             // add unique code
-            $table->unique('code');
+            // $table->unique('code');
         });
     }
 };

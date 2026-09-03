@@ -1124,7 +1124,7 @@ class CollectionController extends Controller
             'quantity' => ['required', 'integer', 'min:1'],
             'concept_code' => ['sometimes', 'string', Rule::in(array_merge(
                 MembershipChargeService::INSCRIPTION_FAMILY_CODES,
-                ['CHEQUE_REBOTADO_PARQUE2', 'CHEQUE_REBOTADO_PARQUE1', 'COMISION_CHEQUE_REBOTADO']
+                ['CHEQUE_REBOTADO_PARQUE2', 'CHEQUE_REBOTADO_PARQUE1', 'COMISION_CHEQUE_REBOTADO', 'IF']
             ))],
         ]);
 
