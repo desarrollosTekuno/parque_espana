@@ -30,7 +30,7 @@ class CommandPayloadBuilder
             ])->toArray()];
         }
 
-        if (in_array($action, ['create_card', 'update_card'])) {
+        if (in_array($action, ['create_card', 'update_card', 'delete_card'])) {
             return ['cards' => collect($data['cards'])->map(fn($c) => [
                 'employee_id' => $c['employee_id'],
                 'card_no'     => $c['card_no'],
