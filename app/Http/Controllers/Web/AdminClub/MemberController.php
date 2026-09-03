@@ -2279,6 +2279,7 @@ class MemberController extends Controller
                         chargeDate: now(),
                         reconcileExistingMonthlyCharge: true,
                         installmentMonths: $installmentMonths,
+                        inscriptionConceptCode: 'IF',
                     );
 
                     return;

@@ -380,6 +380,13 @@ class CollectionController extends Controller
                 $balance = round((float) $group->sum('balance'), 2);
                 $originalTotal = round((float) $group->sum('amount'), 2);
                 $isRecurring = (bool) ($concept?->is_recurring);
+                // A diferencia de "is_recurring" (que solo distingue la
+                // mensualidad), la inscripción/reinscripción también se
+                // puede diferir a varios meses (ver resolveInscriptionInstallments)
+                // — así que la columna "Meses" debe mostrarse para toda esa
+                // familia de conceptos, no solo para la mensualidad.
+                $showsMonths = $isMonthlyFee
+                    || in_array($concept?->code, MembershipChargeService::INSCRIPTION_FAMILY_CODES, true);
                 // La cuota que se muestra para la mensualidad es siempre la
                 // vigente del año EN CURSO (no el promedio de los meses
                 // vencidos, que puede mezclar años con cuotas distintas).
@@ -449,6 +456,7 @@ class CollectionController extends Controller
                     // Monto = adeudo dividido entre los meses que aplican.
                     'unit_amount' => $months > 0 ? round($balance / $months, 2) : $balance,
                     'months' => $months,
+                    'months_applicable' => $showsMonths,
                     'balance' => $balance,
                     'is_multi_club' => $isMultiClub,
                     'club_breakdown' => $clubBreakdown,
@@ -498,6 +506,7 @@ class CollectionController extends Controller
                 'class_label' => 'A meses',
                 'unit_amount' => 0.0,
                 'months' => 0,
+                'months_applicable' => true,
                 'balance' => 0.0,
                 'is_multi_club' => false,
                 'club_breakdown' => collect(),

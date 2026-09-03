@@ -542,7 +542,8 @@ class MembershipChargeService
         array $metadata = [],
         ?Carbon $chargeDate = null,
         bool $reconcileExistingMonthlyCharge = false,
-        ?int $installmentMonths = null
+        ?int $installmentMonths = null,
+        ?string $inscriptionConceptCode = null
     ): void {
         $chargeDate = ($chargeDate ?? now())->copy()->startOfDay();
         $monthlyConcept = $this->resolveMonthlyFeeConcept($membership, $chargeDate);
@@ -620,7 +621,7 @@ class MembershipChargeService
         if ($inscriptionFee > 0) {
             $this->createInstallmentCharge(
                 membership: $membership,
-                conceptCode: $this->resolveInscriptionConcept($membership)->code,
+                conceptCode: $inscriptionConceptCode ?? $this->resolveInscriptionConcept($membership)->code,
                 totalAmount: $inscriptionFee,
                 installmentMonths: $installmentMonths,
                 metadata: $metadata,
