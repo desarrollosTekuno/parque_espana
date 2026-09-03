@@ -44,7 +44,7 @@ class GuestPassProvisioningService
         foreach ($devices as $device) {
             $guestUser = $this->findOrCreateAvailableGuestUser($device);
 
-            $this->accessProvisioningService->createCommand('crete_card', $accountMemberId, $device, [
+            $this->accessProvisioningService->createCommand('create_card', $accountMemberId, $device, [
                 'cards' => [[
                     'employee_id' => $guestUser->employee_id,
                     'card_no' => $cardNo,
@@ -90,7 +90,7 @@ class GuestPassProvisioningService
     private function createNewGuestUser(Device $device): GuestUser
     {
         $nextNumber = GuestUser::where('device_id', $device->id)->count() + 1;
-        $employeeId = sprintf('GUEST-%s_%03d', $device->id, $nextNumber);
+        $employeeId = sprintf('GUEST%02d%03d', $device->id, $nextNumber);
 
         $guestUser = GuestUser::create([
             'device_id' => $device->id,
