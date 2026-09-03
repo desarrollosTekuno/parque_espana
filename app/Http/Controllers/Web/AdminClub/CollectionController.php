@@ -330,8 +330,17 @@ class CollectionController extends Controller
                         ->where('membership_account_id', $account->id)
                         ->whereHas('concept', fn (Builder $c) => $c
                             ->whereIn('code', MembershipChargeService::MONTHLY_FEE_FAMILY_CODES)
-                            ->whereNotIn('code', MembershipChargeService::MONTHLY_FEE_PARKS_CODES))
+                            ->whereNotIn('code', MembershipChargeService::MONTHLY_FEE_PARKS_CODES)
+                            ->whereNotIn('code', MembershipChargeService::ABSENCE_PERMIT_CONCEPT_CODES))
                         ->where(fn (Builder $q) => $q->whereNull('due_date')->orWhere('due_date', '<=', now()->toDateString()))
+                )->orWhere(
+                    // Los cargos de permiso por ausencia se crean a propósito
+                    // por adelantado (ver createFutureChargesForAbsencePermit),
+                    // incluso para meses futuros — deben verse en Cobranza
+                    // desde que se registra el permiso, no hasta que venzan.
+                    fn (Builder $absencePermit) => $absencePermit
+                        ->where('membership_account_id', $account->id)
+                        ->whereHas('concept', fn (Builder $c) => $c->whereIn('code', MembershipChargeService::ABSENCE_PERMIT_CONCEPT_CODES))
                 )->orWhere(
                     fn (Builder $other) => $other
                         ->where('membership_account_id', $account->id)
@@ -380,6 +389,13 @@ class CollectionController extends Controller
                 $balance = round((float) $group->sum('balance'), 2);
                 $originalTotal = round((float) $group->sum('amount'), 2);
                 $isRecurring = (bool) ($concept?->is_recurring);
+                // A diferencia de "is_recurring" (que solo distingue la
+                // mensualidad), la inscripción/reinscripción también se
+                // puede diferir a varios meses (ver resolveInscriptionInstallments)
+                // — así que la columna "Meses" debe mostrarse para toda esa
+                // familia de conceptos, no solo para la mensualidad.
+                $showsMonths = $isMonthlyFee
+                    || in_array($concept?->code, MembershipChargeService::INSCRIPTION_FAMILY_CODES, true);
                 // La cuota que se muestra para la mensualidad es siempre la
                 // vigente del año EN CURSO (no el promedio de los meses
                 // vencidos, que puede mezclar años con cuotas distintas).
@@ -449,6 +465,7 @@ class CollectionController extends Controller
                     // Monto = adeudo dividido entre los meses que aplican.
                     'unit_amount' => $months > 0 ? round($balance / $months, 2) : $balance,
                     'months' => $months,
+                    'months_applicable' => $showsMonths,
                     'balance' => $balance,
                     'is_multi_club' => $isMultiClub,
                     'club_breakdown' => $clubBreakdown,
@@ -498,6 +515,7 @@ class CollectionController extends Controller
                 'class_label' => 'A meses',
                 'unit_amount' => 0.0,
                 'months' => 0,
+                'months_applicable' => true,
                 'balance' => 0.0,
                 'is_multi_club' => false,
                 'club_breakdown' => collect(),
@@ -818,14 +836,16 @@ class CollectionController extends Controller
                 // No hay cargo de ESTE concepto para el periodo — antes de
                 // crear uno nuevo, hay que confirmar que el concepto
                 // seleccionado sigue siendo el que en verdad le toca a este
-                // periodo (según la composición vigente en ese momento, ver
-                // resolveMonthlyFeeConcept). Si ya no coincide (p. ej. se
-                // seleccionó el concepto de un solo parque, pero para este
-                // periodo ya existe combo), no se sigue avanzando: ese
-                // concepto ya no tiene más meses propios por adelantar —
-                // los meses futuros le tocan al concepto combo, que se
-                // agrega aparte.
-                $expectedConcept = $this->membershipChargeService->resolveMonthlyFeeConcept($billableMembership, $cursor->copy());
+                // periodo. Se usa resolveMonthlyFeeConceptForPeriod (no
+                // resolveMonthlyFeeConcept a secas) porque también debe
+                // dejar de coincidir cuando el periodo cae dentro de un
+                // permiso por ausencia (le tocaría CUOTA_PERMISO/
+                // CUOTA_75_PERMISO, no el concepto normal por composición) —
+                // igual que cuando ya existe combo y se seleccionó un
+                // concepto de un solo parque: en ambos casos, ese concepto ya
+                // no tiene más meses propios por adelantar, los futuros le
+                // tocan a otro concepto que se agrega aparte.
+                $expectedConcept = $this->membershipChargeService->resolveMonthlyFeeConceptForPeriod($billableMembership, $cursor->copy());
 
                 if ($expectedConcept->id !== $selectedConcept->id) {
                     break;
@@ -1115,7 +1135,7 @@ class CollectionController extends Controller
             'quantity' => ['required', 'integer', 'min:1'],
             'concept_code' => ['sometimes', 'string', Rule::in(array_merge(
                 MembershipChargeService::INSCRIPTION_FAMILY_CODES,
-                ['CHEQUE_REBOTADO_PARQUE2', 'CHEQUE_REBOTADO_PARQUE1', 'COMISION_CHEQUE_REBOTADO']
+                ['CHEQUE_REBOTADO_PARQUE2', 'CHEQUE_REBOTADO_PARQUE1', 'COMISION_CHEQUE_REBOTADO', 'IF', 'CUOTA_PERMISO', 'CUOTA_75_PERMISO']
             ))],
         ]);
 

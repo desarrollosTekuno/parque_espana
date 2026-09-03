@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\AdminClub;
 
 use Illuminate\Routing\Controller;
 use App\Models\Administrator\Club;
+use App\Models\Billing\Charge;
 use App\Models\Catalogs\City;
 use App\Models\Catalogs\Country;
 use App\Models\Catalogs\DocumentType;
@@ -35,6 +36,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use App\Rules\UniqueInSchema;
 use App\Services\Access\AccessProvisioningService;
 use Illuminate\Validation\ValidationException;
@@ -488,6 +490,32 @@ class MemberController extends Controller
                 $billingSplitMode
             );
             $inscriptionFee = (float) ($pricing['inscription_fee'] ?? 0);
+
+            // Mismo ajuste que en store(): si el socio todavía tiene
+            // inscripción pendiente, la vista previa debe reflejar el 50%
+            // de la inscripción completa del tipo destino (regla "IF"),
+            // no la cuota de "cambio de tipo" — para que lo que se muestra
+            // aquí coincida con lo que en verdad se va a cobrar.
+            $inscriptionFeeLabel = 'Inscripción';
+
+            if ($sameClubTransition && $sourceMembership) {
+                $inscriptionFee = $this->resolveIfConceptInscriptionFee(
+                    account: $sourceMembership->account,
+                    targetMembershipType: $membershipType,
+                    age: $age,
+                    hasMultipleClubs: $hasMultipleClubs,
+                    fallbackFee: $inscriptionFee
+                );
+
+                // Este cargo no es una inscripción nueva sino el concepto
+                // "IF" (cambio de tipo dentro de la misma cuenta) — la
+                // etiqueta debe reflejar el cambio, no confundirse con una
+                // inscripción real.
+                if ($inscriptionFee > 0 && $fromMembershipType) {
+                    $inscriptionFeeLabel = "Cambio de {$fromMembershipType->name} a {$membershipType->name}";
+                }
+            }
+
             $additionalMonthlyCharge = $this->resolveAdditionalMonthlyCharge(
                 currentMonthlyFee: $currentMonthlyFee,
                 newMonthlyFeeTotal: $newMonthlyFeeTotal,
@@ -509,6 +537,7 @@ class MemberController extends Controller
                 'monthly_fee_total' => $newMonthlyFeeTotal,
                 'monthly_fee_share' => $newMonthlyFeeShare,
                 'inscription_fee' => $inscriptionFee,
+                'inscription_fee_label' => $inscriptionFeeLabel,
                 'total_due' => $amountDueToday,
                 'amount_due_today' => $amountDueToday,
                 'rule_type' => $pricing['rule_type'] ?? null,
@@ -676,7 +705,30 @@ class MemberController extends Controller
                 && $account->accountMembers->count() > 1,
             'canSeparateMembers' => (bool) $membership->membershipType?->allows_multiple_members
                 && $account->accountMembers->where('is_primary_holder', false)->isNotEmpty(),
+            'absencePermitConcepts' => $this->resolveAbsencePermitConceptOptions(),
         ]);
+    }
+
+    /**
+     * Los dos permisos por ausencia seleccionables en el formulario, en el
+     * mismo orden que MembershipChargeService::ABSENCE_PERMIT_CONCEPT_PERCENTAGES
+     * (CUOTA_PERMISO = 25%, CUOTA_75_PERMISO = 75%).
+     */
+    protected function resolveAbsencePermitConceptOptions(): array
+    {
+        $concepts = \App\Models\Billing\ChargeConcept::query()
+            ->whereIn('code', array_keys(MembershipChargeService::ABSENCE_PERMIT_CONCEPT_PERCENTAGES))
+            ->get()
+            ->keyBy('code');
+
+        return collect(MembershipChargeService::ABSENCE_PERMIT_CONCEPT_PERCENTAGES)
+            ->map(fn (float $percentage, string $code) => [
+                'code' => $code,
+                'name' => $concepts->get($code)?->name ?? $code,
+                'percentage' => $percentage,
+            ])
+            ->values()
+            ->all();
     }
 
     public function membershipHistory(Request $request, Membership $membership)
@@ -752,14 +804,22 @@ class MemberController extends Controller
             $validated = $request->validate([
                 'start_month' => ['required', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/'],
                 'end_month'   => ['required', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/'],
-                'charge_percentage' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
+                'charge_concept_code' => [
+                    'required',
+                    Rule::in(array_keys(MembershipChargeService::ABSENCE_PERMIT_CONCEPT_PERCENTAGES)),
+                ],
                 'notes' => ['nullable', 'string', 'max:1000'],
                 'absence_permit_document' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
             ], [
+                'charge_concept_code.required' => 'Selecciona qué permiso quieres aplicar.',
+                'charge_concept_code.in' => 'El permiso seleccionado no es válido.',
                 'absence_permit_document.required' => 'El documento de solicitud de permiso por ausencia es obligatorio.',
                 'absence_permit_document.mimes' => 'El documento debe ser un archivo PDF, JPG o PNG.',
                 'absence_permit_document.max' => 'El documento no debe superar los 5 MB.',
             ]);
+
+            $chargeConcept = \App\Models\Billing\ChargeConcept::where('code', $validated['charge_concept_code'])->firstOrFail();
+            $chargePercentage = MembershipChargeService::ABSENCE_PERMIT_CONCEPT_PERCENTAGES[$validated['charge_concept_code']];
 
             $startDate = Carbon::createFromFormat('Y-m', $validated['start_month'])->startOfMonth()->startOfDay();
             $endDate   = Carbon::createFromFormat('Y-m', $validated['end_month'])->endOfMonth()->startOfDay();
@@ -815,14 +875,15 @@ class MemberController extends Controller
                 ]);
             }
 
-            DB::transaction(function () use ($request, $membership, $accountGroup, $primaryHolder, $startDate, $endDate, $validated) {
+            DB::transaction(function () use ($request, $membership, $accountGroup, $primaryHolder, $startDate, $endDate, $validated, $chargeConcept, $chargePercentage) {
                 AbsencePermit::create([
                     'account_group_id' => $accountGroup?->id,
                     'membership_account_id' => $membership->membership_account_id,
                     'primary_member_id' => $primaryHolder->member_id,
                     'start_date' => $startDate->toDateString(),
                     'end_date' => $endDate->toDateString(),
-                    'charge_percentage' => (float) ($validated['charge_percentage'] ?? 25),
+                    'charge_concept_id' => $chargeConcept->id,
+                    'charge_percentage' => $chargePercentage,
                     'status' => $this->resolveAbsencePermitStatus($startDate, $endDate),
                     'blocks_facility_access' => true,
                     'blocks_reservations' => true,
@@ -855,6 +916,16 @@ class MemberController extends Controller
                 // quedan con el monto completo aunque el permiso ya
                 // aplique para ese mes. Ver reconcilePendingMonthlyChargesForAbsencePermit.
                 $this->membershipChargeService->reconcilePendingMonthlyChargesForAbsencePermit(
+                    accountGroupId: $accountGroup?->id,
+                    membershipAccountId: $membership->membership_account_id,
+                    startDate: $startDate,
+                    endDate: $endDate
+                );
+
+                // Adelanta los cargos de los meses que cubre el permiso,
+                // aunque sean futuros — así se ven en Cobranza desde que se
+                // registra, sin esperar a que cada mes llegue.
+                $this->membershipChargeService->createFutureChargesForAbsencePermit(
                     accountGroupId: $accountGroup?->id,
                     membershipAccountId: $membership->membership_account_id,
                     startDate: $startDate,
@@ -907,19 +978,38 @@ class MemberController extends Controller
                 ]);
             }
 
-            $absencePermit->update([
-                'status' => 'cancelled',
-            ]);
-
-            // Revierte al monto completo los cargos de mensualidad pendientes
-            // que se habían ajustado por este permiso — al quedar cancelado,
-            // resolveApplicableAbsencePermit ya no lo encuentra, así que
-            // previewMonthlyFeeAmount recalcula sin el descuento.
-            $this->membershipChargeService->reconcilePendingMonthlyChargesForAbsencePermit(
+            // No se puede cancelar si ya hay un pago (parcial o total)
+            // aplicado a alguno de los cargos del permiso — cancelarlo
+            // cancelaría ese cargo, y uno con dinero real de por medio no se
+            // puede cancelar así nada más.
+            $hasPaidCharges = $this->membershipChargeService->hasPaidChargesForAbsencePermit(
                 accountGroupId: $accountGroupId,
                 membershipAccountId: $membership->membership_account_id,
                 startDate: Carbon::parse($absencePermit->start_date),
                 endDate: Carbon::parse($absencePermit->end_date)
+            );
+
+            if ($hasPaidCharges) {
+                return redirect()->back()->withErrors([
+                    'messageError' => 'No se puede cancelar: ya hay un pago aplicado a algún cargo de este permiso.',
+                    'exception' => '',
+                ]);
+            }
+
+            $absencePermit->update([
+                'status' => 'cancelled',
+            ]);
+
+            // Cancela (no revierte a mensualidad normal) los cargos
+            // pendientes del permiso — si el socio en verdad sigue debiendo
+            // esos meses, se regeneran con el monto normal la próxima vez
+            // que se les busque en Cobranza o corra el ciclo mensual.
+            $this->membershipChargeService->cancelChargesForAbsencePermit(
+                accountGroupId: $accountGroupId,
+                membershipAccountId: $membership->membership_account_id,
+                startDate: Carbon::parse($absencePermit->start_date),
+                endDate: Carbon::parse($absencePermit->end_date),
+                cancelledBy: $request->user()?->id
             );
 
             return redirect()
@@ -2071,7 +2161,7 @@ class MemberController extends Controller
             $savedMembershipAccount  = null;
             $savedPrimaryMemberId    = null;
 
-            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership, $sameClubTransition, $sourceAccountMembersById, $reusableSourceMemberIds, $internalAccountNumber, $inscriptionFeeOverride, $installmentMonths, &$savedMemberDocuments, &$savedMembershipAccount, &$savedPrimaryMemberId) {
+            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership, $sameClubTransition, $sourceAccountMembersById, $reusableSourceMemberIds, $internalAccountNumber, $inscriptionFeeOverride, $installmentMonths, $primaryAge, $hasMultipleClubs, &$savedMemberDocuments, &$savedMembershipAccount, &$savedPrimaryMemberId) {
                 $sourceAccount = $sourceMembership?->account;
 
                 $membershipAccount = $sameClubTransition
@@ -2268,10 +2358,18 @@ class MemberController extends Controller
                         )
                         ->firstWhere('id', $sourceMembership->id) ?? $sourceMembership->fresh(['membershipType', 'account.primaryHolder']);
 
+                    $ifConceptFee = $inscriptionFeeOverride ?? $this->resolveIfConceptInscriptionFee(
+                        account: $sourceMembership->account,
+                        targetMembershipType: $membershipType,
+                        age: $primaryAge,
+                        hasMultipleClubs: $hasMultipleClubs,
+                        fallbackFee: (float) ($pricing['inscription_fee'] ?? 0)
+                    );
+
                     $this->membershipChargeService->createInitialCharges(
                         membership: $sourceMembership,
                         monthlyFee: (float) $pricing['monthly_fee'],
-                        inscriptionFee: $inscriptionFeeOverride ?? (float) ($pricing['inscription_fee'] ?? 0),
+                        inscriptionFee: $ifConceptFee,
                         metadata: [
                             'charge_origin' => 'same_account_transition',
                             'previous_membership_type_id' => $previousMembershipTypeId,
@@ -2281,6 +2379,7 @@ class MemberController extends Controller
                         chargeDate: now(),
                         reconcileExistingMonthlyCharge: true,
                         installmentMonths: $installmentMonths,
+                        inscriptionConceptCode: 'IF',
                     );
 
                     return;
@@ -3116,16 +3215,32 @@ class MemberController extends Controller
 
     protected function buildAbsencePermitPayload(AbsencePermit $absencePermit): array
     {
+        $isFinalized = in_array($absencePermit->status, ['cancelled', 'finished'], true);
+
+        // Solo se puede cancelar si el permiso sigue vigente/programado Y no
+        // hay ya un pago aplicado a alguno de sus cargos (ver
+        // MemberController::cancelAbsencePermit) — evita ofrecer el botón
+        // "Cancelar" para algo que el backend de todos modos va a rechazar.
+        $canBeCancelled = !$isFinalized && !$this->membershipChargeService->hasPaidChargesForAbsencePermit(
+            accountGroupId: $absencePermit->account_group_id,
+            membershipAccountId: $absencePermit->membership_account_id,
+            startDate: Carbon::parse($absencePermit->start_date),
+            endDate: Carbon::parse($absencePermit->end_date)
+        );
+
         return [
             'id' => $absencePermit->id,
             'start_date' => $absencePermit->start_date,
             'end_date' => $absencePermit->end_date,
             'charge_percentage' => (float) $absencePermit->charge_percentage,
+            'charge_concept_code' => $absencePermit->chargeConcept?->code,
+            'charge_concept_name' => $absencePermit->chargeConcept?->name,
             'status' => $absencePermit->status,
             'blocks_facility_access' => (bool) $absencePermit->blocks_facility_access,
             'blocks_reservations' => (bool) $absencePermit->blocks_reservations,
             'notes' => $absencePermit->notes,
             'approved_at' => optional($absencePermit->approved_at)?->toDateTimeString(),
+            'can_be_cancelled' => $canBeCancelled,
         ];
     }
 
@@ -3172,6 +3287,7 @@ class MemberController extends Controller
         }
 
         return AbsencePermit::query()
+            ->with('chargeConcept')
             ->where(function (Builder $scope) use ($account) {
                 if ($account->account_group_id) {
                     $scope->where('account_group_id', $account->account_group_id);
@@ -3899,6 +4015,47 @@ class MemberController extends Controller
         ];
     }
 
+    /**
+     * Cuota del cargo "IF" (cambio de tipo dentro de la misma cuenta): si el
+     * socio todavía tiene inscripción/reinscripción pendiente de pago (no
+     * terminó de liquidar su alta original), no se usa la cuota de "cambio
+     * de tipo" de pricing rules — en su lugar se cobra el 50% de la
+     * inscripción completa que le correspondería a alguien que se da de
+     * alta nueva directamente en el tipo destino (regla de origen null),
+     * ya que la inscripción original sigue viva como adeudo aparte.
+     */
+    protected function resolveIfConceptInscriptionFee(
+        MembershipAccount $account,
+        MembershipType $targetMembershipType,
+        ?int $age,
+        bool $hasMultipleClubs,
+        float $fallbackFee
+    ): float {
+        $hasPendingInscription = Charge::query()
+            ->where('membership_account_id', $account->id)
+            ->whereHas('concept', fn (Builder $q) => $q->whereIn(
+                'code',
+                MembershipChargeService::INSCRIPTION_FAMILY_CODES
+            ))
+            ->whereIn('status', ['pending', 'partial'])
+            ->exists();
+
+        if (!$hasPendingInscription) {
+            return $fallbackFee;
+        }
+
+        $baseRule = $this->membershipPricingService->resolvePricingRule(
+            membershipTypeId: $targetMembershipType->id,
+            fromMembershipTypeId: null,
+            age: $this->membershipPricingService->shouldApplyAgeFilter($targetMembershipType) ? $age : null,
+            hasMultipleClubs: $hasMultipleClubs
+        );
+
+        $baseInscriptionFee = (float) ($baseRule?->resolveInscriptionFee() ?? 0);
+
+        return round($baseInscriptionFee * 0.5, 2);
+    }
+
     protected function resolveInterclubPackageRule(
         int $targetClubId,
         MembershipType $membershipType,
@@ -4193,13 +4350,20 @@ class MemberController extends Controller
         $formattedInscriptionFee = number_format($inscriptionFee, 2);
         $formattedAmountDueToday = number_format($amountDueToday, 2);
 
+        // Un cambio de tipo dentro de la misma cuenta cobra el concepto "IF",
+        // no una inscripción real — el texto debe reflejarlo para no
+        // confundir al usuario (ver resolveIfConceptInscriptionFee).
+        $inscriptionNoun = $sameClubTransition ? 'el cambio de tipo' : 'la inscripción';
+        $inscriptionConjunctionPhrase = $sameClubTransition ? 'y cambio de tipo' : 'e inscripción';
+        $inscriptionDePhrase = $sameClubTransition ? 'de cambio de tipo' : 'de inscripción';
+
         if ($currentMonthlyFee === null) {
             $message = $newMonthlyFeeTotal === $newMonthlyFeeShare
                 ? "La mensualidad de este parque será de $$formattedNewMonthlyFeeShare."
                 : "La cuota total del esquema será de $$formattedNewMonthlyFeeTotal y en este parque se cobrará $$formattedNewMonthlyFeeShare al mes.";
 
             if ($inscriptionFee > 0) {
-                return $message . " Hoy se pagarán $$formattedAmountDueToday considerando mensualidad e inscripción.";
+                return $message . " Hoy se pagarán $$formattedAmountDueToday considerando mensualidad $inscriptionConjunctionPhrase.";
             }
 
             return $message . " Hoy se pagará $$formattedAmountDueToday.";
@@ -4217,7 +4381,7 @@ class MemberController extends Controller
                 : "Esta membresía mantendrá un cobro independiente de $" . number_format($newMonthlyFeeShare, 2) . " al mes en este parque.";
 
             if ($inscriptionFee > 0) {
-                return $message . " Hoy se pagarán $" . number_format($amountDueToday, 2) . " considerando mensualidad e inscripción.";
+                return $message . " Hoy se pagarán $" . number_format($amountDueToday, 2) . " considerando mensualidad $inscriptionConjunctionPhrase.";
             }
 
             return $message . " Hoy se pagará $" . number_format($amountDueToday, 2) . ".";
@@ -4234,14 +4398,14 @@ class MemberController extends Controller
                 $message .= " Hoy se cobrará un ajuste de $$formattedAdditionalCharge";
 
                 if ($inscriptionFee > 0) {
-                    $message .= " más $$formattedInscriptionFee de inscripción";
+                    $message .= " más $$formattedInscriptionFee $inscriptionDePhrase";
                 }
 
                 return $message . ", para un total de $$formattedAmountDueToday.";
             }
 
             if ($inscriptionFee > 0) {
-                return $message . " Hoy solo se cobrará la inscripción por $$formattedInscriptionFee.";
+                return $message . " Hoy solo se cobrará $inscriptionNoun por $$formattedInscriptionFee.";
             }
 
             return $message . " Hoy no se generará cobro adicional.";
@@ -4251,7 +4415,7 @@ class MemberController extends Controller
             $message = "La cuota total del esquema bajará de $$formattedCurrentMonthlyFee a $$formattedNewMonthlyFeeTotal. En este parque se cobrará $$formattedNewMonthlyFeeShare al mes.";
 
             if ($inscriptionFee > 0) {
-                return $message . " No se generará saldo a favor; hoy solo se cobrará la inscripción por $$formattedInscriptionFee.";
+                return $message . " No se generará saldo a favor; hoy solo se cobrará $inscriptionNoun por $$formattedInscriptionFee.";
             }
 
             return $message . " No se generará saldo a favor ni cobro adicional hoy.";
@@ -4264,7 +4428,7 @@ class MemberController extends Controller
         $message .= " En este parque se cobrará $$formattedNewMonthlyFeeShare al mes.";
 
         if ($inscriptionFee > 0) {
-            return $message . " Hoy solo se cobrará la inscripción por $$formattedInscriptionFee.";
+            return $message . " Hoy solo se cobrará $inscriptionNoun por $$formattedInscriptionFee.";
         }
 
         return $message . " Hoy no se generará cobro adicional.";

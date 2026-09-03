@@ -18,6 +18,7 @@ import AppLayout from "@/Layouts/AppLayout.vue";
 import { customToastSwal } from "@/utils/swal";
 import { Head, useForm, usePage } from "@inertiajs/vue3";
 import { computed, ref, watch } from "vue";
+import { useDisplay } from "vuetify";
 
 const page = usePage<any>();
 const can = page.props.auth.permissions;
@@ -236,6 +237,10 @@ interface PricingPreview {
     monthly_fee_total: number;
     monthly_fee_share: number;
     inscription_fee: number;
+    // "Inscripción" para una alta normal; para un cambio de tipo dentro de
+    // la misma cuenta (concepto IF), algo como "Cambio de Individual a
+    // Familiar" — ver MemberController::pricingPreview().
+    inscription_fee_label: string;
     total_due: number;
     amount_due_today: number;
     rule_type: string | null;
@@ -431,7 +436,7 @@ const currencyFormatter = new Intl.NumberFormat("es-MX", {
 });
 
 const filteredMembershipTypes = computed(() => {
-    const search = membershipTypeSearch.value.trim().toLowerCase();
+    const search = (membershipTypeSearch.value ?? "").trim().toLowerCase();
 
     if (!search) {
         return props.membershipTypes;
@@ -449,6 +454,25 @@ const filteredMembershipTypes = computed(() => {
         );
     });
 });
+
+// El layout de tarjetas + panel lateral (mockup "escritorio") se muestra en
+// pantallas medianas o más grandes; en pantallas más chicas se usa el layout
+// de lista/acordeón (mockup "compacto") — ver template del paso 1.
+const { mdAndUp } = useDisplay();
+
+const selectedTypeIndex = computed(() => {
+    if (!form.membershipType) return null;
+    const idx = filteredMembershipTypes.value.findIndex(
+        (t) => t.id === form.membershipType!.id,
+    );
+    return idx === -1 ? null : idx + 1;
+});
+
+const isSelectedType = (membershipType: MembershipType) =>
+    form.membershipType?.id === membershipType.id;
+
+const typeInitial = (membershipType: MembershipType) =>
+    (membershipType.name?.[0] ?? membershipType.code?.[0] ?? "?").toUpperCase();
 
 const form = useForm<MembershipsForm>({
     id: null,
@@ -981,6 +1005,27 @@ const crossClubTargetSummary = computed(() => {
     return `${props.targetClub.code} - ${props.targetClub.name}`;
 });
 
+// Barra compacta de origen → destino (ver mockup "2a"): reemplaza las
+// tarjetas de contexto que antes ocupaban ~400px arriba del selector — el
+// detalle completo se pliega detrás de "Ver detalle del trámite".
+const showTramiteDetail = ref(false);
+
+const tramiteBadgeLabel = computed(() =>
+    props.isCrossClubRequest ? "Solicitud del otro parque" : "Cambio",
+);
+
+const destinationSubtitle = computed(() =>
+    props.isCrossClubRequest
+        ? "Cuenta nueva en el club destino"
+        : "Se conserva la misma cuenta",
+);
+
+const tramiteCostNote = computed(() =>
+    props.isCrossClubRequest
+        ? 'El costo se calcula según la membresía de origen y el tipo destino. No se captura origen manualmente: la solicitud parte de una membresía activa.'
+        : 'El costo se calcula según el tipo actual y el nuevo tipo seleccionado. No se captura origen manualmente: el cambio parte de la membresía activa de esta cuenta.',
+);
+
 const previewingDocId = ref<number | null>(null);
 
 const previewDocument = async (documentId: number) => {
@@ -1344,467 +1389,292 @@ watch(applyInscriptionDiscount, (val) => {
                         <!-- STEP 1 -->
                         <template #item.1>
                             <v-container class="h-[500px] overflow-auto">
-                                <h3 class="text-lg font-medium text-center">
-                                    ¿Qué tipo de membresía necesita?
-                                </h3>
-
-                                <p
-                                    class="mb-6 text-center text-sm text-gray-600"
+                                <div
+                                    class="d-flex flex-wrap align-center justify-space-between ga-2 mb-1"
                                 >
+                                    <h3 class="text-lg font-medium">
+                                        ¿Qué tipo de membresía necesita?
+                                    </h3>
+                                    <span
+                                        v-if="selectedTypeIndex"
+                                        class="text-caption text-medium-emphasis"
+                                    >
+                                        {{ selectedTypeIndex }} de
+                                        {{ filteredMembershipTypes.length }}
+                                        tipos
+                                    </span>
+                                </div>
+
+                                <p class="mb-6 text-sm text-gray-600">
                                     El tipo de membresía determina los
                                     documentos e información que se solicitarán.
                                 </p>
 
-                                <v-alert
+                                <v-card
                                     v-if="
                                         usesSourceMembership &&
                                         props.sourceMembership
                                     "
-                                    type="info"
-                                    variant="tonal"
-                                    class="mb-6"
+                                    variant="outlined"
+                                    class="mb-4 tramite-bar"
                                 >
-                                    <strong>Titular:</strong>
-                                    {{ props.sourceMembership.holder_name }}
-                                    · {{ sourceMembershipSummary }}
-                                    · No. cuenta:
-                                    {{
-                                        props.sourceMembership
-                                            .membership_number || "-"
-                                    }}
-                                </v-alert>
+                                    <div
+                                        class="d-flex align-center flex-wrap ga-3 px-4 py-3"
+                                    >
+                                        <v-chip
+                                            size="small"
+                                            color="primary"
+                                            variant="flat"
+                                            class="text-uppercase font-weight-bold"
+                                        >
+                                            {{ tramiteBadgeLabel }}
+                                        </v-chip>
 
-                                <template
-                                    v-if="
-                                        props.isCrossClubRequest &&
-                                        props.sourceMembership
-                                    "
-                                >
-                                    <v-row class="mb-2">
-                                        <v-col cols="12" md="4">
-                                            <v-card
-                                                variant="tonal"
-                                                class="pa-4 h-100"
-                                            >
+                                        <div
+                                            class="flex-grow-1 d-flex align-center flex-wrap ga-3"
+                                        >
+                                            <div>
                                                 <div
-                                                    class="text-caption text-medium-emphasis"
-                                                >
-                                                    Solicitud
-                                                </div>
-                                                <div
-                                                    class="text-subtitle-1 font-weight-bold"
-                                                >
-                                                    Nuevo trámite para el otro
-                                                    parque
-                                                </div>
-                                                <div class="text-body-2 mt-2">
-                                                    Se creará una nueva cuenta
-                                                    en el club destino.
-                                                </div>
-                                            </v-card>
-                                        </v-col>
-
-                                        <v-col cols="12" md="4">
-                                            <v-card
-                                                variant="tonal"
-                                                class="pa-4 h-100"
-                                            >
-                                                <div
-                                                    class="text-caption text-medium-emphasis"
-                                                >
-                                                    Membresía de origen
-                                                </div>
-                                                <div
-                                                    class="text-subtitle-1 font-weight-bold"
+                                                    class="text-body-2 font-weight-medium"
                                                 >
                                                     {{
                                                         sourceMembershipSummary
                                                     }}
                                                 </div>
-                                                <div class="text-body-2 mt-2">
-                                                    Titular:
+                                                <div
+                                                    class="text-caption text-medium-emphasis"
+                                                >
                                                     {{
                                                         props.sourceMembership
                                                             .holder_name
                                                     }}
-                                                </div>
-                                                <div class="text-body-2">
-                                                    No. cuenta:
+                                                    ·
                                                     {{
                                                         props.sourceMembership
                                                             .membership_number ||
                                                         "-"
                                                     }}
                                                 </div>
-                                                <div class="text-body-2">
-                                                    Inicio:
-                                                    {{
-                                                        formatDate(
-                                                            props
-                                                                .sourceMembership
-                                                                .start_date,
-                                                        )
-                                                    }}
-                                                </div>
-                                            </v-card>
-                                        </v-col>
-
-                                        <v-col cols="12" md="4">
-                                            <v-card
-                                                variant="tonal"
-                                                class="pa-4 h-100"
-                                            >
-                                                <div
-                                                    class="text-caption text-medium-emphasis"
-                                                >
-                                                    Club destino
-                                                </div>
-                                                <div
-                                                    class="text-subtitle-1 font-weight-bold"
-                                                >
-                                                    {{ crossClubTargetSummary }}
-                                                </div>
-                                                <div class="text-body-2 mt-2">
-                                                    El costo se calculará según
-                                                    la membresía de origen y el
-                                                    tipo destino.
-                                                </div>
-                                            </v-card>
-                                        </v-col>
-                                    </v-row>
-
-                                    <v-alert
-                                        type="info"
-                                        variant="tonal"
-                                        class="mb-6"
-                                    >
-                                        La captura manual de origen se omite en
-                                        este flujo porque la solicitud ya parte
-                                        de una membresía activa real.
-                                    </v-alert>
-                                </template>
-
-                                <template
-                                    v-else-if="
-                                        props.isMembershipTransition &&
-                                        props.sourceMembership
-                                    "
-                                >
-                                    <v-row class="mb-2">
-                                        <v-col cols="12" md="6">
-                                            <v-card
-                                                variant="tonal"
-                                                class="pa-4 h-100"
-                                            >
-                                                <div
-                                                    class="text-caption text-medium-emphasis"
-                                                >
-                                                    Cambio
-                                                </div>
-                                                <div
-                                                    class="text-subtitle-1 font-weight-bold"
-                                                >
-                                                    Misma cuenta, mismo no. cuenta
-                                                </div>
-                                                <div class="text-body-2 mt-2">
-                                                    Se conservará el no. cuenta
-                                                    {{
-                                                        props.sourceMembership
-                                                            .membership_number ||
-                                                        "-"
-                                                    }}
-                                                    y se actualizará la cuota de
-                                                    esta cuenta.
-                                                </div>
-                                            </v-card>
-                                        </v-col>
-
-                                        <v-col cols="12" md="6">
-                                            <v-card
-                                                variant="tonal"
-                                                class="pa-4 h-100"
-                                            >
-                                                <div
-                                                    class="text-caption text-medium-emphasis"
-                                                >
-                                                    Membresía actual
-                                                </div>
-                                                <div
-                                                    class="text-subtitle-1 font-weight-bold"
-                                                >
-                                                    {{
-                                                        sourceMembershipSummary
-                                                    }}
-                                                </div>
-                                                <div class="text-body-2 mt-2">
-                                                    Inicio:
-                                                    {{
-                                                        formatDate(
-                                                            props
-                                                                .sourceMembership
-                                                                .start_date,
-                                                        )
-                                                    }}
-                                                </div>
-                                                <div class="text-body-2">
-                                                    Club:
-                                                    {{
-                                                        props.sourceMembership
-                                                            .club_name
-                                                    }}
-                                                </div>
-                                            </v-card>
-                                        </v-col>
-                                    </v-row>
-
-                                    <v-alert
-                                        type="info"
-                                        variant="tonal"
-                                        class="mb-6"
-                                    >
-                                        Este flujo actualiza la membresía actual
-                                        dentro de la misma cuenta, por eso no se
-                                        captura un origen manual.
-                                    </v-alert>
-                                </template>
-
-                                <v-card
-                                    v-if="
-                                        form.membershipType &&
-                                        (pricingPreviewLoading ||
-                                            pricingPreview ||
-                                            pricingPreviewError)
-                                    "
-                                    class="pa-4 mb-6"
-                                    variant="tonal"
-                                >
-                                    <div
-                                        class="d-flex flex-wrap align-center justify-space-between ga-2"
-                                    >
-                                        <div>
-                                            <div
-                                                class="text-caption text-medium-emphasis"
-                                            >
-                                                Vista previa de cobro
                                             </div>
-                                            <div
-                                                class="text-subtitle-1 font-weight-bold"
-                                            >
-                                                {{
-                                                    form.membershipType?.name ||
-                                                    "Membresía seleccionada"
-                                                }}
+
+                                            <v-icon
+                                                icon="mdi-arrow-right"
+                                                size="18"
+                                                class="text-medium-emphasis"
+                                            />
+
+                                            <div>
+                                                <div
+                                                    class="text-body-2 font-weight-medium"
+                                                >
+                                                    {{
+                                                        crossClubTargetSummary
+                                                    }}
+                                                </div>
+                                                <div
+                                                    class="text-caption text-medium-emphasis"
+                                                >
+                                                    {{ destinationSubtitle }}
+                                                </div>
                                             </div>
                                         </div>
 
                                         <v-chip
-                                            v-if="pricingPreview?.rule_type"
                                             size="small"
-                                            color="primary"
                                             variant="tonal"
+                                            color="teal"
+                                            class="cursor-pointer"
+                                            @click="
+                                                showTramiteDetail =
+                                                    !showTramiteDetail
+                                            "
                                         >
                                             {{
-                                                pricingPreview.rule_type ===
-                                                "interclub"
-                                                    ? "Paquete interclub"
-                                                    : "Regla de precio"
+                                                showTramiteDetail
+                                                    ? "Ocultar detalle"
+                                                    : "Ver detalle del trámite"
                                             }}
                                         </v-chip>
                                     </div>
 
-                                    <v-row class="mt-2">
-                                        <v-col cols="12" md="3">
-                                            <v-skeleton-loader
-                                                v-if="pricingPreviewLoading"
-                                                type="paragraph"
-                                            />
-                                            <template v-else>
-                                                <div
-                                                    class="text-caption text-medium-emphasis"
-                                                >
-                                                    Cuota total del esquema
-                                                </div>
-                                                <div
-                                                    class="text-h6 font-weight-bold"
-                                                >
-                                                    {{
-                                                        pricingPreview
-                                                            ? currencyFormatter.format(
-                                                                  pricingPreview.monthly_fee_total,
-                                                              )
-                                                            : "-"
-                                                    }}
-                                                </div>
-                                            </template>
-                                        </v-col>
-
-                                        <v-col cols="12" md="3">
-                                            <v-skeleton-loader
-                                                v-if="pricingPreviewLoading"
-                                                type="paragraph"
-                                            />
-                                            <template v-else>
-                                                <div
-                                                    class="text-caption text-medium-emphasis"
-                                                >
-                                                    Cuota de este parque
-                                                </div>
-                                                <div
-                                                    class="text-h6 font-weight-bold"
-                                                >
-                                                    {{
-                                                        pricingPreview
-                                                            ? currencyFormatter.format(
-                                                                  pricingPreview.monthly_fee_share,
-                                                              )
-                                                            : "-"
-                                                    }}
-                                                </div>
-                                            </template>
-                                        </v-col>
-
-                                        <v-col cols="12" md="3">
-                                            <v-skeleton-loader
-                                                v-if="pricingPreviewLoading"
-                                                type="paragraph"
-                                            />
-                                            <template v-else>
-                                                <div
-                                                    class="text-caption text-medium-emphasis"
-                                                >
-                                                    Inscripción
-                                                </div>
-                                                <div
-                                                    class="text-h6 font-weight-bold"
-                                                >
-                                                    {{
-                                                        pricingPreview
-                                                            ? currencyFormatter.format(
-                                                                  pricingPreview.inscription_fee,
-                                                              )
-                                                            : "-"
-                                                    }}
-                                                </div>
-                                            </template>
-                                        </v-col>
-
-                                        <v-col cols="12" md="3">
-                                            <v-skeleton-loader
-                                                v-if="pricingPreviewLoading"
-                                                type="paragraph"
-                                            />
-                                            <template v-else>
-                                                <div
-                                                    class="text-caption text-medium-emphasis"
-                                                >
-                                                    Total a pagar hoy
-                                                </div>
-                                                <div
-                                                    class="text-h6 font-weight-bold"
-                                                >
-                                                    {{
-                                                        pricingPreview
-                                                            ? currencyFormatter.format(
-                                                                  pricingPreview.amount_due_today,
-                                                              )
-                                                            : "-"
-                                                    }}
-                                                </div>
-                                            </template>
-                                        </v-col>
-                                    </v-row>
-
-                                    <v-row
-                                        v-if="
-                                            !pricingPreviewLoading &&
-                                            pricingPreview &&
-                                            (pricingPreview.current_monthly_fee !==
-                                                null ||
-                                                pricingPreview.additional_monthly_charge !==
-                                                    null)
-                                        "
-                                        class="mt-1"
-                                    >
-                                        <v-col
-                                            v-if="
-                                                pricingPreview.current_monthly_fee !==
-                                                null
-                                            "
-                                            cols="12"
-                                            md="6"
+                                    <v-expand-transition>
+                                        <div
+                                            v-if="showTramiteDetail"
+                                            class="px-4 pb-4"
                                         >
-                                            <div
-                                                class="text-caption text-medium-emphasis"
+                                            <v-divider class="mb-4" />
+
+                                            <template
+                                                v-if="props.isCrossClubRequest"
                                             >
-                                                Cuota actual del esquema
-                                            </div>
-                                            <div class="text-body-1">
-                                                {{
-                                                    currencyFormatter.format(
-                                                        pricingPreview.current_monthly_fee,
-                                                    )
-                                                }}
-                                            </div>
-                                        </v-col>
+                                                <v-row class="mb-2">
+                                                    <v-col
+                                                        cols="12"
+                                                        md="4"
+                                                    >
+                                                        <div
+                                                            class="text-caption text-medium-emphasis"
+                                                        >
+                                                            Solicitud
+                                                        </div>
+                                                        <div
+                                                            class="text-body-2 font-weight-bold"
+                                                        >
+                                                            Nuevo trámite
+                                                            para el otro
+                                                            parque
+                                                        </div>
+                                                        <div
+                                                            class="text-body-2 mt-1"
+                                                        >
+                                                            Se creará una
+                                                            nueva cuenta en
+                                                            el club
+                                                            destino.
+                                                        </div>
+                                                    </v-col>
 
-                                        <v-col
-                                            v-if="
-                                                pricingPreview.additional_monthly_charge !==
-                                                null
-                                            "
-                                            cols="12"
-                                            md="6"
-                                        >
-                                            <div
-                                                class="text-caption text-medium-emphasis"
-                                            >
-                                                Ajuste mensual de hoy
-                                            </div>
-                                            <div class="text-body-1">
-                                                {{
-                                                    currencyFormatter.format(
-                                                        pricingPreview.additional_monthly_charge,
-                                                    )
-                                                }}
-                                            </div>
-                                        </v-col>
-                                    </v-row>
+                                                    <v-col
+                                                        cols="12"
+                                                        md="4"
+                                                    >
+                                                        <div
+                                                            class="text-caption text-medium-emphasis"
+                                                        >
+                                                            Membresía de
+                                                            origen
+                                                        </div>
+                                                        <div
+                                                            class="text-body-2 font-weight-bold"
+                                                        >
+                                                            {{
+                                                                sourceMembershipSummary
+                                                            }}
+                                                        </div>
+                                                        <div
+                                                            class="text-body-2 mt-1"
+                                                        >
+                                                            Inicio:
+                                                            {{
+                                                                formatDate(
+                                                                    props
+                                                                        .sourceMembership
+                                                                        .start_date,
+                                                                )
+                                                            }}
+                                                        </div>
+                                                    </v-col>
 
-                                    <v-alert
-                                        v-if="
-                                            pricingPreviewError &&
-                                            !pricingPreviewLoading
-                                        "
-                                        type="warning"
-                                        variant="tonal"
-                                        class="mt-4"
-                                    >
-                                        {{ pricingPreviewError }}
-                                    </v-alert>
+                                                    <v-col
+                                                        cols="12"
+                                                        md="4"
+                                                    >
+                                                        <div
+                                                            class="text-caption text-medium-emphasis"
+                                                        >
+                                                            Club destino
+                                                        </div>
+                                                        <div
+                                                            class="text-body-2 font-weight-bold"
+                                                        >
+                                                            {{
+                                                                crossClubTargetSummary
+                                                            }}
+                                                        </div>
+                                                        <div
+                                                            class="text-body-2 mt-1"
+                                                        >
+                                                            El costo se
+                                                            calculará
+                                                            según la
+                                                            membresía de
+                                                            origen y el
+                                                            tipo destino.
+                                                        </div>
+                                                    </v-col>
+                                                </v-row>
+                                            </template>
 
-                                    <v-alert
-                                        v-else-if="
-                                            pricingPreview?.charge_explanation
-                                        "
-                                        type="info"
-                                        variant="tonal"
-                                        class="mt-4"
-                                    >
-                                        {{ pricingPreview.charge_explanation }}
-                                    </v-alert>
+                                            <template v-else>
+                                                <v-row class="mb-2">
+                                                    <v-col
+                                                        cols="12"
+                                                        md="6"
+                                                    >
+                                                        <div
+                                                            class="text-caption text-medium-emphasis"
+                                                        >
+                                                            Cambio
+                                                        </div>
+                                                        <div
+                                                            class="text-body-2 font-weight-bold"
+                                                        >
+                                                            Misma cuenta,
+                                                            mismo no.
+                                                            cuenta
+                                                        </div>
+                                                        <div
+                                                            class="text-body-2 mt-1"
+                                                        >
+                                                            Se conservará
+                                                            el no. cuenta
+                                                            {{
+                                                                props
+                                                                    .sourceMembership
+                                                                    .membership_number ||
+                                                                "-"
+                                                            }}
+                                                            y se
+                                                            actualizará la
+                                                            cuota de esta
+                                                            cuenta.
+                                                        </div>
+                                                    </v-col>
 
-                                    <v-alert
-                                        v-else-if="
-                                            pricingPreview?.source_membership_becomes_non_billable
-                                        "
-                                        type="info"
-                                        variant="tonal"
-                                        class="mt-4"
-                                    >
-                                        Al aplicar esta regla, la membresía
-                                        origen dejará de ser cobrable y solo se
-                                        considerará este nuevo monto.
-                                    </v-alert>
+                                                    <v-col
+                                                        cols="12"
+                                                        md="6"
+                                                    >
+                                                        <div
+                                                            class="text-caption text-medium-emphasis"
+                                                        >
+                                                            Membresía
+                                                            actual
+                                                        </div>
+                                                        <div
+                                                            class="text-body-2 font-weight-bold"
+                                                        >
+                                                            {{
+                                                                sourceMembershipSummary
+                                                            }}
+                                                        </div>
+                                                        <div
+                                                            class="text-body-2 mt-1"
+                                                        >
+                                                            Inicio:
+                                                            {{
+                                                                formatDate(
+                                                                    props
+                                                                        .sourceMembership
+                                                                        .start_date,
+                                                                )
+                                                            }}
+                                                        </div>
+                                                        <div
+                                                            class="text-body-2"
+                                                        >
+                                                            Club:
+                                                            {{
+                                                                props
+                                                                    .sourceMembership
+                                                                    .club_name
+                                                            }}
+                                                        </div>
+                                                    </v-col>
+                                                </v-row>
+                                            </template>
+                                        </div>
+                                    </v-expand-transition>
                                 </v-card>
 
                                 <v-text-field
@@ -1814,8 +1684,18 @@ watch(applyInscriptionDiscount, (val) => {
                                     prepend-inner-icon="mdi-magnify"
                                     variant="outlined"
                                     clearable
-                                    class="mb-4"
+                                    class="mb-1"
                                 />
+
+                                <p
+                                    v-if="
+                                        usesSourceMembership &&
+                                        props.sourceMembership
+                                    "
+                                    class="text-caption text-medium-emphasis mb-4"
+                                >
+                                    {{ tramiteCostNote }}
+                                </p>
 
                                 <v-alert
                                     v-if="filteredMembershipTypes.length === 0"
@@ -1827,82 +1707,768 @@ watch(applyInscriptionDiscount, (val) => {
                                     criterio.
                                 </v-alert>
 
-                                <v-row>
-                                    <v-col
-                                        v-for="membershipType in filteredMembershipTypes"
-                                        :key="membershipType.id"
-                                        cols="12"
-                                        md="6"
-                                    >
-                                        <v-card
-                                            class="pa-6 membership-card"
-                                            elevation="2"
-                                            :class="{
-                                                'selected-membership-card':
-                                                    form.membershipType?.id ===
-                                                    membershipType.id,
-                                            }"
-                                            @click="selectType(membershipType)"
-                                        >
-                                            <v-row no-gutters>
-                                                <v-col cols="auto">
-                                                    <v-avatar
-                                                        size="56"
-                                                        color="grey-lighten-3"
-                                                    >
-                                                        <v-icon
-                                                            :icon="
-                                                                membershipType.allows_multiple_members
-                                                                    ? 'mdi-account-multiple'
-                                                                    : 'mdi-account'
-                                                            "
-                                                        />
-                                                    </v-avatar>
-                                                </v-col>
-
-                                                <v-col class="ml-4">
-                                                    <h3
-                                                        class="text-h6 font-weight-medium"
-                                                    >
-                                                        {{
-                                                            membershipType.name
-                                                        }}
-                                                    </h3>
-
-                                                    <p class="text-body-2 mt-2">
-                                                        {{
-                                                            membershipType.description
-                                                        }}
-                                                    </p>
-
+                                <!-- Escritorio: tarjetas + panel lateral de resumen -->
+                                <v-row v-if="mdAndUp" class="align-start">
+                                    <v-col cols="12" lg="8">
+                                        <v-row>
+                                            <v-col
+                                                v-for="membershipType in filteredMembershipTypes"
+                                                :key="membershipType.id"
+                                                cols="12"
+                                                md="6"
+                                            >
+                                                <v-card
+                                                    class="pa-4 membership-card h-100"
+                                                    elevation="2"
+                                                    :class="{
+                                                        'selected-membership-card':
+                                                            isSelectedType(
+                                                                membershipType,
+                                                            ),
+                                                    }"
+                                                    @click="
+                                                        selectType(
+                                                            membershipType,
+                                                        )
+                                                    "
+                                                >
                                                     <div
-                                                        class="mt-4 h-64 overflow-auto"
+                                                        class="d-flex align-start ga-3"
                                                     >
-                                                        <strong
-                                                            >Documentos
-                                                            requeridos:</strong
+                                                        <v-avatar
+                                                            size="40"
+                                                            :color="
+                                                                isSelectedType(
+                                                                    membershipType,
+                                                                )
+                                                                    ? 'primary'
+                                                                    : 'grey-lighten-3'
+                                                            "
                                                         >
-                                                        <ul class="mt-2">
-                                                            <li
-                                                                v-for="doc in membershipType.document_types"
-                                                                :key="doc.id"
+                                                            <span
+                                                                class="text-subtitle-1 font-weight-bold"
+                                                                :class="
+                                                                    isSelectedType(
+                                                                        membershipType,
+                                                                    )
+                                                                        ? 'text-white'
+                                                                        : ''
+                                                                "
                                                             >
                                                                 {{
-                                                                    doc.pivot
-                                                                        .number_files ===
-                                                                    1
-                                                                        ? ""
-                                                                        : `${doc.pivot.number_files} x `
+                                                                    typeInitial(
+                                                                        membershipType,
+                                                                    )
                                                                 }}
-                                                                {{ doc.name }}
-                                                            </li>
-                                                        </ul>
+                                                            </span>
+                                                        </v-avatar>
+
+                                                        <div
+                                                            class="flex-grow-1"
+                                                        >
+                                                            <div
+                                                                class="d-flex align-center justify-space-between ga-2"
+                                                            >
+                                                                <h4
+                                                                    class="text-subtitle-1 font-weight-medium"
+                                                                >
+                                                                    {{
+                                                                        membershipType.name
+                                                                    }}
+                                                                </h4>
+                                                                <v-icon
+                                                                    v-if="
+                                                                        isSelectedType(
+                                                                            membershipType,
+                                                                        )
+                                                                    "
+                                                                    icon="mdi-check-circle"
+                                                                    color="primary"
+                                                                    size="20"
+                                                                />
+                                                            </div>
+                                                            <p
+                                                                class="text-body-2 text-medium-emphasis mb-2"
+                                                            >
+                                                                {{
+                                                                    membershipType.description
+                                                                }}
+                                                            </p>
+                                                            <div
+                                                                class="d-flex align-center justify-space-between"
+                                                            >
+                                                                <span
+                                                                    class="text-subtitle-2 font-weight-bold"
+                                                                >
+                                                                    {{
+                                                                        isSelectedType(
+                                                                            membershipType,
+                                                                        ) &&
+                                                                        pricingPreview
+                                                                            ? `${currencyFormatter.format(pricingPreview.monthly_fee_share)} / mes`
+                                                                            : "—"
+                                                                    }}
+                                                                </span>
+                                                                <v-chip
+                                                                    size="small"
+                                                                    variant="tonal"
+                                                                >
+                                                                    {{
+                                                                        membershipType
+                                                                            .document_types
+                                                                            .length
+                                                                    }}
+                                                                    documentos
+                                                                </v-chip>
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                </v-col>
-                                            </v-row>
+                                                </v-card>
+                                            </v-col>
+                                        </v-row>
+                                    </v-col>
+
+                                    <v-col cols="12" lg="4">
+                                        <v-card
+                                            class="pa-4 selection-summary-card"
+                                            variant="tonal"
+                                        >
+                                            <div
+                                                v-if="!form.membershipType"
+                                                class="text-body-2 text-medium-emphasis text-center py-8"
+                                            >
+                                                Selecciona un tipo de
+                                                membresía para ver el
+                                                desglose de cobro y los
+                                                documentos requeridos.
+                                            </div>
+
+                                            <template v-else>
+                                                <div
+                                                    class="d-flex flex-wrap align-center justify-space-between ga-2 mb-2"
+                                                >
+                                                    <span
+                                                        class="text-caption text-medium-emphasis summary-eyebrow"
+                                                    >
+                                                        Resumen de la
+                                                        selección
+                                                    </span>
+                                                    <v-chip
+                                                        v-if="
+                                                            pricingPreview?.rule_type
+                                                        "
+                                                        size="small"
+                                                        color="primary"
+                                                        variant="tonal"
+                                                    >
+                                                        {{
+                                                            pricingPreview.rule_type ===
+                                                            "interclub"
+                                                                ? "Paquete interclub"
+                                                                : "Regla de precio"
+                                                        }}
+                                                    </v-chip>
+                                                </div>
+                                                <div
+                                                    class="text-h6 font-weight-bold mb-4"
+                                                >
+                                                    {{
+                                                        form.membershipType
+                                                            .name
+                                                    }}
+                                                </div>
+
+                                                <v-skeleton-loader
+                                                    v-if="
+                                                        pricingPreviewLoading
+                                                    "
+                                                    type="paragraph"
+                                                />
+                                                <template
+                                                    v-else-if="
+                                                        pricingPreview
+                                                    "
+                                                >
+                                                    <div
+                                                        class="d-flex justify-space-between text-body-2 mb-1"
+                                                    >
+                                                        <span
+                                                            class="text-medium-emphasis"
+                                                            >Cuota total
+                                                            del
+                                                            esquema</span
+                                                        >
+                                                        <span>{{
+                                                            currencyFormatter.format(
+                                                                pricingPreview.monthly_fee_total,
+                                                            )
+                                                        }}</span>
+                                                    </div>
+                                                    <div
+                                                        class="d-flex justify-space-between text-body-2 mb-1"
+                                                    >
+                                                        <span
+                                                            class="text-medium-emphasis"
+                                                            >Cuota de este
+                                                            parque</span
+                                                        >
+                                                        <span>{{
+                                                            currencyFormatter.format(
+                                                                pricingPreview.monthly_fee_share,
+                                                            )
+                                                        }}</span>
+                                                    </div>
+                                                    <div
+                                                        class="d-flex justify-space-between text-body-2 mb-2"
+                                                    >
+                                                        <span
+                                                            class="text-medium-emphasis"
+                                                            >{{
+                                                                pricingPreview.inscription_fee_label
+                                                            }}</span
+                                                        >
+                                                        <span>{{
+                                                            currencyFormatter.format(
+                                                                pricingPreview.inscription_fee,
+                                                            )
+                                                        }}</span>
+                                                    </div>
+                                                    <v-divider
+                                                        class="mb-2"
+                                                    />
+                                                    <div
+                                                        class="d-flex justify-space-between align-center"
+                                                    >
+                                                        <span
+                                                            class="text-subtitle-1 font-weight-bold"
+                                                            >Total a
+                                                            pagar hoy</span
+                                                        >
+                                                        <span
+                                                            class="text-h6 font-weight-bold"
+                                                            >{{
+                                                                currencyFormatter.format(
+                                                                    pricingPreview.amount_due_today,
+                                                                )
+                                                            }}</span
+                                                        >
+                                                    </div>
+
+                                                    <div
+                                                        v-if="
+                                                            pricingPreview.current_monthly_fee !==
+                                                                null ||
+                                                            pricingPreview.additional_monthly_charge !==
+                                                                null
+                                                        "
+                                                        class="mt-2"
+                                                    >
+                                                        <div
+                                                            v-if="
+                                                                pricingPreview.current_monthly_fee !==
+                                                                null
+                                                            "
+                                                            class="d-flex justify-space-between text-body-2"
+                                                        >
+                                                            <span
+                                                                class="text-medium-emphasis"
+                                                                >Cuota
+                                                                actual del
+                                                                esquema</span
+                                                            >
+                                                            <span>{{
+                                                                currencyFormatter.format(
+                                                                    pricingPreview.current_monthly_fee,
+                                                                )
+                                                            }}</span>
+                                                        </div>
+                                                        <div
+                                                            v-if="
+                                                                pricingPreview.additional_monthly_charge !==
+                                                                null
+                                                            "
+                                                            class="d-flex justify-space-between text-body-2"
+                                                        >
+                                                            <span
+                                                                class="text-medium-emphasis"
+                                                                >Ajuste
+                                                                mensual de
+                                                                hoy</span
+                                                            >
+                                                            <span>{{
+                                                                currencyFormatter.format(
+                                                                    pricingPreview.additional_monthly_charge,
+                                                                )
+                                                            }}</span>
+                                                        </div>
+                                                    </div>
+                                                    <p
+                                                        v-else
+                                                        class="text-caption text-medium-emphasis mt-2 mb-0"
+                                                    >
+                                                        Después del alta,
+                                                        la mensualidad de
+                                                        este parque será
+                                                        de
+                                                        {{
+                                                            currencyFormatter.format(
+                                                                pricingPreview.monthly_fee_share,
+                                                            )
+                                                        }}.
+                                                    </p>
+
+                                                    <v-alert
+                                                        v-if="
+                                                            pricingPreview.charge_explanation
+                                                        "
+                                                        type="info"
+                                                        variant="tonal"
+                                                        density="compact"
+                                                        class="mt-3"
+                                                    >
+                                                        {{
+                                                            pricingPreview.charge_explanation
+                                                        }}
+                                                    </v-alert>
+                                                    <v-alert
+                                                        v-else-if="
+                                                            pricingPreview.source_membership_becomes_non_billable
+                                                        "
+                                                        type="info"
+                                                        variant="tonal"
+                                                        density="compact"
+                                                        class="mt-3"
+                                                    >
+                                                        Al aplicar esta
+                                                        regla, la
+                                                        membresía origen
+                                                        dejará de ser
+                                                        cobrable y solo
+                                                        se considerará
+                                                        este nuevo monto.
+                                                    </v-alert>
+                                                </template>
+                                                <v-alert
+                                                    v-if="
+                                                        pricingPreviewError &&
+                                                        !pricingPreviewLoading
+                                                    "
+                                                    type="warning"
+                                                    variant="tonal"
+                                                    density="compact"
+                                                    class="mt-2"
+                                                >
+                                                    {{ pricingPreviewError }}
+                                                </v-alert>
+
+                                                <v-divider class="my-4" />
+
+                                                <div
+                                                    class="d-flex align-center justify-space-between mb-2"
+                                                >
+                                                    <span
+                                                        class="text-caption text-medium-emphasis summary-eyebrow"
+                                                        >Documentos
+                                                        requeridos</span
+                                                    >
+                                                    <span
+                                                        class="text-caption text-medium-emphasis"
+                                                        >{{
+                                                            form
+                                                                .membershipType
+                                                                .document_types
+                                                                .length
+                                                        }}
+                                                        en total</span
+                                                    >
+                                                </div>
+                                                <ul class="pl-4 mb-0">
+                                                    <li
+                                                        v-for="doc in form.membershipType.document_types"
+                                                        :key="doc.id"
+                                                        class="text-body-2 mb-1"
+                                                    >
+                                                        {{
+                                                            doc.pivot
+                                                                .number_files ===
+                                                            1
+                                                                ? ""
+                                                                : `${doc.pivot.number_files} x `
+                                                        }}{{ doc.name }}
+                                                    </li>
+                                                </ul>
+                                            </template>
                                         </v-card>
                                     </v-col>
                                 </v-row>
+
+                                <!-- Compacto: lista tipo acordeón -->
+                                <v-card
+                                    v-else
+                                    variant="outlined"
+                                    class="pa-0"
+                                >
+                                    <div
+                                        class="d-flex px-4 py-2 bg-grey-lighten-4 text-caption text-medium-emphasis font-weight-medium accordion-header"
+                                    >
+                                        <span class="flex-grow-1"
+                                            >Membresía</span
+                                        >
+                                        <span class="accordion-col-price"
+                                            >Mensualidad</span
+                                        >
+                                        <span class="accordion-col-price"
+                                            >Total hoy</span
+                                        >
+                                        <span
+                                            class="accordion-col-chevron"
+                                        ></span>
+                                    </div>
+                                    <v-divider />
+
+                                    <template
+                                        v-for="(
+                                            membershipType, idx
+                                        ) in filteredMembershipTypes"
+                                        :key="membershipType.id"
+                                    >
+                                        <div
+                                            class="d-flex align-center px-4 py-3 accordion-row"
+                                            :class="{
+                                                'accordion-row-selected':
+                                                    isSelectedType(
+                                                        membershipType,
+                                                    ),
+                                            }"
+                                            @click="
+                                                selectType(membershipType)
+                                            "
+                                        >
+                                            <v-icon
+                                                :icon="
+                                                    isSelectedType(
+                                                        membershipType,
+                                                    )
+                                                        ? 'mdi-radiobox-marked'
+                                                        : 'mdi-radiobox-blank'
+                                                "
+                                                :color="
+                                                    isSelectedType(
+                                                        membershipType,
+                                                    )
+                                                        ? 'primary'
+                                                        : 'grey'
+                                                "
+                                                class="mr-3"
+                                            />
+                                            <div class="flex-grow-1">
+                                                <div
+                                                    class="text-body-1 font-weight-medium"
+                                                >
+                                                    {{ membershipType.name }}
+                                                </div>
+                                                <div
+                                                    class="text-caption text-medium-emphasis"
+                                                >
+                                                    {{
+                                                        membershipType.description
+                                                    }}
+                                                    ·
+                                                    {{
+                                                        membershipType
+                                                            .document_types
+                                                            .length
+                                                    }}
+                                                    documentos
+                                                </div>
+                                            </div>
+                                            <span
+                                                class="accordion-col-price text-body-2"
+                                            >
+                                                {{
+                                                    isSelectedType(
+                                                        membershipType,
+                                                    ) && pricingPreview
+                                                        ? currencyFormatter.format(
+                                                              pricingPreview.monthly_fee_share,
+                                                          )
+                                                        : "—"
+                                                }}
+                                            </span>
+                                            <span
+                                                class="accordion-col-price text-body-2 font-weight-bold"
+                                            >
+                                                {{
+                                                    isSelectedType(
+                                                        membershipType,
+                                                    ) && pricingPreview
+                                                        ? currencyFormatter.format(
+                                                              pricingPreview.amount_due_today,
+                                                          )
+                                                        : "—"
+                                                }}
+                                            </span>
+                                            <v-icon
+                                                :icon="
+                                                    isSelectedType(
+                                                        membershipType,
+                                                    )
+                                                        ? 'mdi-chevron-down'
+                                                        : 'mdi-chevron-right'
+                                                "
+                                                size="20"
+                                                class="ml-2 text-medium-emphasis accordion-col-chevron"
+                                            />
+                                        </div>
+
+                                        <div
+                                            v-if="
+                                                isSelectedType(
+                                                    membershipType,
+                                                )
+                                            "
+                                            class="px-4 pb-4 accordion-expanded"
+                                        >
+                                            <v-skeleton-loader
+                                                v-if="
+                                                    pricingPreviewLoading
+                                                "
+                                                type="paragraph"
+                                            />
+                                            <v-row
+                                                v-else-if="
+                                                    pricingPreview
+                                                "
+                                            >
+                                                <v-col cols="12" md="6">
+                                                    <div
+                                                        class="text-caption text-medium-emphasis mb-1 summary-eyebrow"
+                                                    >
+                                                        Desglose del
+                                                        cobro
+                                                    </div>
+                                                    <div
+                                                        class="d-flex justify-space-between text-body-2 mb-1"
+                                                    >
+                                                        <span
+                                                            class="text-medium-emphasis"
+                                                            >Cuota total
+                                                            del
+                                                            esquema</span
+                                                        >
+                                                        <span>{{
+                                                            currencyFormatter.format(
+                                                                pricingPreview.monthly_fee_total,
+                                                            )
+                                                        }}</span>
+                                                    </div>
+                                                    <div
+                                                        class="d-flex justify-space-between text-body-2 mb-1"
+                                                    >
+                                                        <span
+                                                            class="text-medium-emphasis"
+                                                            >Cuota de este
+                                                            parque</span
+                                                        >
+                                                        <span>{{
+                                                            currencyFormatter.format(
+                                                                pricingPreview.monthly_fee_share,
+                                                            )
+                                                        }}</span>
+                                                    </div>
+                                                    <div
+                                                        class="d-flex justify-space-between text-body-2 mb-2"
+                                                    >
+                                                        <span
+                                                            class="text-medium-emphasis"
+                                                            >{{
+                                                                pricingPreview.inscription_fee_label
+                                                            }}</span
+                                                        >
+                                                        <span>{{
+                                                            currencyFormatter.format(
+                                                                pricingPreview.inscription_fee,
+                                                            )
+                                                        }}</span>
+                                                    </div>
+                                                    <v-divider
+                                                        class="mb-2"
+                                                    />
+                                                    <div
+                                                        class="d-flex justify-space-between align-center"
+                                                    >
+                                                        <span
+                                                            class="text-body-1 font-weight-bold"
+                                                            >Total a
+                                                            pagar hoy</span
+                                                        >
+                                                        <span
+                                                            class="text-subtitle-1 font-weight-bold"
+                                                            >{{
+                                                                currencyFormatter.format(
+                                                                    pricingPreview.amount_due_today,
+                                                                )
+                                                            }}</span
+                                                        >
+                                                    </div>
+
+                                                    <div
+                                                        v-if="
+                                                            pricingPreview.current_monthly_fee !==
+                                                                null ||
+                                                            pricingPreview.additional_monthly_charge !==
+                                                                null
+                                                        "
+                                                        class="mt-2"
+                                                    >
+                                                        <div
+                                                            v-if="
+                                                                pricingPreview.current_monthly_fee !==
+                                                                null
+                                                            "
+                                                            class="d-flex justify-space-between text-body-2"
+                                                        >
+                                                            <span
+                                                                class="text-medium-emphasis"
+                                                                >Cuota
+                                                                actual del
+                                                                esquema</span
+                                                            >
+                                                            <span>{{
+                                                                currencyFormatter.format(
+                                                                    pricingPreview.current_monthly_fee,
+                                                                )
+                                                            }}</span>
+                                                        </div>
+                                                        <div
+                                                            v-if="
+                                                                pricingPreview.additional_monthly_charge !==
+                                                                null
+                                                            "
+                                                            class="d-flex justify-space-between text-body-2"
+                                                        >
+                                                            <span
+                                                                class="text-medium-emphasis"
+                                                                >Ajuste
+                                                                mensual de
+                                                                hoy</span
+                                                            >
+                                                            <span>{{
+                                                                currencyFormatter.format(
+                                                                    pricingPreview.additional_monthly_charge,
+                                                                )
+                                                            }}</span>
+                                                        </div>
+                                                    </div>
+                                                    <p
+                                                        v-else
+                                                        class="text-caption text-medium-emphasis mt-2 mb-0"
+                                                    >
+                                                        Después del alta,
+                                                        la mensualidad de
+                                                        este parque será
+                                                        de
+                                                        {{
+                                                            currencyFormatter.format(
+                                                                pricingPreview.monthly_fee_share,
+                                                            )
+                                                        }}.
+                                                    </p>
+                                                </v-col>
+                                                <v-col cols="12" md="6">
+                                                    <div
+                                                        class="d-flex align-center justify-space-between mb-1"
+                                                    >
+                                                        <span
+                                                            class="text-caption text-medium-emphasis summary-eyebrow"
+                                                            >Documentos
+                                                            requeridos</span
+                                                        >
+                                                        <span
+                                                            class="text-caption text-medium-emphasis"
+                                                            >{{
+                                                                membershipType
+                                                                    .document_types
+                                                                    .length
+                                                            }}
+                                                            en total</span
+                                                        >
+                                                    </div>
+                                                    <ul
+                                                        class="pl-4 mb-0 accordion-doc-list"
+                                                    >
+                                                        <li
+                                                            v-for="doc in membershipType.document_types"
+                                                            :key="doc.id"
+                                                            class="text-body-2 mb-1"
+                                                        >
+                                                            {{
+                                                                doc.pivot
+                                                                    .number_files ===
+                                                                1
+                                                                    ? ""
+                                                                    : `${doc.pivot.number_files} x `
+                                                            }}{{
+                                                                doc.name
+                                                            }}
+                                                        </li>
+                                                    </ul>
+                                                </v-col>
+                                            </v-row>
+
+                                            <v-alert
+                                                v-if="
+                                                    pricingPreviewError &&
+                                                    !pricingPreviewLoading
+                                                "
+                                                type="warning"
+                                                variant="tonal"
+                                                density="compact"
+                                                class="mt-2"
+                                            >
+                                                {{ pricingPreviewError }}
+                                            </v-alert>
+                                            <v-alert
+                                                v-if="
+                                                    !pricingPreviewLoading &&
+                                                    pricingPreview?.charge_explanation
+                                                "
+                                                type="info"
+                                                variant="tonal"
+                                                density="compact"
+                                                class="mt-2"
+                                            >
+                                                {{
+                                                    pricingPreview.charge_explanation
+                                                }}
+                                            </v-alert>
+                                            <v-alert
+                                                v-else-if="
+                                                    !pricingPreviewLoading &&
+                                                    pricingPreview?.source_membership_becomes_non_billable
+                                                "
+                                                type="info"
+                                                variant="tonal"
+                                                density="compact"
+                                                class="mt-2"
+                                            >
+                                                Al aplicar esta regla, la
+                                                membresía origen dejará
+                                                de ser cobrable y solo se
+                                                considerará este nuevo
+                                                monto.
+                                            </v-alert>
+                                        </div>
+
+                                        <v-divider
+                                            v-if="
+                                                idx <
+                                                filteredMembershipTypes.length -
+                                                    1
+                                            "
+                                        />
+                                    </template>
+                                </v-card>
                             </v-container>
                         </template>
 
@@ -2980,6 +3546,23 @@ watch(applyInscriptionDiscount, (val) => {
 
                                 <v-spacer />
 
+                                <span
+                                    v-if="
+                                        step === 1 &&
+                                        form.membershipType &&
+                                        pricingPreview &&
+                                        !pricingPreviewLoading
+                                    "
+                                    class="text-body-2 text-medium-emphasis mr-4 align-self-center"
+                                >
+                                    {{ form.membershipType.name }} · hoy
+                                    <strong>{{
+                                        currencyFormatter.format(
+                                            pricingPreview.amount_due_today,
+                                        )
+                                    }}</strong>
+                                </span>
+
                                 <v-btn
                                     v-if="step < steps.length"
                                     color="primary"
@@ -3017,5 +3600,68 @@ watch(applyInscriptionDiscount, (val) => {
     border: 2px solid #1976d2;
     background-color: #e3f2fd;
     transition: all 0.2s ease;
+}
+
+.selection-summary-card {
+    position: sticky;
+    top: 0;
+}
+
+.tramite-bar .cursor-pointer {
+    cursor: pointer;
+}
+
+.summary-eyebrow {
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.accordion-header {
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.accordion-col-price {
+    width: 110px;
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.accordion-col-chevron {
+    width: 24px;
+    flex-shrink: 0;
+    text-align: right;
+}
+
+.accordion-row {
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.accordion-row:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+.accordion-row-selected {
+    background-color: #e3f2fd;
+}
+
+.accordion-expanded {
+    background-color: #e3f2fd;
+}
+
+.accordion-doc-list {
+    column-count: 2;
+    column-gap: 16px;
+}
+
+@media (max-width: 600px) {
+    .accordion-col-price {
+        width: 84px;
+    }
+
+    .accordion-doc-list {
+        column-count: 1;
+    }
 }
 </style>

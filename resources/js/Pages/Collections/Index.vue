@@ -78,6 +78,10 @@ interface PendingConcept {
     class_label: string;
     unit_amount: number;
     months: number;
+    // true para mensualidad y para toda la familia de inscripción/reinscripción
+    // (que también se puede diferir a meses) — controla si la columna "Meses"
+    // muestra el número o "No aplica".
+    months_applicable: boolean;
     balance: number;
     is_multi_club: boolean;
     club_breakdown: ClubBreakdownItem[];
@@ -946,6 +950,9 @@ const INSCRIPTION_LIKE_CONCEPT_CODES = [
     "CHEQUE_REBOTADO_PARQUE2",
     "CHEQUE_REBOTADO_PARQUE1",
     "COMISION_CHEQUE_REBOTADO",
+    "IF",
+    "CUOTA_PERMISO",
+    "CUOTA_75_PERMISO"
 ];
 const isInscriptionConcept = computed(
     () => INSCRIPTION_LIKE_CONCEPT_CODES.includes(selectedConcept.value?.code?.toUpperCase() ?? ""),
@@ -2270,7 +2277,7 @@ const saveNote = async () => {
                             {{ formatCurrency(item.unit_amount) }}
                         </template>
                         <template #item.months="{ item }">
-                            <span v-if="item.class_label !== 'A meses'" class="text-medium-emphasis">
+                            <span v-if="!item.months_applicable" class="text-medium-emphasis">
                                 No aplica
                             </span>
                             <span v-else>{{ item.months }}</span>
