@@ -19,6 +19,7 @@ use App\Models\Members\MemberDocument;
 use App\Models\Memberships\MembershipAccount;
 use App\Models\AdminClub\CafeteriaVisit;
 use App\Rules\ExistsInSchema;
+use App\Services\Access\GuestPassProvisioningService;
 use App\Services\AdminClub\CafeteriaCheckoutService;
 use App\Services\Billing\AnnualPaymentService;
 use App\Services\Billing\MembershipChargeService;
@@ -57,6 +58,7 @@ class CollectionController extends Controller
         protected MembershipChargeService $membershipChargeService,
         protected CafeteriaCheckoutService $cafeteriaCheckoutService,
         protected AnnualPaymentService $annualPaymentService,
+        protected GuestPassProvisioningService $guestPassProvisioningService
     ) {
     }
 
@@ -1264,6 +1266,23 @@ class CollectionController extends Controller
                         'charge_id' => $charge->id,
                         'amount' => $total,
                     ];
+
+                    // Conceptos "20" (pase diario) y "22" (pase infantil): cada unidad de
+                    // quantity representa una tarjeta física distinta que hay que generar en commands
+                    if (in_array($concept?->code, ['20', '22'], true))
+                    {
+                        $accountMemberId = $account ? $account->primaryHolder?->id : null;
+                        $quantity = isset($item['quantity']) ? (int) $item['quantity'] : 1;
+
+                        for ($i = 0; $i < $quantity; $i++) {
+                            $this->guestPassProvisioningService->provisionDayPass(
+                                clubId: $clubId,
+                                validUntil: now()->addDay(),
+                                accountMemberId: $accountMemberId,
+                                chargeId: $charge->id
+                            );
+                        }
+                    }
                 }
 
                 // Pago de anualidad: se agrega a la MISMA lista de
