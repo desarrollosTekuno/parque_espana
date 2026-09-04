@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\AdminClub;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\SendPushNotificationJob;
+use App\Mail\DailyAccessCardMail;
 use App\Models\AdminClub\BusinessAd;
 use App\Models\Administrator\Club;
 use App\Models\Billing\AnnualDiscountRule;
@@ -29,6 +30,8 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -1196,6 +1199,8 @@ class CollectionController extends Controller
                 'new_items.*.total' => ['required', 'numeric', 'gt:0'],
                 'new_items.*.quantity' => ['sometimes', 'nullable', 'integer', 'min:1'],
                 'new_items.*.unit_amount' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+                // Email para pases diarios
+                'new_items.*.email' => ['nullable', 'email', 'max:200'],
 
                 // Salidas de cafetería capturadas en "Agregar concepto de
                 // cobro": la visita solo se da por cerrada (y el cargo, si
@@ -1364,10 +1369,22 @@ class CollectionController extends Controller
                 }
             }
 
+            // Conceptos "20"/"22" (pase diario/infantil) requieren correo de envío del código de acceso.
+            foreach ($newItems as $item) {
+                $itemConcept = ChargeConcept::find($item['concept_id']);
+                if (in_array($itemConcept?->code, ['20', '22'], true) && empty($item['email'])) {
+                    throw ValidationException::withMessages([
+                        'new_items' => 'Indica el correo para enviar el código de acceso del pase diario/infantil.',
+                    ]);
+                }
+            }
+
+            $dailyAccessNotifications = [];
+
             $payments = DB::transaction(function () use (
                 $account, $clubId, $existing, $newItems, $cafeteriaCheckouts,
                 $membership, $memberId, $validated, $request, $accountClubIds,
-                $groupAccountIds, $annualYear, $annualRule
+                $groupAccountIds, $annualYear, $annualRule, &$dailyAccessNotifications
             ) {
                 $applications = $existing
                     ->map(fn ($item) => [
@@ -1468,14 +1485,31 @@ class CollectionController extends Controller
                     {
                         $accountMemberId = $account ? $account->primaryHolder?->id : null;
                         $quantity = isset($item['quantity']) ? (int) $item['quantity'] : 1;
+                        $validFrom = now();
+                        $validUntil = now()->addDay();
+                        $cardCodes = [];
 
                         for ($i = 0; $i < $quantity; $i++) {
-                            $this->guestPassProvisioningService->provisionDayPass(
+                            $cardNo = $this->guestPassProvisioningService->provisionDayPass(
                                 clubId: $clubId,
                                 validUntil: now()->addDay(),
                                 accountMemberId: $accountMemberId,
                                 chargeId: $charge->id
                             );
+                            $cardCodes[] = $cardNo;
+                        }
+
+                        // Solo se manda correo cuando hay cuenta (email obligatorio ya
+                        // validado arriba) — acumulamos aquí, se envía después del
+                        // commit para no bloquear la transacción con la llamada SMTP.
+                        if (!empty($item['email'])) {
+                            $dailyAccessNotifications[] = [
+                                'email' => $item['email'],
+                                'club_id' => $clubId,
+                                'valid_from' => $validFrom,
+                                'valid_until' => $validUntil,
+                                'card_codes' => $cardCodes,
+                            ];
                         }
                     }
                 }
@@ -1512,6 +1546,25 @@ class CollectionController extends Controller
                     groupAccountIds: $groupAccountIds,
                 );
             });
+
+            // Enviar correos de acceso de pases diario/infantil, fuera de la
+            // transacción (igual que DayPassController::store) para no bloquear el
+            // registro del pago si el envío de correo falla.
+            foreach ($dailyAccessNotifications as $notification) {
+                try {
+                    Log::info('Intentando enviar correo de acceso', $notification);
+                    Mail::to($notification['email'])->send(new DailyAccessCardMail(
+                        club: Club::findOrFail($notification['club_id']),
+                        validFrom: $notification['valid_from'],
+                        validUntil: $notification['valid_until'],
+                        cardCodes: $notification['card_codes'],
+                    ));
+                } catch (\Exception $e) {
+                    Log::warning('No se pudo enviar el ticket al visitante.', [
+                        'error'      => $e->getMessage(),
+                    ]);
+                }
+            }
 
             $totalPaid = round($payments->sum('amount'), 2);
 
