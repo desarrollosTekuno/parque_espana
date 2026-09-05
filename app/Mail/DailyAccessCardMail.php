@@ -31,8 +31,8 @@ class DailyAccessCardMail extends Mailable
             ->subject("Tu acceso al club — {$this->club->name}")
             ->view('emails.daily_access_card', [
                 'club' => $this->club,
-                'validFrom' => $this->validFrom->format('d/m/Y h:i A'),
-                'validUntil' => $this->validUntil->format('d/m/Y h:i A'),
+                'validFromFormatted' => $this->validFrom->format('d/m/Y h:i A'),
+                'validUntilFormatted' => $this->validUntil->format('d/m/Y h:i A'),
                 'cardCodes' => $this->cardCodes,
             ]);
     }

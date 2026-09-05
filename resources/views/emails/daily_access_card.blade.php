@@ -8,9 +8,10 @@
         Hola,
     </p>
     <p style="font-size: 14px; color: #475569; margin: 0 0 24px;">
-        Aquí está tu acceso para <strong>{{ $club->name }}</strong>, válido del
-        <strong>{{ $validFrom }}</strong> al <strong>{{ $validUntil }}</strong>.
-        Presenta el código QR correspondiente en el punto de acceso.
+        Gracias por tu compra. Te compartimos el código de acceso para tu visita a
+        <strong>{{ $club->name }}</strong>, válido del
+        <strong>{{ $validFromFormatted }}</strong> al <strong>{{ $validUntilFormatted }}</strong>.
+        Muestra el código QR correspondiente en el punto de acceso del parque.
     </p>
 
     @foreach ($cardCodes as $cardCode)

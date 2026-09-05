@@ -1552,13 +1552,14 @@ class CollectionController extends Controller
             // registro del pago si el envío de correo falla.
             foreach ($dailyAccessNotifications as $notification) {
                 try {
-                    Log::info('Intentando enviar correo de acceso', $notification);
-                    Mail::to($notification['email'])->send(new DailyAccessCardMail(
-                        club: Club::findOrFail($notification['club_id']),
-                        validFrom: $notification['valid_from'],
-                        validUntil: $notification['valid_until'],
-                        cardCodes: $notification['card_codes'],
-                    ));
+                        $mailable = new DailyAccessCardMail(
+                            club: Club::findOrFail($notification['club_id']),
+                            validFrom: $notification['valid_from'],
+                            validUntil: $notification['valid_until'],
+                            cardCodes: $notification['card_codes'],
+                        );
+
+                        Mail::to($notification['email'])->send($mailable);
                 } catch (\Exception $e) {
                     Log::warning('No se pudo enviar el ticket al visitante.', [
                         'error'      => $e->getMessage(),
