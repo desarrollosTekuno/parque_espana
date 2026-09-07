@@ -7,12 +7,20 @@ use App\Models\Administrator\Club;
 use App\Models\Billing\Charge;
 use App\Models\Billing\Payment;
 use App\Models\Members\Member;
+use App\Models\Memberships\Membership;
+use App\Models\Memberships\MembershipAccount;
+use App\Services\Billing\MembershipChargeService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class PaymentController extends Controller
 {
+    public function __construct(
+        private readonly MembershipChargeService $membershipChargeService
+    ) {
+    }
+
     public function pending(Request $request, Club $club): JsonResponse
     {
         $request->validate([
@@ -24,6 +32,8 @@ class PaymentController extends Controller
             return $this->error($result['message'], $result['status']);
         }
         $membershipAccount = $result['account'];
+
+        $this->backfillMonthlyCharges($membershipAccount);
 
         $perPage = (int) $request->input('per_page', 15);
 
@@ -208,6 +218,8 @@ class PaymentController extends Controller
         }
         $membershipAccount = $result['account'];
 
+        $this->backfillMonthlyCharges($membershipAccount);
+
         $year    = (int) $request->input('year', now()->year);
         $perPage = (int) $request->input('per_page', 15);
 
@@ -229,6 +241,35 @@ class PaymentController extends Controller
                 'has_more_pages' => $charges->hasMorePages(),
             ],
         ]);
+    }
+
+    /**
+     * En el módulo web de Cobranza, cada búsqueda de un socio rellena
+     * cualquier hueco de mensualidad hasta el mes en curso (ver
+     * CollectionController::search / MembershipChargeService::
+     * ensureMonthlyChargesUpToToday). La app móvil nunca disparaba eso: un
+     * socio al que nunca se le buscó en Cobranza solo tenía el cargo inicial
+     * (p. ej. el de su alta), sin los meses siguientes, aunque ya hubieran
+     * transcurrido.
+     */
+    private function backfillMonthlyCharges(MembershipAccount $membershipAccount): void
+    {
+        $groupAccountIds = $membershipAccount->account_group_id
+            ? MembershipAccount::where('account_group_id', $membershipAccount->account_group_id)->pluck('id')->all()
+            : [$membershipAccount->id];
+
+        $groupMemberships = Membership::query()
+            ->whereIn('membership_account_id', $groupAccountIds)
+            ->where('is_primary', true)
+            ->whereIn('status', ['active', 'suspended'])
+            ->get();
+
+        $billableMembership = $groupMemberships->first(fn (Membership $m) => (bool) $m->is_billable)
+            ?? $groupMemberships->first();
+
+        if ($billableMembership) {
+            $this->membershipChargeService->ensureMonthlyChargesUpToToday($billableMembership, $groupAccountIds);
+        }
     }
 
     private function getMembershipAccount(Request $request, Club $club): array
