@@ -52,6 +52,14 @@ interface AccountMember {
     };
 }
 
+interface AccountFiscalData {
+    fiscal_name: string;
+    rfc: string;
+    cfdi_use: string;
+    fiscal_regime: string;
+    postal_code: string;
+}
+
 interface Props {
     membership: { id: number; membership_number: string; holder_name: string };
     accountMember: AccountMember;
@@ -59,6 +67,7 @@ interface Props {
     nationalities: Country[];
     relationships: Catalog[];
     maritalStatuses: Catalog[];
+    fiscalData: AccountFiscalData | null;
 }
 
 /* ─────────────────────────────
@@ -116,6 +125,14 @@ const form = useForm({
         company_address: props.accountMember.employment.company_address ?? "",
         company_phone:   props.accountMember.employment.company_phone ?? "",
     },
+});
+
+const fiscalDataForm = useForm({
+    fiscal_name: props.fiscalData?.fiscal_name ?? "",
+    rfc: props.fiscalData?.rfc ?? "",
+    cfdi_use: props.fiscalData?.cfdi_use ?? "",
+    fiscal_regime: props.fiscalData?.fiscal_regime ?? "",
+    postal_code: props.fiscalData?.postal_code ?? "",
 });
 
 /* ─────────────────────────────
@@ -271,6 +288,24 @@ const submit = async () => {
             },
         }
     );
+};
+
+const saveFiscalData = () => {
+    fiscalDataForm.patch(route("members.fiscal-data.update", props.membership.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            customToastSwal({
+                title: "Datos fiscales actualizados",
+                icon: "success",
+            });
+        },
+        onError: () => {
+            customToastSwal({
+                title: "No se pudieron guardar los datos fiscales",
+                icon: "error",
+            });
+        },
+    });
 };
 
 const cancel = () => {
@@ -525,6 +560,63 @@ const cancel = () => {
                             />
                         </v-col>
                     </v-row>
+                </v-card>
+
+                <!-- Datos fiscales (solo titular) -->
+                <v-card v-if="isPrimaryHolder" class="pa-4">
+                    <div class="text-subtitle-1 font-weight-bold mb-1">Datos fiscales</div>
+                    <div class="text-body-2 text-medium-emphasis mb-4">Información del receptor utilizada en los tickets.</div>
+                    <v-row>
+                        <v-col cols="12">
+                            <v-text-field
+                                v-model="fiscalDataForm.fiscal_name"
+                                label="Nombre o razón social"
+                                :error-messages="fiscalDataForm.errors.fiscal_name"
+                            />
+                        </v-col>
+                        <v-col cols="12" md="6">
+                            <v-text-field
+                                v-model="fiscalDataForm.rfc"
+                                label="RFC"
+                                maxlength="20"
+                                :error-messages="fiscalDataForm.errors.rfc"
+                            />
+                        </v-col>
+                        <v-col cols="12" md="6">
+                            <v-text-field
+                                v-model="fiscalDataForm.postal_code"
+                                label="Código postal fiscal"
+                                maxlength="10"
+                                :error-messages="fiscalDataForm.errors.postal_code"
+                            />
+                        </v-col>
+                        <v-col cols="12" md="6">
+                            <v-text-field
+                                v-model="fiscalDataForm.fiscal_regime"
+                                label="Régimen fiscal"
+                                maxlength="10"
+                                :error-messages="fiscalDataForm.errors.fiscal_regime"
+                            />
+                        </v-col>
+                        <v-col cols="12" md="6">
+                            <v-text-field
+                                v-model="fiscalDataForm.cfdi_use"
+                                label="Uso de CFDI"
+                                maxlength="10"
+                                :error-messages="fiscalDataForm.errors.cfdi_use"
+                            />
+                        </v-col>
+                    </v-row>
+                    <div class="d-flex justify-end">
+                        <v-btn
+                            color="primary"
+                            variant="tonal"
+                            :loading="fiscalDataForm.processing"
+                            @click="saveFiscalData"
+                        >
+                            Guardar datos fiscales
+                        </v-btn>
+                    </div>
                 </v-card>
 
                 <!-- Empleo (solo titular) -->

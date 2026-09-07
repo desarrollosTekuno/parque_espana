@@ -117,6 +117,10 @@ Route::post('/billing/annual-payment', [BillingController::class, 'storeAnnualPa
 Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
 Route::get('/reports/collection/export', [ReportController::class, 'exportCollectionReport'])->name('reports.collection.export');
 Route::get('/reports/collection/income', [ReportController::class, 'exportMonthlyAdministrativeIncomeReport'])->name('reports.collection.income');
+Route::get('/reports/cash-cuts/export', [ReportController::class, 'exportCashCutsHistoryReport'])->name('reports.cash-cuts.export');
+Route::get('/reports/daily-cash/export', [ReportController::class, 'exportDailyCashReport'])->name('reports.daily-cash.export');
+Route::get('/reports/cfd/export', [ReportController::class, 'exportCfdReport'])->name('reports.cfd.export');
+Route::get('/reports/cash-collection-by-user/export', [ReportController::class, 'exportCashCollectionByUserReport'])->name('reports.cash-collection-by-user.export');
 
 // collections desk (módulo de cobranza tipo caja)
 Route::get('/collections', [CollectionController::class, 'index'])->name('collections.index');
@@ -261,6 +265,8 @@ Route::get('/members/{membership}/manage', [MemberController::class, 'show'])
     ->name('members.manage.show');
 Route::patch('/members/{membership}/internal-account-number', [MemberController::class, 'updateInternalAccountNumber'])
     ->name('members.internal-account-number.update');
+Route::patch('/members/{membership}/fiscal-data', [MemberController::class, 'updateFiscalData'])
+    ->name('members.fiscal-data.update');
 Route::get('/members/{membership}/history', [MemberController::class, 'membershipHistory'])
     ->name('members.manage.history');
 Route::get('/members/{membership}/billing/charges', [BillingController::class, 'accountCharges'])
