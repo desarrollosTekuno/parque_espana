@@ -351,6 +351,10 @@ const isFormValid = computed(() => {
 
     if (!base) return false
 
+    if (reservationForm.is_class && !reservationForm.coach_id) {
+        return false
+    }
+
     if (isGardenResourceSelected.value) {
         return reservationForm.tables_count !== null && reservationForm.tables_count !== '' &&
             reservationForm.chairs_count !== null && reservationForm.chairs_count !== ''
@@ -439,6 +443,29 @@ const grillOptions = computed(() => {
     )
 })
 
+// búsqueda de miembro por nombre completo o solo alguna de sus partes
+const normalizeText = (text: string) => {
+    return (text || '')
+        .toString()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+}
+const filterMembers = (itemTitle: string, queryText: string, item: any) => {
+    const query = normalizeText(queryText)
+    if (!query) return true
+
+    const raw = item?.raw ?? {}
+    const candidates = [
+        raw.full_name,
+        raw.first_name,
+        raw.last_name,
+        raw.second_last_name,
+    ].filter(Boolean)
+
+    return candidates.some((candidate: string) => normalizeText(candidate).includes(query))
+}
+
 // profesores disponibles para la amenidad seleccionada (clases)
 const coachFullName = (coach: any) => {
     return [coach.first_name, coach.last_name, coach.second_last_name].filter(Boolean).join(' ')
@@ -471,6 +498,9 @@ watch(() => reservationForm.is_class, (isClass) => {
 // Horarios disponibles
 const slots = ref([])
 const loadingSlots = ref(false)
+// Solo se muestran los horarios con cupo disponible (available o partial);
+// los llenos o bloqueados se ocultan en vez de mostrarse deshabilitados.
+const visibleSlots = computed(() => slots.value.filter((slot: any) => slot.status === 'available' || slot.status === 'partial'))
 watch(
     () => ({
         resource: reservationForm.amenity_resource_id,
@@ -516,16 +546,6 @@ const formatHour = (date: string) => {
         hour: '2-digit',
         minute: '2-digit'
     })
-}
-
-const getSlotColor = (slot: any) => {
-    switch (slot.status) {
-        case 'available': return 'green'
-        case 'partial': return 'orange'
-        case 'full': return 'red'
-        case 'blocked': return 'grey'
-        default: return 'grey'
-    }
 }
 
 // mostrar y ocultar slots
@@ -730,16 +750,17 @@ const maxDate = computed(() => {
                 </v-window-item>
             </v-window>
         </div>
-        <v-dialog v-model="showReservationModal" max-width="600">
+        <v-dialog v-model="showReservationModal" max-width="600" scrollable>
             <v-form @submit.prevent="saveReservation">
                 <v-card title="Nueva reservación">
 
-                    <v-card-text>
+                    <v-card-text class="reservation-modal-content">
                         <v-row>
                             <v-col cols="12">
-                                <v-select
+                                <v-autocomplete
                                     v-model="reservationForm.member_id"
                                     :items="members"
+                                    :custom-filter="filterMembers"
                                     item-title="full_name"
                                     item-value="id"
                                     label="Miembro"
@@ -818,16 +839,15 @@ const maxDate = computed(() => {
                                         Para seleccionar otro horario, vuelve a dar clic en el horario seleccionado
                                     </div>
                                     <v-chip
-                                        v-for="(slot, index) in (selectedSlot ? [selectedSlot] : slots)"
+                                        v-for="(slot, index) in (selectedSlot ? [selectedSlot] : visibleSlots)"
                                         :key="index"
-                                        :color="getSlotColor(slot)"
-                                        :variant="slot.status === 'available' ? 'elevated' : 'outlined'"
-                                        :disabled="slot.status !== 'available'"
+                                        color="green"
+                                        variant="elevated"
                                         @click="selectSlot(slot)"
                                     >
                                         {{ formatHour(slot.start) }} - {{ formatHour(slot.end) }}
                                     </v-chip>
-                                    <div v-if="!slots.length">
+                                    <div v-if="!visibleSlots.length">
                                         No hay horarios disponibles
                                     </div>
 
@@ -952,5 +972,9 @@ const maxDate = computed(() => {
 }
 :deep(.sx__event) {
   cursor: pointer;
+}
+.reservation-modal-content {
+  max-height: 70vh;
+  overflow-y: auto;
 }
 </style>

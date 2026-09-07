@@ -9,6 +9,7 @@ use App\Http\Controllers\Web\AdminClub\BusinessAdController;
 use App\Http\Controllers\Web\AdminClub\PhysicalAdController;
 use App\Http\Controllers\Web\AdminClub\PhysicalAdSizeController;
 use App\Http\Controllers\Web\AdminClub\ReservationController;
+use App\Http\Controllers\Web\AdminClub\AttendanceController;
 use App\Http\Controllers\Web\AdminClub\AnnouncementController;
 use App\Http\Controllers\Web\AdminClub\BlockedPeriodController;
 use App\Http\Controllers\Web\AdminClub\SystemVariableController;
@@ -82,6 +83,7 @@ Route::post('/reservations/{reservation}/cancel', [ReservationController::class,
     ->name('reservations.cancel');
 Route::get('/amenity-resource/{amenityResource}/slots', [ReservationController::class, 'slots'])
     ->name('reservations.slots');
+Route::get('/attendance', [AttendanceController::class, 'index'])->name('attendance.index');
 
 Route::resource('/guest-lists', ReservationGuestListController::class)->only(['index', 'update'])->names('guest-lists');
 Route::resource('/guest-list-variables', GuestListVariableController::class)->only(['index', 'store', 'update', 'destroy']);

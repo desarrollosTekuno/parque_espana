@@ -13,7 +13,9 @@ class CancelReservationRule implements ReservationRule
     {
         $reservation = $context->reservation;
 
-        $days = (int) SystemVariable::where('name', 'dias_para_cancelar_reserva')->value('value');
+        $days = (int) SystemVariable::where('club_id', $reservation->club_id)
+            ->where('name', 'dias_para_cancelar_reserva')
+            ->value('value');
 
         $tz = 'America/Mexico_City';
 

@@ -56,6 +56,7 @@ class AdminClubSeeder extends Seeder
             'reservations.update',
             'reservations.cancel',
             'reservations.calendar',
+            'attendance.index',
 
             // comunicación
             'announcements.index',

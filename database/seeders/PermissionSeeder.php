@@ -78,6 +78,7 @@ class PermissionSeeder extends Seeder
             ['module' => 'Reservaciones', 'name' => 'reservations.update', 'description' => 'Actualizar reservaciones', 'contexts' => ['web']],
             ['module' => 'Reservaciones', 'name' => 'reservations.cancel', 'description' => 'Cancelar reservaciones', 'contexts' => ['web']],
             ['module' => 'Reservaciones', 'name' => 'reservations.calendar', 'description' => 'Ver calendario de reservaciones', 'contexts' => ['web']],
+            ['module' => 'Reservaciones', 'name' => 'attendance.index', 'description' => 'Ver asistencias', 'contexts' => ['web']],
 
 
             // Comunicación

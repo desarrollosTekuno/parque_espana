@@ -53,4 +53,35 @@ class FamilyReservationGuard
 
         return $targetMember;
     }
+
+    /**
+     * IDs de los integrantes menores de {@see self::MAX_MINOR_AGE} años de la cuenta
+     * familiar del club donde el titular figura como titular primario. Vacío si el
+     * titular no es titular primario de ninguna cuenta en ese club.
+     */
+    public function familyMinorIds(Member $holder, int $clubId): array
+    {
+        $account = MembershipAccount::query()
+            ->where('club_id', $clubId)
+            ->whereHas('accountMembers', function ($query) use ($holder) {
+                $query->where('member_id', $holder->id)->where('is_primary_holder', true);
+            })
+            ->with('accountMembers.member')
+            ->first();
+
+        if (!$account) {
+            return [];
+        }
+
+        return $account->accountMembers
+            ->map(fn ($accountMember) => $accountMember->member)
+            ->filter(fn ($member) => $member
+                && $member->id !== $holder->id
+                && $member->age !== null
+                && $member->age < self::MAX_MINOR_AGE)
+            ->pluck('id')
+            ->unique()
+            ->values()
+            ->all();
+    }
 }

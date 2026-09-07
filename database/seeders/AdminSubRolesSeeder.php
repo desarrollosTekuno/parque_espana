@@ -78,6 +78,7 @@ class AdminSubRolesSeeder extends Seeder
                     'reservations.update',
                     'reservations.cancel',
                     'reservations.calendar',
+                    'attendance.index',
                     'system-variables.index',
                     'system-variables.store',
                     'system-variables.update',

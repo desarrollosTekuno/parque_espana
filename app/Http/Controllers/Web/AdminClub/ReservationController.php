@@ -18,11 +18,14 @@ use App\Models\Members\Member;
 use App\Models\AdminClub\SystemVariable;
 use App\Models\AdminClub\BlockedPeriod;
 use App\Services\Reservation\Context\ReservationContext;
-use App\Services\Reservation\Rules\CancelReservationRule;
+use App\Services\Reservation\Validators\CancelReservationValidator;
 use App\Services\Reservation\Rules\UserNoShowPenaltyRule;
 use App\Services\Reservation\Rules\ReservationsPerDayRule;
 use App\Services\Reservation\Rules\ConsecutiveReservationRule;
 use App\Services\Reservation\Rules\CapacityRule;
+use App\Services\Reservation\Rules\MinorRequiresClassRule;
+use App\Services\Reservation\Rules\ClassRequiresCoachRule;
+use App\Services\Reservation\Rules\UserReservationOverlapRule;
 use App\Exceptions\ReservationException;
 
 class ReservationController extends Controller {
@@ -99,7 +102,7 @@ class ReservationController extends Controller {
             ->get();
 
         $members = Member::byClub($clubId)
-            ->select('id', 'first_name', 'last_name')
+            ->select('id', 'first_name', 'last_name', 'second_last_name', 'birthdate')
             ->orderBy('first_name')
             ->get();
         
@@ -151,18 +154,28 @@ class ReservationController extends Controller {
                 }
             }
 
+            $isClass = $request->boolean('is_class');
+
             $context = new ReservationContext(
                 [
                     'amenity_resource_id' => $request->amenity_resource_id,
                     'start_datetime' => $request->start_datetime,
                     'end_datetime' => $request->end_datetime,
                     'club_id' => $clubId,
+                    'is_class' => $isClass,
+                    'coach_id' => $request->coach_id,
                 ],
+                amenity: $amenityResource?->amenity,
+                amenityResource: $amenityResource,
                 member: $member
             );
+            (new MinorRequiresClassRule())->validate($context);
+            (new ClassRequiresCoachRule())->validate($context);
             (new UserNoShowPenaltyRule())->validate($context);
+            (new UserReservationOverlapRule())->validate($context);
             (new ConsecutiveReservationRule())->validate($context);
             (new ReservationsPerDayRule())->validate($context);
+            (new CapacityRule())->validate($context);
 
             if ($grillResource) {
                 $grillContext = new ReservationContext(
@@ -182,8 +195,7 @@ class ReservationController extends Controller {
                 (new CapacityRule())->validate($grillContext);
             }
 
-            $isClass = $request->boolean('is_class');
-            if ($isClass && $request->filled('coach_id')) {
+            if ($isClass) {
                 $coach = Coach::find($request->coach_id);
                 if (!$coach || $coach->amenity_id != $request->amenity_id) {
                     throw new \Exception('El profesor seleccionado no es válido para esta amenidad.');
@@ -249,7 +261,7 @@ class ReservationController extends Controller {
                 member: null,
                 reservation: $reservation
             );
-            (new CancelReservationRule())->validate($context);
+            (new CancelReservationValidator())->validate($context);
             $reservation->update([
                 'cancelled_at' => now(),
                 'reservation_status_id' => ReservationStatus::CANCELADA
@@ -278,7 +290,7 @@ class ReservationController extends Controller {
                 reservation: $reservation
             );
             
-            (new CancelReservationRule())->validate($context);
+            (new CancelReservationValidator())->validate($context);
             $reservation->update([
                 'cancelled_at' => now(),
                 'reservation_status_id' => ReservationStatus::CANCELADA
