@@ -615,13 +615,43 @@ class MembershipChargeService
                 ->exists();
 
             if (!$existsForPeriod) {
-                $this->createRecurringMonthlyCharge($billableMembership, $cursor->copy(), [
-                    'charge_origin' => 'auto_backfill_on_search',
-                ]);
+                // No usar siempre $billableMembership (la vigente HOY): un
+                // periodo del hueco puede ser anterior a que esa membresía
+                // existiera (p. ej. se acaba de agregar la membresía de un
+                // combo interclub, y el hueco viene de meses de ANTES de eso,
+                // que en verdad le tocan a la membresía hermana que ya
+                // estaba activa entonces) — sin esto, se le colgaban meses
+                // anteriores a su propio start_date a la membresía nueva.
+                $periodMembership = $this->resolvePeriodBillableMembership($billableMembership, $cursor);
+
+                if ($periodMembership) {
+                    // is_billable refleja el estado ACTUAL (p. ej. ya es
+                    // false porque hoy existe el combo) — no si lo era
+                    // durante $cursor. resolvePeriodBillableMembership ya
+                    // hizo la selección correcta para ese periodo, así que
+                    // aquí se ignora el flag de hoy.
+                    $this->createRecurringMonthlyCharge($periodMembership, $cursor->copy(), [
+                        'charge_origin' => 'auto_backfill_on_search',
+                    ], null, ignoreBillableState: true);
+                }
             }
 
             $cursor->addMonthNoOverflow();
         }
+    }
+
+    /**
+     * La membresía que en verdad correspondía cobrar en $period (no
+     * necesariamente $billableMembership, que es la facturable HOY) — ver
+     * ensureMonthlyChargesUpToToday. Usa resolveGroupPrimaryMemberships, que
+     * ya acota por start_date/end_date vigentes en ese periodo específico.
+     */
+    protected function resolvePeriodBillableMembership(Membership $billableMembership, Carbon $period): ?Membership
+    {
+        $periodMemberships = $this->resolveGroupPrimaryMemberships($billableMembership, $period);
+
+        return $periodMemberships->first(fn (Membership $m) => (bool) $m->is_billable)
+            ?? $periodMemberships->first();
     }
 
     /**

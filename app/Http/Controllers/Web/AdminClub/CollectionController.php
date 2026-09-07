@@ -338,8 +338,14 @@ class CollectionController extends Controller
                     // por adelantado (ver createFutureChargesForAbsencePermit),
                     // incluso para meses futuros — deben verse en Cobranza
                     // desde que se registra el permiso, no hasta que venzan.
+                    // Se buscan en TODO el grupo (no solo esta cuenta) porque
+                    // el permiso se registra a nivel grupo — si la membresía
+                    // era combo, el único cargo (ya descontado) vive en la
+                    // cuenta facturable de ese momento, pero debe poder
+                    // cobrarse/verse desde cualquiera de los dos parques,
+                    // igual que la mensualidad de "ambos parques".
                     fn (Builder $absencePermit) => $absencePermit
-                        ->where('membership_account_id', $account->id)
+                        ->whereIn('membership_account_id', $groupAccountIds)
                         ->whereHas('concept', fn (Builder $c) => $c->whereIn('code', MembershipChargeService::ABSENCE_PERMIT_CONCEPT_CODES))
                 )->orWhere(
                     fn (Builder $other) => $other
@@ -425,8 +431,21 @@ class CollectionController extends Controller
                 // (MONTHLY_FEE_PARKS y variantes) — un renglón viejo bajo
                 // un concepto de un solo parque (p. ej. MONTHLY_FEE de
                 // antes de que existiera el combo) no debe etiquetarse así
-                // solo porque la membresía HOY sí sea combo.
-                $isParksConcept = in_array($concept?->code, MembershipChargeService::MONTHLY_FEE_PARKS_CODES, true);
+                // solo porque la membresía HOY sí sea combo. También se
+                // intenta para CUOTA_PERMISO/CUOTA_75_PERMISO: ese cargo
+                // (único, ya descontado) puede corresponder a una membresía
+                // combo, y entonces debe verse/cobrarse desde cualquiera de
+                // los dos parques igual que la mensualidad — si la membresía
+                // no era combo, resolveHistoricalParksClubBreakdown
+                // simplemente no encuentra hermano y no hace nada.
+                $isParksConcept = in_array(
+                    $concept?->code,
+                    array_merge(
+                        MembershipChargeService::MONTHLY_FEE_PARKS_CODES,
+                        MembershipChargeService::ABSENCE_PERMIT_CONCEPT_CODES
+                    ),
+                    true
+                );
 
                 if ($isParksConcept && !$isMultiClub) {
                     // No se exige que el hermano siga activo: el concepto
@@ -541,10 +560,14 @@ class CollectionController extends Controller
                 ->where(fn (Builder $combo) => $combo
                     ->whereHas('concept', fn (Builder $c) => $c->whereIn('code', MembershipChargeService::MONTHLY_FEE_PARKS_CODES))
                     ->whereIn('membership_account_id', $groupAccountIds))
+                ->orWhere(fn (Builder $absencePermit) => $absencePermit
+                    ->whereHas('concept', fn (Builder $c) => $c->whereIn('code', MembershipChargeService::ABSENCE_PERMIT_CONCEPT_CODES))
+                    ->whereIn('membership_account_id', $groupAccountIds))
                 ->orWhere(fn (Builder $ownPark) => $ownPark
                     ->whereHas('concept', fn (Builder $c) => $c
                         ->whereIn('code', MembershipChargeService::MONTHLY_FEE_FAMILY_CODES)
-                        ->whereNotIn('code', MembershipChargeService::MONTHLY_FEE_PARKS_CODES))
+                        ->whereNotIn('code', MembershipChargeService::MONTHLY_FEE_PARKS_CODES)
+                        ->whereNotIn('code', MembershipChargeService::ABSENCE_PERMIT_CONCEPT_CODES))
                     ->where('membership_account_id', $account->id)))
             ->where('status', 'paid')
             ->whereNotNull('period_year')
@@ -558,10 +581,14 @@ class CollectionController extends Controller
                 ->where(fn (Builder $combo) => $combo
                     ->whereHas('concept', fn (Builder $c) => $c->whereIn('code', MembershipChargeService::MONTHLY_FEE_PARKS_CODES))
                     ->whereIn('membership_account_id', $groupAccountIds))
+                ->orWhere(fn (Builder $absencePermit) => $absencePermit
+                    ->whereHas('concept', fn (Builder $c) => $c->whereIn('code', MembershipChargeService::ABSENCE_PERMIT_CONCEPT_CODES))
+                    ->whereIn('membership_account_id', $groupAccountIds))
                 ->orWhere(fn (Builder $ownPark) => $ownPark
                     ->whereHas('concept', fn (Builder $c) => $c
                         ->whereIn('code', MembershipChargeService::MONTHLY_FEE_FAMILY_CODES)
-                        ->whereNotIn('code', MembershipChargeService::MONTHLY_FEE_PARKS_CODES))
+                        ->whereNotIn('code', MembershipChargeService::MONTHLY_FEE_PARKS_CODES)
+                        ->whereNotIn('code', MembershipChargeService::ABSENCE_PERMIT_CONCEPT_CODES))
                     ->where('membership_account_id', $account->id)))
             ->whereIn('status', ['pending', 'partial'])
             ->whereNotNull('due_date')
@@ -769,8 +796,18 @@ class CollectionController extends Controller
         // Cargos: de lo contrario, si el socio también tiene mensualidad de
         // un solo parque en su otra cuenta (con el mismo código de
         // concepto, p. ej. MONTHLY_FEE en ambos lados antes de ser combo),
-        // se mezclarían dos deudas de parques distintos.
-        $isParksConcept = in_array($selectedConcept->code, MembershipChargeService::MONTHLY_FEE_PARKS_CODES, true);
+        // se mezclarían dos deudas de parques distintos. CUOTA_PERMISO/
+        // CUOTA_75_PERMISO también se buscan en todo el grupo, porque su
+        // único cargo (ya descontado) puede vivir en la cuenta hermana si la
+        // membresía era combo — ver search().
+        $isParksConcept = in_array(
+            $selectedConcept->code,
+            array_merge(
+                MembershipChargeService::MONTHLY_FEE_PARKS_CODES,
+                MembershipChargeService::ABSENCE_PERMIT_CONCEPT_CODES
+            ),
+            true
+        );
         $scopedAccountIds = $isParksConcept ? $groupAccountIds : [$account->id];
 
         $memberships = Membership::query()
@@ -1135,7 +1172,7 @@ class CollectionController extends Controller
             'quantity' => ['required', 'integer', 'min:1'],
             'concept_code' => ['sometimes', 'string', Rule::in(array_merge(
                 MembershipChargeService::INSCRIPTION_FAMILY_CODES,
-                ['CHEQUE_REBOTADO_PARQUE2', 'CHEQUE_REBOTADO_PARQUE1', 'COMISION_CHEQUE_REBOTADO', 'IF', 'CUOTA_PERMISO', 'CUOTA_75_PERMISO']
+                ['CHEQUE_REBOTADO_PARQUE2', 'CHEQUE_REBOTADO_PARQUE1', 'COMISION_CHEQUE_REBOTADO', 'IF']
             ))],
         ]);
 

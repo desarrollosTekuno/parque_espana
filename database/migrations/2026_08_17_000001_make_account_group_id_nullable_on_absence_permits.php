@@ -26,7 +26,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('memberships.absence_permits', function (Blueprint $table) {
-            $table->foreignId('account_group_id')->nullable(false)->change();
+            // $table->foreignId('account_group_id')->nullable(false)->change();
         });
     }
 };

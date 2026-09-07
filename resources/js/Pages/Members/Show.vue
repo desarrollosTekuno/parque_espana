@@ -288,6 +288,11 @@ const currentMonth = computed(() => {
     return `${now.getFullYear()}-${mm}`;
 });
 
+// Las cuotas cambian año tras año (ver Cuotas por año), así que un permiso
+// por ausencia no debe cruzar a otro año — se acota a diciembre del año
+// en curso.
+const maxAbsencePermitMonth = computed(() => `${new Date().getFullYear()}-12`);
+
 const minEndMonth = computed(() =>
     absencePermitForm.start_month || currentMonth.value
 );
@@ -2323,6 +2328,7 @@ console.log(can)
                                 v-model="absencePermitForm.start_month"
                                 label="Mes de inicio"
                                 :min="currentMonth"
+                                :max="maxAbsencePermitMonth"
                                 :error-messages="absencePermitForm.errors.start_month"
                             />
                         </v-col>
@@ -2331,6 +2337,7 @@ console.log(can)
                                 v-model="absencePermitForm.end_month"
                                 label="Mes de término"
                                 :min="minEndMonth"
+                                :max="maxAbsencePermitMonth"
                                 :error-messages="absencePermitForm.errors.end_month"
                             />
                         </v-col>
