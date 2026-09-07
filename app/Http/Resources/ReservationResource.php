@@ -30,6 +30,13 @@ class ReservationResource extends JsonResource
             'cancelled_at' => $this->cancelled_at,
             'is_class' => (bool) $this->is_class,
 
+            'member' => $this->whenLoaded('member', function () {
+                return $this->member ? [
+                    'id' => $this->member->id,
+                    'full_name' => $this->member->full_name,
+                ] : null;
+            }),
+
             'club' => [
                 'id' => $this->club?->id,
                 'name' => $this->club?->name,

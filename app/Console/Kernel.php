@@ -22,6 +22,9 @@ class Kernel extends ConsoleKernel
     {
         $schedule->command('app:expire-business-ads')->daily();
 
+        // Marca como inasistencia las reservaciones activas cuyo horario ya pasó sin check-in
+        $schedule->command('reservations:mark-no-shows')->everyFifteenMinutes();
+
         // Paso 1: Genera las mensualidades del mes (día 1 a las 6:00 AM)
         $schedule->command('memberships:generate-monthly-charges')
             ->monthlyOn(1, '06:00');

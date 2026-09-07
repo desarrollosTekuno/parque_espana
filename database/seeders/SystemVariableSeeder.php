@@ -38,9 +38,27 @@ class SystemVariableSeeder extends Seeder {
                 'club_id' => 1
             ],
             [
+                'name' => 'tolerancia_asistencia',
+                'value' => '10',
+                'description' => 'Minutos de tolerancia después de la hora de inicio de la reservación para poder registrar asistencia',
+                'club_id' => 1
+            ],
+            [
                 'name' => 'reservaciones_por_dia',
                 'value' => '1',
                 'description' => 'Número máximo de reservaciones que un usuario puede tener en un mismo día',
+                'club_id' => 2
+            ],
+            [
+                'name' => 'tolerancia_asistencia',
+                'value' => '10',
+                'description' => 'Minutos de tolerancia después de la hora de inicio de la reservación para poder registrar asistencia',
+                'club_id' => 2
+            ],
+            [
+                'name' => 'cancelaciones_por_semana',
+                'value' => '1',
+                'description' => 'Número máximo de cancelaciones que un usuario puede realizar en una misma semana',
                 'club_id' => 2
             ],
             [

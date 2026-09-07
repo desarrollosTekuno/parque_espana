@@ -161,6 +161,9 @@ Route::prefix('v1')->name('api.')->group(function () {
     Route::get('/firebase/ping', [FirebaseTestController::class, 'ping']);
 
     // Check-in por QR
+    Route::get('/check-in/resource/{resource}/options', [CheckInController::class, 'options'])
+        ->middleware('auth:sanctum')
+        ->name('api.check-in.options');
     Route::post('/check-in/resource/{resource}', [CheckInController::class, 'store'])
         ->middleware('auth:sanctum')
         ->name('api.check-in.store');

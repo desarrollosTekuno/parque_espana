@@ -9,6 +9,7 @@ use App\Models\AdminClub\AmenityResource;
 use App\Models\AdminClub\Reservation;
 use App\Models\AdminClub\ReservationStatus;
 use App\Models\Members\Member;
+use App\Models\Memberships\MembershipAccount;
 use App\Rules\ExistsInSchema;
 use App\Services\Family\FamilyReservationGuard;
 use App\Services\Reservation\Context\ReservationContext;
@@ -164,8 +165,10 @@ class ReservationController extends Controller
                 ]);
             }
 
-            $query = Reservation::with(['amenity', 'amenityResource', 'status', 'club', 'coach'])
-                ->where('member_id', $member->id);
+            $memberIds = $this->resolveVisibleMemberIds($member);
+
+            $query = Reservation::with(['amenity', 'amenityResource', 'status', 'club', 'coach', 'member'])
+                ->whereIn('member_id', $memberIds)->orderBy('start_datetime', 'desc');
 
             if (!empty($validated['club_id'])) {
                 $query->where('club_id', $validated['club_id']);
@@ -220,5 +223,35 @@ class ReservationController extends Controller
             report($e);
             return $this->serverError('Ocurrió un error al obtener las reservaciones.');
         }
+    }
+
+    /**
+     * IDs de los miembros cuyas reservaciones puede ver el usuario autenticado: las propias
+     * y las de los integrantes menores de 15 años de las cuentas familiares donde figura
+     * como titular primario (únicos que pueden reservar a nombre de un menor, ver
+     * {@see \App\Services\Family\FamilyReservationGuard}).
+     */
+    private function resolveVisibleMemberIds(Member $member): array
+    {
+        $memberIds = [$member->id];
+
+        $accountsAsHolder = MembershipAccount::query()
+            ->whereHas('accountMembers', function ($query) use ($member) {
+                $query->where('member_id', $member->id)->where('is_primary_holder', true);
+            })
+            ->with('accountMembers.member')
+            ->get();
+
+        foreach ($accountsAsHolder as $account) {
+            foreach ($account->accountMembers as $accountMember) {
+                $familyMember = $accountMember->member;
+
+                if ($familyMember && $familyMember->age !== null && $familyMember->age < 15) {
+                    $memberIds[] = $familyMember->id;
+                }
+            }
+        }
+
+        return array_unique($memberIds);
     }
 }

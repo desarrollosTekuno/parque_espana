@@ -78,6 +78,7 @@ class PermissionSeeder extends Seeder
             ['module' => 'Reservaciones', 'name' => 'system-variables.store', 'description' => 'Crear variables de reservaciones', 'contexts' => ['web']],
             ['module' => 'Reservaciones', 'name' => 'system-variables.update', 'description' => 'Actualizar variables de reservaciones', 'contexts' => ['web']],
             ['module' => 'Reservaciones', 'name' => 'system-variables.destroy', 'description' => 'Eliminar variables de reservaciones', 'contexts' => ['web']],
+            ['module' => 'Reservaciones', 'name' => 'attendance.index', 'description' => 'Ver asistencias', 'contexts' => ['web']],
 
 
             // Comunicación
