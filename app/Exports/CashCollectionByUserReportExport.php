@@ -55,25 +55,20 @@ class CashCollectionByUserReportExport implements FromArray, ShouldAutoSize, Wit
 
             $cashierTotal = $cashierRows->sum('amount');
             $rows[] = [''];
-            $rows[] = [null, null, null, null, null, null, null, null, 'Total de cobranza de '.$cashier, $cashierTotal];
-            $rows[] = [null, null, null, null, null, null, null, null, 'Total por Tipo de Pago: '.$this->paymentMethodTotals($cashierRows)];
+            $rows[] = [null, null, null, null, null, null, null, 'Total de cobranza de '.$cashier, null, $cashierTotal];
+            $rows[] = [null, null, 'Total por Tipo de Pago: '.$this->paymentMethodTotals($cashierRows)];
         }
 
         $rows[] = [''];
-        $rows[] = [null, null, null, null, null, null, null, null, 'Gran Total:', $displayRows->sum('amount')];
+        $rows[] = ['Gran Total: $'.number_format($displayRows->sum('amount'), 2)];
 
-        foreach ($this->paymentMethodFinalTotals($displayRows) as $methodTotal) {
+        $finalPaymentTotals = $this->paymentMethodFinalTotals($displayRows);
+
+        if ($finalPaymentTotals->isNotEmpty()) {
             $rows[] = [
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                'Total '.$methodTotal['key'].' '.$methodTotal['name'],
-                $methodTotal['total'],
+                $finalPaymentTotals
+                    ->map(fn (array $methodTotal) => 'Total '.$methodTotal['key'].' '.$methodTotal['name'].' $'.number_format($methodTotal['total'], 2))
+                    ->implode('   '),
             ];
         }
 
@@ -94,24 +89,28 @@ class CashCollectionByUserReportExport implements FromArray, ShouldAutoSize, Wit
                 $sheet->getStyle("F2:I{$lastRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
 
                 for ($row = 2; $row <= $lastRow; $row++) {
-                    $label = (string) $sheet->getCell("I{$row}")->getValue();
+                    $label = (string) $sheet->getCell("A{$row}")->getValue();
+                    $cashierLabel = (string) $sheet->getCell("H{$row}")->getValue();
+                    $paymentMethodLabel = (string) $sheet->getCell("C{$row}")->getValue();
+                    $finalPaymentMethodLabel = (string) $sheet->getCell("A{$row}")->getValue();
 
                     if (str_starts_with($label, 'Gran Total:')) {
-                        $sheet->getStyle("I{$row}:J{$row}")->getFont()->setBold(true);
-                        $sheet->getStyle("I{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
-                        $sheet->getStyle("J{$row}")->getNumberFormat()->setFormatCode('$#,##0.00');
+                        $sheet->mergeCells("A{$row}:J{$row}");
+                        $sheet->getStyle("A{$row}")->getFont()->setBold(true);
+                        $sheet->getStyle("A{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
                         $sheet->getStyle("A{$row}:J{$row}")->getBorders()->getTop()->setBorderStyle(Border::BORDER_THIN);
-                        $sheet->getStyle("A{$row}:J{$row}")->getBorders()->getBottom()->setBorderStyle(Border::BORDER_DOUBLE);
-                    } elseif (str_starts_with($label, 'Total de cobranza de ')) {
-                        $sheet->getStyle("I{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                        $sheet->getStyle("A{$row}:J{$row}")->getBorders()->getBottom()->setBorderStyle(Border::BORDER_THIN);
+                    } elseif (str_starts_with($cashierLabel, 'Total de cobranza de ')) {
+                        $sheet->mergeCells("H{$row}:I{$row}");
+                        $sheet->getStyle("H{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
                         $sheet->getStyle("J{$row}")->getNumberFormat()->setFormatCode('$#,##0.00');
                         $sheet->getStyle("A{$row}:B{$row}")->getBorders()->getTop()->setBorderStyle(Border::BORDER_THIN);
-                    } elseif (str_starts_with($label, 'Total por Tipo de Pago:')) {
-                        $sheet->mergeCells("I{$row}:J{$row}");
-                        $sheet->getStyle("I{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
-                    } elseif (str_starts_with($label, 'Total ')) {
-                        $sheet->getStyle("I{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
-                        $sheet->getStyle("J{$row}")->getNumberFormat()->setFormatCode('$#,##0.00');
+                    } elseif (str_starts_with($paymentMethodLabel, 'Total por Tipo de Pago:')) {
+                        $sheet->mergeCells("C{$row}:J{$row}");
+                        $sheet->getStyle("C{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                    } elseif (str_starts_with($finalPaymentMethodLabel, 'Total ')) {
+                        $sheet->mergeCells("A{$row}:J{$row}");
+                        $sheet->getStyle("A{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
                     }
                 }
 
