@@ -197,6 +197,7 @@ interface CobroLine {
     // CollectionController::storePayment / AnnualPaymentService::resolveApplications).
     annual_year?: number;
     annual_discount_amount?: number;
+    access_email?: string;
 }
 
 interface Props {
@@ -514,6 +515,7 @@ interface NewItemForm {
     cantidad: number;
     descuento: number;
     iva: number;
+    email: string;
 }
 
 const emptyNewItem = (): NewItemForm => ({
@@ -524,6 +526,7 @@ const emptyNewItem = (): NewItemForm => ({
     cantidad: 1,
     descuento: 0,
     iva: 0,
+    email: "",
 });
 
 const newItem = ref<NewItemForm>(emptyNewItem());
@@ -1626,6 +1629,17 @@ const checkOutCafeteria = () => {
     cafeteriaConsumption.value = null;
 };
 
+// ── Correo de acceso para pases diario/infantil (códigos 20 y 22) ──
+const isDailyAccessCardConcept = computed(
+    () => ["20", "22"].includes(selectedConcept.value?.code ?? ""),
+);
+
+watch(isDailyAccessCardConcept, (isDailyAccess) => {
+    if (isDailyAccess) {
+        newItem.value.email = account.value?.email ?? "";
+    }
+});
+
 /*watch(
     () => newItem.value.concept_code,
     (code) => {
@@ -1697,6 +1711,14 @@ const addNewItemToCobros = () => {
         });
         return;
     }
+    //correo obligatorio para pases diario/infantil
+    if (isDailyAccessCardConcept.value && !newItem.value.email.trim()) {
+        customToastSwal({
+            title: "Indica el correo para enviar el código de acceso.",
+            icon: "warning",
+        });
+        return;
+    }
 
     cobros.value.push({
         key: `new-${concept.id}-${Date.now()}`,
@@ -1708,6 +1730,7 @@ const addNewItemToCobros = () => {
         amount: Number(newTotal.value.toFixed(2)),
         quantity: Number(newItem.value.cantidad ?? 1),
         unit_amount: Number(newItem.value.importe ?? 0),
+        access_email: isDailyAccessCardConcept.value ? newItem.value.email.trim() : undefined,
     });
 
     resetNewItem();
@@ -1989,6 +2012,7 @@ const registerPayment = async () => {
             total: l.amount,
             quantity: l.quantity,
             unit_amount: l.unit_amount,
+            email: l.access_email
         }));
     const cafeteria_checkouts = cobros.value
         .filter((l) => l.type === "cafeteria_checkout")
@@ -1996,6 +2020,8 @@ const registerPayment = async () => {
             visit_id: l.cafeteria_visit_id,
             consumption_amount: l.cafeteria_consumption_amount,
         }));
+    
+    console.log(new_items);
 
     paying.value = true;
     isLoading.value = true;
@@ -2439,6 +2465,21 @@ const saveNote = async () => {
                                     />
                                 </v-col>
                             </template>
+
+                            <template v-if="isDailyAccessCardConcept">
+                                <v-col cols="12">
+                                    <v-text-field
+                                        v-model="newItem.email"
+                                        label="Correo para enviar el(los) código(s) de acceso"
+                                        type="email"
+                                        prepend-inner-icon="mdi-email-outline"
+                                        hint="Se precarga con el correo del socio, pero puedes cambiarlo."
+                                        persistent-hint
+                                        hide-details="auto"
+                                    />
+                                </v-col>
+                            </template>
+
 
                             <!-- Mensualidad: al capturar el concepto
                                  MONTHLY_FEE se reemplaza la captura genérica
