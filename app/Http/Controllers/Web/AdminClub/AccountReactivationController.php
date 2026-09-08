@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web\AdminClub;
 
+use App\Models\Billing\Charge;
 use App\Models\Memberships\AccountReactivation;
 use App\Models\Memberships\Membership;
 use App\Models\Memberships\MembershipAccountMember;
@@ -110,6 +111,8 @@ class AccountReactivationController extends Controller
             ];
         })->values();
 
+        $previousDebtCharges = $this->resolvePreviousDebtCharges($account);
+
         return Inertia::render('Members/Reactivate', [
             'membership' => [
                 'id' => $membership->id,
@@ -130,7 +133,60 @@ class AccountReactivationController extends Controller
             'members' => $members,
             'previous_memberships' => $previousMemberships,
             'reactivation_history' => $reactivationHistory,
+            // Para que el encargado decida cuánto cobrar con base en lo que
+            // en verdad quedó pendiente/condonado en la baja anterior — ver
+            // resolvePreviousDebtCharges.
+            'had_previous_debt' => $previousDebtCharges->isNotEmpty(),
+            'previous_debt_charges' => $previousDebtCharges,
         ]);
+    }
+
+    /**
+     * Cargos que evidencian que la cuenta tenía adeudo al momento de darse
+     * de baja: los que se quedaron pendientes/parciales (no se condonaron),
+     * o los que sí se condonaron pero quedan marcados como tal (ver
+     * AccountCancellationController::waivePendingCharges). Se muestran en
+     * el formulario de reactivación para que el encargado decida el monto
+     * a cobrar con base en lo que realmente se debía, y determinan si el
+     * cobro de reactivación se etiqueta como CUOTA_ADEUDO_ANTERIOR o
+     * CUOTA_REINSCRIPCION (ver store()).
+     */
+    private function resolvePreviousDebtCharges(\App\Models\Memberships\MembershipAccount $account): \Illuminate\Support\Collection
+    {
+        return Charge::with('concept')
+            ->where('membership_account_id', $account->id)
+            ->where(fn ($q) => $q
+                ->whereIn('status', ['pending', 'partial'])
+                ->orWhere(fn ($condoned) => $condoned
+                    ->where('status', 'cancelled')
+                    ->where('cancellation_reason', 'Condonado por baja de cuenta')))
+            ->orderBy('period_year')
+            ->orderBy('period_month')
+            ->get()
+            ->map(fn (Charge $charge) => [
+                'id' => $charge->id,
+                'concepto' => $charge->concept?->name,
+                'period_label' => $this->periodLabel($charge->period_month, $charge->period_year),
+                'amount' => (float) $charge->amount,
+                'balance' => (float) $charge->balance,
+                'was_condoned' => $charge->status === 'cancelled',
+            ])
+            ->values();
+    }
+
+    private const MONTHS = [
+        1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril',
+        5 => 'Mayo', 6 => 'Junio', 7 => 'Julio', 8 => 'Agosto',
+        9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre',
+    ];
+
+    private function periodLabel(?int $month, ?int $year): ?string
+    {
+        if (!$month || !$year) {
+            return null;
+        }
+
+        return (self::MONTHS[$month] ?? (string) $month) . ' ' . $year;
     }
 
     public function store(Request $request, Membership $membership)
@@ -261,10 +317,18 @@ class AccountReactivationController extends Controller
             // Apply reinscripción fee charge if requested. Uses createInstallmentCharge
             // (extracted from createInitialCharges) so it never touches the monthly-fee
             // reconciliation logic already run above for this same transaction.
+            //
+            // El concepto depende de si la cuenta tenía adeudo al momento de la
+            // baja: si sí (cargos que se quedaron pendientes/parciales, o que se
+            // condonaron al dar de baja — ver AccountCancellationController::
+            // waivePendingCharges), se cobra como CUOTA_ADEUDO_ANTERIOR; si la
+            // baja fue limpia (sin nada pendiente), como CUOTA_REINSCRIPCION.
             if ($request->boolean('apply_enrollment_fee') && $request->filled('enrollment_fee_amount')) {
+                $hadPreviousDebt = $this->resolvePreviousDebtCharges($account)->isNotEmpty();
+
                 $this->membershipChargeService->createInstallmentCharge(
                     membership: $membership,
-                    conceptCode: 'CUOTA_REINSCRIPCION',
+                    conceptCode: $hadPreviousDebt ? 'CUOTA_ADEUDO_ANTERIOR' : 'CUOTA_REINSCRIPCION',
                     totalAmount: (float) $request->input('enrollment_fee_amount'),
                     installmentMonths: $request->integer('enrollment_fee_installment_months') ?: null,
                     metadata: [

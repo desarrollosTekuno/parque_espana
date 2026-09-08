@@ -27,6 +27,15 @@ interface PreviousMembership {
     is_primary: boolean;
 }
 
+interface PreviousDebtCharge {
+    id: number;
+    concepto: string | null;
+    period_label: string | null;
+    amount: number;
+    balance: number;
+    was_condoned: boolean;
+}
+
 interface ReactivationHistoryItem {
     reactivated_at: string;
     reactivated_by_name: string | null;
@@ -54,6 +63,8 @@ interface Props {
     members: MemberItem[];
     previous_memberships: PreviousMembership[];
     reactivation_history: ReactivationHistoryItem[];
+    had_previous_debt: boolean;
+    previous_debt_charges: PreviousDebtCharge[];
 }
 
 const props = defineProps<Props>();
@@ -357,6 +368,64 @@ const submit = () => {
                             </v-list>
                         </v-card>
 
+                        <!-- Adeudo previo a la baja -->
+                        <v-card
+                            v-if="props.previous_debt_charges.length > 0"
+                            class="pa-4 mb-4"
+                            variant="outlined"
+                        >
+                            <div class="text-subtitle-1 font-weight-bold mb-1">
+                                Adeudo al momento de la baja
+                            </div>
+                            <div class="text-caption text-medium-emphasis mb-3">
+                                Esta cuenta tenía cargos sin liquidar cuando se dio de baja — úsalos como
+                                referencia para decidir el monto a cobrar en la reactivación.
+                            </div>
+                            <v-table density="compact">
+                                <thead>
+                                    <tr>
+                                        <th>Concepto</th>
+                                        <th>Periodo</th>
+                                        <th>Monto</th>
+                                        <th>Estatus</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="c in props.previous_debt_charges" :key="c.id">
+                                        <td>{{ c.concepto || `Cargo #${c.id}` }}</td>
+                                        <td>{{ c.period_label || "-" }}</td>
+                                        <td>{{ currencyFormatter.format(c.was_condoned ? c.amount : c.balance) }}</td>
+                                        <td>
+                                            <v-chip
+                                                size="x-small"
+                                                :color="c.was_condoned ? 'warning' : 'error'"
+                                                variant="tonal"
+                                            >
+                                                {{ c.was_condoned ? "Condonado en la baja" : "Sigue pendiente" }}
+                                            </v-chip>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <td class="font-weight-bold">Total</td>
+                                        <td></td>
+                                        <td class="font-weight-bold">
+                                            {{
+                                                currencyFormatter.format(
+                                                    props.previous_debt_charges.reduce(
+                                                        (sum, c) => sum + (c.was_condoned ? c.amount : c.balance),
+                                                        0,
+                                                    ),
+                                                )
+                                            }}
+                                        </td>
+                                        <td></td>
+                                    </tr>
+                                </tfoot>
+                            </v-table>
+                        </v-card>
+
                         <!-- Formulario de reactivación -->
                         <v-alert type="info" variant="tonal" class="mb-4">
                             Al reactivar la cuenta se restaurarán todas las membresías canceladas.
@@ -381,10 +450,18 @@ const submit = () => {
                                         <template #label>
                                             <div>
                                                 <div class="font-weight-medium">
-                                                    Aplicar cobro de reinscripción
+                                                    {{
+                                                        props.had_previous_debt
+                                                            ? "Aplicar cuota de adeudo anterior"
+                                                            : "Aplicar cobro de reinscripción"
+                                                    }}
                                                 </div>
                                                 <div class="text-caption text-medium-emphasis">
-                                                    Se generará un cargo de reinscripción pendiente de pago.
+                                                    {{
+                                                        props.had_previous_debt
+                                                            ? "Se generará un cargo de adeudo anterior pendiente de pago (la cuenta tenía cargos sin liquidar al darse de baja)."
+                                                            : "Se generará un cargo de reinscripción pendiente de pago."
+                                                    }}
                                                 </div>
                                             </div>
                                         </template>
@@ -393,7 +470,7 @@ const submit = () => {
                                     <div v-if="form.apply_enrollment_fee" class="mt-2">
                                         <v-text-field
                                             v-model.number="form.enrollment_fee_amount"
-                                            label="Monto de reinscripción"
+                                            :label="`Monto a cobrar (${props.had_previous_debt ? 'adeudo anterior' : 'reinscripción'})`"
                                             type="number"
                                             min="0.01"
                                             step="0.01"

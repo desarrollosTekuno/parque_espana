@@ -81,7 +81,7 @@ const maxDate = computed(() => {
 })
 
 const emit = defineEmits(["update:modelValue"]);
-const internalValue = ref<Date | null>(null);(
+const internalValue = ref<Date | null>(
   props.modelValue ? parseLocalDate(props.modelValue) : null
 );
 const showPicker = ref(false);
@@ -127,8 +127,4 @@ const formattedDate = computed(() => {
     day: "numeric",
   });
 });
-console.log('MIN PROP:', props.min)
-console.log('MAX PROP:', props.max)
-console.log('MIN DATE:', minDate.value)
-console.log('MAX DATE:', maxDate.value)
 </script>

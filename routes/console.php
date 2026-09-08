@@ -3,11 +3,12 @@
 // use App\Console\Commands\DispatchScheduledNotifications;
 
 use App\Console\Commands\ExpireDailyPassCards;
+use App\Console\Commands\MarkReservationNoShows;
 use App\Console\Commands\GenerateMonthlyMembershipCharges;
 use App\Console\Commands\ProcessMembershipAgeTransitions;
 use App\Console\Commands\ProcessMembershipDelinquency;
 use App\Console\Commands\PruneStaleDeviceTokens;
-use App\Console\Commands\SendScheduledEmailNotifications;
+use App\Console\Commands\SendScheduledNotifications;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -21,6 +22,7 @@ Schedule::command(GenerateMonthlyMembershipCharges::class)->monthlyOn(1, '01:00'
 // Schedule::command(ProcessMembershipAgeTransitions::class)->dailyAt('01:00');
 Schedule::command(ProcessMembershipAgeTransitions::class)->everyMinute();
 Schedule::command(PruneStaleDeviceTokens::class)->weekly();
-Schedule::command(SendScheduledEmailNotifications::class)->everyMinute();
+// Schedule::command(SendScheduledEmailNotifications::class)->everyMinute();
 Schedule::command(ExpireDailyPassCards::class)->everyFifteenMinutes();
 Schedule::command(ProcessMembershipDelinquency::class)->dailyAt('02:00');
+Schedule::command(MarkReservationNoShows::class)->everyMinute();

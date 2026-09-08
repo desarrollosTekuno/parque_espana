@@ -5,10 +5,12 @@ namespace App\Services\Reservation\Validators;
 use App\Services\Reservation\Context\ReservationContext;
 use App\Services\Reservation\Rules\AdvanceDaysRule;
 use App\Services\Reservation\Rules\CapacityRule;
+use App\Services\Reservation\Rules\ClassRequiresCoachRule;
 use App\Services\Reservation\Rules\ConsecutiveReservationRule;
+use App\Services\Reservation\Rules\MinorRequiresClassRule;
 use App\Services\Reservation\Rules\ReservationsPerDayRule;
 use App\Services\Reservation\Rules\UserNoShowPenaltyRule;
-use App\Services\Reservation\Rules\UserOverlapRule;
+use App\Services\Reservation\Rules\UserReservationOverlapRule;
 
 class CreateReservationValidator
 {
@@ -23,9 +25,11 @@ class CreateReservationValidator
     public function __construct(bool $includeDailyLimit = true)
     {
         $this->rules = [
+            new MinorRequiresClassRule(),
+            new ClassRequiresCoachRule(),
             new AdvanceDaysRule(),
             new UserNoShowPenaltyRule(),
-            new UserOverlapRule(),
+            new UserReservationOverlapRule(),
             new ConsecutiveReservationRule(),
             new CapacityRule(),
         ];

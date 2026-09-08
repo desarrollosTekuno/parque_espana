@@ -258,7 +258,7 @@ class BillingConceptSeeder extends Seeder
                 'default_amount' => null,
                 'is_recurring' => false,
                 'allows_partial_payments' => false,
-                'is_active' => false,
+                'is_active' => true,
                 'internal_key' => '06',
             ],
             [

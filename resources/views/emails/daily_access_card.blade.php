@@ -9,8 +9,9 @@
     </p>
     <p style="font-size: 14px; color: #475569; margin: 0 0 24px;">
         Gracias por tu compra. Te compartimos el código de acceso para tu visita a
-        <strong>{{ $club->name }}</strong>, válido del
-        <strong>{{ $validFromFormatted }}</strong> al <strong>{{ $validUntilFormatted }}</strong>.
+        <strong>{{ $club->name }}</strong>.
+        {{-- válido del --}}
+        {{-- <strong>{{ $validFromFormatted }}</strong> al <strong>{{ $validUntilFormatted }}</strong>. --}}
         Muestra el código QR correspondiente en el punto de acceso del parque.
     </p>
 

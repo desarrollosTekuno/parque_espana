@@ -838,6 +838,15 @@ class MemberController extends Controller
                 ]);
             }
 
+            // Las cuotas cambian año tras año (ver Cuotas por año) — un
+            // permiso se acota al año en curso, para que su porcentaje se
+            // calcule siempre sobre la cuota vigente ese año.
+            if ((int) $startDate->year !== (int) now()->year || (int) $endDate->year !== (int) now()->year) {
+                throw ValidationException::withMessages([
+                    'end_month' => 'El permiso debe quedar dentro del año en curso.',
+                ]);
+            }
+
             // El grupo (account_group_id) es lo ideal cuando existe — hace
             // que el permiso aplique también a las cuentas hermanas del
             // socio en otros parques (ver MembershipChargeService::

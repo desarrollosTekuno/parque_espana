@@ -35,6 +35,7 @@
                         icon
                         variant="text"
                         size="small"
+                        :disabled="isMaxYear"
                         @click.stop="nextYear"
                     >
                         <v-icon>mdi-chevron-right</v-icon>
@@ -91,12 +92,14 @@ interface Props {
     label?: string;
     errorMessages?: string | string[];
     min?: string;             // Formato YYYY-MM — mes mínimo seleccionable
+    max?: string;             // Formato YYYY-MM — mes máximo seleccionable
 }
 
 const props = withDefaults(defineProps<Props>(), {
     label: "Seleccionar mes",
     errorMessages: () => [],
     min: "",
+    max: "",
 });
 
 const emit = defineEmits(["update:modelValue"]);
@@ -135,6 +138,20 @@ const isMinYear = computed(() =>
     minYear.value !== null && currentYear.value <= minYear.value
 );
 
+const maxYear = computed(() => {
+    if (!props.max) return null;
+    return parseInt(props.max.split("-")[0]);
+});
+
+const maxMonth = computed(() => {
+    if (!props.max) return null;
+    return parseInt(props.max.split("-")[1]);
+});
+
+const isMaxYear = computed(() =>
+    maxYear.value !== null && currentYear.value >= maxYear.value
+);
+
 /* ─────────────────────────────
  * MÉTODOS
  * ───────────────────────────── */
@@ -145,12 +162,19 @@ const isSelected = (monthIndex: number): boolean => {
 };
 
 const isDisabled = (monthIndex: number): boolean => {
-    if (!props.min) return false;
-    if (minYear.value === null || minMonth.value === null) return false;
-    return (
-        currentYear.value < minYear.value ||
-        (currentYear.value === minYear.value && monthIndex + 1 < minMonth.value)
-    );
+    const belowMin =
+        minYear.value !== null &&
+        minMonth.value !== null &&
+        (currentYear.value < minYear.value ||
+            (currentYear.value === minYear.value && monthIndex + 1 < minMonth.value));
+
+    const aboveMax =
+        maxYear.value !== null &&
+        maxMonth.value !== null &&
+        (currentYear.value > maxYear.value ||
+            (currentYear.value === maxYear.value && monthIndex + 1 > maxMonth.value));
+
+    return belowMin || aboveMax;
 };
 
 const selectMonth = (monthIndex: number) => {
@@ -164,7 +188,7 @@ const prevYear = () => {
 };
 
 const nextYear = () => {
-    currentYear.value++;
+    if (!isMaxYear.value) currentYear.value++;
 };
 
 const openPicker = () => {

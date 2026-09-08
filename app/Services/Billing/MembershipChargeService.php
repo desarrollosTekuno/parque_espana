@@ -101,6 +101,11 @@ class MembershipChargeService
     public const INSCRIPTION_FAMILY_CODES = [
         'INSCRIPTION',
         'CUOTA_REINSCRIPCION',
+        // Reactivación de cuenta cuando SÍ había adeudo pendiente al momento
+        // de la baja (ver AccountReactivationController::store) — misma
+        // familia funcional que CUOTA_REINSCRIPCION (cobro único, se puede
+        // diferir a meses), solo cambia el concepto según ese criterio.
+        'CUOTA_ADEUDO_ANTERIOR',
         'CUOTA_INSCRIPCION_BENEFICENCIA',
         'CUOTA_INSCRIPCION_ESPANOLES',
         'CUOTA_INSCRIPCION_PARQUE_I',
@@ -615,13 +620,43 @@ class MembershipChargeService
                 ->exists();
 
             if (!$existsForPeriod) {
-                $this->createRecurringMonthlyCharge($billableMembership, $cursor->copy(), [
-                    'charge_origin' => 'auto_backfill_on_search',
-                ]);
+                // No usar siempre $billableMembership (la vigente HOY): un
+                // periodo del hueco puede ser anterior a que esa membresía
+                // existiera (p. ej. se acaba de agregar la membresía de un
+                // combo interclub, y el hueco viene de meses de ANTES de eso,
+                // que en verdad le tocan a la membresía hermana que ya
+                // estaba activa entonces) — sin esto, se le colgaban meses
+                // anteriores a su propio start_date a la membresía nueva.
+                $periodMembership = $this->resolvePeriodBillableMembership($billableMembership, $cursor);
+
+                if ($periodMembership) {
+                    // is_billable refleja el estado ACTUAL (p. ej. ya es
+                    // false porque hoy existe el combo) — no si lo era
+                    // durante $cursor. resolvePeriodBillableMembership ya
+                    // hizo la selección correcta para ese periodo, así que
+                    // aquí se ignora el flag de hoy.
+                    $this->createRecurringMonthlyCharge($periodMembership, $cursor->copy(), [
+                        'charge_origin' => 'auto_backfill_on_search',
+                    ], null, ignoreBillableState: true);
+                }
             }
 
             $cursor->addMonthNoOverflow();
         }
+    }
+
+    /**
+     * La membresía que en verdad correspondía cobrar en $period (no
+     * necesariamente $billableMembership, que es la facturable HOY) — ver
+     * ensureMonthlyChargesUpToToday. Usa resolveGroupPrimaryMemberships, que
+     * ya acota por start_date/end_date vigentes en ese periodo específico.
+     */
+    protected function resolvePeriodBillableMembership(Membership $billableMembership, Carbon $period): ?Membership
+    {
+        $periodMemberships = $this->resolveGroupPrimaryMemberships($billableMembership, $period);
+
+        return $periodMemberships->first(fn (Membership $m) => (bool) $m->is_billable)
+            ?? $periodMemberships->first();
     }
 
     /**
@@ -1084,9 +1119,8 @@ class MembershipChargeService
     protected function buildMonthlyChargeDescription(Membership $membership, Carbon $chargeDate): string
     {
         $monthLabel = $chargeDate->locale('es')->translatedFormat('F Y');
-        $membershipTypeName = $membership->membershipType?->name ?? 'Membresía';
 
-        return sprintf('Mensualidad %s - %s', ucfirst($monthLabel), $membershipTypeName);
+        return sprintf('Mensualidad %s', ucfirst($monthLabel));
     }
 
     protected function buildMonthlyAdjustmentChargeDescription(
@@ -1095,12 +1129,10 @@ class MembershipChargeService
         float $totalMonthlyFee
     ): string {
         $monthLabel = $chargeDate->locale('es')->translatedFormat('F Y');
-        $membershipTypeName = $membership->membershipType?->name ?? 'Membresía';
 
         return sprintf(
-            'Complemento de mensualidad %s - %s (total del período $%s)',
+            'Complemento de mensualidad %s (total del período $%s)',
             ucfirst($monthLabel),
-            $membershipTypeName,
             number_format($totalMonthlyFee, 2)
         );
     }
@@ -1346,11 +1378,52 @@ class MembershipChargeService
         return $results;
     }
 
-    protected function resolveMembershipMonthlyFeeTotal(Membership $membership, ?float $fallback = null, ?int $year = null): float
+    protected function resolveMembershipMonthlyFeeTotal(Membership $membership, ?float $fallback = null, ?int $year = null, ?Carbon $referenceDate = null): float
     {
+        if ($referenceDate) {
+            $historicalFee = $this->resolveHistoricalMonthlyFeeOverride($membership, $referenceDate);
+
+            if ($historicalFee !== null) {
+                return round($historicalFee, 2);
+            }
+        }
+
         $live = $membership->resolveLiveMonthlyFee($year);
 
         return round((float) ($live ?? $membership->monthly_fee_total ?? $membership->monthly_fee ?? $fallback ?? 0), 2);
+    }
+
+    /**
+     * La cuota que en verdad correspondía cobrar en $period, según el
+     * historial de cambios de tipo de esta membresía
+     * (memberships.membership_history) — a diferencia de resolveLiveMonthlyFee
+     * (que siempre resuelve con el pricing_rule_id/tipo ACTUAL de la
+     * membresía), esto respeta un cambio de tipo ocurrido DESPUÉS de
+     * $period. Sin esto, un cargo regenerado para un mes anterior a un
+     * cambio de tipo (p. ej. porque se canceló por error y el backfill lo
+     * vuelve a crear al buscar al socio en Cobranza) terminaba cobrando la
+     * cuota NUEVA en vez de la que en verdad aplicaba ese mes — ver bug
+     * reportado: mensualidad de $1,500 (individual) reconstruida como
+     * $3,000 (familiar) tras cambiar de tipo.
+     *
+     * Se busca la transición MÁS ANTIGUA ocurrida después de $period: su
+     * previous_monthly_fee es la cuota vigente justo antes de esa
+     * transición, es decir, la que aplicaba durante $period. null si no hay
+     * ninguna transición posterior a $period (la cuota actual ya aplicaba
+     * entonces) o si esa transición no trae cuota anterior registrada.
+     */
+    protected function resolveHistoricalMonthlyFeeOverride(Membership $membership, Carbon $period): ?float
+    {
+        $periodEnd = $period->copy()->endOfMonth()->toDateString();
+
+        $laterTransition = DB::table('memberships.membership_history')
+            ->where('membership_id', $membership->id)
+            ->whereDate('effective_date', '>', $periodEnd)
+            ->whereNotNull('previous_monthly_fee')
+            ->orderBy('effective_date')
+            ->first();
+
+        return $laterTransition ? (float) $laterTransition->previous_monthly_fee : null;
     }
 
     /**
@@ -1376,17 +1449,25 @@ class MembershipChargeService
 
             if ($this->shouldSplitMonthlyChargesAcrossGroup($groupMemberships, 'equal_split')) {
                 $fee = $this->resolveInterclubMonthlyFee($groupMemberships, $year)
-                    ?? $this->resolveMembershipOwnMonthlyFee($membership, $fallback, $year);
+                    ?? $this->resolveMembershipOwnMonthlyFee($membership, $fallback, $year, $referenceDate);
 
                 return round($fee / $groupMemberships->count(), 2);
             }
         }
 
-        return $this->resolveMembershipOwnMonthlyFee($membership, $fallback, $year);
+        return $this->resolveMembershipOwnMonthlyFee($membership, $fallback, $year, $referenceDate);
     }
 
-    protected function resolveMembershipOwnMonthlyFee(Membership $membership, ?float $fallback, ?int $year): float
+    protected function resolveMembershipOwnMonthlyFee(Membership $membership, ?float $fallback, ?int $year, ?Carbon $referenceDate = null): float
     {
+        if ($referenceDate) {
+            $historicalFee = $this->resolveHistoricalMonthlyFeeOverride($membership, $referenceDate);
+
+            if ($historicalFee !== null) {
+                return round($historicalFee, 2);
+            }
+        }
+
         $live = $membership->resolveLiveMonthlyFee($year);
 
         return round((float) ($live ?? $membership->monthly_fee_share ?? $fallback ?? $membership->monthly_fee ?? 0), 2);

@@ -1251,7 +1251,7 @@ const downloadQr = (resourceId: number) => {
                                 </template>
                                 <template #item.actions="{ item }">
                                     <span class="action-slot">
-                                        <BaseButton text="Agregar horario" action="add" icon="mdi-calendar-month"
+                                        <BaseButton text="Agregar horario" action="add" icon="mdi-clock-plus"
                                             @click="openScheduleModal(item)" v-if="can.includes('amenitySchedule.store')" />
                                     </span>
                                     <BaseButton action="edit" @click="edit(item)"
@@ -1302,7 +1302,7 @@ const downloadQr = (resourceId: number) => {
                                     />
                                 </template>
                                 <template #item.actions="{ item }">
-                                    <BaseButton v-if="can.includes('amenityResource.calendar')" text="Calendario" icon="mdi-calendar-month" action="view" @click="openCalendar(item)" />
+                                    <BaseButton v-if="can.includes('amenityResource.calendar')" text="Calendario" icon="mdi-calendar-check" action="view" @click="openCalendar(item)" />
                                     <BaseButton v-if="can.includes('amenityResource.update')" action="edit" @click="editResource(item)" />
                                     <BaseButton v-if="can.includes('amenityResource.update')" text="Coordenadas" icon="mdi-map-marker-plus" @click="openLocationsModal(item)" />
                                     <v-tooltip text="Descargar QR" location="top">

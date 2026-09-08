@@ -343,7 +343,7 @@ const routes: Routing[] = [
     },
     // Reservaciones
     {
-        name: ["reservations.index", "guest-lists.index"],
+        name: ["reservations.index", "guest-lists.index", "attendance.index"],
         title: "Reservaciones",
         icon: "mdi-calendar-check",
         value: "reservacionesMenu",
@@ -354,6 +354,12 @@ const routes: Routing[] = [
                 title: "Reservaciones",
                 icon: "mdi-calendar-check",
                 value: "reservaciones",
+            },
+            {
+                name: "attendance.index",
+                title: "Asistencias",
+                icon: "mdi-qrcode-scan",
+                value: "asistencias",
             },
             {
                 name: "system-variables.index",

@@ -192,12 +192,8 @@ onBeforeUnmount(() => {
   flex: 1;
   min-height: 0;
 }
-:deep(.sx__event) {
+:deep(.sx__month-grid-event) {
   margin-bottom: 4px;
-  width: 100% !important;
-}
-:deep(.sx__time-grid-event) {
-  left: 0 !important;
   width: 100% !important;
 }
 </style>

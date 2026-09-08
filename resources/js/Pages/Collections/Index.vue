@@ -638,6 +638,13 @@ const MONTHLY_FEE_FAMILY_CODES = [
     "MONTHLY_FEE_PARKS",
     "MONTHLY_FEE_PARKS_INTERMEDIATE",
     "MONTHLY_FEE_PARKS_FI",
+    // Mensualidad cobrada durante un permiso por ausencia — sigue siendo
+    // "la mensualidad del periodo" (se crea/backfillea igual, ver
+    // MembershipChargeService::MONTHLY_FEE_FAMILY_CODES), solo que a un
+    // porcentaje reducido, así que usa el mismo flujo de "Cantidad de
+    // meses" (resolveMonthlyFeeMonths), no el de inscripción.
+    "CUOTA_PERMISO",
+    "CUOTA_75_PERMISO",
 ];
 const isMonthlyFeeConcept = computed(
     () => MONTHLY_FEE_FAMILY_CODES.includes(selectedConcept.value?.code?.toUpperCase() ?? ""),
@@ -944,6 +951,10 @@ watch(monthlyFeeMonthsCount, (value) => {
 const INSCRIPTION_LIKE_CONCEPT_CODES = [
     "INSCRIPTION",
     "CUOTA_REINSCRIPCION",
+    // Reactivación de cuenta con adeudo previo (ver
+    // AccountReactivationController::store) — misma familia funcional que
+    // CUOTA_REINSCRIPCION.
+    "CUOTA_ADEUDO_ANTERIOR",
     // Variantes de inscripción según el tipo de membresía (beneficencia,
     // ascendencia española, paquete Parque España 1) — ver
     // MembershipChargeService::INSCRIPTION_FAMILY_CODES / resolveInscriptionConcept.
@@ -954,8 +965,6 @@ const INSCRIPTION_LIKE_CONCEPT_CODES = [
     "CHEQUE_REBOTADO_PARQUE1",
     "COMISION_CHEQUE_REBOTADO",
     "IF",
-    "CUOTA_PERMISO",
-    "CUOTA_75_PERMISO"
 ];
 const isInscriptionConcept = computed(
     () => INSCRIPTION_LIKE_CONCEPT_CODES.includes(selectedConcept.value?.code?.toUpperCase() ?? ""),
