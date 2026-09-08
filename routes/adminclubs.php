@@ -238,6 +238,7 @@ Route::put('/surveys/{survey}/questions/{question}', [SurveyController::class, '
 Route::delete('/surveys/{survey}/questions/{question}', [SurveyController::class, 'destroyQuestion'])->name('surveys.questions.destroy');
 Route::post('/surveys/{survey}/questions/reorder', [SurveyController::class, 'reorderQuestions'])->name('surveys.questions.reorder');
 Route::get('/surveys/{survey}/results', [SurveyResultController::class, 'index'])->name('surveys.results');
+Route::get('/surveys/{survey}/results/export-pdf', [SurveyResultController::class, 'exportPdf'])->name('surveys.results.export-pdf');
 
 
 // =========== FEEDBACK ============

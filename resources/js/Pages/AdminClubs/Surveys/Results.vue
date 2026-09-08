@@ -58,6 +58,10 @@ const isRatingData   = (q: QuestionResult): q is QuestionResult & { chart_data: 
 
 const isOpenTextData = (q: QuestionResult): q is QuestionResult & { chart_data: string[] } =>
     q.type === "open_text";
+
+const exportPdf = () => {
+    window.location.href = route("surveys.results.export-pdf", props.survey.id);
+};
 </script>
 
 <template>
@@ -77,6 +81,14 @@ const isOpenTextData = (q: QuestionResult): q is QuestionResult & { chart_data: 
                     <h2 class="text-h5 font-weight-bold">Resultados</h2>
                     <div class="text-body-2 text-medium-emphasis">{{ props.survey.title }}</div>
                 </div>
+                <v-spacer />
+                <BaseButton
+                    icon="mdi-file-pdf-box"
+                    text="Exportar PDF"
+                    color="error"
+                    :icon-only="false"
+                    @click="exportPdf"
+                />
             </div>
 
             <!-- Resumen -->
