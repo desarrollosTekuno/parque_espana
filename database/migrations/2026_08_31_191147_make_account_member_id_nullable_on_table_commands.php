@@ -37,7 +37,7 @@ return new class extends Migration
         });
 
         Schema::table('devices.commands', function (Blueprint $table) {
-            $table->unsignedBigInteger('account_member_id')->nullable(false)->change();
+            // $table->unsignedBigInteger('account_member_id')->nullable(false)->change();
         });
 
         Schema::table('devices.commands', function (Blueprint $table) {

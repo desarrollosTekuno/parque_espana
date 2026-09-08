@@ -172,7 +172,12 @@ class MemberController extends Controller
                         'can_separate_member' => (bool) ($currentMembership?->membershipType?->allows_multiple_members)
                             && (int) $account->account_members_count > 1,
                         'can_cancel_membership' => Gate::allows('members.cancel.create'),
-                        'can_create_membership' => Gate::allows('members.additional-membership.create'),
+                        // Si el socio ya tiene membresía activa en ambos parques
+                        // (paquete interclub, ver resolveGroupBillingSummary), no
+                        // hay "otro parque" que agregar — ocultar el botón evita
+                        // que se intente duplicar la membresía que ya existe.
+                        'can_create_membership' => Gate::allows('members.additional-membership.create')
+                            && !$groupBillingSummary['spans_multiple_clubs'],
                         'active_memberships' => $activeMemberships->map(function (Membership $membership) {
                             return [
                                 'id' => $membership->id,
@@ -596,6 +601,28 @@ class MemberController extends Controller
         if (!$targetClub) {
             return redirect()->route('members.index')->withErrors([
                 'messageError' => 'No se encontró un parque destino disponible para esta solicitud.',
+                'exception' => '',
+            ]);
+        }
+
+        // Si el socio ya tiene membresía activa en el parque destino (paquete
+        // interclub ya armado), no hay nada que agregar — evita duplicar la
+        // membresía que ya existe. Ver Members/Index.vue: el botón ya se
+        // oculta cuando spans_multiple_clubs es true, esto es la validación
+        // de respaldo por si se entra directo a la URL.
+        $accountGroupId = $membership->account?->account_group_id;
+        $alreadyHasTargetClubMembership = $accountGroupId
+            ? Membership::query()
+                ->whereHas('account', fn (Builder $q) => $q->where('account_group_id', $accountGroupId))
+                ->where('club_id', $targetClub->id)
+                ->where('is_primary', true)
+                ->whereIn('status', ['active', 'suspended'])
+                ->exists()
+            : false;
+
+        if ($alreadyHasTargetClubMembership) {
+            return redirect()->route('members.index')->withErrors([
+                'messageError' => 'El socio ya tiene una membresía activa en ' . $targetClub->name . '.',
                 'exception' => '',
             ]);
         }
