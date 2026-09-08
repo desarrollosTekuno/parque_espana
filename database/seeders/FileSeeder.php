@@ -20,9 +20,12 @@ class FileSeeder extends Seeder
                 'description' => 'Solicitud de usuario con logo',
                 'is_required' => true,
                 'is_active' => true,
-                'allowed_mime_types' => json_encode(["application\/msword","application\/vnd.openxmlformats-officedocument.wordprocessingml.document"]),
+                'allowed_mime_types' => [
+                    'application/msword',
+                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                ],
                 'max_size_bytes' => 2097152,
-                'module' => 'Administración'
+                'module' => 'Administración',
             ],
             [
                 'code' => 'SOL_USER_SL',
@@ -30,9 +33,12 @@ class FileSeeder extends Seeder
                 'description' => 'Solicitud de usuario sin logo',
                 'is_required' => true,
                 'is_active' => true,
-                'allowed_mime_types' => json_encode(["application\/msword","application\/vnd.openxmlformats-officedocument.wordprocessingml.document"]),
+                'allowed_mime_types' => [
+                    'application/msword',
+                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                ],
                 'max_size_bytes' => 2097152,
-                'module' => 'Administración'
+                'module' => 'Administración',
             ],
             [
                 'code' => 'SOL_PERMISO',
@@ -40,9 +46,12 @@ class FileSeeder extends Seeder
                 'description' => 'Solicitud de permiso',
                 'is_required' => true,
                 'is_active' => true,
-                'allowed_mime_types' => json_encode(["application\/msword","application\/vnd.openxmlformats-officedocument.wordprocessingml.document"]),
+                'allowed_mime_types' => [
+                    'application/msword',
+                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                ],
                 'max_size_bytes' => 2097152,
-                'module' => 'Administración'
+                'module' => 'Administración',
             ],
             [
                 'code' => 'SOL_LOCKER',
@@ -50,26 +59,20 @@ class FileSeeder extends Seeder
                 'description' => 'Solicitud de locker',
                 'is_required' => true,
                 'is_active' => true,
-                'allowed_mime_types' => json_encode(["application\/msword","application\/vnd.openxmlformats-officedocument.wordprocessingml.document"]),
+                'allowed_mime_types' => [
+                    'application/msword',
+                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                ],
                 'max_size_bytes' => 2097152,
-                'module' => 'Administración'
-            ]
+                'module' => 'Administración',
+            ],
         ];
-
+        
         foreach ($formatos as $formato) {
             File::updateOrCreate(
-            [
-                'code' => $formato['code']
-            ],
-            [
-                'name' => $formato['name'],
-                'description' => $formato['description'],
-                'is_required' => $formato['is_required'],
-                'is_active' => $formato['is_active'],
-                'allowed_mime_types' => $formato['allowed_mime_types'],
-                'max_size_bytes' => $formato['max_size_bytes'],
-                'module' => $formato['module']
-            ]);
+                ['code' => $formato['code']],
+                $formato
+            );
         }
     }
 }

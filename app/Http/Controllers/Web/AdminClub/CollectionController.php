@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web\AdminClub;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendDailyAccessCardMail;
 use App\Jobs\SendPushNotificationJob;
 use App\Mail\DailyAccessCardMail;
 use App\Models\AdminClub\BusinessAd;
@@ -21,10 +22,12 @@ use App\Models\Memberships\MembershipAccount;
 use App\Models\AdminClub\CafeteriaVisit;
 use App\Rules\ExistsInSchema;
 use App\Services\Access\GuestPassProvisioningService;
+use App\Services\Access\MembershipDelinquencyService;
 use App\Services\AdminClub\CafeteriaCheckoutService;
 use App\Services\Billing\AnnualPaymentService;
 use App\Services\Billing\MembershipChargeService;
 use App\Services\Billing\PaymentRegistrationService;
+use App\Services\Email\MailService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -61,7 +64,9 @@ class CollectionController extends Controller
         protected MembershipChargeService $membershipChargeService,
         protected CafeteriaCheckoutService $cafeteriaCheckoutService,
         protected AnnualPaymentService $annualPaymentService,
-        protected GuestPassProvisioningService $guestPassProvisioningService
+        protected GuestPassProvisioningService $guestPassProvisioningService,
+        protected MembershipDelinquencyService $delinquencyService,
+        protected MailService $mailService
     ) {
     }
 
@@ -1608,19 +1613,50 @@ class CollectionController extends Controller
             // transacción (igual que DayPassController::store) para no bloquear el
             // registro del pago si el envío de correo falla.
             foreach ($dailyAccessNotifications as $notification) {
-                try {
-                        $mailable = new DailyAccessCardMail(
-                            club: Club::findOrFail($notification['club_id']),
-                            validFrom: $notification['valid_from'],
-                            validUntil: $notification['valid_until'],
-                            cardCodes: $notification['card_codes'],
-                        );
+                SendDailyAccessCardMail::dispatch(
+                    clubId: $notification['club_id'],
+                    email: $notification['email'],
+                    validFrom: $notification['valid_from'],
+                    validUntil: $notification['valid_until'],
+                    cardCodes: $notification['card_codes'],
+                );
 
-                        Mail::to($notification['email'])->send($mailable);
-                } catch (\Exception $e) {
-                    Log::warning('No se pudo enviar el ticket al visitante.', [
-                        'error'      => $e->getMessage(),
-                    ]);
+                // try {
+                //     $this->mailService->send(
+                //         entityId: $notification['club_id'],
+                //         to: $notification['email'],
+                //         mailable: new DailyAccessCardMail(
+                //             club: Club::findOrFail($notification['club_id']),
+                //             validFrom: $notification['valid_from'],
+                //             validUntil: $notification['valid_until'],
+                //             cardCodes: $notification['card_codes'],
+                //         )
+                //     );
+                // } catch (\Exception $e) {
+                //     Log::warning('No se pudo enviar el ticket al visitante.', [
+                //         'error'      => $e->getMessage(),
+                //     ]);
+                // }
+            }
+
+            // Si el pago incluyó mensualidad y la cuenta ya bajó del umbral de
+            // morosidad, se desbloquea el acceso automáticamente.
+            if ($account && ($existing->isNotEmpty() || $annualYear !== null))
+            {
+                $paidMonthlyFee = $annualYear !== null || Charge::query()
+                    ->whereIn('id', $existing->pluck('charge_id'))
+                    ->whereHas('concept', fn (Builder $q) => $q->where('code', MembershipChargeService::MONTHLY_FEE_FAMILY_CODES))
+                    ->exists();
+
+                if ($paidMonthlyFee && !$this->delinquencyService->isAccountDelinquent($account)) {
+                    try {
+                        $this->delinquencyService->unblockAccount($account);
+                    } catch (\Throwable $e) {
+                        Log::warning('No se pudo desbloquear el acceso tras el pago.', [
+                            'membership_account_id' => $account->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
                 }
             }
 
