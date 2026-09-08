@@ -951,6 +951,10 @@ watch(monthlyFeeMonthsCount, (value) => {
 const INSCRIPTION_LIKE_CONCEPT_CODES = [
     "INSCRIPTION",
     "CUOTA_REINSCRIPCION",
+    // Reactivación de cuenta con adeudo previo (ver
+    // AccountReactivationController::store) — misma familia funcional que
+    // CUOTA_REINSCRIPCION.
+    "CUOTA_ADEUDO_ANTERIOR",
     // Variantes de inscripción según el tipo de membresía (beneficencia,
     // ascendencia española, paquete Parque España 1) — ver
     // MembershipChargeService::INSCRIPTION_FAMILY_CODES / resolveInscriptionConcept.

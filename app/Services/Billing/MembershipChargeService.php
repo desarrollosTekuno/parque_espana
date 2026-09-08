@@ -101,6 +101,11 @@ class MembershipChargeService
     public const INSCRIPTION_FAMILY_CODES = [
         'INSCRIPTION',
         'CUOTA_REINSCRIPCION',
+        // Reactivación de cuenta cuando SÍ había adeudo pendiente al momento
+        // de la baja (ver AccountReactivationController::store) — misma
+        // familia funcional que CUOTA_REINSCRIPCION (cobro único, se puede
+        // diferir a meses), solo cambia el concepto según ese criterio.
+        'CUOTA_ADEUDO_ANTERIOR',
         'CUOTA_INSCRIPCION_BENEFICENCIA',
         'CUOTA_INSCRIPCION_ESPANOLES',
         'CUOTA_INSCRIPCION_PARQUE_I',

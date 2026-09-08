@@ -1255,10 +1255,10 @@ console.log(can)
                                             <div class="text-body-2 text-medium-emphasis">Gestiona la membresía y sus integrantes.</div>
                                         </div>
                                         <div class="flex-wrap d-flex ga-2">
-                                            <v-btn v-if="can.includes('members.lockers.create')" color="primary" variant="tonal"
+                                            <!-- <v-btn v-if="can.includes('members.lockers.create')" color="primary" variant="tonal"
                                                 @click="router.visit(route('members.lockers.create', props.account.id))">
                                                 Asignar casillero
-                                            </v-btn>
+                                            </v-btn> -->
                                             <v-btn v-if="can.includes('acts.index')" color="primary" variant="tonal"
                                                 @click="router.visit(route('acts.index', props.account.id))">
                                                 Registrar multa
