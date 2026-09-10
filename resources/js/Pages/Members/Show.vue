@@ -44,11 +44,14 @@ interface AbsencePermitItem {
     start_date: string;
     end_date: string;
     charge_percentage: number;
+    charge_concept_code: string | null;
+    charge_concept_name: string | null;
     status: string;
     blocks_facility_access: boolean;
     blocks_reservations: boolean;
     notes: string | null;
     approved_at: string | null;
+    can_be_cancelled: boolean;
 }
 
 interface MemberAddress {
@@ -153,6 +156,12 @@ interface AccountTree {
     derived: AccountTreeNode[];
 }
 
+interface AbsencePermitConceptOption {
+    code: string;
+    name: string;
+    percentage: number;
+}
+
 interface Props {
     membership: SourceMembership;
     account: MembershipAccount;
@@ -160,6 +169,7 @@ interface Props {
     canAddFamilyMembers?: boolean;
     canChangePrimaryHolder?: boolean;
     canSeparateMembers?: boolean;
+    absencePermitConcepts?: AbsencePermitConceptOption[];
 }
 
 const can = usePage().props.auth.permissions;
@@ -169,6 +179,7 @@ const props = withDefaults(defineProps<Props>(), {
     canAddFamilyMembers: false,
     canChangePrimaryHolder: false,
     canSeparateMembers: false,
+    absencePermitConcepts: () => [],
 });
 
 // Membership history (server-side paginated)
@@ -241,9 +252,28 @@ const permitFiles = ref<File[] | null>(null);
 const absencePermitForm = useForm({
     start_month: "",
     end_month: "",
-    charge_percentage: 25,
+    charge_concept_code: null as string | null,
     notes: "",
     absence_permit_document: null as File | null,
+});
+
+const selectedAbsencePermitConcept = computed(() =>
+    props.absencePermitConcepts.find(
+        (option) => option.code === absencePermitForm.charge_concept_code,
+    ) ?? null,
+);
+
+// Estimado en vivo mientras se llena el formulario (antes de guardar) —
+// se basa en la cuota cobrable actual de la cuenta, igual que
+// absence_permit_preview_fee del backend para un permiso ya activo.
+const absencePermitFormPreviewFee = computed(() => {
+    if (!selectedAbsencePermitConcept.value) return null;
+
+    return (
+        (props.account.current_monthly_fee *
+            selectedAbsencePermitConcept.value.percentage) /
+        100
+    );
 });
 
 const permitDocRules = [
@@ -257,6 +287,11 @@ const currentMonth = computed(() => {
     const mm = String(now.getMonth() + 1).padStart(2, "0");
     return `${now.getFullYear()}-${mm}`;
 });
+
+// Las cuotas cambian año tras año (ver Cuotas por año), así que un permiso
+// por ausencia no debe cruzar a otro año — se acota a diciembre del año
+// en curso.
+const maxAbsencePermitMonth = computed(() => `${new Date().getFullYear()}-12`);
 
 const minEndMonth = computed(() =>
     absencePermitForm.start_month || currentMonth.value
@@ -331,7 +366,7 @@ const addressSummary = (member: AccountMemberItem) => {
 const openAbsencePermitDialog = () => {
     absencePermitForm.reset();
     absencePermitForm.clearErrors();
-    absencePermitForm.charge_percentage = 25;
+    absencePermitForm.charge_concept_code = null;
     permitFiles.value = null;
     absencePermitFormRef.value = null;
     showAbsencePermitDialog.value = true;
@@ -349,7 +384,7 @@ const submitAbsencePermit = async () => {
         onSuccess: () => {
             showAbsencePermitDialog.value = false;
             absencePermitForm.reset();
-            absencePermitForm.charge_percentage = 25;
+            absencePermitForm.charge_concept_code = null;
             permitFiles.value = null;
         },
         onError: () => {
@@ -488,7 +523,7 @@ const editTotalPages = ref(1);
 const editLocker = async (member: any, locker: any) => {
     editingMember.value = {
         ...member,
-        currentLocker: locker 
+        currentLocker: locker
     };
     editSelectedLocker.value = null;
     editCurrentPage.value = 1;
@@ -1110,7 +1145,7 @@ console.log(can)
     <AppLayout>
         <template #header>Gestionar Cuenta</template>
         <template #options>
-            <div class="d-flex flex-wrap ga-2">
+            <div class="flex-wrap d-flex ga-2">
                 <BaseButton
                     :icon-only="false"
                     action="cancel"
@@ -1143,8 +1178,8 @@ console.log(can)
                                 <v-card class="pa-4 h-100" variant="tonal">
                                     <div class="text-caption text-medium-emphasis">Cuenta</div>
                                     <div class="text-h6 font-weight-bold">{{ props.account.membership_number || "-" }}</div>
-                                    <div class="text-body-2 mt-2">{{ props.account.account_club_code || "-" }} · {{ props.account.account_club_name || "Sin club" }}</div>
-                                    <div class="text-body-2 mt-2">Cuenta {{ accountTypeLabel }}</div>
+                                    <div class="mt-2 text-body-2">{{ props.account.account_club_code || "-" }} · {{ props.account.account_club_name || "Sin club" }}</div>
+                                    <div class="mt-2 text-body-2">Cuenta {{ accountTypeLabel }}</div>
                                     <div class="text-body-2">Estatus {{ statusLabel(props.account.status) }}</div>
 
                                     <!-- Número interno -->
@@ -1169,7 +1204,7 @@ console.log(can)
                                 <v-card class="pa-4 h-100" variant="tonal">
                                     <div class="text-caption text-medium-emphasis">Titular actual</div>
                                     <div class="text-h6 font-weight-bold">{{ props.account.primary_holder?.full_name || "-" }}</div>
-                                    <div class="text-body-2 mt-2">{{ props.account.primary_holder?.email || "Sin correo" }}</div>
+                                    <div class="mt-2 text-body-2">{{ props.account.primary_holder?.email || "Sin correo" }}</div>
                                     <div class="text-body-2">{{ props.account.primary_holder?.phone || "Sin teléfono" }}</div>
                                 </v-card>
                             </v-col>
@@ -1177,7 +1212,7 @@ console.log(can)
                                 <v-card class="pa-4 h-100" variant="tonal">
                                     <div class="text-caption text-medium-emphasis">Cuota actual</div>
                                     <div class="text-h6 font-weight-bold">{{ currencyFormatter.format(props.account.current_monthly_fee) }}</div>
-                                    <div class="d-flex align-center flex-wrap ga-1 mt-2">
+                                    <div class="flex-wrap mt-2 d-flex align-center ga-1">
                                         <span class="text-body-2">Total actual a cobrar</span>
                                         <v-chip v-if="props.account.spans_multiple_clubs" size="x-small" color="info" variant="tonal">
                                             Ambos parques
@@ -1190,7 +1225,7 @@ console.log(can)
                         <!-- Tabs -->
                         <v-tabs v-model="activeTab" class="mt-6" color="primary">
                             <v-tab v-if="can.includes('accounts.view')" value="cuenta" prepend-icon="mdi-card-account-details">Cuenta</v-tab>
-                            <v-tab v-if="can.includes('billing.view')" value="cargos-pendientes" prepend-icon="mdi-cash-multiple">Cargos pendientes</v-tab>
+                            <!-- <v-tab v-if="can.includes('billing.view')" value="cargos-pendientes" prepend-icon="mdi-cash-multiple">Cargos pendientes</v-tab> -->
                             <v-tab v-if="can.includes('members.view')" value="integrantes" prepend-icon="mdi-account-group">Integrantes</v-tab>
                             <v-tab v-if="can.includes('documents.view')" value="documentos" prepend-icon="mdi-file-document-multiple">Documentos</v-tab>
                             <v-tab v-if="can.includes('absences.view')" value="ausencias" prepend-icon="mdi-calendar-remove">Ausencias</v-tab>
@@ -1213,17 +1248,17 @@ console.log(can)
                             <!-- ══ TAB: CUENTA ══ -->
                             <v-window-item value="cuenta" v-if="can.includes('accounts.view')">
                                 <!-- Acciones -->
-                                <v-card class="pa-4 mb-4">
-                                    <div class="d-flex flex-wrap align-center justify-space-between ga-2 mb-2">
+                                <v-card class="mb-4 pa-4">
+                                    <div class="flex-wrap mb-2 d-flex align-center justify-space-between ga-2">
                                         <div>
                                             <div class="text-subtitle-1 font-weight-bold">Acciones de la cuenta</div>
                                             <div class="text-body-2 text-medium-emphasis">Gestiona la membresía y sus integrantes.</div>
                                         </div>
-                                        <div class="d-flex flex-wrap ga-2">
-                                            <v-btn v-if="can.includes('members.lockers.create')" color="primary" variant="tonal"
+                                        <div class="flex-wrap d-flex ga-2">
+                                            <!-- <v-btn v-if="can.includes('members.lockers.create')" color="primary" variant="tonal"
                                                 @click="router.visit(route('members.lockers.create', props.account.id))">
                                                 Asignar casillero
-                                            </v-btn>
+                                            </v-btn> -->
                                             <v-btn v-if="can.includes('acts.index')" color="primary" variant="tonal"
                                                 @click="router.visit(route('acts.index', props.account.id))">
                                                 Registrar multa
@@ -1246,19 +1281,19 @@ console.log(can)
 
                                 <!-- Membresías activas -->
                                 <v-card class="pa-4">
-                                    <div class="text-subtitle-1 font-weight-bold mb-4">Membresías activas</div>
+                                    <div class="mb-4 text-subtitle-1 font-weight-bold">Membresías activas</div>
                                     <div class="d-flex flex-column ga-3">
                                         <div
                                             v-for="activeMembership in props.account.active_memberships"
                                             :key="activeMembership.id"
-                                            class="border rounded-lg px-4 py-3"
+                                            class="px-4 py-3 border rounded-lg"
                                         >
-                                            <div class="d-flex flex-wrap align-center justify-space-between ga-2">
+                                            <div class="flex-wrap d-flex align-center justify-space-between ga-2">
                                                 <div>
                                                     <div class="font-weight-medium">{{ activeMembership.membership_type_name }}</div>
                                                     <div class="text-caption text-medium-emphasis">{{ activeMembership.club_code }} · {{ activeMembership.club_name }}</div>
                                                 </div>
-                                                <div class="d-flex flex-wrap ga-2">
+                                                <div class="flex-wrap d-flex ga-2">
                                                     <v-chip size="small"
                                                         :color="activeMembership.is_billable ? 'success' : 'default'"
                                                         :variant="activeMembership.is_billable ? 'flat' : 'tonal'">
@@ -1270,7 +1305,7 @@ console.log(can)
                                                     </v-chip>
                                                 </div>
                                             </div>
-                                            <div v-if="activeMembership.is_billable" class="text-body-2 mt-2">
+                                            <div v-if="activeMembership.is_billable" class="mt-2 text-body-2">
                                                 Cuota a cobrar: {{ currencyFormatter.format(activeMembership.monthly_fee_share) }}
                                             </div>
                                             <div class="text-caption text-medium-emphasis">
@@ -1284,7 +1319,7 @@ console.log(can)
                             <!-- ══ TAB: INTEGRANTES ══ -->
                             <v-window-item value="integrantes" v-if="can.includes('members.view')">
                                 <v-card class="pa-4">
-                                    <div class="d-flex flex-wrap align-center justify-space-between ga-2 mb-4">
+                                    <div class="flex-wrap mb-4 d-flex align-center justify-space-between ga-2">
                                         <div>
                                             <div class="text-subtitle-1 font-weight-bold">Integrantes de la cuenta</div>
                                             <div class="text-body-2 text-medium-emphasis">Información general de cada integrante.</div>
@@ -1294,7 +1329,7 @@ console.log(can)
                                     <v-row>
                                         <v-col v-for="member in props.account.members" :key="member.member_id" cols="12" md="6">
                                             <v-card variant="outlined" class="pa-4 h-100">
-                                                <div class="d-flex flex-wrap align-center justify-space-between ga-2 mb-3">
+                                                <div class="flex-wrap mb-3 d-flex align-center justify-space-between ga-2">
                                                     <div>
                                                         <div class="font-weight-medium">{{ member.full_name }}</div>
                                                         <div class="text-caption text-medium-emphasis">{{ member.relationship_name || "Sin parentesco" }}</div>
@@ -1312,12 +1347,12 @@ console.log(can)
                                                         <div class="text-body-2"><strong>Ocupación:</strong> {{ member.occupation || member.school_name || "-" }}</div>
                                                         <div class="text-body-2"><strong>Domicilio:</strong> {{ addressSummary(member) || "-" }}</div>
                                                     </v-col>
-                                                    <v-col cols="12" md="4" class="mt-3">                                                   
+                                                    <v-col cols="12" md="4" class="mt-3">
                                                         <div v-if="member.locker?.length" class="locker-grid-mini">
                                                         <v-card
                                                                 v-for="locker in member.locker"
                                                                 :key="locker.assignment_id"
-                                                                class="locker-mini text-center"
+                                                                class="text-center locker-mini"
                                                                 variant="outlined"
                                                                 color="primary"
                                                             >
@@ -1362,12 +1397,12 @@ console.log(can)
                                                                 </div>
                                                             </v-card>
                                                         </div>
-                                                        <div v-else class="text-caption text-medium-emphasis text-center">
+                                                        <div v-else class="text-center text-caption text-medium-emphasis">
                                                             Sin casilleros
                                                         </div>
                                                     </v-col>
                                                 </v-row>
-                                                <div class="d-flex justify-end mt-3">
+                                                <div class="justify-end mt-3 d-flex">
                                                     <v-btn size="small" variant="tonal" color="primary" prepend-icon="mdi-pencil"
                                                         @click="router.visit(route('members.member.edit', { membership: props.membership.id, member: member.member_id }))">
                                                         Editar
@@ -1382,7 +1417,7 @@ console.log(can)
                             <!-- ══ TAB: DOCUMENTOS ══ -->
                             <v-window-item value="documentos" v-if="can.includes('documents.view')">
                                 <v-card class="pa-4">
-                                    <div class="text-subtitle-1 font-weight-bold mb-4">Documentación</div>
+                                    <div class="mb-4 text-subtitle-1 font-weight-bold">Documentación</div>
 
                                     <div v-if="!membersWithDocs.length" class="text-body-2 text-medium-emphasis">
                                         No hay documentos requeridos configurados para este tipo de membresía.
@@ -1411,7 +1446,7 @@ console.log(can)
                                             <v-col v-for="doc in currentDocsMember.documents" :key="doc.document_type_id" cols="12" sm="6" md="4">
                                                 <v-card variant="outlined" class="pa-3 h-100 d-flex flex-column"
                                                     :color="!doc.already_uploaded && doc.is_required ? 'error' : undefined">
-                                                    <div class="d-flex align-center justify-space-between mb-2 flex-wrap ga-1">
+                                                    <div class="flex-wrap mb-2 d-flex align-center justify-space-between ga-1">
                                                         <span class="text-body-2 font-weight-medium">
                                                             {{ doc.name }}<span v-if="doc.is_required" class="text-error">*</span>
                                                         </span>
@@ -1421,16 +1456,16 @@ console.log(can)
                                                         </v-chip>
                                                     </div>
                                                     <v-chip v-if="doc.is_club_specific" size="x-small" color="info" variant="tonal"
-                                                        prepend-icon="mdi-map-marker-outline" class="align-self-start mb-2">
+                                                        prepend-icon="mdi-map-marker-outline" class="mb-2 align-self-start">
                                                         Propio de este parque
                                                     </v-chip>
-                                                    <div class="text-caption text-medium-emphasis mb-2">
+                                                    <div class="mb-2 text-caption text-medium-emphasis">
                                                         {{ doc.allowed_extensions.join(', ').toUpperCase() }}
                                                         <template v-if="doc.allow_multiple"> · {{ doc.uploaded_docs.length }}/{{ doc.number_files }} archivo(s)</template>
                                                     </div>
                                                     <div v-if="doc.uploaded_docs.length" class="mb-3">
                                                         <div v-for="(uploaded, idx) in doc.uploaded_docs" :key="uploaded.id"
-                                                            class="d-flex align-center justify-space-between py-1">
+                                                            class="py-1 d-flex align-center justify-space-between">
                                                             <span class="text-caption text-medium-emphasis">
                                                                 {{ doc.allow_multiple ? `Archivo ${idx + 1}` : 'Documento' }}
                                                                 <template v-if="uploaded.uploaded_at"> · {{ uploaded.uploaded_at }}</template>
@@ -1472,7 +1507,7 @@ console.log(can)
                             <!-- ══ TAB: AUSENCIAS ══ -->
                             <v-window-item value="ausencias" v-if="can.includes('absences.view')">
                                 <v-card class="pa-4">
-                                    <div class="d-flex flex-wrap align-center justify-space-between ga-2 mb-4">
+                                    <div class="flex-wrap mb-4 d-flex align-center justify-space-between ga-2">
                                         <div>
                                             <div class="text-subtitle-1 font-weight-bold">Permiso por ausencia</div>
                                             <div class="text-body-2 text-medium-emphasis">Durante su vigencia se cobra el porcentaje configurado sobre las membresías cobrables.</div>
@@ -1487,18 +1522,22 @@ console.log(can)
                                                 <div class="text-h6 font-weight-bold">
                                                     {{ props.account.current_absence_permit ? statusLabel(props.account.current_absence_permit.status) : "Sin permiso activo" }}
                                                 </div>
-                                                <div v-if="props.account.current_absence_permit" class="text-body-2 mt-2">
+                                                <div v-if="props.account.current_absence_permit" class="mt-2 text-body-2">
                                                     Vigencia: {{ formatDate(props.account.current_absence_permit.start_date) }} a {{ formatDate(props.account.current_absence_permit.end_date) }}
                                                 </div>
                                             </v-card>
                                         </v-col>
                                         <v-col cols="12" md="4">
                                             <v-card variant="tonal" class="pa-4 h-100">
-                                                <div class="text-caption text-medium-emphasis">Porcentaje durante permiso</div>
+                                                <div class="text-caption text-medium-emphasis">Permiso aplicado</div>
                                                 <div class="text-h6 font-weight-bold">
-                                                    {{ props.account.current_absence_permit ? `${props.account.current_absence_permit.charge_percentage}%` : "25%" }}
+                                                    {{
+                                                        props.account.current_absence_permit
+                                                            ? `${props.account.current_absence_permit.charge_concept_name ?? "Permiso"} (${props.account.current_absence_permit.charge_percentage}%)`
+                                                            : "Sin permiso activo"
+                                                    }}
                                                 </div>
-                                                <div class="text-body-2 mt-2">Aplicado sobre membresías cobrables del titular.</div>
+                                                <div class="mt-2 text-body-2">Aplicado sobre membresías cobrables del titular.</div>
                                             </v-card>
                                         </v-col>
                                         <v-col cols="12" md="4">
@@ -1507,35 +1546,41 @@ console.log(can)
                                                 <div class="text-h6 font-weight-bold">
                                                     {{ props.account.absence_permit_preview_fee !== null ? currencyFormatter.format(props.account.absence_permit_preview_fee) : "-" }}
                                                 </div>
-                                                <div class="text-body-2 mt-2">Estimado mensual mientras el permiso esté activo.</div>
+                                                <div class="mt-2 text-body-2">Estimado mensual mientras el permiso esté activo.</div>
                                             </v-card>
                                         </v-col>
                                     </v-row>
 
-                                    <div class="text-subtitle-2 font-weight-bold mb-3">Historial de permisos</div>
+                                    <div class="mb-3 text-subtitle-2 font-weight-bold">Historial de permisos</div>
                                     <div v-if="!props.account.absence_permits.length" class="text-body-2 text-medium-emphasis">
                                         No hay permisos por ausencia registrados.
                                     </div>
                                     <div v-else class="d-flex flex-column ga-3">
-                                        <div v-for="absencePermit in props.account.absence_permits" :key="absencePermit.id" class="border rounded-lg px-4 py-3">
-                                            <div class="d-flex flex-wrap align-center justify-space-between ga-2">
+                                        <div v-for="absencePermit in props.account.absence_permits" :key="absencePermit.id" class="px-4 py-3 border rounded-lg">
+                                            <div class="flex-wrap d-flex align-center justify-space-between ga-2">
                                                 <div>
                                                     <div class="font-weight-medium">{{ formatDate(absencePermit.start_date) }} a {{ formatDate(absencePermit.end_date) }}</div>
-                                                    <div class="text-caption text-medium-emphasis">{{ absencePermit.charge_percentage }}% sobre cuota cobrable</div>
+                                                    <div class="text-caption text-medium-emphasis">{{ absencePermit.charge_concept_name ?? "Permiso" }} · {{ absencePermit.charge_percentage }}% sobre cuota cobrable</div>
                                                 </div>
-                                                <div class="d-flex flex-wrap ga-2">
+                                                <div class="flex-wrap d-flex align-center ga-2">
                                                     <v-chip size="small" :color="statusColor(absencePermit.status)" variant="tonal">{{ statusLabel(absencePermit.status) }}</v-chip>
-                                                    <v-btn v-if="['approved', 'active'].includes(absencePermit.status)" color="error" size="small" variant="text"
+                                                    <v-btn v-if="absencePermit.can_be_cancelled" color="error" size="small" variant="text"
                                                         @click="cancelAbsencePermit(absencePermit.id)">
                                                         Cancelar
                                                     </v-btn>
+                                                    <span
+                                                        v-else-if="['approved', 'active'].includes(absencePermit.status)"
+                                                        class="text-caption text-medium-emphasis"
+                                                    >
+                                                        Ya no se puede cancelar (tiene pago aplicado)
+                                                    </span>
                                                 </div>
                                             </div>
-                                            <div class="text-body-2 mt-2">
+                                            <div class="mt-2 text-body-2">
                                                 {{ absencePermit.blocks_facility_access ? "Bloquea instalaciones" : "No bloquea instalaciones" }} ·
                                                 {{ absencePermit.blocks_reservations ? "Bloquea reservaciones" : "No bloquea reservaciones" }}
                                             </div>
-                                            <div v-if="absencePermit.notes" class="text-body-2 text-medium-emphasis mt-2">{{ absencePermit.notes }}</div>
+                                            <div v-if="absencePermit.notes" class="mt-2 text-body-2 text-medium-emphasis">{{ absencePermit.notes }}</div>
                                         </div>
                                     </div>
                                 </v-card>
@@ -1544,7 +1589,7 @@ console.log(can)
                             <!-- ══ TAB: HISTORIAL ══ -->
                             <v-window-item value="historial" v-if="can.includes('history.view')">
                                 <v-card class="pa-4">
-                                    <div class="text-subtitle-1 font-weight-bold mb-4">Historial de membresía</div>
+                                    <div class="mb-4 text-subtitle-1 font-weight-bold">Historial de membresía</div>
                                     <v-data-table-server
                                         :items="historyItems"
                                         :items-length="historyTotal"
@@ -1588,7 +1633,7 @@ console.log(can)
                             <!-- ══ TAB: HISTORIAL CASILLEROS ══ -->
                             <v-window-item value="historial-casilleros" v-if="can.includes('lockers-history.view')">
                                 <v-card class="pa-4">
-                                    <div class="text-subtitle-1 font-weight-bold mb-4">Historial de casilleros</div>
+                                    <div class="mb-4 text-subtitle-1 font-weight-bold">Historial de casilleros</div>
                                     <v-data-table
                                         :headers="headers"
                                         :items="filteredHistory"
@@ -1680,7 +1725,7 @@ console.log(can)
                             <!-- ══ TAB: HISTORIA CLÍNICA ══ -->
                             <v-window-item value="historia-clinica" v-if="can.includes('clinical-history.view')">
                                 <v-card class="pa-4">
-                                    <div class="d-flex align-center justify-space-between mb-4">
+                                    <div class="mb-4 d-flex align-center justify-space-between">
                                         <div>
                                             <div class="text-subtitle-1 font-weight-bold">Historia Clínica</div>
                                             <div class="text-body-2 text-medium-emphasis">Datos médicos del integrante.</div>
@@ -1710,7 +1755,7 @@ console.log(can)
                                     <template v-if="currentClinicalMember">
                                         <v-form ref="clinicalFormRef">
                                             <!-- ── Tipo de sangre ── -->
-                                            <div class="text-caption font-weight-bold text-uppercase text-medium-emphasis mb-2 mt-2">Tipo de Sangre</div>
+                                            <div class="mt-2 mb-2 text-caption font-weight-bold text-uppercase text-medium-emphasis">Tipo de Sangre</div>
                                             <v-row dense>
                                                 <v-col cols="12" sm="4">
                                                     <v-select
@@ -1736,7 +1781,7 @@ console.log(can)
 
                                             <!-- ── Padecimientos ── -->
                                             <v-divider class="my-4" />
-                                            <div class="text-caption font-weight-bold text-uppercase text-medium-emphasis mb-3">Padecimientos</div>
+                                            <div class="mb-3 text-caption font-weight-bold text-uppercase text-medium-emphasis">Padecimientos</div>
                                             <v-row dense>
                                                 <v-col cols="12" sm="6" md="4">
                                                     <div class="d-flex align-center ga-4">
@@ -1797,7 +1842,7 @@ console.log(can)
 
                                             <!-- ── Medicamentos ── -->
                                             <v-divider class="my-4" />
-                                            <div class="text-caption font-weight-bold text-uppercase text-medium-emphasis mb-3">Medicamentos</div>
+                                            <div class="mb-3 text-caption font-weight-bold text-uppercase text-medium-emphasis">Medicamentos</div>
                                             <v-row dense>
                                                 <v-col cols="12" sm="6" md="4">
                                                     <div class="d-flex align-center ga-4">
@@ -1822,7 +1867,7 @@ console.log(can)
 
                                             <!-- ── Alérgenos ── -->
                                             <v-divider class="my-4" />
-                                            <div class="text-caption font-weight-bold text-uppercase text-medium-emphasis mb-3">Alérgenos</div>
+                                            <div class="mb-3 text-caption font-weight-bold text-uppercase text-medium-emphasis">Alérgenos</div>
                                             <v-row dense>
                                                 <v-col cols="12" sm="6" md="5">
                                                     <div class="d-flex align-center ga-4">
@@ -1847,7 +1892,7 @@ console.log(can)
 
                                             <!-- ── Presión arterial ── -->
                                             <v-divider class="my-4" />
-                                            <div class="text-caption font-weight-bold text-uppercase text-medium-emphasis mb-3">Presión Arterial</div>
+                                            <div class="mb-3 text-caption font-weight-bold text-uppercase text-medium-emphasis">Presión Arterial</div>
                                             <v-row dense>
                                                 <v-col cols="12" sm="6" md="4">
                                                     <div class="d-flex align-center ga-4">
@@ -1871,7 +1916,7 @@ console.log(can)
 
                                             <!-- ── Condiciones especiales ── -->
                                             <v-divider class="my-4" />
-                                            <div class="text-caption font-weight-bold text-uppercase text-medium-emphasis mb-3">Condiciones Especiales</div>
+                                            <div class="mb-3 text-caption font-weight-bold text-uppercase text-medium-emphasis">Condiciones Especiales</div>
                                             <v-row dense>
                                                 <v-col cols="12">
                                                     <v-textarea
@@ -1887,7 +1932,7 @@ console.log(can)
 
                                             <!-- ── Contacto de emergencia ── -->
                                             <v-divider class="my-4" />
-                                            <div class="text-caption font-weight-bold text-uppercase text-medium-emphasis mb-3">En Caso de Emergencia</div>
+                                            <div class="mb-3 text-caption font-weight-bold text-uppercase text-medium-emphasis">En Caso de Emergencia</div>
                                             <v-row dense>
                                                 <v-col cols="12" sm="6">
                                                     <v-text-field
@@ -1935,7 +1980,7 @@ console.log(can)
 
                                             <!-- ── Médico tratante ── -->
                                             <v-divider class="my-4" />
-                                            <div class="text-caption font-weight-bold text-uppercase text-medium-emphasis mb-3">Médico Tratante</div>
+                                            <div class="mb-3 text-caption font-weight-bold text-uppercase text-medium-emphasis">Médico Tratante</div>
                                             <v-row dense>
                                                 <v-col cols="12" sm="6">
                                                     <v-text-field
@@ -1962,7 +2007,7 @@ console.log(can)
 
                                             <!-- ── Seguridad social y seguro médico ── -->
                                             <v-divider class="my-4" />
-                                            <div class="text-caption font-weight-bold text-uppercase text-medium-emphasis mb-3">Seguridad Social y Seguro Médico</div>
+                                            <div class="mb-3 text-caption font-weight-bold text-uppercase text-medium-emphasis">Seguridad Social y Seguro Médico</div>
                                             <v-row dense>
                                                 <v-col cols="12" sm="6">
                                                     <v-text-field
@@ -2016,7 +2061,7 @@ console.log(can)
 
                                             <!-- ── Guardar ── -->
                                             <v-divider class="my-4" />
-                                            <div class="d-flex justify-end">
+                                            <div class="justify-end d-flex">
                                                 <v-btn
                                                     color="primary"
                                                     :loading="clinicalSaving"
@@ -2044,7 +2089,7 @@ console.log(can)
                                 <div class="d-flex flex-column ga-4">
 
                                     <!-- Encabezado -->
-                                    <div class="d-flex align-center justify-space-between flex-wrap ga-2">
+                                    <div class="flex-wrap d-flex align-center justify-space-between ga-2">
                                         <div>
                                             <div class="text-subtitle-1 font-weight-bold">Cargos pendientes</div>
                                             <div class="text-body-2 text-medium-emphasis">Saldo pendiente y cobros asociados a esta cuenta.</div>
@@ -2061,7 +2106,7 @@ console.log(can)
                                         <v-col cols="12" sm="6" md="3">
                                             <v-card rounded="lg" border elevation="0">
                                                 <v-card-text class="pa-4">
-                                                    <div class="text-caption text-medium-emphasis mb-1">Total pendiente</div>
+                                                    <div class="mb-1 text-caption text-medium-emphasis">Total pendiente</div>
                                                     <div class="text-h6 font-weight-bold">{{ formatCurrency(chargesTotal) }}</div>
                                                 </v-card-text>
                                             </v-card>
@@ -2069,7 +2114,7 @@ console.log(can)
                                         <v-col cols="12" sm="6" md="3">
                                             <v-card rounded="lg" border elevation="0" color="error" variant="tonal">
                                                 <v-card-text class="pa-4">
-                                                    <div class="text-caption text-medium-emphasis mb-1">Vencido</div>
+                                                    <div class="mb-1 text-caption text-medium-emphasis">Vencido</div>
                                                     <div class="text-h6 font-weight-bold">{{ formatCurrency(chargesOverdue) }}</div>
                                                 </v-card-text>
                                             </v-card>
@@ -2077,7 +2122,7 @@ console.log(can)
                                         <v-col cols="12" sm="6" md="3">
                                             <v-card rounded="lg" border elevation="0" color="primary" variant="tonal">
                                                 <v-card-text class="pa-4">
-                                                    <div class="text-caption text-medium-emphasis mb-1">Mensualidades</div>
+                                                    <div class="mb-1 text-caption text-medium-emphasis">Mensualidades</div>
                                                     <div class="text-h6 font-weight-bold">{{ formatCurrency(chargesMonthly) }}</div>
                                                 </v-card-text>
                                             </v-card>
@@ -2085,7 +2130,7 @@ console.log(can)
                                         <v-col cols="12" sm="6" md="3">
                                             <v-card rounded="lg" border elevation="0" color="secondary" variant="tonal">
                                                 <v-card-text class="pa-4">
-                                                    <div class="text-caption text-medium-emphasis mb-1">Inscripciones</div>
+                                                    <div class="mb-1 text-caption text-medium-emphasis">Inscripciones</div>
                                                     <div class="text-h6 font-weight-bold">{{ formatCurrency(chargesInscription) }}</div>
                                                 </v-card-text>
                                             </v-card>
@@ -2114,11 +2159,11 @@ console.log(can)
 
                                             <!-- Concepto -->
                                             <template #item.concept_name="{ item }">
-                                                <div class="d-flex flex-column gap-1 py-1">
+                                                <div class="gap-1 py-1 d-flex flex-column">
                                                     <v-chip size="small" :color="chargeConceptColor(item.concept_code)" variant="tonal">
                                                         {{ item.concept_name ?? '—' }}
                                                     </v-chip>
-                                                    <div class="d-flex ga-1 flex-wrap">
+                                                    <div class="flex-wrap d-flex ga-1">
                                                         <v-chip v-for="badge in item.badges" :key="badge.label" size="x-small" :color="badge.color" variant="tonal">
                                                             {{ badge.label }}
                                                         </v-chip>
@@ -2139,7 +2184,7 @@ console.log(can)
 
                                             <!-- Vencimiento -->
                                             <template #item.due_date="{ item }">
-                                                <div class="d-flex flex-column gap-1 py-1">
+                                                <div class="gap-1 py-1 d-flex flex-column">
                                                     <span class="text-body-2">{{ formatDate(item.due_date) }}</span>
                                                     <v-chip size="x-small" :color="resolveDueState(item.due_date).color" variant="tonal">
                                                         {{ resolveDueState(item.due_date).label }}
@@ -2160,7 +2205,7 @@ console.log(can)
                                                 <div v-if="item.balance < item.amount" class="text-caption text-medium-emphasis text-end">
                                                     de {{ formatCurrency(item.amount) }}
                                                 </div>
-                                                <div class="d-flex justify-end mt-1">
+                                                <div class="justify-end mt-1 d-flex">
                                                     <v-chip size="x-small" :color="item.allows_partial_payments ? 'info' : 'default'" variant="tonal">
                                                         {{ item.allows_partial_payments ? 'Parcial' : 'Pago total' }}
                                                     </v-chip>
@@ -2188,12 +2233,12 @@ console.log(can)
                             <!-- ══ TAB: ÁRBOL ══ -->
                             <v-window-item value="arbol">
                                 <v-card class="pa-4">
-                                    <div class="text-subtitle-1 font-weight-bold mb-4">Cuentas relacionadas</div>
+                                    <div class="mb-4 text-subtitle-1 font-weight-bold">Cuentas relacionadas</div>
                                     <div v-if="props.accountTree?.origin" class="mb-4">
-                                        <div class="text-caption text-medium-emphasis mb-1 text-uppercase">Cuenta de origen</div>
-                                        <v-card variant="tonal" color="primary" class="pa-3 cursor-pointer"
+                                        <div class="mb-1 text-caption text-medium-emphasis text-uppercase">Cuenta de origen</div>
+                                        <v-card variant="tonal" color="primary" class="cursor-pointer pa-3"
                                             @click="props.accountTree!.origin!.membership_id && router.visit(route('members.manage.show', props.accountTree!.origin!.membership_id))">
-                                            <div class="d-flex align-center gap-2">
+                                            <div class="gap-2 d-flex align-center">
                                                 <v-icon size="small">mdi-account-arrow-up</v-icon>
                                                 <div>
                                                     <span class="font-weight-medium">#{{ props.accountTree.origin.membership_number }}</span>
@@ -2208,7 +2253,7 @@ console.log(can)
                                         </v-card>
                                     </div>
                                     <div v-if="props.accountTree?.derived.length">
-                                        <div class="text-caption text-medium-emphasis mb-2 text-uppercase">Cuentas derivadas ({{ props.accountTree.derived.length }})</div>
+                                        <div class="mb-2 text-caption text-medium-emphasis text-uppercase">Cuentas derivadas ({{ props.accountTree.derived.length }})</div>
                                         <AccountTreeNode v-for="node in props.accountTree.derived" :key="node.id" :node="node" class="mb-2" />
                                     </div>
                                 </v-card>
@@ -2225,12 +2270,12 @@ console.log(can)
     <!-- ── Dialog: Número de cuenta interno ── -->
     <v-dialog v-model="showInternalNumberDialog" max-width="420" persistent>
         <v-card rounded="lg">
-            <v-card-title class="text-subtitle-1 font-weight-bold pa-4 pb-2">
+            <v-card-title class="pb-2 text-subtitle-1 font-weight-bold pa-4">
                 <v-icon size="20" class="mr-2">mdi-identifier</v-icon>
                 Número de cuenta interno
             </v-card-title>
 
-            <v-card-text class="pa-4 pt-2">
+            <v-card-text class="pt-2 pa-4">
                 <v-text-field
                     v-model="internalNumberForm.internal_account_number"
                     label="No. cuenta interno"
@@ -2245,7 +2290,7 @@ console.log(can)
                 />
             </v-card-text>
 
-            <v-card-actions class="pa-3 pt-0">
+            <v-card-actions class="pt-0 pa-3">
                 <v-spacer />
                 <v-btn
                     variant="text"
@@ -2268,7 +2313,7 @@ console.log(can)
     <!-- ── Dialog: Permiso por ausencia ── -->
     <v-dialog v-model="showAbsencePermitDialog" max-width="520" persistent>
         <v-card rounded="lg">
-            <v-card-title class="d-flex align-center justify-space-between pa-4 pb-2">
+            <v-card-title class="pb-2 d-flex align-center justify-space-between pa-4">
                 <span class="text-h6 font-weight-bold">Registrar permiso por ausencia</span>
                 <v-btn icon="mdi-close" variant="text" density="compact" @click="showAbsencePermitDialog = false" />
             </v-card-title>
@@ -2283,6 +2328,7 @@ console.log(can)
                                 v-model="absencePermitForm.start_month"
                                 label="Mes de inicio"
                                 :min="currentMonth"
+                                :max="maxAbsencePermitMonth"
                                 :error-messages="absencePermitForm.errors.start_month"
                             />
                         </v-col>
@@ -2291,22 +2337,34 @@ console.log(can)
                                 v-model="absencePermitForm.end_month"
                                 label="Mes de término"
                                 :min="minEndMonth"
+                                :max="maxAbsencePermitMonth"
                                 :error-messages="absencePermitForm.errors.end_month"
                             />
                         </v-col>
 
                         <v-col cols="12">
-                            <v-text-field
-                                v-model.number="absencePermitForm.charge_percentage"
-                                label="Porcentaje a cobrar (%)"
-                                type="number"
+                            <v-select
+                                v-model="absencePermitForm.charge_concept_code"
+                                label="Permiso a aplicar"
+                                :items="props.absencePermitConcepts"
+                                item-title="name"
+                                item-value="code"
                                 density="compact"
                                 variant="outlined"
-                                suffix="%"
-                                :min="0"
-                                :max="100"
-                                :error-messages="absencePermitForm.errors.charge_percentage"
-                            />
+                                :rules="[selectRequired]"
+                                :error-messages="absencePermitForm.errors.charge_concept_code"
+                            >
+                                <template #item="{ props: itemProps, item }">
+                                    <v-list-item v-bind="itemProps" :subtitle="`Se cobra el ${item.raw.percentage}% de la mensualidad`" />
+                                </template>
+                            </v-select>
+                        </v-col>
+
+                        <v-col v-if="absencePermitFormPreviewFee !== null" cols="12">
+                            <v-alert type="info" variant="tonal" density="compact">
+                                Se cobrará {{ selectedAbsencePermitConcept?.percentage }}% de la mensualidad ({{ currencyFormatter.format(props.account.current_monthly_fee) }}):
+                                <strong>{{ currencyFormatter.format(absencePermitFormPreviewFee) }}</strong> al mes mientras el permiso esté vigente.
+                            </v-alert>
                         </v-col>
 
                         <v-col cols="12">
@@ -2321,7 +2379,7 @@ console.log(can)
                         </v-col>
 
                         <v-col cols="12">
-                            <div class="font-weight-medium text-body-2 mb-1">
+                            <div class="mb-1 font-weight-medium text-body-2">
                                 Documento de solicitud
                                 <span class="text-error">*</span>
                             </div>
@@ -2334,7 +2392,7 @@ console.log(can)
                             />
                             <div
                                 v-if="absencePermitForm.errors.absence_permit_document"
-                                class="text-error text-caption mt-1"
+                                class="mt-1 text-error text-caption"
                             >
                                 {{ absencePermitForm.errors.absence_permit_document }}
                             </div>
@@ -2345,7 +2403,7 @@ console.log(can)
 
             <v-divider />
 
-            <v-card-actions class="pa-4 gap-2">
+            <v-card-actions class="gap-2 pa-4">
                 <v-spacer />
                 <v-btn variant="text" @click="showAbsencePermitDialog = false">Cancelar</v-btn>
                 <v-btn
@@ -2364,7 +2422,7 @@ console.log(can)
     <!-- Document upload dialog -->
     <v-dialog v-model="showDocumentModal" max-width="480" persistent>
         <v-card rounded="xl">
-            <div class="d-flex align-center justify-space-between px-6 py-4 border-b">
+            <div class="px-6 py-4 border-b d-flex align-center justify-space-between">
                 <div class="d-flex align-center ga-3">
                     <v-avatar color="primary" variant="tonal" size="42">
                         <v-icon>mdi-file-upload</v-icon>
@@ -2383,8 +2441,8 @@ console.log(can)
 
             <v-card-text class="pa-6">
                 <v-form ref="documentFormRef">
-                    <div class="text-body-2 font-weight-medium mb-1">{{ documentModalDoc?.name }}</div>
-                    <div class="text-caption text-medium-emphasis mb-4">
+                    <div class="mb-1 text-body-2 font-weight-medium">{{ documentModalDoc?.name }}</div>
+                    <div class="mb-4 text-caption text-medium-emphasis">
                         Formatos aceptados: {{ documentModalDoc?.allowed_extensions?.join(', ') ?? 'pdf, jpg, jpeg, png' }}
                     </div>
 
@@ -2405,7 +2463,7 @@ console.log(can)
 
             <v-divider />
 
-            <v-card-actions class="pa-4 gap-2">
+            <v-card-actions class="gap-2 pa-4">
                 <v-spacer />
                 <v-btn variant="text" @click="closeDocumentModal">Cancelar</v-btn>
                 <v-btn
@@ -2424,7 +2482,7 @@ console.log(can)
     <!-- ── Dialog: Registrar cobro ── -->
     <v-dialog v-model="showMemberPaymentModal" max-width="560" persistent>
         <v-card rounded="lg">
-            <v-card-title class="d-flex align-center justify-space-between pa-4 pb-2">
+            <v-card-title class="pb-2 d-flex align-center justify-space-between pa-4">
                 <span class="text-h6 font-weight-bold">Registrar cobro</span>
                 <v-btn icon="mdi-close" variant="text" density="compact" @click="closeMemberPaymentModal" />
             </v-card-title>
@@ -2433,8 +2491,8 @@ console.log(can)
 
             <v-card-text class="pa-4">
                 <!-- Detalle del cargo seleccionado -->
-                <v-sheet v-if="selectedMemberCharge" rounded="lg" color="surface-variant" class="pa-3 mb-4">
-                    <div class="d-flex justify-space-between align-start mb-1">
+                <v-sheet v-if="selectedMemberCharge" rounded="lg" color="surface-variant" class="mb-4 pa-3">
+                    <div class="mb-1 d-flex justify-space-between align-start">
                         <div>
                             <div class="text-body-2 font-weight-medium">{{ props.account.primary_holder?.full_name }}</div>
                             <div class="text-caption">{{ props.account.membership_number }}</div>
@@ -2447,7 +2505,7 @@ console.log(can)
                         </v-chip>
                     </div>
                     <div v-if="selectedMemberCharge.description" class="text-caption">{{ selectedMemberCharge.description }}</div>
-                    <div class="d-flex justify-space-between align-center mt-2">
+                    <div class="mt-2 d-flex justify-space-between align-center">
                         <div class="text-caption">
                             Vencimiento:
                             <v-chip size="x-small" :color="resolveDueState(selectedMemberCharge.due_date).color" variant="tonal" class="ml-1">
@@ -2569,7 +2627,7 @@ console.log(can)
 
             <v-divider />
 
-            <v-card-actions class="pa-4 gap-2">
+            <v-card-actions class="gap-2 pa-4">
                 <v-spacer />
                 <v-btn variant="text" @click="closeMemberPaymentModal">Cancelar</v-btn>
                 <v-btn
@@ -2593,7 +2651,7 @@ console.log(can)
         <v-card rounded="xl">
 
             <!-- HEADER -->
-            <div class="d-flex align-center justify-space-between px-6 py-4 border-b">
+            <div class="px-6 py-4 border-b d-flex align-center justify-space-between">
 
                 <div class="d-flex align-center ga-3">
 
@@ -2646,7 +2704,7 @@ console.log(can)
                             color="primary"
                             class="pa-4 h-100"
                         >
-                            <div class="text-caption text-medium-emphasis mb-1">
+                            <div class="mb-1 text-caption text-medium-emphasis">
                                 Integrante
                             </div>
 
@@ -2664,7 +2722,7 @@ console.log(can)
                             color="grey"
                             class="pa-4 h-100"
                         >
-                            <div class="text-caption text-medium-emphasis mb-1">
+                            <div class="mb-1 text-caption text-medium-emphasis">
                                 Casillero actual
                             </div>
 
@@ -2676,7 +2734,7 @@ console.log(can)
                 </v-row>
 
                 <!-- TITLE -->
-                <div class="d-flex align-center justify-space-between mb-4">
+                <div class="mb-4 d-flex align-center justify-space-between">
 
                     <div class="text-subtitle-1 font-weight-bold">
                         Casilleros disponibles
@@ -2697,7 +2755,7 @@ console.log(can)
                     <v-col
                         cols="12"
                         md="6"
-                        class="d-flex justify-end align-center"
+                        class="justify-end d-flex align-center"
                     >
                         <v-chip
                             variant="outlined"
@@ -2719,7 +2777,7 @@ console.log(can)
                         />
                     </v-col>-->
                     <v-col cols="12" md="12">
-                        <div class="font-weight-medium mb-1">
+                        <div class="mb-1 font-weight-medium">
                             Adjuntar comprobante de cambio de casillero
                             <span class="text-error">*</span>
                         </div>
@@ -2730,7 +2788,7 @@ console.log(can)
                             accept=".pdf,.jpg,.jpeg,.png"
                             :rules="letterRules"
                         />
-                        <!--<div v-if="form.errors.cancellation_letter" class="text-error text-caption mt-1">
+                        <!--<div v-if="form.errors.cancellation_letter" class="mt-1 text-error text-caption">
                             {{ form.errors.cancellation_letter }}
                         </div>-->
                     </v-col>
@@ -2742,7 +2800,7 @@ console.log(can)
                     <v-card
                         v-for="locker in availableEditLockers"
                         :key="locker.id"
-                        class="locker-option text-center"
+                        class="text-center locker-option"
                         :class="{
                             'locker-selected': editSelectedLocker === locker.id
                         }"
@@ -2775,7 +2833,7 @@ console.log(can)
                     </v-card>
 
                 </div>
-                <div class="d-flex align-center justify-space-between mt-6">
+                <div class="mt-6 d-flex align-center justify-space-between">
                     <div class="text-caption text-medium-emphasis">
                         Mostrando
                         {{ ((editCurrentPage - 1) * editPerPage) + 1 }}
@@ -2850,8 +2908,8 @@ console.log(can)
     grid-template-columns: repeat(2, 1fr);
     gap: 8px;
     justify-content: end;
-    width: fit-content;      
-    margin-left: auto;  
+    width: fit-content;
+    margin-left: auto;
     direction: rtl;
 }
 
@@ -2877,7 +2935,7 @@ console.log(can)
 .btn-delete {
     position: absolute;
     top: 2px;
-    right: 0px; 
+    right: 0px;
     min-width: auto;
     padding: 0px;
 }
@@ -2950,4 +3008,3 @@ console.log(can)
     color: #ffffff !important;
 }
 </style>
-

@@ -4,16 +4,19 @@ namespace App\Http\Controllers\Web\AdminClub;
 
 use Illuminate\Routing\Controller;
 use App\Models\Administrator\Club;
+use App\Models\Billing\Charge;
 use App\Models\Catalogs\City;
 use App\Models\Catalogs\Country;
 use App\Models\Catalogs\DocumentType;
 use App\Models\Catalogs\MaritalStatus;
 use App\Models\Catalogs\Relationship;
 use App\Models\Catalogs\State;
+use App\Models\Devices\Command;
 use App\Models\Members\Address;
 use App\Models\Members\EmploymentInfo;
 use App\Models\Members\Member;
 use App\Models\Members\MemberDocument;
+use App\Models\Memberships\AccountFiscalData;
 use App\Models\Memberships\AbsencePermit;
 use App\Models\Memberships\InterclubPackageRule;
 use App\Models\Memberships\Membership;
@@ -33,7 +36,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use App\Rules\UniqueInSchema;
+use App\Services\Access\AccessProvisioningService;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Gate;
@@ -42,15 +47,18 @@ class MemberController extends Controller
 {
     public function __construct(
         protected MembershipChargeService $membershipChargeService,
-        protected \App\Services\Billing\MembershipPricingService $membershipPricingService 
+        protected \App\Services\Billing\MembershipPricingService $membershipPricingService,
+        protected AccessProvisioningService $accessProvisioningService
     ) {
+        $this->middleware('permission:members.transition.create')->only('createMembershipTransition');
+        $this->middleware('permission:members.update')->only('updateFiscalData');
     }
 
     public function index(Request $request)
     {
         try {
             $clubId = $request->club_id ?? session('club_id');
-            $prefix = 'members'; 
+            $prefix = 'members';
             $driver = DB::getDriverName();
             $like = $driver === 'pgsql' ? 'ilike' : 'like';
 
@@ -156,14 +164,20 @@ class MemberController extends Controller
                         'monthly_fee' => $groupBillingSummary['total'],
                         'spans_multiple_clubs' => $groupBillingSummary['spans_multiple_clubs'],
                         'status' => $currentMembership?->status,
-                        'can_change_membership' => $currentMembership !== null
+                        'can_change_membership' => Gate::allows('members.transition.create')
+                            && $currentMembership !== null
                             && Str::contains($currentMembershipCode, '_IND'),
                         'can_change_primary_holder' => (bool) ($currentMembership?->membershipType?->allows_multiple_members)
                             && (int) $account->account_members_count > 1,
                         'can_separate_member' => (bool) ($currentMembership?->membershipType?->allows_multiple_members)
                             && (int) $account->account_members_count > 1,
                         'can_cancel_membership' => Gate::allows('members.cancel.create'),
-                        'can_create_membership' => Gate::allows('members.additional-membership.create'),
+                        // Si el socio ya tiene membresía activa en ambos parques
+                        // (paquete interclub, ver resolveGroupBillingSummary), no
+                        // hay "otro parque" que agregar — ocultar el botón evita
+                        // que se intente duplicar la membresía que ya existe.
+                        'can_create_membership' => Gate::allows('members.additional-membership.create')
+                            && !$groupBillingSummary['spans_multiple_clubs'],
                         'active_memberships' => $activeMemberships->map(function (Membership $membership) {
                             return [
                                 'id' => $membership->id,
@@ -481,6 +495,32 @@ class MemberController extends Controller
                 $billingSplitMode
             );
             $inscriptionFee = (float) ($pricing['inscription_fee'] ?? 0);
+
+            // Mismo ajuste que en store(): si el socio todavía tiene
+            // inscripción pendiente, la vista previa debe reflejar el 50%
+            // de la inscripción completa del tipo destino (regla "IF"),
+            // no la cuota de "cambio de tipo" — para que lo que se muestra
+            // aquí coincida con lo que en verdad se va a cobrar.
+            $inscriptionFeeLabel = 'Inscripción';
+
+            if ($sameClubTransition && $sourceMembership) {
+                $inscriptionFee = $this->resolveIfConceptInscriptionFee(
+                    account: $sourceMembership->account,
+                    targetMembershipType: $membershipType,
+                    age: $age,
+                    hasMultipleClubs: $hasMultipleClubs,
+                    fallbackFee: $inscriptionFee
+                );
+
+                // Este cargo no es una inscripción nueva sino el concepto
+                // "IF" (cambio de tipo dentro de la misma cuenta) — la
+                // etiqueta debe reflejar el cambio, no confundirse con una
+                // inscripción real.
+                if ($inscriptionFee > 0 && $fromMembershipType) {
+                    $inscriptionFeeLabel = "Cambio de {$fromMembershipType->name} a {$membershipType->name}";
+                }
+            }
+
             $additionalMonthlyCharge = $this->resolveAdditionalMonthlyCharge(
                 currentMonthlyFee: $currentMonthlyFee,
                 newMonthlyFeeTotal: $newMonthlyFeeTotal,
@@ -502,6 +542,7 @@ class MemberController extends Controller
                 'monthly_fee_total' => $newMonthlyFeeTotal,
                 'monthly_fee_share' => $newMonthlyFeeShare,
                 'inscription_fee' => $inscriptionFee,
+                'inscription_fee_label' => $inscriptionFeeLabel,
                 'total_due' => $amountDueToday,
                 'amount_due_today' => $amountDueToday,
                 'rule_type' => $pricing['rule_type'] ?? null,
@@ -560,6 +601,28 @@ class MemberController extends Controller
         if (!$targetClub) {
             return redirect()->route('members.index')->withErrors([
                 'messageError' => 'No se encontró un parque destino disponible para esta solicitud.',
+                'exception' => '',
+            ]);
+        }
+
+        // Si el socio ya tiene membresía activa en el parque destino (paquete
+        // interclub ya armado), no hay nada que agregar — evita duplicar la
+        // membresía que ya existe. Ver Members/Index.vue: el botón ya se
+        // oculta cuando spans_multiple_clubs es true, esto es la validación
+        // de respaldo por si se entra directo a la URL.
+        $accountGroupId = $membership->account?->account_group_id;
+        $alreadyHasTargetClubMembership = $accountGroupId
+            ? Membership::query()
+                ->whereHas('account', fn (Builder $q) => $q->where('account_group_id', $accountGroupId))
+                ->where('club_id', $targetClub->id)
+                ->where('is_primary', true)
+                ->whereIn('status', ['active', 'suspended'])
+                ->exists()
+            : false;
+
+        if ($alreadyHasTargetClubMembership) {
+            return redirect()->route('members.index')->withErrors([
+                'messageError' => 'El socio ya tiene una membresía activa en ' . $targetClub->name . '.',
                 'exception' => '',
             ]);
         }
@@ -669,7 +732,30 @@ class MemberController extends Controller
                 && $account->accountMembers->count() > 1,
             'canSeparateMembers' => (bool) $membership->membershipType?->allows_multiple_members
                 && $account->accountMembers->where('is_primary_holder', false)->isNotEmpty(),
+            'absencePermitConcepts' => $this->resolveAbsencePermitConceptOptions(),
         ]);
+    }
+
+    /**
+     * Los dos permisos por ausencia seleccionables en el formulario, en el
+     * mismo orden que MembershipChargeService::ABSENCE_PERMIT_CONCEPT_PERCENTAGES
+     * (CUOTA_PERMISO = 25%, CUOTA_75_PERMISO = 75%).
+     */
+    protected function resolveAbsencePermitConceptOptions(): array
+    {
+        $concepts = \App\Models\Billing\ChargeConcept::query()
+            ->whereIn('code', array_keys(MembershipChargeService::ABSENCE_PERMIT_CONCEPT_PERCENTAGES))
+            ->get()
+            ->keyBy('code');
+
+        return collect(MembershipChargeService::ABSENCE_PERMIT_CONCEPT_PERCENTAGES)
+            ->map(fn (float $percentage, string $code) => [
+                'code' => $code,
+                'name' => $concepts->get($code)?->name ?? $code,
+                'percentage' => $percentage,
+            ])
+            ->values()
+            ->all();
     }
 
     public function membershipHistory(Request $request, Membership $membership)
@@ -745,14 +831,22 @@ class MemberController extends Controller
             $validated = $request->validate([
                 'start_month' => ['required', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/'],
                 'end_month'   => ['required', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/'],
-                'charge_percentage' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
+                'charge_concept_code' => [
+                    'required',
+                    Rule::in(array_keys(MembershipChargeService::ABSENCE_PERMIT_CONCEPT_PERCENTAGES)),
+                ],
                 'notes' => ['nullable', 'string', 'max:1000'],
                 'absence_permit_document' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
             ], [
+                'charge_concept_code.required' => 'Selecciona qué permiso quieres aplicar.',
+                'charge_concept_code.in' => 'El permiso seleccionado no es válido.',
                 'absence_permit_document.required' => 'El documento de solicitud de permiso por ausencia es obligatorio.',
                 'absence_permit_document.mimes' => 'El documento debe ser un archivo PDF, JPG o PNG.',
                 'absence_permit_document.max' => 'El documento no debe superar los 5 MB.',
             ]);
+
+            $chargeConcept = \App\Models\Billing\ChargeConcept::where('code', $validated['charge_concept_code'])->firstOrFail();
+            $chargePercentage = MembershipChargeService::ABSENCE_PERMIT_CONCEPT_PERCENTAGES[$validated['charge_concept_code']];
 
             $startDate = Carbon::createFromFormat('Y-m', $validated['start_month'])->startOfMonth()->startOfDay();
             $endDate   = Carbon::createFromFormat('Y-m', $validated['end_month'])->endOfMonth()->startOfDay();
@@ -768,6 +862,15 @@ class MemberController extends Controller
             if ($endDate->lt($startDate)) {
                 throw ValidationException::withMessages([
                     'end_month' => 'El mes de fin debe ser igual o posterior al mes de inicio.',
+                ]);
+            }
+
+            // Las cuotas cambian año tras año (ver Cuotas por año) — un
+            // permiso se acota al año en curso, para que su porcentaje se
+            // calcule siempre sobre la cuota vigente ese año.
+            if ((int) $startDate->year !== (int) now()->year || (int) $endDate->year !== (int) now()->year) {
+                throw ValidationException::withMessages([
+                    'end_month' => 'El permiso debe quedar dentro del año en curso.',
                 ]);
             }
 
@@ -808,14 +911,15 @@ class MemberController extends Controller
                 ]);
             }
 
-            DB::transaction(function () use ($request, $membership, $accountGroup, $primaryHolder, $startDate, $endDate, $validated) {
+            DB::transaction(function () use ($request, $membership, $accountGroup, $primaryHolder, $startDate, $endDate, $validated, $chargeConcept, $chargePercentage) {
                 AbsencePermit::create([
                     'account_group_id' => $accountGroup?->id,
                     'membership_account_id' => $membership->membership_account_id,
                     'primary_member_id' => $primaryHolder->member_id,
                     'start_date' => $startDate->toDateString(),
                     'end_date' => $endDate->toDateString(),
-                    'charge_percentage' => (float) ($validated['charge_percentage'] ?? 25),
+                    'charge_concept_id' => $chargeConcept->id,
+                    'charge_percentage' => $chargePercentage,
                     'status' => $this->resolveAbsencePermitStatus($startDate, $endDate),
                     'blocks_facility_access' => true,
                     'blocks_reservations' => true,
@@ -848,6 +952,16 @@ class MemberController extends Controller
                 // quedan con el monto completo aunque el permiso ya
                 // aplique para ese mes. Ver reconcilePendingMonthlyChargesForAbsencePermit.
                 $this->membershipChargeService->reconcilePendingMonthlyChargesForAbsencePermit(
+                    accountGroupId: $accountGroup?->id,
+                    membershipAccountId: $membership->membership_account_id,
+                    startDate: $startDate,
+                    endDate: $endDate
+                );
+
+                // Adelanta los cargos de los meses que cubre el permiso,
+                // aunque sean futuros — así se ven en Cobranza desde que se
+                // registra, sin esperar a que cada mes llegue.
+                $this->membershipChargeService->createFutureChargesForAbsencePermit(
                     accountGroupId: $accountGroup?->id,
                     membershipAccountId: $membership->membership_account_id,
                     startDate: $startDate,
@@ -900,19 +1014,38 @@ class MemberController extends Controller
                 ]);
             }
 
-            $absencePermit->update([
-                'status' => 'cancelled',
-            ]);
-
-            // Revierte al monto completo los cargos de mensualidad pendientes
-            // que se habían ajustado por este permiso — al quedar cancelado,
-            // resolveApplicableAbsencePermit ya no lo encuentra, así que
-            // previewMonthlyFeeAmount recalcula sin el descuento.
-            $this->membershipChargeService->reconcilePendingMonthlyChargesForAbsencePermit(
+            // No se puede cancelar si ya hay un pago (parcial o total)
+            // aplicado a alguno de los cargos del permiso — cancelarlo
+            // cancelaría ese cargo, y uno con dinero real de por medio no se
+            // puede cancelar así nada más.
+            $hasPaidCharges = $this->membershipChargeService->hasPaidChargesForAbsencePermit(
                 accountGroupId: $accountGroupId,
                 membershipAccountId: $membership->membership_account_id,
                 startDate: Carbon::parse($absencePermit->start_date),
                 endDate: Carbon::parse($absencePermit->end_date)
+            );
+
+            if ($hasPaidCharges) {
+                return redirect()->back()->withErrors([
+                    'messageError' => 'No se puede cancelar: ya hay un pago aplicado a algún cargo de este permiso.',
+                    'exception' => '',
+                ]);
+            }
+
+            $absencePermit->update([
+                'status' => 'cancelled',
+            ]);
+
+            // Cancela (no revierte a mensualidad normal) los cargos
+            // pendientes del permiso — si el socio en verdad sigue debiendo
+            // esos meses, se regeneran con el monto normal la próxima vez
+            // que se les busque en Cobranza o corra el ciclo mensual.
+            $this->membershipChargeService->cancelChargesForAbsencePermit(
+                accountGroupId: $accountGroupId,
+                membershipAccountId: $membership->membership_account_id,
+                startDate: Carbon::parse($absencePermit->start_date),
+                endDate: Carbon::parse($absencePermit->end_date),
+                cancelledBy: $request->user()?->id
             );
 
             return redirect()
@@ -1234,12 +1367,14 @@ class MemberController extends Controller
                     ]);
                 }
 
-                MembershipAccountMember::create([
+                $newAccountMember = MembershipAccountMember::create([
                     'membership_account_id' => $currentAccountId,
                     'member_id'             => $existingMember->id,
                     'relationship_id'       => $relationship->id,
                     'is_primary_holder'     => false,
                 ]);
+
+                $this->provisionMemberAccess($newAccountMember, $membership->account);
 
                 return redirect()
                     ->route('members.manage.show', $membership)
@@ -1371,6 +1506,14 @@ class MemberController extends Controller
                 $this->uploadMemberDocuments([$createdMemberId => $documentsRaw]);
             }
 
+            if ($createdMemberId) {
+                $membership->account->load('accountMembers');
+                $newAccountMember = $membership->account->accountMembers->firstWhere('member_id', $createdMemberId);
+                if ($newAccountMember) {
+                    $this->provisionMemberAccess($newAccountMember, $membership->account);
+            }
+}
+
             return redirect()
                 ->route('members.manage.show', $membership)
                 ->with('success', 'El familiar se agregó correctamente a la cuenta.');
@@ -1421,6 +1564,7 @@ class MemberController extends Controller
             'membership' => $this->buildSourceMembershipPayload($membership),
             'candidateMembers' => $candidateMembers->values(),
             'separationReasons' => $this->buildSeparationReasonOptions(),
+            ...$this->getCreateFormCatalogs(),
         ]);
     }
 
@@ -1455,6 +1599,32 @@ class MemberController extends Controller
                 'separation_reason_id' => ['nullable', new ExistsInSchema('memberships', 'separation_reasons', 'id')],
                 'reason' => ['nullable', 'string', 'max:255'],
                 'reason_document' => ['nullable', 'file'],
+                'member' => ['required', 'array'],
+                'member.first_name' => ['required', 'string', 'max:255'],
+                'member.last_name' => ['required', 'string', 'max:255'],
+                'member.second_last_name' => ['nullable', 'string', 'max:255'],
+                'member.birthdate' => ['nullable', 'date'],
+                'member.birth_place' => ['nullable', 'string', 'max:255'],
+                'member.birth_country_id' => ['nullable', new ExistsInSchema('catalogs', 'countries', 'id')],
+                'member.birth_state_id' => ['nullable', new ExistsInSchema('catalogs', 'states', 'id')],
+                'member.birth_city_id' => ['nullable', new ExistsInSchema('catalogs', 'cities', 'id')],
+                'member.nationality_id' => ['nullable', new ExistsInSchema('catalogs', 'countries', 'id')],
+                'member.marital_status_id' => ['nullable', new ExistsInSchema('catalogs', 'marital_statuses', 'id')],
+                'member.phone' => ['nullable', 'string', 'max:50'],
+                'member.email' => ['nullable', 'email', 'max:255'],
+                'member.occupation' => ['nullable', 'string', 'max:255'],
+                'member.address' => ['nullable', 'array'],
+                'member.address.street' => ['nullable', 'string', 'max:255'],
+                'member.address.neighborhood' => ['nullable', 'string', 'max:255'],
+                'member.address.postal_code' => ['nullable', 'string', 'max:10'],
+                'member.address.country_id' => ['nullable', new ExistsInSchema('catalogs', 'countries', 'id')],
+                'member.address.state_id' => ['nullable', new ExistsInSchema('catalogs', 'states', 'id')],
+                'member.address.city_id' => ['nullable', new ExistsInSchema('catalogs', 'cities', 'id')],
+                'member.address.years_in_city' => ['nullable', 'integer', 'min:0', 'max:999'],
+                'member.employment' => ['nullable', 'array'],
+                'member.employment.company_name' => ['nullable', 'string', 'max:255'],
+                'member.employment.company_address' => ['nullable', 'string', 'max:255'],
+                'member.employment.company_phone' => ['nullable', 'string', 'max:50'],
             ]);
 
             $accountMember = $membership->account->accountMembers
@@ -1565,7 +1735,42 @@ class MemberController extends Controller
 
             $existingAccountGroup = $existingPrimaryMembership?->account?->accountGroup;
 
-            DB::transaction(function () use ($membership, $accountMember, $targetMembershipType, $selectedTargetOption, $titularRelationshipId, $reason, $existingAccountGroup, $existingPrimaryMembership) {
+            $memberData = $validated['member'];
+
+            DB::transaction(function () use ($membership, $accountMember, $targetMembershipType, $selectedTargetOption, $titularRelationshipId, $reason, $existingAccountGroup, $existingPrimaryMembership, $memberData) {
+                $member = $accountMember->member;
+
+                $member->update(array_filter([
+                    'first_name' => $memberData['first_name'] ?? null,
+                    'last_name' => $memberData['last_name'] ?? null,
+                    'second_last_name' => $memberData['second_last_name'] ?? null,
+                    'birthdate' => $memberData['birthdate'] ?? null,
+                    'birth_place' => $memberData['birth_place'] ?? null,
+                    'birth_country_id' => $memberData['birth_country_id'] ?? null,
+                    'birth_state_id' => $memberData['birth_state_id'] ?? null,
+                    'birth_city_id' => $memberData['birth_city_id'] ?? null,
+                    'nationality_id' => $memberData['nationality_id'] ?? null,
+                    'marital_status_id' => $memberData['marital_status_id'] ?? null,
+                    'phone' => $memberData['phone'] ?? null,
+                    'email' => $memberData['email'] ?? null,
+                    'occupation' => $memberData['occupation'] ?? null,
+                ], fn ($value) => $value !== null));
+
+                $addressData = array_filter($memberData['address'] ?? [], fn ($value) => $value !== null && $value !== '');
+                if (!empty($addressData)) {
+                    Address::updateOrCreate([
+                        'member_id' => $member->id,
+                        'is_primary' => true,
+                    ], $addressData);
+                }
+
+                $employmentData = array_filter($memberData['employment'] ?? [], fn ($value) => $value !== null && $value !== '');
+                if (!empty($employmentData)) {
+                    EmploymentInfo::updateOrCreate([
+                        'member_id' => $member->id,
+                    ], $employmentData);
+                }
+
                 $newAccount = $this->createMembershipAccount(
                     club: $membership->club,
                     accountType: $targetMembershipType->allows_multiple_members ? 'family' : 'individual',
@@ -1583,11 +1788,13 @@ class MemberController extends Controller
                     $existingPrimaryMembership->account->update(['account_group_id' => $newAccount->account_group_id]);
                 }
 
-                MembershipAccountMember::create([
+                $newAccountMember = MembershipAccountMember::create([
                     'membership_account_id' => $newAccount->id,
                     'member_id' => $accountMember->member_id,
                     'relationship_id' => $titularRelationshipId ?: $accountMember->relationship_id,
                     'is_primary_holder' => true,
+                    'access_code' => $accountMember->access_code,
+                    'access_valid_until' => $accountMember->access_valid_until
                 ]);
 
                 $newMembership = Membership::create([
@@ -1632,6 +1839,9 @@ class MemberController extends Controller
                     ],
                     chargeDate: now()
                 );
+
+                Command::where('account_member_id', $accountMember->id)
+                    ->update(['account_member_id' => $newAccountMember->id]);
 
                 $accountMember->delete();
 
@@ -1987,7 +2197,7 @@ class MemberController extends Controller
             $savedMembershipAccount  = null;
             $savedPrimaryMemberId    = null;
 
-            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership, $sameClubTransition, $sourceAccountMembersById, $reusableSourceMemberIds, $internalAccountNumber, $inscriptionFeeOverride, $installmentMonths, &$savedMemberDocuments, &$savedMembershipAccount, &$savedPrimaryMemberId) {
+            DB::transaction(function () use ($validated, $membershipType, $pricing, $clubId, $club, $fromMembershipType, $sourceMembership, $sameClubTransition, $sourceAccountMembersById, $reusableSourceMemberIds, $internalAccountNumber, $inscriptionFeeOverride, $installmentMonths, $primaryAge, $hasMultipleClubs, &$savedMemberDocuments, &$savedMembershipAccount, &$savedPrimaryMemberId) {
                 $sourceAccount = $sourceMembership?->account;
 
                 $membershipAccount = $sameClubTransition
@@ -2184,10 +2394,18 @@ class MemberController extends Controller
                         )
                         ->firstWhere('id', $sourceMembership->id) ?? $sourceMembership->fresh(['membershipType', 'account.primaryHolder']);
 
+                    $ifConceptFee = $inscriptionFeeOverride ?? $this->resolveIfConceptInscriptionFee(
+                        account: $sourceMembership->account,
+                        targetMembershipType: $membershipType,
+                        age: $primaryAge,
+                        hasMultipleClubs: $hasMultipleClubs,
+                        fallbackFee: (float) ($pricing['inscription_fee'] ?? 0)
+                    );
+
                     $this->membershipChargeService->createInitialCharges(
                         membership: $sourceMembership,
                         monthlyFee: (float) $pricing['monthly_fee'],
-                        inscriptionFee: $inscriptionFeeOverride ?? (float) ($pricing['inscription_fee'] ?? 0),
+                        inscriptionFee: $ifConceptFee,
                         metadata: [
                             'charge_origin' => 'same_account_transition',
                             'previous_membership_type_id' => $previousMembershipTypeId,
@@ -2197,6 +2415,7 @@ class MemberController extends Controller
                         chargeDate: now(),
                         reconcileExistingMonthlyCharge: true,
                         installmentMonths: $installmentMonths,
+                        inscriptionConceptCode: 'IF',
                     );
 
                     return;
@@ -2295,6 +2514,14 @@ class MemberController extends Controller
                             ],
                         ],
                     ]);
+                }
+            }
+
+            // ── Provision access to members ────────────────────────────────
+            if (!$sameClubTransition && $savedMembershipAccount) {
+                $savedMembershipAccount->loadMissing('accountMembers');
+                foreach ($savedMembershipAccount->accountMembers as $accountMember) {
+                    $this->provisionMemberAccess($accountMember, $savedMembershipAccount);
                 }
             }
 
@@ -2409,6 +2636,7 @@ class MemberController extends Controller
     {
         $membership->load([
             'account.club',
+            'account.fiscalData',
             'account.primaryHolder.member.primaryAddress',
             'account.primaryHolder.member.primaryAddress.country',
             'account.primaryHolder.member.primaryAddress.state',
@@ -2496,6 +2724,15 @@ class MemberController extends Controller
                     'company_phone'   => $member->employmentInfo?->company_phone,
                 ],
             ],
+            'fiscalData' => $membership->account->fiscalData
+                ? [
+                    'fiscal_name' => $membership->account->fiscalData->fiscal_name,
+                    'rfc' => $membership->account->fiscalData->rfc,
+                    'cfdi_use' => $membership->account->fiscalData->cfdi_use,
+                    'fiscal_regime' => $membership->account->fiscalData->fiscal_regime,
+                    'postal_code' => $membership->account->fiscalData->postal_code,
+                ]
+                : null,
             ...$this->getCreateFormCatalogs(),
         ]);
     }
@@ -3014,16 +3251,32 @@ class MemberController extends Controller
 
     protected function buildAbsencePermitPayload(AbsencePermit $absencePermit): array
     {
+        $isFinalized = in_array($absencePermit->status, ['cancelled', 'finished'], true);
+
+        // Solo se puede cancelar si el permiso sigue vigente/programado Y no
+        // hay ya un pago aplicado a alguno de sus cargos (ver
+        // MemberController::cancelAbsencePermit) — evita ofrecer el botón
+        // "Cancelar" para algo que el backend de todos modos va a rechazar.
+        $canBeCancelled = !$isFinalized && !$this->membershipChargeService->hasPaidChargesForAbsencePermit(
+            accountGroupId: $absencePermit->account_group_id,
+            membershipAccountId: $absencePermit->membership_account_id,
+            startDate: Carbon::parse($absencePermit->start_date),
+            endDate: Carbon::parse($absencePermit->end_date)
+        );
+
         return [
             'id' => $absencePermit->id,
             'start_date' => $absencePermit->start_date,
             'end_date' => $absencePermit->end_date,
             'charge_percentage' => (float) $absencePermit->charge_percentage,
+            'charge_concept_code' => $absencePermit->chargeConcept?->code,
+            'charge_concept_name' => $absencePermit->chargeConcept?->name,
             'status' => $absencePermit->status,
             'blocks_facility_access' => (bool) $absencePermit->blocks_facility_access,
             'blocks_reservations' => (bool) $absencePermit->blocks_reservations,
             'notes' => $absencePermit->notes,
             'approved_at' => optional($absencePermit->approved_at)?->toDateTimeString(),
+            'can_be_cancelled' => $canBeCancelled,
         ];
     }
 
@@ -3070,6 +3323,7 @@ class MemberController extends Controller
         }
 
         return AbsencePermit::query()
+            ->with('chargeConcept')
             ->where(function (Builder $scope) use ($account) {
                 if ($account->account_group_id) {
                     $scope->where('account_group_id', $account->account_group_id);
@@ -3143,6 +3397,46 @@ class MemberController extends Controller
         return redirect()
             ->route('members.manage.show', $membership)
             ->with('success', 'Número de cuenta interno actualizado correctamente.');
+    }
+
+    public function updateFiscalData(Request $request, Membership $membership)
+    {
+        $clubId = session('club_id');
+
+        if ((int) $membership->club_id !== (int) $clubId) {
+            abort(404);
+        }
+
+        $account = $membership->account;
+
+        if (!$account) {
+            abort(404);
+        }
+
+        try {
+            $validated = $request->validate([
+                'fiscal_name' => ['required', 'string', 'max:255'],
+                'rfc' => ['required', 'string', 'max:20'],
+                'cfdi_use' => ['required', 'string', 'max:10'],
+                'fiscal_regime' => ['required', 'string', 'max:10'],
+                'postal_code' => ['required', 'string', 'max:10'],
+            ]);
+
+            AccountFiscalData::query()->updateOrCreate(
+                ['membership_account_id' => $account->id],
+                $validated
+            );
+
+            return redirect()->back()->with('success', 'Datos fiscales actualizados correctamente.');
+        } catch (ValidationException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            report($e);
+
+            return redirect()->back()->withErrors([
+                'messageError' => 'No fue posible guardar los datos fiscales.',
+            ]);
+        }
     }
 
     public function storeDocument(Request $request, Membership $membership)
@@ -3476,6 +3770,35 @@ class MemberController extends Controller
 
                 return [
                     ...$memberPayload,
+                    'prefill' => [
+                        'first_name' => $accountMember->member?->first_name,
+                        'last_name' => $accountMember->member?->last_name,
+                        'second_last_name' => $accountMember->member?->second_last_name,
+                        'birthdate' => $accountMember->member?->birthdate,
+                        'birth_place' => $accountMember->member?->birth_place,
+                        'birth_country_id' => $accountMember->member?->birth_country_id,
+                        'birth_state_id' => $accountMember->member?->birth_state_id,
+                        'birth_city_id' => $accountMember->member?->birth_city_id,
+                        'nationality_id' => $accountMember->member?->nationality_id,
+                        'marital_status_id' => $accountMember->member?->marital_status_id,
+                        'phone' => $accountMember->member?->phone,
+                        'email' => $accountMember->member?->email,
+                        'occupation' => $accountMember->member?->occupation,
+                        'address' => [
+                            'street' => $accountMember->member?->primaryAddress?->street,
+                            'neighborhood' => $accountMember->member?->primaryAddress?->neighborhood,
+                            'postal_code' => $accountMember->member?->primaryAddress?->postal_code,
+                            'country_id' => $accountMember->member?->primaryAddress?->country_id,
+                            'state_id' => $accountMember->member?->primaryAddress?->state_id,
+                            'city_id' => $accountMember->member?->primaryAddress?->city_id,
+                            'years_in_city' => $accountMember->member?->primaryAddress?->years_in_city,
+                        ],
+                        'employment' => [
+                            'company_name' => $accountMember->member?->employmentInfo?->company_name,
+                            'company_address' => $accountMember->member?->employmentInfo?->company_address,
+                            'company_phone' => $accountMember->member?->employmentInfo?->company_phone,
+                        ],
+                    ],
                     'age' => $age,
                     'has_other_club_membership' => $hasOtherClub,
                     'other_club_name' => $otherClubName,
@@ -3726,6 +4049,47 @@ class MemberController extends Controller
             'pricing_rule_id' => $pricingRule->id,
             'interclub_package_rule_id' => null,
         ];
+    }
+
+    /**
+     * Cuota del cargo "IF" (cambio de tipo dentro de la misma cuenta): si el
+     * socio todavía tiene inscripción/reinscripción pendiente de pago (no
+     * terminó de liquidar su alta original), no se usa la cuota de "cambio
+     * de tipo" de pricing rules — en su lugar se cobra el 50% de la
+     * inscripción completa que le correspondería a alguien que se da de
+     * alta nueva directamente en el tipo destino (regla de origen null),
+     * ya que la inscripción original sigue viva como adeudo aparte.
+     */
+    protected function resolveIfConceptInscriptionFee(
+        MembershipAccount $account,
+        MembershipType $targetMembershipType,
+        ?int $age,
+        bool $hasMultipleClubs,
+        float $fallbackFee
+    ): float {
+        $hasPendingInscription = Charge::query()
+            ->where('membership_account_id', $account->id)
+            ->whereHas('concept', fn (Builder $q) => $q->whereIn(
+                'code',
+                MembershipChargeService::INSCRIPTION_FAMILY_CODES
+            ))
+            ->whereIn('status', ['pending', 'partial'])
+            ->exists();
+
+        if (!$hasPendingInscription) {
+            return $fallbackFee;
+        }
+
+        $baseRule = $this->membershipPricingService->resolvePricingRule(
+            membershipTypeId: $targetMembershipType->id,
+            fromMembershipTypeId: null,
+            age: $this->membershipPricingService->shouldApplyAgeFilter($targetMembershipType) ? $age : null,
+            hasMultipleClubs: $hasMultipleClubs
+        );
+
+        $baseInscriptionFee = (float) ($baseRule?->resolveInscriptionFee() ?? 0);
+
+        return round($baseInscriptionFee * 0.5, 2);
     }
 
     protected function resolveInterclubPackageRule(
@@ -4022,13 +4386,20 @@ class MemberController extends Controller
         $formattedInscriptionFee = number_format($inscriptionFee, 2);
         $formattedAmountDueToday = number_format($amountDueToday, 2);
 
+        // Un cambio de tipo dentro de la misma cuenta cobra el concepto "IF",
+        // no una inscripción real — el texto debe reflejarlo para no
+        // confundir al usuario (ver resolveIfConceptInscriptionFee).
+        $inscriptionNoun = $sameClubTransition ? 'el cambio de tipo' : 'la inscripción';
+        $inscriptionConjunctionPhrase = $sameClubTransition ? 'y cambio de tipo' : 'e inscripción';
+        $inscriptionDePhrase = $sameClubTransition ? 'de cambio de tipo' : 'de inscripción';
+
         if ($currentMonthlyFee === null) {
             $message = $newMonthlyFeeTotal === $newMonthlyFeeShare
                 ? "La mensualidad de este parque será de $$formattedNewMonthlyFeeShare."
                 : "La cuota total del esquema será de $$formattedNewMonthlyFeeTotal y en este parque se cobrará $$formattedNewMonthlyFeeShare al mes.";
 
             if ($inscriptionFee > 0) {
-                return $message . " Hoy se pagarán $$formattedAmountDueToday considerando mensualidad e inscripción.";
+                return $message . " Hoy se pagarán $$formattedAmountDueToday considerando mensualidad $inscriptionConjunctionPhrase.";
             }
 
             return $message . " Hoy se pagará $$formattedAmountDueToday.";
@@ -4046,7 +4417,7 @@ class MemberController extends Controller
                 : "Esta membresía mantendrá un cobro independiente de $" . number_format($newMonthlyFeeShare, 2) . " al mes en este parque.";
 
             if ($inscriptionFee > 0) {
-                return $message . " Hoy se pagarán $" . number_format($amountDueToday, 2) . " considerando mensualidad e inscripción.";
+                return $message . " Hoy se pagarán $" . number_format($amountDueToday, 2) . " considerando mensualidad $inscriptionConjunctionPhrase.";
             }
 
             return $message . " Hoy se pagará $" . number_format($amountDueToday, 2) . ".";
@@ -4063,14 +4434,14 @@ class MemberController extends Controller
                 $message .= " Hoy se cobrará un ajuste de $$formattedAdditionalCharge";
 
                 if ($inscriptionFee > 0) {
-                    $message .= " más $$formattedInscriptionFee de inscripción";
+                    $message .= " más $$formattedInscriptionFee $inscriptionDePhrase";
                 }
 
                 return $message . ", para un total de $$formattedAmountDueToday.";
             }
 
             if ($inscriptionFee > 0) {
-                return $message . " Hoy solo se cobrará la inscripción por $$formattedInscriptionFee.";
+                return $message . " Hoy solo se cobrará $inscriptionNoun por $$formattedInscriptionFee.";
             }
 
             return $message . " Hoy no se generará cobro adicional.";
@@ -4080,7 +4451,7 @@ class MemberController extends Controller
             $message = "La cuota total del esquema bajará de $$formattedCurrentMonthlyFee a $$formattedNewMonthlyFeeTotal. En este parque se cobrará $$formattedNewMonthlyFeeShare al mes.";
 
             if ($inscriptionFee > 0) {
-                return $message . " No se generará saldo a favor; hoy solo se cobrará la inscripción por $$formattedInscriptionFee.";
+                return $message . " No se generará saldo a favor; hoy solo se cobrará $inscriptionNoun por $$formattedInscriptionFee.";
             }
 
             return $message . " No se generará saldo a favor ni cobro adicional hoy.";
@@ -4093,7 +4464,7 @@ class MemberController extends Controller
         $message .= " En este parque se cobrará $$formattedNewMonthlyFeeShare al mes.";
 
         if ($inscriptionFee > 0) {
-            return $message . " Hoy solo se cobrará la inscripción por $$formattedInscriptionFee.";
+            return $message . " Hoy solo se cobrará $inscriptionNoun por $$formattedInscriptionFee.";
         }
 
         return $message . " Hoy no se generará cobro adicional.";
@@ -4238,5 +4609,15 @@ class MemberController extends Controller
             'messageError' => $firstMessage,
             'exception' => '',
         ]));
+    }
+
+    //Da de alta el acceso (usuario + tarjeta) de un integrante agregado a una cuenta.
+    protected function provisionMemberAccess(MembershipAccountMember $accountMember, MembershipAccount $account): void
+    {
+        try {
+            $this->accessProvisioningService->provision($accountMember, $account);
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 }

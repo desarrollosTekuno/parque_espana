@@ -11,7 +11,6 @@ use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 
 class MemberAccessController extends Controller
@@ -31,17 +30,35 @@ class MemberAccessController extends Controller
     {
         $prefix = 'members_access';
         $driver = DB::getDriverName();
+        $clubId = (int) ($request->club_id ?? session('club_id'));
 
-        $query = Member::with(['user:id,name,email', 'accountMemberships.membershipAccount.club'])
+        // Solo miembros con una cuenta en el parque en sesión — antes no se
+        // filtraba por parque, así que un socio con cuentas en ambos parques
+        // (grupo combo) aparecía sin importar cuál estuviera en sesión.
+        $query = Member::with(['user:id,name,email'])
+            ->whereHas('accountMemberships.membershipAccount', function ($q) use ($clubId) {
+                $q->where('club_id', $clubId);
+            })
             ->orderBy('last_name');
 
         if ($search = $request->input("{$prefix}_search")) {
-            $query->where(function ($q) use ($search, $driver) {
-                $op = $driver === 'pgsql' ? 'ilike' : 'like';
-                $q->where('first_name',        $op, "%{$search}%")
-                  ->orWhere('last_name',        $op, "%{$search}%")
-                  ->orWhere('second_last_name', $op, "%{$search}%")
-                  ->orWhere('email',            $op, "%{$search}%");
+            // Se parte la búsqueda en palabras y cada una debe encontrarse en
+            // algún campo (nombre, apellidos o email) — así "Alberto Duran
+            // Prueba" sí encuentra al miembro aunque ningún campo por sí
+            // solo contenga el texto completo (antes se comparaba la cadena
+            // entera contra cada columna por separado).
+            $op = $driver === 'pgsql' ? 'ilike' : 'like';
+            $terms = collect(preg_split('/\s+/', trim($search)))->filter();
+
+            $query->where(function ($outer) use ($terms, $op) {
+                foreach ($terms as $term) {
+                    $outer->where(function ($q) use ($term, $op) {
+                        $q->where('first_name',        $op, "%{$term}%")
+                          ->orWhere('last_name',        $op, "%{$term}%")
+                          ->orWhere('second_last_name', $op, "%{$term}%")
+                          ->orWhere('email',            $op, "%{$term}%");
+                    });
+                }
             });
         }
 
@@ -71,7 +88,6 @@ class MemberAccessController extends Controller
         $validator = Validator::make($request->all(), [
             'member_id' => ['required', 'integer'],
             'email'     => ['required', 'email', 'unique:users,email'],
-            'password'  => ['required', 'confirmed', Password::min(8)],
         ]);
 
         if ($validator->fails()) {
@@ -81,6 +97,17 @@ class MemberAccessController extends Controller
                     $validator->errors()->toArray()
                 )
             );
+        }
+
+        $defaultPassword = AppVariable::whereNull('club_id')
+            ->where('name', 'default_user_password')
+            ->value('value');
+
+        if (!$defaultPassword) {
+            return redirect()->back()->withErrors([
+                'messageError' => 'No se encontró la contraseña global por defecto de la app móvil.',
+                'exception'    => '',
+            ]);
         }
 
         DB::beginTransaction();
@@ -104,7 +131,7 @@ class MemberAccessController extends Controller
             $user = User::create([
                 'name'     => $member->full_name,
                 'email'    => $request->email,
-                'password' => Hash::make($request->password),
+                'password' => Hash::make($defaultPassword),
             ]);
 
             $member->update(['user_id' => $user->id, 'email' => $request->email]);
@@ -123,7 +150,7 @@ class MemberAccessController extends Controller
     }
 
     /**
-     * Reinicia la contraseña del usuario con el valor configurado para el club.
+     * Reinicia la contraseña del usuario con el valor global configurado.
      */
     public function resetPassword(Member $member)
     {
@@ -134,13 +161,13 @@ class MemberAccessController extends Controller
                 ], 422);
             }
 
-            $defaultPassword = AppVariable::where('club_id', session('club_id'))
+            $defaultPassword = AppVariable::whereNull('club_id')
                 ->where('name', 'default_user_password')
                 ->value('value');
 
             if (!$defaultPassword) {
                 return response()->json([
-                    'message' => 'No se encontró la contraseña por defecto del club.',
+                    'message' => 'No se encontró la contraseña por defecto de la app móvil.',
                 ], 422);
             }
 

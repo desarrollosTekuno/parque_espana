@@ -3,6 +3,10 @@
 namespace App\Http\Controllers\Web\AdminClub;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendDailyAccessCardMail;
+use App\Jobs\SendPushNotificationJob;
+use App\Mail\DailyAccessCardMail;
+use App\Models\AdminClub\BusinessAd;
 use App\Models\Administrator\Club;
 use App\Models\Billing\AnnualDiscountRule;
 use App\Models\Billing\Charge;
@@ -17,15 +21,20 @@ use App\Models\Members\MemberDocument;
 use App\Models\Memberships\MembershipAccount;
 use App\Models\AdminClub\CafeteriaVisit;
 use App\Rules\ExistsInSchema;
+use App\Services\Access\GuestPassProvisioningService;
+use App\Services\Access\MembershipDelinquencyService;
 use App\Services\AdminClub\CafeteriaCheckoutService;
 use App\Services\Billing\AnnualPaymentService;
 use App\Services\Billing\MembershipChargeService;
 use App\Services\Billing\PaymentRegistrationService;
+use App\Services\Email\MailService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -55,6 +64,9 @@ class CollectionController extends Controller
         protected MembershipChargeService $membershipChargeService,
         protected CafeteriaCheckoutService $cafeteriaCheckoutService,
         protected AnnualPaymentService $annualPaymentService,
+        protected GuestPassProvisioningService $guestPassProvisioningService,
+        protected MembershipDelinquencyService $delinquencyService,
+        protected MailService $mailService
     ) {
     }
 
@@ -74,10 +86,10 @@ class CollectionController extends Controller
         // el criterio anterior de decidirlo por clubs.clubs.applies_iva a
         // nivel global — ver ChargeConcept::resolveAppliesIvaForClub.
         $conceptOptions = ChargeConcept::query()
-            ->select('id', 'code', 'internal_key', 'name', 'default_amount', 'is_recurring', 'allows_partial_payments', 'applies_iva', 'requires_account')
+            ->select('id', 'code', 'internal_key', 'name', 'default_amount', 'allows_manual_amount', 'is_recurring', 'allows_partial_payments', 'applies_iva', 'requires_account')
             ->with(['clubAmounts' => fn ($query) => $query->where('is_active', true)])
             ->where('is_active', true)
-            ->orderBy('code')
+            ->orderBy('internal_key')
             ->get()
             ->map(fn (ChargeConcept $concept) => [
                 'id' => $concept->id,
@@ -85,6 +97,7 @@ class CollectionController extends Controller
                 'internal_key' => $concept->internal_key,
                 'name' => $concept->name,
                 'default_amount' => $concept->default_amount,
+                'allows_manual_amount' => $concept->allows_manual_amount,
                 'is_recurring' => $concept->is_recurring,
                 'allows_partial_payments' => $concept->allows_partial_payments,
                 'applies_iva' => $concept->applies_iva,
@@ -185,6 +198,19 @@ class CollectionController extends Controller
             ]);
         }
 
+        // Una cuenta dada de baja en ESTE parque no debe poder cobrarse
+        // desde aquí — aunque el socio siga con membresía activa en el otro
+        // parque (combo), esta cuenta específica ya no es operable. El
+        // saldo pendiente que le corresponda (p. ej. un concepto de "ambos
+        // parques" que también viva aquí) sigue siendo visible/cobrable
+        // desde la cuenta del otro parque que sí sigue activa.
+        if ($account->status === 'cancelled') {
+            return response()->json([
+                'found' => false,
+                'message' => 'Esta cuenta está dada de baja en este parque.',
+            ]);
+        }
+
         // Un socio que pertenece a más de un parque tiene una MembershipAccount
         // distinta por parque, enlazadas por account_group_id (mismo mecanismo
         // que usa MemberController/MembershipChargeService para repartir la
@@ -275,37 +301,64 @@ class CollectionController extends Controller
             ->values();
 
         // ── Cargos pendientes, agrupados por concepto ──
-        // Solo la mensualidad (MONTHLY_FEE) se muestra de todas las cuentas
-        // del grupo (todos los parques donde el socio tiene membresía), ya
-        // que se puede pagar desde cualquiera de sus parques. Cualquier otro
-        // cargo (inscripción, casilleros, etc.) es propio de un solo parque,
-        // así que solo se muestra el de la cuenta que encontró la búsqueda:
-        // de lo contrario, buscando por la cuenta de un parque aparecía
-        // también la inscripción del otro.
+        // Solo la mensualidad de "ambos parques" (MONTHLY_FEE_PARKS y
+        // variantes — ver MembershipChargeService::MONTHLY_FEE_PARKS_CODES)
+        // se muestra desde cualquier cuenta del grupo, ya que ese concepto
+        // en sí representa una deuda compartida entre los dos parques y se
+        // puede pagar desde cualquiera. La mensualidad de UN SOLO parque
+        // (MONTHLY_FEE, MONTHLY_FEE_INTERMEDIATE, MONTHLY_FEE_PASS) es
+        // propia de esa cuenta, igual que cualquier otro cargo (inscripción,
+        // casilleros, etc.) — solo se muestra la de la cuenta que encontró
+        // la búsqueda: de lo contrario, buscando desde el otro parque
+        // aparecía también la mensualidad (o la inscripción) que no le
+        // corresponde a ese parque.
         //
-        // Solo la mensualidad cuenta como "pendiente para cobrar hoy" nada
-        // más si ya venció (due_date <= hoy, o sin due_date). "Agregar
-        // mensualidades" permite adelantar el pago de meses futuros (hasta
-        // diciembre, ver resolveMonthlyFeeMonths) y crea esos cargos de una
-        // vez aunque el cobro no se llegue a confirmar; si eso pasa, no
-        // deben verse como adeudo "de hoy" — se quedan esperando en la base
-        // de datos y reaparecen aquí solos en cuanto llegue su fecha de
-        // vencimiento. Esto NO aplica a otros conceptos (casilleros, etc.):
-        // esos sí deben poder cobrarse aunque su vencimiento sea próximo,
-        // no tienen un mecanismo de "adelantar pago" que deje huérfanos.
+        // Solo la mensualidad (de cualquier tipo) cuenta como "pendiente
+        // para cobrar hoy" nada más si ya venció (due_date <= hoy, o sin
+        // due_date). "Agregar mensualidades" permite adelantar el pago de
+        // meses futuros (hasta diciembre, ver resolveMonthlyFeeMonths) y
+        // crea esos cargos de una vez aunque el cobro no se llegue a
+        // confirmar; si eso pasa, no deben verse como adeudo "de hoy" — se
+        // quedan esperando en la base de datos y reaparecen aquí solos en
+        // cuanto llegue su fecha de vencimiento. Esto NO aplica a otros
+        // conceptos (casilleros, etc.): esos sí deben poder cobrarse aunque
+        // su vencimiento sea próximo, no tienen un mecanismo de "adelantar
+        // pago" que deje huérfanos.
         $pendingCharges = Charge::query()
             ->with(['concept', 'membership.club'])
             ->whereIn('status', ['pending', 'partial'])
             ->where(function (Builder $query) use ($groupAccountIds, $account) {
                 $query->where(
-                    fn (Builder $monthly) => $monthly
+                    fn (Builder $comboMonthly) => $comboMonthly
                         ->whereIn('membership_account_id', $groupAccountIds)
-                        ->whereHas('concept', fn (Builder $c) => $c->where('code', 'MONTHLY_FEE'))
+                        ->whereHas('concept', fn (Builder $c) => $c->whereIn('code', MembershipChargeService::MONTHLY_FEE_PARKS_CODES))
                         ->where(fn (Builder $q) => $q->whereNull('due_date')->orWhere('due_date', '<=', now()->toDateString()))
+                )->orWhere(
+                    fn (Builder $ownParkMonthly) => $ownParkMonthly
+                        ->where('membership_account_id', $account->id)
+                        ->whereHas('concept', fn (Builder $c) => $c
+                            ->whereIn('code', MembershipChargeService::MONTHLY_FEE_FAMILY_CODES)
+                            ->whereNotIn('code', MembershipChargeService::MONTHLY_FEE_PARKS_CODES)
+                            ->whereNotIn('code', MembershipChargeService::ABSENCE_PERMIT_CONCEPT_CODES))
+                        ->where(fn (Builder $q) => $q->whereNull('due_date')->orWhere('due_date', '<=', now()->toDateString()))
+                )->orWhere(
+                    // Los cargos de permiso por ausencia se crean a propósito
+                    // por adelantado (ver createFutureChargesForAbsencePermit),
+                    // incluso para meses futuros — deben verse en Cobranza
+                    // desde que se registra el permiso, no hasta que venzan.
+                    // Se buscan en TODO el grupo (no solo esta cuenta) porque
+                    // el permiso se registra a nivel grupo — si la membresía
+                    // era combo, el único cargo (ya descontado) vive en la
+                    // cuenta facturable de ese momento, pero debe poder
+                    // cobrarse/verse desde cualquiera de los dos parques,
+                    // igual que la mensualidad de "ambos parques".
+                    fn (Builder $absencePermit) => $absencePermit
+                        ->whereIn('membership_account_id', $groupAccountIds)
+                        ->whereHas('concept', fn (Builder $c) => $c->whereIn('code', MembershipChargeService::ABSENCE_PERMIT_CONCEPT_CODES))
                 )->orWhere(
                     fn (Builder $other) => $other
                         ->where('membership_account_id', $account->id)
-                        ->whereHas('concept', fn (Builder $c) => $c->where('code', '!=', 'MONTHLY_FEE'))
+                        ->whereHas('concept', fn (Builder $c) => $c->whereNotIn('code', MembershipChargeService::MONTHLY_FEE_FAMILY_CODES))
                 );
             })
             ->orderByRaw('CASE WHEN due_date IS NULL THEN 1 ELSE 0 END')
@@ -331,7 +384,7 @@ class CollectionController extends Controller
 
         $pendingConcepts = $pendingCharges
             ->groupBy(function (Charge $charge) {
-                if ($charge->concept?->code === 'MONTHLY_FEE') {
+                if (in_array($charge->concept?->code, MembershipChargeService::MONTHLY_FEE_FAMILY_CODES, true)) {
                     return (string) $charge->concept_id;
                 }
 
@@ -340,7 +393,7 @@ class CollectionController extends Controller
             ->map(function ($group) use ($billableMembership) {
                 /** @var \App\Models\Billing\ChargeConcept|null $concept */
                 $concept = $group->first()->concept;
-                $isMonthlyFee = $concept?->code === 'MONTHLY_FEE';
+                $isMonthlyFee = in_array($concept?->code, MembershipChargeService::MONTHLY_FEE_FAMILY_CODES, true);
                 // Para la mensualidad, "meses" son los periodos distintos
                 // vencidos (un mes puede traer 2 cargos si en algún momento
                 // se repartió entre parques), no el número de cargos.
@@ -350,6 +403,13 @@ class CollectionController extends Controller
                 $balance = round((float) $group->sum('balance'), 2);
                 $originalTotal = round((float) $group->sum('amount'), 2);
                 $isRecurring = (bool) ($concept?->is_recurring);
+                // A diferencia de "is_recurring" (que solo distingue la
+                // mensualidad), la inscripción/reinscripción también se
+                // puede diferir a varios meses (ver resolveInscriptionInstallments)
+                // — así que la columna "Meses" debe mostrarse para toda esa
+                // familia de conceptos, no solo para la mensualidad.
+                $showsMonths = $isMonthlyFee
+                    || in_array($concept?->code, MembershipChargeService::INSCRIPTION_FAMILY_CODES, true);
                 // La cuota que se muestra para la mensualidad es siempre la
                 // vigente del año EN CURSO (no el promedio de los meses
                 // vencidos, que puede mezclar años con cuotas distintas).
@@ -374,8 +434,35 @@ class CollectionController extends Controller
                         ->values()
                     : collect();
 
-                if ($isMonthlyFee && !$isMultiClub) {
-                    $comboBreakdown = $this->resolveComboClubBreakdown($billableMembership, $balance);
+                // Solo se sintetiza el reparto "Ambos parques" para
+                // renglones cuyo PROPIO concepto ya representa combo
+                // (MONTHLY_FEE_PARKS y variantes) — un renglón viejo bajo
+                // un concepto de un solo parque (p. ej. MONTHLY_FEE de
+                // antes de que existiera el combo) no debe etiquetarse así
+                // solo porque la membresía HOY sí sea combo. También se
+                // intenta para CUOTA_PERMISO/CUOTA_75_PERMISO: ese cargo
+                // (único, ya descontado) puede corresponder a una membresía
+                // combo, y entonces debe verse/cobrarse desde cualquiera de
+                // los dos parques igual que la mensualidad — si la membresía
+                // no era combo, resolveHistoricalParksClubBreakdown
+                // simplemente no encuentra hermano y no hace nada.
+                $isParksConcept = in_array(
+                    $concept?->code,
+                    array_merge(
+                        MembershipChargeService::MONTHLY_FEE_PARKS_CODES,
+                        MembershipChargeService::ABSENCE_PERMIT_CONCEPT_CODES
+                    ),
+                    true
+                );
+
+                if ($isParksConcept && !$isMultiClub) {
+                    // No se exige que el hermano siga activo: el concepto
+                    // en sí (MONTHLY_FEE_PARKS y variantes) ya es "de ambos
+                    // parques" — aunque la membresía del otro parque se
+                    // haya dado de baja después, este cargo se sigue
+                    // pudiendo cobrar desde cualquiera de los dos, igual
+                    // que cuando se generó.
+                    $comboBreakdown = $this->resolveHistoricalParksClubBreakdown($group->first()->membership, $balance);
 
                     if ($comboBreakdown) {
                         $isMultiClub = true;
@@ -387,6 +474,12 @@ class CollectionController extends Controller
                     'concept_id' => $concept?->id,
                     'concept_code' => $concept?->code,
                     'internal_key' => $concept?->internal_key,
+                    // El nombre del concepto ya refleja la composición
+                    // correcta (Cuota mensualidad / Cuota Mens Parques /
+                    // Cuota Mens. Pase / etc.) porque se eligió al crear el
+                    // cargo (ver MembershipChargeService::resolveMonthlyFeeConcept)
+                    // — así el detalle de cargos pendientes dice lo mismo
+                    // que después va a decir el ticket ya cobrado.
                     'concept_name' => $concept?->name,
                     // "tasa" queda vacía por ahora (a definir después).
                     'rate' => null,
@@ -399,6 +492,7 @@ class CollectionController extends Controller
                     // Monto = adeudo dividido entre los meses que aplican.
                     'unit_amount' => $months > 0 ? round($balance / $months, 2) : $balance,
                     'months' => $months,
+                    'months_applicable' => $showsMonths,
                     'balance' => $balance,
                     'is_multi_club' => $isMultiClub,
                     'club_breakdown' => $clubBreakdown,
@@ -415,21 +509,74 @@ class CollectionController extends Controller
                         'club_id' => $charge->membership?->club_id,
                         'club_code' => $charge->membership?->club?->code,
                     ])->values(),
+                    'is_up_to_date' => false,
                 ];
             })
             ->values();
 
+        // Si el socio no tiene ningún mes de mensualidad vencido/pendiente
+        // (nada que cobrar hoy), la tabla de Cargos se queda sin ningún
+        // renglón de mensualidad — pero el encargado de todos modos
+        // necesita saber CUÁL concepto (01, 80, 80I, 81, etc.) le
+        // corresponde para poder adelantar un mes desde "Agregar concepto
+        // de cobro", sin tener que probarlos uno por uno en el selector.
+        // Se agrega aquí un renglón puramente informativo (0 meses, $0 de
+        // saldo, sin acción de "Agregar" — esa columna ya está deshabilitada
+        // para toda la tabla) con el concepto que resolvería HOY según la
+        // composición vigente (ver MembershipChargeService::resolveMonthlyFeeConcept).
+        $hasPendingMonthlyRow = $pendingConcepts->contains(
+            fn (array $row) => in_array($row['concept_code'], MembershipChargeService::MONTHLY_FEE_FAMILY_CODES, true)
+        );
+
+        if (!$hasPendingMonthlyRow && $billableMembership) {
+            $applicableConcept = $this->membershipChargeService->resolveMonthlyFeeConcept($billableMembership);
+            $currentYearFee = round((float) ($billableMembership->resolveLiveMonthlyFee(now()->year) ?? 0), 2);
+
+            $pendingConcepts->push([
+                'concept_id' => $applicableConcept->id,
+                'concept_code' => $applicableConcept->code,
+                'internal_key' => $applicableConcept->internal_key,
+                'concept_name' => $applicableConcept->name,
+                'rate' => null,
+                'fee' => $currentYearFee,
+                'class_label' => 'A meses',
+                'unit_amount' => 0.0,
+                'months' => 0,
+                'months_applicable' => true,
+                'balance' => 0.0,
+                'is_multi_club' => false,
+                'club_breakdown' => collect(),
+                'period_year' => null,
+                'period_month' => null,
+                'period_label' => null,
+                'charges' => collect(),
+                // Marca este renglón como informativo (socio al corriente),
+                // para que el frontend lo distinga de un adeudo real.
+                'is_up_to_date' => true,
+            ]);
+        }
+
         // ── Resumen ──
-        // La mensualidad vive en la cuenta de la membresía facturable, que
-        // puede no ser la misma cuenta/parque que encontró la búsqueda (ver
-        // resolveGroupAccountIds) — por eso estas dos consultas se escopean
-        // a TODO el grupo de cuentas del socio, igual que la tabla de Cargos
-        // y $totalDue, y no a un solo club: de lo contrario, si la sesión
-        // está en el parque donde el socio NO es facturable, salían en cero
-        // aunque sí tuviera mensualidades vencidas en el otro parque.
+        // Mismo criterio que la tabla de Cargos: solo el concepto de "ambos
+        // parques" (MONTHLY_FEE_PARKS y variantes) se busca en TODO el
+        // grupo de cuentas (puede vivir en la cuenta de la membresía
+        // facturable, que no necesariamente es la que encontró la
+        // búsqueda) — la mensualidad de un solo parque se acota a esta
+        // cuenta, igual que en la tabla de Cargos.
         $lastPaid = Charge::query()
-            ->whereHas('concept', fn (Builder $q) => $q->where('code', 'MONTHLY_FEE'))
-            ->whereIn('membership_account_id', $groupAccountIds)
+            ->where(fn (Builder $q) => $q
+                ->where(fn (Builder $combo) => $combo
+                    ->whereHas('concept', fn (Builder $c) => $c->whereIn('code', MembershipChargeService::MONTHLY_FEE_PARKS_CODES))
+                    ->whereIn('membership_account_id', $groupAccountIds))
+                ->orWhere(fn (Builder $absencePermit) => $absencePermit
+                    ->whereHas('concept', fn (Builder $c) => $c->whereIn('code', MembershipChargeService::ABSENCE_PERMIT_CONCEPT_CODES))
+                    ->whereIn('membership_account_id', $groupAccountIds))
+                ->orWhere(fn (Builder $ownPark) => $ownPark
+                    ->whereHas('concept', fn (Builder $c) => $c
+                        ->whereIn('code', MembershipChargeService::MONTHLY_FEE_FAMILY_CODES)
+                        ->whereNotIn('code', MembershipChargeService::MONTHLY_FEE_PARKS_CODES)
+                        ->whereNotIn('code', MembershipChargeService::ABSENCE_PERMIT_CONCEPT_CODES))
+                    ->where('membership_account_id', $account->id)))
             ->where('status', 'paid')
             ->whereNotNull('period_year')
             ->whereNotNull('period_month')
@@ -438,19 +585,63 @@ class CollectionController extends Controller
             ->first();
 
         $overdueMonths = Charge::query()
-            ->whereHas('concept', fn (Builder $q) => $q->where('code', 'MONTHLY_FEE'))
-            ->whereIn('membership_account_id', $groupAccountIds)
+            ->where(fn (Builder $q) => $q
+                ->where(fn (Builder $combo) => $combo
+                    ->whereHas('concept', fn (Builder $c) => $c->whereIn('code', MembershipChargeService::MONTHLY_FEE_PARKS_CODES))
+                    ->whereIn('membership_account_id', $groupAccountIds))
+                ->orWhere(fn (Builder $absencePermit) => $absencePermit
+                    ->whereHas('concept', fn (Builder $c) => $c->whereIn('code', MembershipChargeService::ABSENCE_PERMIT_CONCEPT_CODES))
+                    ->whereIn('membership_account_id', $groupAccountIds))
+                ->orWhere(fn (Builder $ownPark) => $ownPark
+                    ->whereHas('concept', fn (Builder $c) => $c
+                        ->whereIn('code', MembershipChargeService::MONTHLY_FEE_FAMILY_CODES)
+                        ->whereNotIn('code', MembershipChargeService::MONTHLY_FEE_PARKS_CODES)
+                        ->whereNotIn('code', MembershipChargeService::ABSENCE_PERMIT_CONCEPT_CODES))
+                    ->where('membership_account_id', $account->id)))
             ->whereIn('status', ['pending', 'partial'])
             ->whereNotNull('due_date')
             ->where('due_date', '<', now()->toDateString())
             ->count();
 
         $memberIds = $account->accountMembers()->pluck('member_id');
-        $lockersCount = $memberIds->isNotEmpty()
-            ? LockerAssignment::whereIn('member_id', $memberIds)
+        $lockerAssignments = $memberIds->isNotEmpty()
+            ? LockerAssignment::with(['locker', 'member'])
+                ->whereIn('member_id', $memberIds)
                 ->where('year', now()->year)
-                ->count()
-            : 0;
+                ->get()
+            : collect();
+        $lockersCount = $lockerAssignments->count();
+        $lockers = $lockerAssignments->map(function (LockerAssignment $assignment) {
+            // "amount_paid" en memberships.locker_assignments solo lo
+            // incrementa el módulo de cobros VIEJO (BillingController) — un
+            // casillero cobrado a través de Cobranza (este módulo) siempre
+            // se queda en 0 ahí, aunque el cargo real (concepto LOCKERS,
+            // ligado por metadata->locker_id) ya esté pagado. Por eso el
+            // estatus/saldo real se resuelve del cargo, no de ese campo.
+            $lockerCharge = Charge::query()
+                ->whereHas('concept', fn (Builder $q) => $q->where('code', 'LOCKERS'))
+                ->where('member_id', $assignment->member_id)
+                ->where('metadata->locker_id', $assignment->locker_id)
+                ->orderByDesc('id')
+                ->first();
+
+            return [
+                'id' => $assignment->id,
+                'locker_number' => $assignment->locker?->number,
+                'category' => $assignment->locker?->category,
+                'member_name' => trim(collect([
+                    $assignment->member?->first_name,
+                    $assignment->member?->last_name,
+                    $assignment->member?->second_last_name,
+                ])->filter()->implode(' ')) ?: null,
+                'year' => $assignment->year,
+                'start_date' => optional($assignment->start_date)->toDateString(),
+                'end_date' => optional($assignment->end_date)->toDateString(),
+                'charge_amount' => $lockerCharge ? (float) $lockerCharge->amount : null,
+                'charge_balance' => $lockerCharge ? (float) $lockerCharge->balance : null,
+                'charge_status' => $lockerCharge?->status,
+            ];
+        })->values();
 
         $totalDue = round((float) $pendingCharges->sum('balance'), 2);
 
@@ -525,6 +716,7 @@ class CollectionController extends Controller
                 'lockers_count' => $lockersCount,
                 'total_due' => $totalDue,
             ],
+            'lockers' => $lockers,
             'incidents' => $incidents,
             'notes' => $notes,
             'signals' => $signals,
@@ -590,16 +782,27 @@ class CollectionController extends Controller
     }
 
     /**
-     * "Agregar concepto de cobro" → código MONTHLY_FEE: en vez de capturar un
-     * importe a mano, el encargado solo indica cuántos meses quiere agregar.
-     * Se resuelven los N meses de mensualidad más antiguos que el socio debe,
-     * empezando por el cargo de mensualidad más viejo que YA exista para su
-     * grupo de cuentas (no la fecha de inicio real de la membresía, que puede
-     * ser de hace años) y caminando mes a mes hasta hoy. Si algún mes de en
-     * medio nunca se generó (hueco), se crea aquí mismo sobre la membresía
+     * "Agregar concepto de cobro" → cualquier concepto de la familia de
+     * mensualidad (MONTHLY_FEE, MONTHLY_FEE_PARKS, etc. — ver
+     * MembershipChargeService::MONTHLY_FEE_FAMILY_CODES): en vez de capturar
+     * un importe a mano, el encargado solo indica cuántos meses quiere
+     * agregar DEL CONCEPTO QUE SELECCIONÓ (concept_id). Se resuelven los N
+     * meses más antiguos que el socio debe bajo ESE concepto específico,
+     * empezando por el cargo más viejo que YA exista para su grupo de
+     * cuentas (no la fecha de inicio real de la membresía, que puede ser de
+     * hace años) y caminando mes a mes hasta hoy. Si algún mes de en medio
+     * nunca se generó (hueco), se crea aquí mismo sobre la membresía
      * actualmente facturable — mismo mecanismo que usa el ciclo mensual
      * automático (MembershipChargeService::createRecurringMonthlyCharge),
      * solo que aplicado retroactivamente y bajo demanda.
+     *
+     * Un mismo periodo puede tener cargos de MÁS DE UN concepto (p. ej. uno
+     * viejo bajo MONTHLY_FEE de antes del combo, y uno nuevo bajo
+     * MONTHLY_FEE_PARKS del combo recién armado, ambos del mismo mes) — cada
+     * concepto se agrega POR SEPARADO, nunca se fusionan en un solo total.
+     * Si el concepto seleccionado ya no le corresponde a los meses
+     * siguientes (la composición cambió), se deja de avanzar: ese concepto
+     * ya no tiene más meses propios que adelantar.
      */
     public function resolveMonthlyFeeMonths(Request $request): JsonResponse
     {
@@ -607,6 +810,7 @@ class CollectionController extends Controller
             'membership_account_id' => ['required', new ExistsInSchema('memberships', 'accounts', 'id')],
             'months' => ['required', 'integer', 'min:1', 'max:36'],
             'preview' => ['sometimes', 'boolean'],
+            'concept_id' => ['required', new ExistsInSchema('billing', 'concepts', 'id')],
         ]);
 
         $preview = (bool) ($validated['preview'] ?? false);
@@ -614,15 +818,43 @@ class CollectionController extends Controller
         $account = MembershipAccount::findOrFail($validated['membership_account_id']);
         $groupAccountIds = $this->resolveGroupAccountIds($account);
 
-        $monthlyConcept = ChargeConcept::where('code', 'MONTHLY_FEE')->first();
+        // El concepto elegido en el selector: cada uno de la familia de
+        // mensualidad se resuelve y se paga POR SEPARADO — no se fusionan
+        // en un solo total aunque coincidan en el mismo periodo. Esto
+        // importa en la transición de un solo parque a combo: el mes en
+        // que se agrega la segunda cuenta puede quedar con un cargo viejo
+        // bajo el concepto de un solo parque (p. ej. MONTHLY_FEE) Y un
+        // cargo nuevo bajo el concepto combo (p. ej. MONTHLY_FEE_PARKS)
+        // para el mismo mes — cada uno es una deuda independiente.
+        $selectedConcept = ChargeConcept::find($validated['concept_id']);
 
-        if (!$monthlyConcept) {
-            return response()->json(['message' => 'No existe el concepto MONTHLY_FEE.'], 422);
+        if (!$selectedConcept || !in_array($selectedConcept->code, MembershipChargeService::MONTHLY_FEE_FAMILY_CODES, true)) {
+            return response()->json(['message' => 'El concepto seleccionado no es de mensualidad.'], 422);
         }
+
+        // Un concepto de "ambos parques" sí se busca en todo el grupo de
+        // cuentas (puede vivir en la cuenta hermana) — uno de un solo
+        // parque se acota SOLO a esta cuenta, igual que en la tabla de
+        // Cargos: de lo contrario, si el socio también tiene mensualidad de
+        // un solo parque en su otra cuenta (con el mismo código de
+        // concepto, p. ej. MONTHLY_FEE en ambos lados antes de ser combo),
+        // se mezclarían dos deudas de parques distintos. CUOTA_PERMISO/
+        // CUOTA_75_PERMISO también se buscan en todo el grupo, porque su
+        // único cargo (ya descontado) puede vivir en la cuenta hermana si la
+        // membresía era combo — ver search().
+        $isParksConcept = in_array(
+            $selectedConcept->code,
+            array_merge(
+                MembershipChargeService::MONTHLY_FEE_PARKS_CODES,
+                MembershipChargeService::ABSENCE_PERMIT_CONCEPT_CODES
+            ),
+            true
+        );
+        $scopedAccountIds = $isParksConcept ? $groupAccountIds : [$account->id];
 
         $memberships = Membership::query()
             ->with('club')
-            ->whereIn('membership_account_id', $groupAccountIds)
+            ->whereIn('membership_account_id', $scopedAccountIds)
             ->where('is_primary', true)
             ->whereIn('status', ['active', 'suspended'])
             ->get();
@@ -635,8 +867,8 @@ class CollectionController extends Controller
             ?? $memberships->first();
 
         $earliestCharge = Charge::query()
-            ->where('concept_id', $monthlyConcept->id)
-            ->whereIn('membership_account_id', $groupAccountIds)
+            ->where('concept_id', $selectedConcept->id)
+            ->whereIn('membership_account_id', $scopedAccountIds)
             ->whereNotNull('period_year')
             ->whereNotNull('period_month')
             ->orderBy('period_year')
@@ -665,24 +897,39 @@ class CollectionController extends Controller
                 continue;
             }
 
-            // Un mismo periodo puede tener MÁS DE UN cargo (p. ej. el cargo
-            // original de una membresía que después se volvió no facturable,
-            // más el "ajuste" que se generó en la nueva membresía facturable
-            // al armar el combo interclub — ver
-            // MembershipChargeService::createInitialCharges,
-            // reconcileExistingMonthlyCharge). Hay que sumarlos TODOS, no
-            // tomar solo el primero que aparezca, o el total del mes sale
-            // incompleto (p. ej. $1,500 en vez de $1,850).
+            // Cargos YA existentes de este periodo, pero solo del concepto
+            // elegido — un mismo periodo puede tener cargos de más de un
+            // concepto (p. ej. uno viejo bajo MONTHLY_FEE y uno nuevo bajo
+            // MONTHLY_FEE_PARKS, cuando se agrega la segunda cuenta a medio
+            // mes), y cada uno se paga por separado, no se fusionan.
             $periodCharges = Charge::query()
                 ->with('membership.club')
-                ->where('concept_id', $monthlyConcept->id)
-                ->whereIn('membership_account_id', $groupAccountIds)
+                ->where('concept_id', $selectedConcept->id)
+                ->whereIn('membership_account_id', $scopedAccountIds)
                 ->where('period_year', $cursor->year)
                 ->where('period_month', $cursor->month)
                 ->where('status', '!=', 'cancelled')
                 ->get();
 
             if ($periodCharges->isEmpty()) {
+                // No hay cargo de ESTE concepto para el periodo — antes de
+                // crear uno nuevo, hay que confirmar que el concepto
+                // seleccionado sigue siendo el que en verdad le toca a este
+                // periodo. Se usa resolveMonthlyFeeConceptForPeriod (no
+                // resolveMonthlyFeeConcept a secas) porque también debe
+                // dejar de coincidir cuando el periodo cae dentro de un
+                // permiso por ausencia (le tocaría CUOTA_PERMISO/
+                // CUOTA_75_PERMISO, no el concepto normal por composición) —
+                // igual que cuando ya existe combo y se seleccionó un
+                // concepto de un solo parque: en ambos casos, ese concepto ya
+                // no tiene más meses propios por adelantar, los futuros le
+                // tocan a otro concepto que se agrega aparte.
+                $expectedConcept = $this->membershipChargeService->resolveMonthlyFeeConceptForPeriod($billableMembership, $cursor->copy());
+
+                if ($expectedConcept->id !== $selectedConcept->id) {
+                    break;
+                }
+
                 // En modo preview (cálculo en vivo mientras se captura la
                 // cantidad) no se persiste nada todavía — solo se calcula el
                 // monto que tocaría ese mes. La creación real del cargo
@@ -721,8 +968,8 @@ class CollectionController extends Controller
 
                 $periodCharges = Charge::query()
                     ->with('membership.club')
-                    ->where('concept_id', $monthlyConcept->id)
-                    ->whereIn('membership_account_id', $groupAccountIds)
+                    ->where('concept_id', $selectedConcept->id)
+                    ->whereIn('membership_account_id', $scopedAccountIds)
                     ->where('period_year', $cursor->year)
                     ->where('period_month', $cursor->month)
                     ->where('status', '!=', 'cancelled')
@@ -752,16 +999,24 @@ class CollectionController extends Controller
         }
 
         $total = round(collect($resolved)->sum('balance'), 2);
-        // Un solo reparto para todo el conjunto de meses agregados aquí (no
-        // uno por periodo): la condición de combo es propia de la membresía
-        // facturable, no cambia mes a mes — ver resolveComboClubBreakdown.
-        $comboBreakdown = $this->resolveComboClubBreakdown($billableMembership, $total);
+        // El reparto "Ambos parques" (para el diálogo de métodos de pago)
+        // solo aplica si el concepto que en verdad se está agregando es de
+        // los que representan combo — uno de un solo parque (p. ej. el
+        // MONTHLY_FEE viejo de antes del combo) no debe repartirse 50/50.
+        // Se usa resolveHistoricalParksClubBreakdown (no
+        // resolveComboClubBreakdown): el concepto seleccionado YA es combo
+        // por construcción, así que el reparto no debe depender de si la
+        // membresía hermana sigue activa hoy — igual que en search().
+        $comboBreakdown = $isParksConcept
+            ? $this->resolveHistoricalParksClubBreakdown($billableMembership, $total)
+            : null;
 
         return response()->json([
             'charges' => collect($resolved)->values(),
             'total' => $total,
             'is_multi_club' => (bool) $comboBreakdown,
             'club_breakdown' => $comboBreakdown ?? collect(),
+            'concept_label' => $selectedConcept->name,
         ]);
     }
 
@@ -797,18 +1052,18 @@ class CollectionController extends Controller
             return response()->json(['message' => 'El socio no tiene una membresía facturable activa.'], 422);
         }
 
-        $monthlyConcept = ChargeConcept::where('code', 'MONTHLY_FEE')->firstOrFail();
+        $monthlyFeeConceptIds = $this->membershipChargeService->resolveMonthlyFeeFamilyConceptIds();
 
         $priorYearsBalance = round((float) Charge::query()
             ->whereIn('membership_account_id', $groupAccountIds)
-            ->where('concept_id', $monthlyConcept->id)
+            ->whereIn('concept_id', $monthlyFeeConceptIds)
             ->where('period_year', '<', $year)
             ->whereIn('status', ['pending', 'partial'])
             ->sum('balance'), 2);
 
         $existingCharges = Charge::query()
             ->whereIn('membership_account_id', $groupAccountIds)
-            ->where('concept_id', $monthlyConcept->id)
+            ->whereIn('concept_id', $monthlyFeeConceptIds)
             ->where('period_year', $year)
             ->where('status', '!=', 'cancelled')
             ->get()
@@ -869,6 +1124,7 @@ class CollectionController extends Controller
             'payment_amount' => $paymentAmount,
             'is_multi_club' => (bool) $comboBreakdown,
             'club_breakdown' => $comboBreakdown ?? collect(),
+            'concept_label' => $this->membershipChargeService->resolveMonthlyFeeConcept($billableMembership)->name,
         ]);
     }
 
@@ -956,7 +1212,10 @@ class CollectionController extends Controller
         $validated = $request->validate([
             'membership_account_id' => ['required', new ExistsInSchema('memberships', 'accounts', 'id')],
             'quantity' => ['required', 'integer', 'min:1'],
-            'concept_code' => ['sometimes', 'string', Rule::in(['INSCRIPTION', 'CUOTA_REINSCRIPCION', 'CHEQUE_REBOTADO_PARQUE2', 'CHEQUE_REBOTADO_PARQUE1', 'COMISION_CHEQUE_REBOTADO'])],
+            'concept_code' => ['sometimes', 'string', Rule::in(array_merge(
+                MembershipChargeService::INSCRIPTION_FAMILY_CODES,
+                ['CHEQUE_REBOTADO_PARQUE2', 'CHEQUE_REBOTADO_PARQUE1', 'COMISION_CHEQUE_REBOTADO', 'IF']
+            ))],
         ]);
 
         $conceptCode = $validated['concept_code'] ?? 'INSCRIPTION';
@@ -1036,6 +1295,8 @@ class CollectionController extends Controller
                 'new_items.*.total' => ['required', 'numeric', 'gt:0'],
                 'new_items.*.quantity' => ['sometimes', 'nullable', 'integer', 'min:1'],
                 'new_items.*.unit_amount' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+                // Email para pases diarios
+                'new_items.*.email' => ['nullable', 'email', 'max:200'],
 
                 // Salidas de cafetería capturadas en "Agregar concepto de
                 // cobro": la visita solo se da por cerrada (y el cargo, si
@@ -1127,6 +1388,22 @@ class CollectionController extends Controller
                     $groupAccountIds
                 );
 
+                // No se puede liquidar solo la mensualidad si el socio todavía
+                // debe la inscripción/reinscripción — a diferencia de la
+                // mensualidad (que sí considera todo el grupo, porque un
+                // combo interclub se liquida en un solo pago), la
+                // inscripción es propia de cada parque, así que solo se
+                // revisa la cuenta de este parque (ver search(), que ya
+                // garantiza que $account pertenece al parque de la sesión).
+                $this->ensurePendingInscriptionIsPaidWithMonthlyFee(
+                    $existing->pluck('charge_id')->map(fn ($id) => (int) $id),
+                    isPayingMonthlyFee: $annualRequest !== null || Charge::query()
+                        ->whereIn('id', $existing->pluck('charge_id'))
+                        ->whereHas('concept', fn (Builder $q) => $q->whereIn('code', MembershipChargeService::MONTHLY_FEE_FAMILY_CODES))
+                        ->exists(),
+                    accountIds: [$account->id]
+                );
+
                 // Sin filtrar por status: aunque una de las membresías del grupo
                 // ya se haya dado de baja, sus cargos de mensualidad pendientes
                 // de ANTES de la baja siguen siendo cobrables — si aquí solo se
@@ -1188,10 +1465,22 @@ class CollectionController extends Controller
                 }
             }
 
+            // Conceptos "20"/"22" (pase diario/infantil) requieren correo de envío del código de acceso.
+            foreach ($newItems as $item) {
+                $itemConcept = ChargeConcept::find($item['concept_id']);
+                if (in_array($itemConcept?->code, ['20', '22'], true) && empty($item['email'])) {
+                    throw ValidationException::withMessages([
+                        'new_items' => 'Indica el correo para enviar el código de acceso del pase diario/infantil.',
+                    ]);
+                }
+            }
+
+            $dailyAccessNotifications = [];
+
             $payments = DB::transaction(function () use (
                 $account, $clubId, $existing, $newItems, $cafeteriaCheckouts,
                 $membership, $memberId, $validated, $request, $accountClubIds,
-                $groupAccountIds, $annualYear, $annualRule
+                $groupAccountIds, $annualYear, $annualRule, &$dailyAccessNotifications
             ) {
                 $applications = $existing
                     ->map(fn ($item) => [
@@ -1227,8 +1516,31 @@ class CollectionController extends Controller
                 // Genera un cargo pendiente por cada concepto nuevo y lo agrega
                 // a la lista de aplicaciones a su monto total.
                 foreach ($newItems as $item) {
-                    $total = round((float) $item['total'], 2);
                     $concept = ChargeConcept::find($item['concept_id']);
+                    $quantity = isset($item['quantity']) ? (int) $item['quantity'] : 1;
+
+                    // Si el concepto no permite capturar el importe a mano
+                    // (billing.concepts.allows_manual_amount=false, ver
+                    // BillingConcepts/Index.vue), se ignora por completo lo
+                    // que haya mandado el cliente y se recalcula aquí con el
+                    // monto configurado del parque — así un valor manipulado
+                    // en la petición no puede colar un importe distinto al
+                    // configurado.
+                    if ($concept && !$concept->allows_manual_amount) {
+                        $unitAmount = $concept->resolveAmountForClub($clubId);
+
+                        if ($unitAmount === null) {
+                            throw ValidationException::withMessages([
+                                'new_items' => "El concepto {$concept->name} no tiene un monto configurado.",
+                            ]);
+                        }
+
+                        $unitAmount = round($unitAmount, 2);
+                        $total = round($unitAmount * max($quantity, 1), 2);
+                        $item['unit_amount'] = $unitAmount;
+                    } else {
+                        $total = round((float) $item['total'], 2);
+                    }
 
                     $charge = Charge::create([
                         'membership_account_id' => $account?->id,
@@ -1262,6 +1574,40 @@ class CollectionController extends Controller
                         'charge_id' => $charge->id,
                         'amount' => $total,
                     ];
+
+                    // Conceptos "20" (pase diario) y "22" (pase infantil): cada unidad de
+                    // quantity representa una tarjeta física distinta que hay que generar en commands
+                    if (in_array($concept?->code, ['20', '22'], true))
+                    {
+                        $accountMemberId = $account ? $account->primaryHolder?->id : null;
+                        $quantity = isset($item['quantity']) ? (int) $item['quantity'] : 1;
+                        $validFrom = now();
+                        $validUntil = now()->addDay();
+                        $cardCodes = [];
+
+                        for ($i = 0; $i < $quantity; $i++) {
+                            $cardNo = $this->guestPassProvisioningService->provisionDayPass(
+                                clubId: $clubId,
+                                validUntil: now()->addDay(),
+                                accountMemberId: $accountMemberId,
+                                chargeId: $charge->id
+                            );
+                            $cardCodes[] = $cardNo;
+                        }
+
+                        // Solo se manda correo cuando hay cuenta (email obligatorio ya
+                        // validado arriba) — acumulamos aquí, se envía después del
+                        // commit para no bloquear la transacción con la llamada SMTP.
+                        if (!empty($item['email'])) {
+                            $dailyAccessNotifications[] = [
+                                'email' => $item['email'],
+                                'club_id' => $clubId,
+                                'valid_from' => $validFrom,
+                                'valid_until' => $validUntil,
+                                'card_codes' => $cardCodes,
+                            ];
+                        }
+                    }
                 }
 
                 // Pago de anualidad: se agrega a la MISMA lista de
@@ -1297,7 +1643,98 @@ class CollectionController extends Controller
                 );
             });
 
+            // Enviar correos de acceso de pases diario/infantil, fuera de la
+            // transacción (igual que DayPassController::store) para no bloquear el
+            // registro del pago si el envío de correo falla.
+            foreach ($dailyAccessNotifications as $notification) {
+                SendDailyAccessCardMail::dispatch(
+                    clubId: $notification['club_id'],
+                    email: $notification['email'],
+                    validFrom: $notification['valid_from'],
+                    validUntil: $notification['valid_until'],
+                    cardCodes: $notification['card_codes'],
+                );
+
+                // try {
+                //     $this->mailService->send(
+                //         entityId: $notification['club_id'],
+                //         to: $notification['email'],
+                //         mailable: new DailyAccessCardMail(
+                //             club: Club::findOrFail($notification['club_id']),
+                //             validFrom: $notification['valid_from'],
+                //             validUntil: $notification['valid_until'],
+                //             cardCodes: $notification['card_codes'],
+                //         )
+                //     );
+                // } catch (\Exception $e) {
+                //     Log::warning('No se pudo enviar el ticket al visitante.', [
+                //         'error'      => $e->getMessage(),
+                //     ]);
+                // }
+            }
+
+            // Si el pago incluyó mensualidad y la cuenta ya bajó del umbral de
+            // morosidad, se desbloquea el acceso automáticamente.
+            if ($account && ($existing->isNotEmpty() || $annualYear !== null))
+            {
+                $paidMonthlyFee = $annualYear !== null || Charge::query()
+                    ->whereIn('id', $existing->pluck('charge_id'))
+                    ->whereHas('concept', fn (Builder $q) => $q->where('code', MembershipChargeService::MONTHLY_FEE_FAMILY_CODES))
+                    ->exists();
+
+                if ($paidMonthlyFee && !$this->delinquencyService->isAccountDelinquent($account)) {
+                    try {
+                        $this->delinquencyService->unblockAccount($account);
+                    } catch (\Throwable $e) {
+                        Log::warning('No se pudo desbloquear el acceso tras el pago.', [
+                            'membership_account_id' => $account->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
+            }
+
             $totalPaid = round($payments->sum('amount'), 2);
+
+            // Anuncios de negocio: si algún cargo existente pagado
+            // corresponde a un anuncio ya aprobado y pendiente de pago
+            // (BusinessAdController::approve, que deja status_id=3 y
+            // metadata.business_ad_id en el cargo), se marca como
+            // publicado — mismo criterio que BillingController::storePayment.
+            $existingChargeIds = $existing->pluck('charge_id')->map(fn ($id) => (int) $id);
+
+            if ($existingChargeIds->isNotEmpty()) {
+                $businessAdIds = Charge::whereIn('id', $existingChargeIds)
+                    ->get()
+                    ->pluck('metadata.business_ad_id')
+                    ->filter()
+                    ->unique();
+
+                if ($businessAdIds->isNotEmpty()) {
+                    BusinessAd::whereIn('id', $businessAdIds)
+                        ->where('status_id', 3)
+                        ->update([
+                            'status_id' => 5,
+                            'paid_at' => now(),
+                            'published_at' => now(),
+                            'expires_at' => now()->addMonth(),
+                        ]);
+                }
+            }
+
+            // Notificación push al titular de la cuenta (asíncrona vía
+            // queue) — mismo criterio que BillingController::storePayment.
+            // No aplica en una venta "sin cuenta" (walk-in), ahí no hay
+            // ningún socio a quien notificar.
+            $userId = $account?->primaryHolder?->member?->user_id;
+            if ($userId) {
+                SendPushNotificationJob::dispatch(
+                    $userId,
+                    'Pago registrado',
+                    sprintf('Se registró un pago de $%s en tu cuenta.', number_format($totalPaid, 2)),
+                    ['screen' => 'AccountStatement', 'type' => 'account_statement', 'club_id' => (string) $clubId],
+                );
+            }
 
             return response()->json([
                 'success' => true,
@@ -1383,7 +1820,7 @@ class CollectionController extends Controller
     {
         $chargesBeingPaid = Charge::query()
             ->whereIn('id', $existingChargeIds)
-            ->whereHas('concept', fn (Builder $q) => $q->where('code', 'MONTHLY_FEE'))
+            ->whereHas('concept', fn (Builder $q) => $q->whereIn('code', MembershipChargeService::MONTHLY_FEE_FAMILY_CODES))
             ->get(['id', 'period_year', 'period_month']);
 
         if ($chargesBeingPaid->isEmpty()) {
@@ -1395,7 +1832,7 @@ class CollectionController extends Controller
 
         $missingEarlier = Charge::query()
             ->whereIn('membership_account_id', $groupAccountIds)
-            ->whereHas('concept', fn (Builder $q) => $q->where('code', 'MONTHLY_FEE'))
+            ->whereHas('concept', fn (Builder $q) => $q->whereIn('code', MembershipChargeService::MONTHLY_FEE_FAMILY_CODES))
             ->whereIn('status', ['pending', 'partial'])
             ->whereNotIn('id', $existingChargeIds)
             ->get(['id', 'period_year', 'period_month'])
@@ -1404,6 +1841,52 @@ class CollectionController extends Controller
         if ($missingEarlier->isNotEmpty()) {
             throw ValidationException::withMessages([
                 'existing_charges' => 'Hay mensualidades de meses anteriores pendientes. Agrégalas también antes de pagar un mes posterior.',
+            ]);
+        }
+    }
+
+    /**
+     * Lanza una ValidationException si el pago liquida mensualidad (cargos
+     * existentes de MONTHLY_FEE, o un pago de anualidad) sin incluir ningún
+     * cargo de inscripción/reinscripción, cuando el socio tiene inscripción
+     * pendiente en $accountIds — a diferencia de la mensualidad (que sí se
+     * revisa a nivel de todo el grupo interclub), la inscripción es propia
+     * de cada parque, así que aquí normalmente solo se pasa la cuenta del
+     * parque en sesión, no todo el grupo. No se puede pagar solo mensualidad
+     * ignorando por completo la inscripción. Como la inscripción también se
+     * puede diferir a meses (ver resolveInscriptionInstallments), basta con
+     * incluir AL MENOS uno de esos cargos en este mismo pago — no hace falta
+     * liquidar todos los meses de inscripción pendientes de una sola vez,
+     * igual que la mensualidad tampoco exige pagar todos los meses
+     * pendientes juntos.
+     */
+    protected function ensurePendingInscriptionIsPaidWithMonthlyFee(
+        \Illuminate\Support\Collection $existingChargeIds,
+        bool $isPayingMonthlyFee,
+        array $accountIds
+    ): void {
+        if (!$isPayingMonthlyFee) {
+            return;
+        }
+
+        $hasPendingInscription = Charge::query()
+            ->whereIn('membership_account_id', $accountIds)
+            ->whereHas('concept', fn (Builder $q) => $q->whereIn('code', MembershipChargeService::INSCRIPTION_FAMILY_CODES))
+            ->whereIn('status', ['pending', 'partial'])
+            ->exists();
+
+        if (!$hasPendingInscription) {
+            return;
+        }
+
+        $includesInscriptionCharge = Charge::query()
+            ->whereIn('id', $existingChargeIds)
+            ->whereHas('concept', fn (Builder $q) => $q->whereIn('code', MembershipChargeService::INSCRIPTION_FAMILY_CODES))
+            ->exists();
+
+        if (!$includesInscriptionCharge) {
+            throw ValidationException::withMessages([
+                'existing_charges' => 'El socio tiene inscripción o reinscripción pendiente. Agrega al menos un cargo de inscripción a este pago antes de liquidar solo la mensualidad.',
             ]);
         }
     }
@@ -1516,6 +1999,58 @@ class CollectionController extends Controller
                 'club_id' => $billableMembership->club_id,
                 'club_code' => $billableMembership->club?->code,
                 'club_name' => $billableMembership->club?->name,
+                'amount' => round($balance - $siblingShare, 2),
+            ],
+            [
+                'club_id' => $siblingMembership->club->id,
+                'club_code' => $siblingMembership->club->code,
+                'club_name' => $siblingMembership->club->name,
+                'amount' => $siblingShare,
+            ],
+        ]);
+    }
+
+    /**
+     * Reparto 50/50 para un cobro (ya existente, o todavía "virtual"/por
+     * generar, ver resolveMonthlyFeeMonths) cuyo propio concepto YA es de la
+     * familia "ambos parques" (MONTHLY_FEE_PARKS y variantes) — a
+     * diferencia de resolveComboClubBreakdown (que decide si un cobro NUEVO
+     * debe repartirse según si el combo sigue vigente HOY), aquí el
+     * concepto ya es combo por construcción: no importa si la membresía del
+     * otro parque se dio de baja después de generarse — se sigue pudiendo
+     * cobrar desde cualquiera de los dos parques, igual que cuando se
+     * generó. Por eso el hermano se busca sin filtrar por status.
+     */
+    private function resolveHistoricalParksClubBreakdown(?Membership $ownMembership, float $balance): ?\Illuminate\Support\Collection
+    {
+        if (!$ownMembership) {
+            return null;
+        }
+
+        $accountGroupId = $ownMembership->account?->account_group_id;
+
+        if (!$accountGroupId) {
+            return null;
+        }
+
+        $siblingMembership = Membership::query()
+            ->with('club')
+            ->where('is_primary', true)
+            ->where('club_id', '!=', $ownMembership->club_id)
+            ->whereHas('account', fn (Builder $q) => $q->where('account_group_id', $accountGroupId))
+            ->first();
+
+        if (!$siblingMembership?->club) {
+            return null;
+        }
+
+        $siblingShare = round($balance / 2, 2);
+
+        return collect([
+            [
+                'club_id' => $ownMembership->club_id,
+                'club_code' => $ownMembership->club?->code,
+                'club_name' => $ownMembership->club?->name,
                 'amount' => round($balance - $siblingShare, 2),
             ],
             [

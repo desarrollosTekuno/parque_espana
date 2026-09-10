@@ -8,6 +8,7 @@ use App\Models\Billing\Payment;
 use App\Models\Billing\PaymentApplication;
 use App\Models\Billing\PaymentMethod;
 use App\Models\Memberships\MembershipAccount;
+use App\Services\Billing\MembershipChargeService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -423,7 +424,7 @@ class PaymentRegistrationService
                 return false;
             }
 
-            $isMonthlySplit = $charge->concept?->code === 'MONTHLY_FEE'
+            $isMonthlySplit = in_array($charge->concept?->code, MembershipChargeService::MONTHLY_FEE_FAMILY_CODES, true)
                 && in_array($chargeClubId, $accountClubIds, true);
 
             return !$isMonthlySplit;

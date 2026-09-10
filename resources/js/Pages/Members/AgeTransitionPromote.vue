@@ -206,7 +206,8 @@ const page = usePage<any>();
 // ─── Stepper ──────────────────────────────────────────────────────────────────
 
 const step = ref(1);
-const steps = ["Datos del integrante", "Documentos", "Confirmación"];
+// const steps = ["Datos del integrante", "Documentos", "Confirmación"];
+const steps = ["Datos del integrante", "Confirmación"];
 const memberStepRef = ref();
 const documentsStepRef = ref();
 
@@ -588,7 +589,7 @@ const submit = () => {
                         v-if="props.sibling_transition"
                         type="info"
                         variant="tonal"
-                        class="ma-4 mb-0"
+                        class="mb-0 ma-4"
                     >
                         Este integrante también tiene una transición pendiente en
                         <strong>{{ props.sibling_transition.club_code }} – {{ props.sibling_transition.club_name }}</strong>
@@ -618,7 +619,7 @@ const submit = () => {
                                     </v-alert>
 
                                     <v-card class="pa-4">
-                                        <div class="d-flex justify-space-between align-center mb-4">
+                                        <div class="mb-4 d-flex justify-space-between align-center">
                                             <div class="d-flex align-center ga-2">
                                                 <h4>Titular</h4>
                                                 <v-chip size="small" color="info" variant="tonal">
@@ -630,7 +631,7 @@ const submit = () => {
                                         <!-- ── Datos personales ── -->
                                         <v-row>
                                             <v-col cols="12">
-                                                <h5 class="text-subtitle-1 font-weight-bold mb-2">
+                                                <h5 class="mb-2 text-subtitle-1 font-weight-bold">
                                                     Datos personales
                                                 </h5>
                                             </v-col>
@@ -771,7 +772,7 @@ const submit = () => {
                                         <!-- ── Domicilio ── -->
                                         <v-row class="mt-2">
                                             <v-col cols="12">
-                                                <h5 class="text-subtitle-1 font-weight-bold mb-2">
+                                                <h5 class="mb-2 text-subtitle-1 font-weight-bold">
                                                     Domicilio
                                                 </h5>
                                             </v-col>
@@ -852,7 +853,7 @@ const submit = () => {
                                         <!-- ── Información laboral ── -->
                                         <v-row class="mt-2">
                                             <v-col cols="12">
-                                                <h5 class="text-subtitle-1 font-weight-bold mb-2">
+                                                <h5 class="mb-2 text-subtitle-1 font-weight-bold">
                                                     Información laboral
                                                 </h5>
                                             </v-col>
@@ -861,7 +862,7 @@ const submit = () => {
                                                 <v-text-field
                                                     v-model="form.member.employment.company_name"
                                                     label="Empresa"
-                                                    :rules="[required, minLength(2), maxLength(150)]"
+                                                    :rules="[minLength(2), maxLength(150)]"
                                                 />
                                             </v-col>
 
@@ -869,7 +870,7 @@ const submit = () => {
                                                 <v-text-field
                                                     v-model="form.member.employment.company_address"
                                                     label="Dirección de la empresa"
-                                                    :rules="[required, minLength(5), maxLength(255)]"
+                                                    :rules="[minLength(5), maxLength(255)]"
                                                 />
                                             </v-col>
 
@@ -877,7 +878,7 @@ const submit = () => {
                                                 <v-text-field
                                                     v-model="form.member.employment.company_phone"
                                                     label="Teléfono de la empresa"
-                                                    :rules="[required, validatePhone]"
+                                                    :rules="[validatePhone]"
                                                 />
                                             </v-col>
                                         </v-row>
@@ -887,16 +888,14 @@ const submit = () => {
                             </v-form>
                         </template>
 
-                        <!-- ══════════════════════════════════════════════════
-                             PASO 2 — Documentos
-                        ══════════════════════════════════════════════════ -->
-                        <template #item.2>
+                        <!-- ══════════════════════════════════════════════════ PASO 2 — Documentos ══════════════════════════════════════════════════ -->
+                        <!-- <template #item.2>
                             <v-form ref="documentsStepRef">
                                 <v-container class="h-[500px] overflow-auto">
 
                                     <div class="mb-4">
-                                        <h3 class="text-h6 mb-1">Documentos</h3>
-                                        <p class="text-body-2 text-medium-emphasis mb-0">
+                                        <h3 class="mb-1 text-h6">Documentos</h3>
+                                        <p class="mb-0 text-body-2 text-medium-emphasis">
                                             Carga los documentos requeridos para el
                                             nuevo tipo de membresía.
                                         </p>
@@ -908,7 +907,7 @@ const submit = () => {
                                     </v-alert>
 
                                     <v-card class="pa-4">
-                                        <h4 class="text-subtitle-1 font-weight-bold mb-4">
+                                        <h4 class="mb-4 text-subtitle-1 font-weight-bold">
                                             Titular
                                             <span
                                                 v-if="form.member.first_name || form.member.last_name"
@@ -932,7 +931,7 @@ const submit = () => {
                                                 cols="12"
                                                 md="6"
                                             >
-                                                <div class="mb-2 d-flex align-center justify-space-between flex-wrap ga-1">
+                                                <div class="flex-wrap mb-2 d-flex align-center justify-space-between ga-1">
                                                     <span class="font-weight-medium">
                                                         {{ doc.name }}
                                                         <span
@@ -971,11 +970,7 @@ const submit = () => {
                                                     </div>
                                                 </div>
 
-                                                <!-- Documento ya cargado — modo lectura -->
-                                                <div
-                                                    v-if="doc.already_uploaded && !doc.update_mode"
-                                                    class="d-flex align-center ga-2"
-                                                >
+                                                <div v-if="doc.already_uploaded && !doc.update_mode" class="d-flex align-center ga-2">
                                                     <v-btn
                                                         v-if="doc.document_id !== null"
                                                         size="small"
@@ -996,7 +991,6 @@ const submit = () => {
                                                     </v-btn>
                                                 </div>
 
-                                                <!-- Upload field: nuevo o en modo actualización -->
                                                 <template v-else>
                                                     <v-btn
                                                         v-if="doc.already_uploaded && doc.update_mode"
@@ -1032,17 +1026,15 @@ const submit = () => {
 
                                 </v-container>
                             </v-form>
-                        </template>
+                        </template> -->
 
-                        <!-- ══════════════════════════════════════════════════
-                             PASO 3 — Confirmación
-                        ══════════════════════════════════════════════════ -->
-                        <template #item.3>
+                        <!-- ══════════════════════════════════════════════════ PASO 2 — Confirmación ══════════════════════════════════════════════════ -->
+                        <template #item.2>
                             <v-container class="h-[500px] overflow-auto">
-                                <h3 class="text-title-large mb-4">Confirmación</h3>
+                                <h3 class="mb-4 text-title-large">Confirmación</h3>
 
                                 <!-- Resumen de transición -->
-                                <v-card class="pa-4 mb-4">
+                                <v-card class="mb-4 pa-4">
                                     <p>
                                         <strong>Tipo de transición:</strong>
                                         {{ transitionLabel }}
@@ -1074,8 +1066,8 @@ const submit = () => {
                                 </v-card>
 
                                 <!-- Resumen de integrante -->
-                                <v-card class="pa-4 mb-4">
-                                    <h4 class="font-weight-bold mb-2">Titular</h4>
+                                <v-card class="mb-4 pa-4">
+                                    <h4 class="mb-2 font-weight-bold">Titular</h4>
                                     <p>{{ fullName }}</p>
                                     <p v-if="form.member.birthdate">
                                         <strong>Fecha de nacimiento:</strong>

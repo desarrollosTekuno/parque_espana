@@ -10,6 +10,8 @@ const page = usePage<any>();
 interface ConceptoItem {
     charge_id: number;
     concepto: string | null;
+    internal_key: string | null;
+    period_label: string | null;
     monto_aplicado: number;
 }
 
@@ -77,6 +79,10 @@ const formatDateTime = (value: string | null) => {
         minute: "2-digit",
     }).format(date);
 };
+
+const conceptosTotal = computed(() =>
+    (props.payment?.conceptos ?? []).reduce((sum, c) => sum + Number(c.monto_aplicado ?? 0), 0),
+);
 
 const penaltyPreview = computed(() => {
     if (!props.payment || !form.is_bounced_check) return null;
@@ -170,15 +176,46 @@ const submit = async () => {
                                 <div class="text-subtitle-1 font-weight-bold mb-3">
                                     Cargos que cubrió este pago
                                 </div>
-                                <v-list density="compact">
-                                    <v-list-item
+
+                                <div v-if="!payment.conceptos.length" class="text-body-2 text-medium-emphasis">
+                                    Sin cargos asociados
+                                </div>
+
+                                <div v-else class="charges-list">
+                                    <div
                                         v-for="c in payment.conceptos"
                                         :key="c.charge_id"
-                                        :title="c.concepto || `Cargo #${c.charge_id}`"
-                                        :subtitle="formatCurrency(c.monto_aplicado)"
-                                    />
-                                    <v-list-item v-if="!payment.conceptos.length" title="Sin cargos asociados" />
-                                </v-list>
+                                        class="d-flex align-center ga-3 py-2 charges-list-row"
+                                    >
+                                        <v-chip
+                                            v-if="c.internal_key"
+                                            size="small"
+                                            variant="tonal"
+                                            color="primary"
+                                            class="flex-shrink-0"
+                                        >
+                                            {{ c.internal_key }}
+                                        </v-chip>
+                                        <div class="flex-grow-1" style="min-width: 0">
+                                            <div class="text-body-2 font-weight-medium text-truncate">
+                                                {{ c.concepto || `Cargo #${c.charge_id}` }}
+                                            </div>
+                                            <div v-if="c.period_label" class="text-caption text-medium-emphasis">
+                                                {{ c.period_label }}
+                                            </div>
+                                        </div>
+                                        <div class="text-body-2 font-weight-medium flex-shrink-0">
+                                            {{ formatCurrency(c.monto_aplicado) }}
+                                        </div>
+                                    </div>
+
+                                    <v-divider class="mt-1" />
+
+                                    <div class="d-flex align-center justify-space-between pt-3">
+                                        <span class="text-body-2 font-weight-bold">Total</span>
+                                        <span class="text-body-1 font-weight-bold">{{ formatCurrency(conceptosTotal) }}</span>
+                                    </div>
+                                </div>
                             </v-card>
 
                             <!-- Advertencia -->
@@ -318,3 +355,9 @@ const submit = async () => {
         </div>
     </AppLayout>
 </template>
+
+<style scoped>
+.charges-list-row + .charges-list-row {
+    border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+</style>

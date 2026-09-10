@@ -2,25 +2,23 @@
 
 namespace Database\Seeders;
 
-use App\Models\Administrator\Club;
 use App\Models\MobileApp\AppVariable;
 use Illuminate\Database\Seeder;
 
 class AppVariableSeeder extends Seeder {
     public function run(): void {
-        $clubIds = Club::pluck('id');
+        AppVariable::where('name', 'default_user_password')
+            ->whereNotNull('club_id')
+            ->forceDelete();
 
-        foreach ($clubIds as $clubId) {
-            AppVariable::updateOrCreate(
-                [
-                    'name' => 'default_user_password',
-                    'club_id' => $clubId,
-                ],
-                [
-                    'description' => 'CONTRASEÑA DE USUARIO POR DEFECTO',
-                    'value' => 'parque26',
-                ]
-            );
-        }
+        $variable = AppVariable::withTrashed()->firstOrNew([
+            'name' => 'default_user_password',
+            'club_id' => null,
+        ]);
+
+        $variable->description = 'CONTRASEÑA DE USUARIO POR DEFECTO';
+        $variable->value = 'parque26';
+        $variable->deleted_at = null;
+        $variable->save();
     }
 }

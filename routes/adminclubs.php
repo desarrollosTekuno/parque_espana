@@ -39,6 +39,7 @@ use App\Http\Controllers\Web\AdminClub\LockerAssignmentController;
 use App\Http\Controllers\Web\AdminClub\LockerController;
 use App\Http\Controllers\Web\AdminClub\CashCutController;
 use App\Http\Controllers\Web\AdminClub\CollectionController;
+use App\Http\Controllers\Web\AdminClub\DocumentGeneratorController;
 use App\Http\Controllers\Web\AdminClub\GlobalCashCutController;
 use App\Http\Controllers\Web\AdminClub\DocumentTypeController;
 use App\Http\Controllers\Web\Administrator\EmailConfigController;
@@ -97,12 +98,16 @@ Route::post('/day-passes/incidents', [DayPassController::class, 'storeIncident']
 Route::resource('/day-passes', DayPassController::class)->only(['index', 'store'])->names('day-passes');
 
 // cafeteria visits
-Route::get('/cafeteria-visits', [CafeteriaVisitController::class, 'index'])->name('cafeteria-visits.index');
+/* Route::get('/cafeteria-visits', [CafeteriaVisitController::class, 'index'])->name('cafeteria-visits.index');
 Route::get('/cafeteria-visits/open', [CafeteriaVisitController::class, 'open'])->name('cafeteria-visits.open');
 Route::post('/cafeteria-visits', [CafeteriaVisitController::class, 'store'])->name('cafeteria-visits.store');
-Route::post('/cafeteria-visits/{cafeteriaVisit}/checkout', [CafeteriaVisitController::class, 'checkout'])->name('cafeteria-visits.checkout');
+Route::post('/cafeteria-visits/{cafeteriaVisit}/checkout', [CafeteriaVisitController::class, 'checkout'])->name('cafeteria-visits.checkout'); */
 
+//Reporte de entradas
 Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
+Route::get('/billing/reports/income', [BillingController::class, 'incomeReport'])->name('billing.reports.income');
+Route::get('/billing/reports/interclub-income', [BillingController::class, 'interclubIncomeReport'])->name('billing.reports.interclub-income');
+Route::get('/billing/reports/income-combined', [BillingController::class, 'combinedIncomeReport'])->name('billing.reports.income-combined');
 Route::get('/billing/charges', [BillingController::class, 'chargesList'])->name('billing.charges.index');
 Route::post('/billing/payments', [BillingController::class, 'storePayment'])->name('billing.payments.store');
 Route::get('/billing/annual-payment/preview', [BillingController::class, 'annualPaymentPreview'])->name('billing.annual-payment.preview');
@@ -111,6 +116,11 @@ Route::post('/billing/annual-payment', [BillingController::class, 'storeAnnualPa
 // reportes
 Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
 Route::get('/reports/collection/export', [ReportController::class, 'exportCollectionReport'])->name('reports.collection.export');
+Route::get('/reports/collection/income', [ReportController::class, 'exportMonthlyAdministrativeIncomeReport'])->name('reports.collection.income');
+Route::get('/reports/cash-cuts/export', [ReportController::class, 'exportCashCutsHistoryReport'])->name('reports.cash-cuts.export');
+Route::get('/reports/daily-cash/export', [ReportController::class, 'exportDailyCashReport'])->name('reports.daily-cash.export');
+Route::get('/reports/cfd/export', [ReportController::class, 'exportCfdReport'])->name('reports.cfd.export');
+Route::get('/reports/cash-collection-by-user/export', [ReportController::class, 'exportCashCollectionByUserReport'])->name('reports.cash-collection-by-user.export');
 
 // collections desk (módulo de cobranza tipo caja)
 Route::get('/collections', [CollectionController::class, 'index'])->name('collections.index');
@@ -208,7 +218,7 @@ Route::delete('/business-ads/{id}', [BusinessAdController::class, 'destroy'])->n
 
 // physical_ads
 Route::get('/physical-ads/members-search', [PhysicalAdController::class, 'searchMembers'])->name('physical-ads.members-search');
-Route::post('/physical-ads', [PhysicalAdController::class, 'store'])->name('physical-ads.store');
+// Route::post('/physical-ads', [PhysicalAdController::class, 'store'])->name('physical-ads.store');
 
 // physical_ad_sizes (catálogo de tamaños)
 Route::resource('/physical-ad-sizes', PhysicalAdSizeController::class)
@@ -255,6 +265,8 @@ Route::get('/members/{membership}/manage', [MemberController::class, 'show'])
     ->name('members.manage.show');
 Route::patch('/members/{membership}/internal-account-number', [MemberController::class, 'updateInternalAccountNumber'])
     ->name('members.internal-account-number.update');
+Route::patch('/members/{membership}/fiscal-data', [MemberController::class, 'updateFiscalData'])
+    ->name('members.fiscal-data.update');
 Route::get('/members/{membership}/history', [MemberController::class, 'membershipHistory'])
     ->name('members.manage.history');
 Route::get('/members/{membership}/billing/charges', [BillingController::class, 'accountCharges'])
@@ -374,10 +386,21 @@ Route::resource('/specialties', SpecialtyController::class)->only(['index', 'sto
 Route::resource('/coaches', CoachController::class)->only(['index', 'store', 'update', 'destroy'])->names('coaches');
 Route::resource('/class-schedules', ClassScheduleController::class)->only(['index', 'store', 'update', 'destroy'])->names('classSchedules');
 
+
+Route::get('documents/', [DocumentGeneratorController::class, 'index'])->name('index');
+Route::get('documents/{file}/download', [DocumentGeneratorController::class, 'download'])->name('download');
+
+// Clases
+// Route::resource('/specialties', SpecialtyController::class)->only(['index', 'store', 'update', 'destroy'])->names('specialties');
+Route::resource('/coaches', CoachController::class)->only(['index', 'store', 'update', 'destroy'])->names('coaches');
+Route::resource('/class-schedules', ClassScheduleController::class)->only(['index', 'store', 'update', 'destroy'])->names('classSchedules');
+
 // Página web
 Route::resource('/website-content', WebsiteContentController::class)
     ->only(['index', 'store', 'destroy'])
     ->names('website-content');
+Route::put('/website-content/{id}/description', [WebsiteContentController::class, 'updateDescription'])
+    ->name('website-content.descriptions.update');
 Route::post('/website-content/home-cards', [WebsiteContentController::class, 'storeCard'])
     ->name('website-content.cards.store');
 Route::delete('/website-content/home-cards/{id}', [WebsiteContentController::class, 'destroyCard'])
@@ -392,6 +415,45 @@ Route::delete('/website-content/events/{id}', [WebsiteContentController::class, 
     ->name('website-content.events.destroy');
 Route::get('/website-contacts', [WebsiteContactController::class, 'index'])
     ->name('website-contacts.index');
+// Historia Clínica
+Route::get('/members/{membership}/clinical-history', [ClinicalHistoryController::class, 'index'])
+    ->name('members.clinical-history.index');
+Route::put('/members/{membership}/members/{member}/clinical-history', [ClinicalHistoryController::class, 'upsert'])
+    ->name('members.clinical-history.upsert');
+
+// Club Settings
+Route::get('/club-settings', [ClubSettingsController::class, 'edit'])->name('club-settings.edit');
+Route::post('/club-settings', [ClubSettingsController::class, 'update'])->name('club-settings.update');
+
+// Clases
+Route::resource('/specialties', SpecialtyController::class)->only(['index', 'store', 'update', 'destroy'])->names('specialties');
+Route::resource('/coaches', CoachController::class)->only(['index', 'store', 'update', 'destroy'])->names('coaches');
+Route::resource('/class-schedules', ClassScheduleController::class)->only(['index', 'store', 'update', 'destroy'])->names('classSchedules');
+
+// Página web
+Route::resource('/website-content', WebsiteContentController::class)
+    ->only(['index', 'store', 'destroy'])
+    ->names('website-content');
+Route::put('/website-content/{id}/description', [WebsiteContentController::class, 'updateDescription'])
+    ->name('website-content.descriptions.update');
+Route::post('/website-content/home-cards', [WebsiteContentController::class, 'storeCard'])
+    ->name('website-content.cards.store');
+Route::delete('/website-content/home-cards/{id}', [WebsiteContentController::class, 'destroyCard'])
+    ->name('website-content.cards.destroy');
+Route::post('/website-content/virtual-tour/images', [WebsiteContentController::class, 'storeVirtualTourImages'])
+    ->name('website-content.virtual-tour.images.store');
+Route::delete('/website-content/virtual-tour/images/{id}', [WebsiteContentController::class, 'destroyVirtualTourImage'])
+    ->name('website-content.virtual-tour.images.destroy');
+Route::post('/website-content/events', [WebsiteContentController::class, 'saveEvent'])
+    ->name('website-content.events.save');
+Route::delete('/website-content/events/{id}', [WebsiteContentController::class, 'destroyEvent'])
+    ->name('website-content.events.destroy');
+Route::get('/website-contacts', [WebsiteContactController::class, 'index'])
+    ->name('website-contacts.index');
+
+Route::get('file-generator', [DocumentGeneratorController::class, 'index'])->name('file-generator.index');
+Route::get('file-generator/{file}/download', [DocumentGeneratorController::class, 'download'])->name('file-generator.download');
+
 
 // Acts
 Route::prefix('acts')->group(function () {

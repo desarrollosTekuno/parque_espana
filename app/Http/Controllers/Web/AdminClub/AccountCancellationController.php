@@ -10,6 +10,7 @@ use App\Models\Members\MemberDocument;
 use App\Models\Memberships\Membership;
 use App\Models\Memberships\MembershipAccount;
 use App\Models\Memberships\MembershipAccountMember;
+use App\Services\Access\AccessProvisioningService;
 use App\Services\Billing\MembershipChargeService;
 use App\Services\Billing\MembershipPricingService;
 use Illuminate\Http\Request;
@@ -27,7 +28,8 @@ class AccountCancellationController extends Controller
 {
     public function __construct(
         protected MembershipChargeService $membershipChargeService,
-        protected MembershipPricingService $membershipPricingService
+        protected MembershipPricingService $membershipPricingService,
+        protected AccessProvisioningService $accessProvisioningService
     ) {
         $this->middleware('permission:members.cancel.create');
     }
@@ -223,6 +225,17 @@ class AccountCancellationController extends Controller
                     $user->roles()->detach();
                     $user->clubs()->detach();
                     $user->delete();
+                }
+
+                // Se elimina el acceso a los dispositivos fisicos
+                try {
+                    $this->accessProvisioningService->revokeAccess($accountMember, $account);
+                } catch (\Throwable $e) {
+                    Log::error('Error al revocar acceso físico del integrante', [
+                        'account_member_id' => $accountMember->id,
+                        'member_id' => $member->id,
+                        'error' => $e->getMessage(),
+                    ]);
                 }
             }
 

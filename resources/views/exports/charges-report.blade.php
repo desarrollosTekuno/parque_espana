@@ -72,7 +72,7 @@
     </tr>
     <tr>
         <th style="background:#D9EAD3;font-weight:bold;text-align:center;border:1px solid #808080;">
-            Código de usuario
+            Clave interna
         </th>
         <th style="background:#D9EAD3;font-weight:bold;text-align:center;border:1px solid #808080;">
             Tipo de membresía
@@ -98,13 +98,13 @@
                     border:1px solid #808080;
                     padding:4px;
                 ">
-                Concepto de pago: {{ $group['concept_code'] }} - {{ $group['concept_name'] }}
+                Concepto de pago: {{ $group['concept_internal_key'] }} - {{ $group['concept_name'] }}
             </td>
         </tr>
 
         @foreach($group['rows'] as $row)
             <tr>
-                <td style="border:1px solid #C9C9C9;">{{ $row['user_code'] }}</td>
+                <td style="border:1px solid #C9C9C9;">{{ $row['internal_key'] }}</td>
                 <td style="border:1px solid #C9C9C9;">{{ $row['membership_type'] }}</td>
                 <td style="border:1px solid #C9C9C9;text-align:center;">
                     {{ $row['paid_at'] ? $row['paid_at']->format('d/m/Y H:i') : '' }}

@@ -28,6 +28,7 @@ class WebsiteContentController extends Controller {
         $this->middleware('permission:website-content.index')->only('index');
         $this->middleware('permission:website-content.store')->only([
             'store',
+            'updateDescription',
             'storeCard',
             'storeVirtualTourImages',
             'saveEvent',
@@ -162,7 +163,7 @@ class WebsiteContentController extends Controller {
 
     public function storeCard(Request $request) {
         $validated = $request->validate([
-            'category' => ['required', 'string', 'max:30'],
+            'category' => ['nullable', 'string', 'max:30'],
             'image' => [
                 'required',
                 'image',
@@ -171,7 +172,6 @@ class WebsiteContentController extends Controller {
                 'dimensions:min_width=750,min_height=1000',
             ],
         ], [
-            'category.required' => 'Escribe el nombre de la categoría.',
             'category.max' => 'La categoría debe tener máximo 30 caracteres.',
             'image.required' => 'Selecciona una imagen.',
             'image.image' => 'El archivo seleccionado no es una imagen válida.',
@@ -182,9 +182,9 @@ class WebsiteContentController extends Controller {
 
         $clubId = (int) session('club_id');
 
-        if (HomeCard::where('club_id', $clubId)->count() >= 8) {
+        if (HomeCard::where('club_id', $clubId)->count() >= 10) {
             return back()->withErrors([
-                'category' => 'Solo puedes registrar un máximo de 8 cards de inicio. Elimina una para agregar otra.',
+                'category' => 'Solo puedes registrar un máximo de 10 cards de inicio. Elimina una para agregar otra.',
             ]);
         }
 
@@ -204,7 +204,7 @@ class WebsiteContentController extends Controller {
 
             HomeCard::create([
                 'club_id' => $clubId,
-                'category' => $validated['category'],
+                'category' => $validated['category'] ?? '',
                 'image_path' => $uploadedPath,
             ]);
 
@@ -225,6 +225,22 @@ class WebsiteContentController extends Controller {
                 'exception' => $e->getMessage(),
             ]);
         }
+    }
+
+    public function updateDescription(Request $request, int $id)
+    {
+        $validated = $request->validate([
+            'description' => ['nullable', 'string', 'max:100'],
+        ], [
+            'description.max' => 'La descripción debe tener máximo 100 caracteres.',
+        ]);
+
+        $image = CarouselImage::where('club_id', session('club_id'))->findOrFail($id);
+        $image->update([
+            'description' => $validated['description'] ?? null,
+        ]);
+
+        return back()->with('success', 'Descripción actualizada correctamente.');
     }
 
     public function destroyCard(int $id) {
@@ -349,14 +365,15 @@ class WebsiteContentController extends Controller {
     public function saveEvent(Request $request) {
         $validated = $request->validate([
             'id' => ['nullable', 'integer'],
-            'title' => ['required', 'string', 'max:100'],
-            'start_date' => ['required', 'date'],
+            'title' => ['required', 'string', 'max:50'],
+            'start_date' => ['required', 'date', 'after_or_equal:today'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'type' => ['required', 'in:summer_course,pilgrimage,holidays'],
         ], [
             'title.required' => 'Escribe el título del evento.',
-            'title.max' => 'El título debe tener máximo 100 caracteres.',
+            'title.max' => 'El título debe tener máximo 50 caracteres.',
             'start_date.required' => 'Selecciona la fecha de inicio del evento.',
+            'start_date.after_or_equal' => 'La fecha de inicio no puede ser anterior a hoy.',
             'end_date.required' => 'Selecciona la fecha de fin del evento.',
             'end_date.after_or_equal' => 'La fecha de fin debe ser igual o posterior a la fecha de inicio.',
             'type.required' => 'Selecciona el tipo de evento.',
@@ -407,6 +424,12 @@ class WebsiteContentController extends Controller {
     public function destroy(int $id)
     {
         try {
+            if (CarouselImage::where('club_id', session('club_id'))->count() <= 3) {
+                return back()->withErrors([
+                    'messageError' => 'El carrusel debe tener al menos 3 imágenes.',
+                ]);
+            }
+
             $image = CarouselImage::where('club_id', session('club_id'))->findOrFail($id);
 
             if (Storage::disk('spaces')->exists($image->image_path)) {

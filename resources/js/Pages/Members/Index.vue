@@ -321,10 +321,10 @@ const formatDateTime = (value: string | null) => {
                                 <div
                                     v-for="membership in item.active_memberships"
                                     :key="membership.id"
-                                    class="border rounded-lg px-3 py-2"
+                                    class="px-3 py-2 border rounded-lg"
                                 >
                                     <div
-                                        class="d-flex flex-wrap align-center justify-space-between ga-2"
+                                        class="flex-wrap d-flex align-center justify-space-between ga-2"
                                     >
                                         <div>
                                             <div class="font-weight-medium">
@@ -335,7 +335,7 @@ const formatDateTime = (value: string | null) => {
                                             </div>
                                         </div>
 
-                                        <div class="d-flex flex-wrap ga-2">
+                                        <div class="flex-wrap d-flex ga-2">
                                             <v-chip
                                                 size="small"
                                                 :color="membership.is_billable ? 'success' : 'default'"
@@ -367,7 +367,7 @@ const formatDateTime = (value: string | null) => {
 
                                     <div
                                         v-if="membership.is_billable"
-                                        class="text-caption text-medium-emphasis mt-2"
+                                        class="mt-2 text-caption text-medium-emphasis"
                                     >
                                         Cuota a cobrar: {{ currencyFormatter.format(membership.monthly_fee_share) }}
                                     </div>
@@ -379,7 +379,7 @@ const formatDateTime = (value: string | null) => {
                             <div class="font-weight-bold">
                                 {{ currencyFormatter.format(item.monthly_fee) }}
                             </div>
-                            <div class="d-flex align-center flex-wrap ga-1 mt-1">
+                            <div class="flex-wrap mt-1 d-flex align-center ga-1">
                                 <span class="text-caption text-medium-emphasis">Total actual a cobrar</span>
                                 <v-chip v-if="item.spans_multiple_clubs" size="x-small" color="info" variant="tonal">
                                     Ambos parques
@@ -406,7 +406,7 @@ const formatDateTime = (value: string | null) => {
                         </template>
 
                         <template #item.actions="{ item }">
-                            <div class="d-flex flex-wrap justify-end">
+                            <div class="flex-wrap justify-end d-flex">
                                 <BaseButton
                                     :icon-only="false"
                                     action="edit"
@@ -572,7 +572,7 @@ const formatDateTime = (value: string | null) => {
                                 </template>
 
                                 <template #item.actions="{ item }">
-                                    <div class="d-flex flex-wrap justify-end">
+                                    <div class="flex-wrap justify-end d-flex">
                                         <BaseButton
                                             :icon-only="false"
                                             action="edit"

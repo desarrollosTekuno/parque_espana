@@ -18,6 +18,12 @@ class CommandResource extends JsonResource
             'id' => $this->id,
             'action' => $this->action,
             'status' => $this->status,
+            'device' => [
+                'ip' => $this->device->ip,
+                'port' => $this->device->port,
+                'user' => $this->device->user,
+                'password' => $this->device->password
+            ],
             'data' => $this->data
         ];
     }

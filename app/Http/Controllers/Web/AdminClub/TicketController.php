@@ -9,6 +9,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -109,7 +110,9 @@ class TicketController extends Controller
                         ? $payments->count().' formas de pago'
                         : $representative->paymentMethod?->name,
                     'cajero' => $representative->receiver?->name,
-                    'cajero_codigo' => $representative->receiver?->code,
+                    'cajero_codigo' => $representative->receiver?->name
+                        ? strtoupper(Str::ascii(mb_substr(trim($representative->receiver->name), 0, 1)))
+                        : null,
                 ];
             })
             ->filter()

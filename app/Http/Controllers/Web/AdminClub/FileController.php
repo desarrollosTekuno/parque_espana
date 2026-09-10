@@ -436,7 +436,7 @@ class FileController extends Controller
             $text = strip_tags($content);
 
             // Buscar variables {{ nombre }} o {{nombre}}
-            preg_match_all('/\{\{\s*(\w+)\s*\}\}/', $text, $matches);
+            preg_match_all('/\$\{\s*(\w+)\s*\}/', $text, $matches);
             $variables = array_merge($variables, $matches[1]);
         }
 
@@ -454,8 +454,8 @@ class FileController extends Controller
             foreach ($sheet->getRowIterator() as $row) {
                 foreach ($row->getCellIterator() as $cell) {
                     $value = (string) $cell->getValue();
-                    if (str_contains($value, '{{')) {
-                        preg_match_all('/\{\{\s*(\w+)\s*\}\}/', $value, $matches);
+                    if (str_contains($value, '{')) {
+                        preg_match_all('/\$\{\s*(\w+)\s*\}/', $value, $matches);
                         $variables = array_merge($variables, $matches[1]);
                     }
                 }

@@ -60,6 +60,11 @@ class PaymentCancellationController extends Controller
                 'conceptos' => $payment->applications->map(fn ($application) => [
                     'charge_id' => $application->charge_id,
                     'concepto' => $application->charge?->concept?->name,
+                    'internal_key' => $application->charge?->concept?->internal_key,
+                    'period_label' => $this->periodLabel(
+                        $application->charge?->period_month,
+                        $application->charge?->period_year
+                    ),
                     'monto_aplicado' => (float) $application->applied_amount,
                 ])->values(),
             ],
@@ -137,6 +142,11 @@ class PaymentCancellationController extends Controller
                     'conceptos' => $payment->applications->map(fn ($application) => [
                         'charge_id' => $application->charge_id,
                         'concepto' => $application->charge?->concept?->name,
+                        'internal_key' => $application->charge?->concept?->internal_key,
+                        'period_label' => $this->periodLabel(
+                            $application->charge?->period_month,
+                            $application->charge?->period_year
+                        ),
                         'monto_aplicado' => (float) $application->applied_amount,
                     ])->values(),
                 ])->values(),
@@ -210,6 +220,21 @@ class PaymentCancellationController extends Controller
             ->value('internal_key');
 
         return $internalKey ?: $payment->paymentMethod?->code;
+    }
+
+    private const MONTHS = [
+        1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril',
+        5 => 'Mayo', 6 => 'Junio', 7 => 'Julio', 8 => 'Agosto',
+        9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre',
+    ];
+
+    private function periodLabel(?int $month, ?int $year): ?string
+    {
+        if (!$month || !$year) {
+            return null;
+        }
+
+        return (self::MONTHS[$month] ?? (string) $month) . ' ' . $year;
     }
 
     public function store(Request $request, Payment $payment)

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import AppLayout from "@/Layouts/AppLayout.vue";
 import BaseButton from "@/Components/BaseButton.vue";
-import PasswordField from "@/Components/PasswordField.vue";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import { Head, router, useForm, usePage } from "@inertiajs/vue3";
 import { debounce } from "lodash";
@@ -29,8 +28,6 @@ const selectedMember = ref<any>(null);
 const form = useForm({
     member_id: null as number | null,
     email: "",
-    password: "",
-    password_confirmation: "",
 });
 
 const openGrantAccess = (member: any) => {
@@ -94,7 +91,7 @@ const revokeAccess = (member: any) => {
 const resetPassword = async (member: any) => {
     customConfirmSwal({
         title: `¿Reiniciar contraseña de ${member.full_name}?`,
-        text: "Se asignará la contraseña por defecto configurada para el club.",
+        text: "Se asignará la contraseña global por defecto de la app móvil.",
     }).then(async (result: any) => {
         if (result.isConfirmed) {
             try {
@@ -121,16 +118,11 @@ const close = () => {
     showModal.value = false;
 };
 
-/* ── Regla de confirmación de contraseña ── */
-const passwordMatchRule = (v: string) =>
-    v === form.password || "Las contraseñas no coinciden";
-
 /* ── DataTable server-side ── */
 const headers = [
     { title: "Nombre",          key: "full_name",    sortable: false },
     { title: "Edad",            key: "age",          sortable: false },
     { title: "Email de acceso", key: "access_email", sortable: false },
-    { title: "Clubs",           key: "clubs",        sortable: false },
     { title: "Acceso",          key: "access",       sortable: false },
     { title: "Acciones",        key: "actions",      sortable: false },
 ];
@@ -173,6 +165,14 @@ const fetchItems = async () => {
 };
 
 watch([options, search, accessFilter], debounce(fetchItems, 400), { deep: true });
+
+// El listado ahora se filtra por el parque en sesión (ver
+// MemberAccessController::index) — si se cambia de parque sin recargar la
+// página (selector de club en el header), hay que volver a pedir el listado.
+watch(
+    () => page.props.auth.currentClub,
+    () => fetchItems(),
+);
 </script>
 
 <template>
@@ -246,19 +246,6 @@ watch([options, search, accessFilter], debounce(fetchItems, 400), { deep: true }
                 <template #item.access_email="{ item }">
                     <span v-if="item.user">{{ item.user.email }}</span>
                     <span v-else class="text-grey-lighten-1">—</span>
-                </template>
-
-                <!-- Clubs -->
-                <template #item.clubs="{ item }">
-                    <v-chip
-                        v-for="am in item.account_memberships"
-                        :key="am.id"
-                        class="ma-1"
-                        color="green"
-                        size="small"
-                    >
-                        {{ am.membership_account?.club?.name ?? "—" }}
-                    </v-chip>
                 </template>
 
                 <!-- Estado de acceso -->
@@ -336,21 +323,9 @@ watch([options, search, accessFilter], debounce(fetchItems, 400), { deep: true }
                                 />
                             </v-col>
                             <v-col cols="12">
-                                <PasswordField
-                                    v-model="form.password"
-                                    label="Contraseña"
-                                />
-                            </v-col>
-                            <v-col cols="12">
-                                <v-text-field
-                                    v-model="form.password_confirmation"
-                                    label="Confirmar contraseña"
-                                    type="password"
-                                    :rules="[required, passwordMatchRule]"
-                                    density="comfortable"
-                                    variant="outlined"
-                                    clearable
-                                />
+                                <v-alert type="info" variant="tonal" density="compact">
+                                    Se asignará la contraseña global configurada para la app móvil.
+                                </v-alert>
                             </v-col>
                         </v-row>
                     </v-card-text>

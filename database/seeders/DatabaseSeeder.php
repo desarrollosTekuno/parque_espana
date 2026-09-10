@@ -24,6 +24,7 @@ class DatabaseSeeder extends Seeder
             LocationCatalogsSeeder::class,
             ClubSeeder::class,
             ClubAddressSeeder::class,
+            ClubContactSeeder::class,
             UserSeeder::class,
             // UserCodeSeeder::class,
             SystemVariableSeeder::class,
@@ -58,6 +59,9 @@ class DatabaseSeeder extends Seeder
             GuestListVariableSeeder::class,
             PhysicalAdSizeSeeder::class,
             AnnualDiscountRuleSeeder::class,
+
+            FileSeeder::class,
+            DevicesSeeder::class,
 
             //  php artisan migrate:data "C:\Apache24\htdocs\ParquesEsp\public\Plantilla_Migracion_Casos_Prueba_tmp.xlsx" --only=usuarios,membresias,integrantes
 

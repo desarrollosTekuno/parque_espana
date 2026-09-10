@@ -178,7 +178,7 @@ class PaymentTicketServiceTest extends TestCase
         $this->assertSame('FUNDACIÓN DEPORTIVO PARQUE ESPAÑA', $data['club_razon_social']);
         $this->assertSame('FDP990423J51', $data['club_rfc']);
         $this->assertSame('http://www.parqueespana2.com.mx', $data['club_url_facturacion']);
-        $this->assertSame('CNF', $data['cajero_codigo']);
+        $this->assertSame('A', $data['cajero_codigo']);
         $this->assertSame('M-100', $data['cuenta_numero']);
         $this->assertSame('ANA PEREZ LOPEZ', $data['receptor_nombre']);
         $this->assertSame('PELJ900101ABC', $data['receptor_rfc']);
