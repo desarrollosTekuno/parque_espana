@@ -25,7 +25,7 @@ class CashCollectionByUserReportExport implements FromArray, ShouldAutoSize, Wit
 
     public function array(): array {
         $rows = [[
-            'Usuario', null, null, null,
+            'Usuario', null, null, null, null,
             'Cantidad', 'Importe', 'Bonifica.', 'Descuento', 'Efectivo', 'Docto.',
         ]];
         $displayRows = $this->displayRows();
@@ -41,6 +41,7 @@ class CashCollectionByUserReportExport implements FromArray, ShouldAutoSize, Wit
                     $rows[] = [
                         $row['ticket'],
                         $row['account_number'],
+                        $row['membership_type_code'],
                         $row['membership_number'],
                         $row['holder_name'],
                         $row['quantity'],
@@ -55,7 +56,7 @@ class CashCollectionByUserReportExport implements FromArray, ShouldAutoSize, Wit
 
             $cashierTotal = $cashierRows->sum('amount');
             $rows[] = [''];
-            $rows[] = [null, null, null, null, null, null, null, 'Total de cobranza de '.$cashier, null, $cashierTotal];
+            $rows[] = [null, null, null, null, null, null, null, null, 'Total de cobranza de '.$cashier, null, $cashierTotal];
             $rows[] = [null, null, 'Total por Tipo de Pago: '.$this->paymentMethodTotals($cashierRows)];
         }
 
@@ -81,35 +82,35 @@ class CashCollectionByUserReportExport implements FromArray, ShouldAutoSize, Wit
                 $sheet = $event->sheet->getDelegate();
                 $lastRow = $sheet->getHighestRow();
 
-                $sheet->mergeCells('A1:D1');
-                $sheet->getStyle('A1:J1')->getFont()->setBold(true);
-                $sheet->getStyle('A1:J1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                $sheet->getStyle('A1:J1')->getBorders()->getBottom()->setBorderStyle(Border::BORDER_THIN);
-                $sheet->getStyle("F2:I{$lastRow}")->getNumberFormat()->setFormatCode('$#,##0.00');
-                $sheet->getStyle("F2:I{$lastRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+                $sheet->mergeCells('A1:E1');
+                $sheet->getStyle('A1:K1')->getFont()->setBold(true);
+                $sheet->getStyle('A1:K1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle('A1:K1')->getBorders()->getBottom()->setBorderStyle(Border::BORDER_THIN);
+                $sheet->getStyle("G2:J{$lastRow}")->getNumberFormat()->setFormatCode('$#,##0.00');
+                $sheet->getStyle("G2:J{$lastRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
 
                 for ($row = 2; $row <= $lastRow; $row++) {
                     $label = (string) $sheet->getCell("A{$row}")->getValue();
-                    $cashierLabel = (string) $sheet->getCell("H{$row}")->getValue();
+                    $cashierLabel = (string) $sheet->getCell("I{$row}")->getValue();
                     $paymentMethodLabel = (string) $sheet->getCell("C{$row}")->getValue();
                     $finalPaymentMethodLabel = (string) $sheet->getCell("A{$row}")->getValue();
 
                     if (str_starts_with($label, 'Gran Total:')) {
-                        $sheet->mergeCells("A{$row}:J{$row}");
+                        $sheet->mergeCells("A{$row}:K{$row}");
                         $sheet->getStyle("A{$row}")->getFont()->setBold(true);
                         $sheet->getStyle("A{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
-                        $sheet->getStyle("A{$row}:J{$row}")->getBorders()->getTop()->setBorderStyle(Border::BORDER_THIN);
-                        $sheet->getStyle("A{$row}:J{$row}")->getBorders()->getBottom()->setBorderStyle(Border::BORDER_THIN);
+                        $sheet->getStyle("A{$row}:K{$row}")->getBorders()->getTop()->setBorderStyle(Border::BORDER_THIN);
+                        $sheet->getStyle("A{$row}:K{$row}")->getBorders()->getBottom()->setBorderStyle(Border::BORDER_THIN);
                     } elseif (str_starts_with($cashierLabel, 'Total de cobranza de ')) {
-                        $sheet->mergeCells("H{$row}:I{$row}");
-                        $sheet->getStyle("H{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
-                        $sheet->getStyle("J{$row}")->getNumberFormat()->setFormatCode('$#,##0.00');
+                        $sheet->mergeCells("I{$row}:J{$row}");
+                        $sheet->getStyle("I{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                        $sheet->getStyle("K{$row}")->getNumberFormat()->setFormatCode('$#,##0.00');
                         $sheet->getStyle("A{$row}:B{$row}")->getBorders()->getTop()->setBorderStyle(Border::BORDER_THIN);
                     } elseif (str_starts_with($paymentMethodLabel, 'Total por Tipo de Pago:')) {
-                        $sheet->mergeCells("C{$row}:J{$row}");
+                        $sheet->mergeCells("C{$row}:K{$row}");
                         $sheet->getStyle("C{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
                     } elseif (str_starts_with($finalPaymentMethodLabel, 'Total ')) {
-                        $sheet->mergeCells("A{$row}:J{$row}");
+                        $sheet->mergeCells("A{$row}:K{$row}");
                         $sheet->getStyle("A{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
                     }
                 }
@@ -117,8 +118,9 @@ class CashCollectionByUserReportExport implements FromArray, ShouldAutoSize, Wit
                 $sheet->getColumnDimension('A')->setWidth(12);
                 $sheet->getColumnDimension('B')->setWidth(12);
                 $sheet->getColumnDimension('C')->setWidth(14);
-                $sheet->getColumnDimension('D')->setWidth(30);
-                foreach (['E', 'F', 'G', 'H', 'I', 'J'] as $column) {
+                $sheet->getColumnDimension('D')->setWidth(14);
+                $sheet->getColumnDimension('E')->setWidth(30);
+                foreach (['F', 'G', 'H', 'I', 'J', 'K'] as $column) {
                     $sheet->getColumnDimension($column)->setWidth(14);
                 }
 
@@ -127,7 +129,7 @@ class CashCollectionByUserReportExport implements FromArray, ShouldAutoSize, Wit
                     ->setPaperSize(PageSetup::PAPERSIZE_LETTER)
                     ->setFitToWidth(1)
                     ->setFitToHeight(0)
-                    ->setPrintArea("A1:J{$lastRow}");
+                    ->setPrintArea("A1:K{$lastRow}");
             },
         ];
     }
@@ -157,6 +159,7 @@ class CashCollectionByUserReportExport implements FromArray, ShouldAutoSize, Wit
                     'concept_name' => $concept?->name ?? 'Sin concepto',
                     'ticket' => $this->shortFolio($payment?->folio) ?? '',
                     'account_number' => $account?->internal_account_number ?? $account?->membership_number ?? '',
+                    'membership_type_code' => $this->membershipTypeCode($charge?->membership),
                     'membership_number' => $account?->membership_number ?? '',
                     'holder_name' => $account?->primaryHolder?->member?->full_name ?? '',
                     'quantity' => $this->quantity($charge),
@@ -212,6 +215,36 @@ class CashCollectionByUserReportExport implements FromArray, ShouldAutoSize, Wit
         }
 
         return number_format((float) ($charge?->metadata['quantity'] ?? 1), 1);
+    }
+
+    protected function membershipTypeCode($membership): string {
+        if (! $membership) {
+            return '';
+        }
+
+        if ($membership->interclub_package_rule_id || $membership->pricingRule?->requires_multiple_clubs) {
+            return 'BX';
+        }
+
+        $name = mb_strtolower((string) $membership->membershipType?->name);
+
+        if (str_contains($name, 'beneficencia') && str_starts_with($name, 'familiar')) {
+            return 'BF';
+        }
+
+        if (str_contains($name, 'beneficencia') && str_starts_with($name, 'individual')) {
+            return 'BI';
+        }
+
+        if (str_starts_with($name, 'familiar')) {
+            return 'FA';
+        }
+
+        if (str_starts_with($name, 'individual')) {
+            return 'IN';
+        }
+
+        return $membership->membershipType?->code ?? '';
     }
 
     protected function cashierInitials($cashier): string {

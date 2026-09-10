@@ -241,6 +241,7 @@ class ReportController extends Controller {
                 'payment.groupPayments.paymentMethod.clubPaymentMethods',
                 'charge.concept',
                 'charge.membership.membershipType',
+                'charge.membership.pricingRule',
                 'charge.membershipAccount.primaryHolder.member',
             ])
             ->whereHas('payment', function ($query) use ($clubId, $startDate, $endDate) {
