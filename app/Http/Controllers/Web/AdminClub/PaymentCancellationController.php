@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\AdminClub;
 
 use App\Models\Billing\ClubPaymentMethod;
 use App\Models\Billing\Payment;
+use App\Services\Access\GuestPassProvisioningService;
 use App\Services\Billing\PaymentCancellationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,8 +16,10 @@ use Inertia\Response;
 
 class PaymentCancellationController extends Controller
 {
-    public function __construct(private PaymentCancellationService $cancellationService)
-    {
+    public function __construct(
+        private PaymentCancellationService $cancellationService,
+        private GuestPassProvisioningService $guestPassProvisioningService
+    ) {
         $this->middleware('permission:payments.cancel');
     }
 
@@ -173,6 +176,10 @@ class PaymentCancellationController extends Controller
                 alsoCancelCharge: (bool) ($validated['also_cancel_charge'] ?? false)
             );
 
+            foreach ($payments as $groupPayment) {
+                $this->revokeDailyPassCardsForPayment($groupPayment);
+            }
+
             return redirect()->route('tickets.index')->with('success', 'Ticket cancelado correctamente.');
         } catch (ValidationException $e) {
             return back()->withErrors($e->errors());
@@ -259,6 +266,10 @@ class PaymentCancellationController extends Controller
                 alsoCancelCharge: $alsoCancelCharge
             );
 
+            if (!$isBouncedCheck) {
+                $this->revokeDailyPassCardsForPayment($payment);
+            }
+
             $message = match (true) {
                 (bool) $result['bounced_check_charge'] => 'Pago cancelado. Se generaron los cargos de cheque rebotado y su comisión.',
                 $alsoCancelCharge => 'Pago y cargo cancelados correctamente.',
@@ -277,6 +288,22 @@ class PaymentCancellationController extends Controller
                 'messageError' => 'Ocurrió un error al cancelar el pago. Intente de nuevo.',
                 'exception' => $e->getMessage(),
             ]);
+        }
+    }
+
+    /**
+     * Revoca las tarjetas de pase diario/infantil ligadas a los cargos que
+     * este pago cubría — no aplica en cheque rebotado, ahí el cargo original
+     * no se toca (sigue pagado).
+     */
+    private function revokeDailyPassCardsForPayment(Payment $payment): void
+    {
+        $payment->loadMissing('applications.charge.concept');
+
+        foreach ($payment->applications as $application) {
+            if (in_array($application->charge?->concept?->code, ['20', '22'], true)) {
+                $this->guestPassProvisioningService->revokeCardsForCharge($application->charge_id);
+            }
         }
     }
 }
