@@ -27,10 +27,12 @@ class ReservationsPerDayRule implements ReservationRule
 
         $date = Carbon::parse($data['start_datetime'])->toDateString();
 
+        // Cuenta cualquier reservación que no esté cancelada: activa, con asistencia
+        // registrada, inasistencia o finalizada siguen ocupando el cupo del día.
         $reservations = Reservation::where('member_id', $member->id)
             ->where('club_id', $data['club_id'])
             ->whereDate('start_datetime', $date)
-            ->where('reservation_status_id', ReservationStatus::ACTIVA)
+            ->where('reservation_status_id', '!=', ReservationStatus::CANCELADA)
             ->count();
 
         if ($reservations >= (int) $limit) {

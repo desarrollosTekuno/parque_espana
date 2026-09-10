@@ -5,7 +5,7 @@ import AppLayout from "@/Layouts/AppLayout.vue";
 import { customConfirmSwal, customToastSwal } from "@/utils/swal";
 import { Head, router, useForm, usePage } from "@inertiajs/vue3";
 import { debounce } from "lodash";
-import { computed, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 
 const page = usePage();
 const can  = page.props.auth.permissions;
@@ -43,62 +43,173 @@ const form = useForm({
     availabilities:   [] as { day_of_week: number; start_time: string; end_time: string }[],
 });
 
-const newAvailability = ref({
-    day_of_week: null as number | null,
-    start_time:  "",
-    end_time:    "",
-});
+// ── Cuadrícula semanal de disponibilidad ────────────────────────────────────
+// La cuadrícula es la fuente de verdad mientras se edita: cada celda es un slot de 30 min
+// de un día concreto, así que pintar o borrar nunca puede afectar accidentalmente a otro día.
+const GRID_START_HOUR = 6;   // 06:00
+const GRID_END_HOUR   = 22;  // 22:00
+const SLOT_MINUTES    = 30;
+const TOTAL_SLOTS      = ((GRID_END_HOUR - GRID_START_HOUR) * 60) / SLOT_MINUTES;
+const SLOTS            = Array.from({ length: TOTAL_SLOTS }, (_, i) => i);
 
-const canAddAvailability = computed(() =>
-    newAvailability.value.day_of_week !== null &&
-    newAvailability.value.start_time !== "" &&
-    newAvailability.value.end_time !== "" &&
-    newAvailability.value.end_time > newAvailability.value.start_time,
-);
+const pad2 = (n: number) => n.toString().padStart(2, "0");
 
-// Dos horarios "chocan" si son el mismo día y sus rangos se traslapan (incluye horarios idénticos).
-const overlaps = (
-    a: { day_of_week: number; start_time: string; end_time: string },
-    b: { day_of_week: number; start_time: string; end_time: string },
-) => a.day_of_week === b.day_of_week && a.start_time < b.end_time && b.start_time < a.end_time;
+const slotToTime = (slot: number) => {
+    const totalMinutes = GRID_START_HOUR * 60 + slot * SLOT_MINUTES;
+    return `${pad2(Math.floor(totalMinutes / 60))}:${pad2(totalMinutes % 60)}`;
+};
 
-const addAvailability = () => {
-    if (!canAddAvailability.value) return;
+const timeToSlot = (time: string) => {
+    const [h, m] = time.split(":").map(Number);
+    const slot = ((h * 60 + m) - GRID_START_HOUR * 60) / SLOT_MINUTES;
+    return Math.min(Math.max(Math.round(slot), 0), TOTAL_SLOTS);
+};
 
-    const candidate = {
-        day_of_week: newAvailability.value.day_of_week as number,
-        start_time:  newAvailability.value.start_time,
-        end_time:    newAvailability.value.end_time,
+const slotLabel = (slot: number) => (slot % 2 === 0 ? formatTime(slotToTime(slot)) : "");
+
+const emptyGrid = () => {
+    const g: Record<number, Set<number>> = {};
+    DAYS.forEach((d) => { g[d.value] = new Set(); });
+    return g;
+};
+
+const grid = ref<Record<number, Set<number>>>(emptyGrid());
+
+// Convierte los horarios planos (uno por día) que vienen del backend en celdas marcadas en la cuadrícula.
+const availabilitiesToGrid = (availabilities: { day_of_week: number; start_time: string; end_time: string }[]) => {
+    const g = emptyGrid();
+    (availabilities ?? []).forEach((a) => {
+        const from = timeToSlot(a.start_time);
+        const to   = timeToSlot(a.end_time);
+        for (let s = from; s < to; s++) g[a.day_of_week]?.add(s);
+    });
+    return g;
+};
+
+// Convierte la cuadrícula pintada en horarios planos, fusionando slots consecutivos del mismo día en un solo rango.
+const gridToAvailabilities = () => {
+    const result: { day_of_week: number; start_time: string; end_time: string }[] = [];
+
+    DAYS.forEach((d) => {
+        const slots = [...(grid.value[d.value] ?? [])].sort((a, b) => a - b);
+        let rangeStart: number | null = null;
+        let prev: number | null = null;
+
+        slots.forEach((s) => {
+            if (rangeStart === null) {
+                rangeStart = s;
+            } else if (s !== (prev as number) + 1) {
+                result.push({ day_of_week: d.value, start_time: slotToTime(rangeStart), end_time: slotToTime((prev as number) + 1) });
+                rangeStart = s;
+            }
+            prev = s;
+        });
+
+        if (rangeStart !== null) {
+            result.push({ day_of_week: d.value, start_time: slotToTime(rangeStart), end_time: slotToTime((prev as number) + 1) });
+        }
+    });
+
+    return result;
+};
+
+const isSelected = (day: number, slot: number) => grid.value[day]?.has(slot) ?? false;
+
+// Arrastre: al iniciar se decide si el gesto pinta o borra según el estado de la celda donde comenzó,
+// y solo se aplica al soltar el mouse, sobre el rango final dentro de la misma columna (mismo día).
+const dragState = ref<{ day: number; startSlot: number; erase: boolean } | null>(null);
+const previewRange = ref<{ day: number; from: number; to: number } | null>(null);
+
+const isPreview = (day: number, slot: number) =>
+    previewRange.value !== null &&
+    previewRange.value.day === day &&
+    slot >= previewRange.value.from &&
+    slot <= previewRange.value.to;
+
+const startDrag = (day: number, slot: number) => {
+    dragState.value    = { day, startSlot: slot, erase: isSelected(day, slot) };
+    previewRange.value = { day, from: slot, to: slot };
+};
+
+const dragOver = (day: number, slot: number) => {
+    if (!dragState.value || dragState.value.day !== day) return;
+    previewRange.value = {
+        day,
+        from: Math.min(dragState.value.startSlot, slot),
+        to:   Math.max(dragState.value.startSlot, slot),
     };
+};
 
-    if (form.availabilities.some((a) => overlaps(a, candidate))) {
-        customToastSwal({ title: "Ese horario ya existe o se traslapa con otro agregado", icon: "warning" });
-        return;
+const endDrag = () => {
+    if (dragState.value && previewRange.value) {
+        const { day, from, to } = previewRange.value;
+        const set = new Set(grid.value[day] ?? []);
+        for (let s = from; s <= to; s++) {
+            if (dragState.value.erase) set.delete(s); else set.add(s);
+        }
+        grid.value = { ...grid.value, [day]: set };
     }
-
-    form.availabilities.push(candidate);
-    newAvailability.value = { day_of_week: null, start_time: "", end_time: "" };
+    dragState.value    = null;
+    previewRange.value = null;
 };
 
-const removeAvailability = (index: number) => {
-    form.availabilities.splice(index, 1);
+onMounted(() => window.addEventListener("mouseup", endDrag));
+onUnmounted(() => window.removeEventListener("mouseup", endDrag));
+
+const clearDay = (day: number) => {
+    grid.value = { ...grid.value, [day]: new Set() };
 };
 
-const daysOfWeek = [
-    'Domingo',
-    'Lunes',
-    'Martes',
-    'Miércoles',
-    'Jueves',
-    'Viernes',
-    'Sábado',
-];
+// Copiar horario de un día a otros: útil para replicar el mismo bloque en varios días sin pintarlo cada vez.
+const copySourceDay  = ref<number | null>(null);
+const copyTargetDays = ref<number[]>([]);
 
-const formatDay = (day) => {
-    return daysOfWeek[day] ?? '—';
+const applyCopy = () => {
+    if (copySourceDay.value === null || copyTargetDays.value.length === 0) return;
+    const source = grid.value[copySourceDay.value] ?? new Set();
+    const next   = { ...grid.value };
+    copyTargetDays.value.forEach((day) => { next[day] = new Set(source); });
+    grid.value = next;
+    copySourceDay.value  = null;
+    copyTargetDays.value = [];
 };
 
-const formatTime = (time) => {
+// Agrupa disponibilidades planas (una fila por día) en bloques de días consecutivos con el mismo horario,
+// para mostrarlas y quitarlas como una sola unidad en vez de día por día.
+const groupIntoBlocks = (availabilities: { day_of_week: number; start_time: string; end_time: string }[]) => {
+    if (!availabilities?.length) return [];
+
+    const orderIndex = (dow: number) => DAYS.findIndex((d) => d.value === dow);
+    const sorted = [...availabilities].sort((a, b) =>
+        orderIndex(a.day_of_week) - orderIndex(b.day_of_week) || a.start_time.localeCompare(b.start_time),
+    );
+
+    const groups: { days: number[]; start_time: string; end_time: string }[] = [];
+
+    sorted.forEach((a) => {
+        const last = groups[groups.length - 1];
+        if (
+            last &&
+            last.start_time === a.start_time &&
+            last.end_time === a.end_time &&
+            orderIndex(a.day_of_week) === orderIndex(last.days[last.days.length - 1]) + 1
+        ) {
+            last.days.push(a.day_of_week);
+        } else {
+            groups.push({ days: [a.day_of_week], start_time: a.start_time, end_time: a.end_time });
+        }
+    });
+
+    return groups;
+};
+
+const blockLabel = (block: { days: number[] }) => {
+    const first = dayLabel(block.days[0]);
+    const last  = dayLabel(block.days[block.days.length - 1]);
+    return block.days.length === 1 ? first : `${first} - ${last}`;
+};
+
+const formatTime = (time: string) => {
     if (!time) return '—';
 
     const [hours, minutes] = time.split(':');
@@ -112,51 +223,9 @@ const formatTime = (time) => {
         hour12: true,
     });
 };
-const groupedAvailabilities = (availabilities) => {
-    if (!availabilities?.length) return [];
-
-    // Ordenar por día de la semana
-    const sorted = [...availabilities].sort(
-        (a, b) => a.day_of_week - b.day_of_week
-    );
-
-    const groups = [];
-
-    sorted.forEach((availability) => {
-        const lastGroup = groups[groups.length - 1];
-
-        if (
-            lastGroup &&
-            lastGroup.start_time === availability.start_time &&
-            lastGroup.end_time === availability.end_time &&
-            availability.day_of_week === lastGroup.end_day + 1
-        ) {
-            // Es el mismo horario y el día es consecutivo
-            lastGroup.end_day = availability.day_of_week;
-        } else {
-            // Crear nuevo grupo
-            groups.push({
-                start_day: availability.day_of_week,
-                end_day: availability.day_of_week,
-                start_time: availability.start_time,
-                end_time: availability.end_time,
-            });
-        }
-    });
-
-    return groups;
-};
-const formatDayRange = (startDay, endDay) => {
-    const start = formatDay(startDay);
-    const end = formatDay(endDay);
-
-    return startDay === endDay
-        ? start
-        : `${start} - ${end}`;
-};
 const create = () => {
     form.reset();
-    newAvailability.value = { day_of_week: null, start_time: "", end_time: "" };
+    grid.value      = emptyGrid();
     showModal.value = true;
 };
 
@@ -169,23 +238,19 @@ const edit = (item: any) => {
     form.phone            = item.phone ?? "";
     form.email            = item.email ?? "";
     form.amenity_id       = item.amenity?.id ?? null;
-    form.availabilities   = item.availabilities?.map((a: any) => ({
+    grid.value             = availabilitiesToGrid(item.availabilities?.map((a: any) => ({
         day_of_week: a.day_of_week,
         start_time:  a.start_time?.substring(0, 5) ?? "",
         end_time:    a.end_time?.substring(0, 5) ?? "",
-    })) ?? [];
-    newAvailability.value  = { day_of_week: null, start_time: "", end_time: "" };
-    showModal.value       = true;
+    })) ?? []);
+    showModal.value = true;
 };
 
 const save = async () => {
     const { valid } = await formSendRef.value?.validate();
     if (!valid) return;
 
-    // Si quedó un horario capturado pero no se dio clic en "Agregar", lo incluimos igual.
-    if (canAddAvailability.value) {
-        addAvailability();
-    }
+    form.availabilities = gridToAvailabilities();
 
     if (saving.value) return;
     saving.value = true;
@@ -310,16 +375,16 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
             <template #item.availabilities="{ item }">
                 <div v-if="item.availabilities?.length" class="d-flex flex-column ga-1 align-start">
                     <v-chip
-                        v-for="(availability, index) in groupedAvailabilities(item.availabilities)"
+                        v-for="(block, index) in groupIntoBlocks(item.availabilities)"
                         :key="index"
                         size="small"
                         class="mr-1"
                         color="green"
                         variant="tonal"
                     >
-                        {{ formatDayRange(availability.start_day, availability.end_day) }}:
-                        {{ formatTime(availability.start_time) }} -
-                        {{ formatTime(availability.end_time) }}
+                        {{ blockLabel(block) }}:
+                        {{ formatTime(block.start_time) }} -
+                        {{ formatTime(block.end_time) }}
                     </v-chip>
                 </div>
 
@@ -341,12 +406,12 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
         </v-data-table-server>
 
         <!-- Modal crear / editar -->
-        <v-dialog v-model="showModal" max-width="500">
+        <v-dialog v-model="showModal" max-width="820">
             <v-form ref="formSendRef" @submit.prevent="save">
                 <v-card :title="form.id ? 'Editar entrenador' : 'Nuevo entrenador'">
                     <v-card-text>
                         <v-row>
-                            <v-col cols="12">
+                            <v-col cols="6">
                                 <v-text-field
                                     v-model="form.first_name"
                                     label="Nombre(s)"
@@ -390,7 +455,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                     clearable
                                 />
                             </v-col>
-                            <v-col cols="12">
+                            <v-col cols="6">
                                 <v-select
                                     v-model="form.amenity_id"
                                     :items="amenities ?? []"
@@ -405,65 +470,87 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
 
                             <v-col cols="12">
                                 <div class="text-subtitle-2 mb-2">Horarios de disponibilidad</div>
-                                <v-row dense>
-                                    <v-col cols="12" sm="4">
-                                        <v-select
-                                            v-model="newAvailability.day_of_week"
-                                            :items="DAYS"
-                                            item-title="fullLabel"
-                                            item-value="value"
-                                            label="Día"
-                                            density="compact"
-                                            hide-details
-                                        />
-                                    </v-col>
-                                    <v-col cols="6" sm="4">
-                                        <v-text-field
-                                            v-model="newAvailability.start_time"
-                                            label="Inicio"
-                                            type="time"
-                                            density="compact"
-                                            hide-details
-                                        />
-                                    </v-col>
-                                    <v-col cols="6" sm="4">
-                                        <v-text-field
-                                            v-model="newAvailability.end_time"
-                                            label="Fin"
-                                            type="time"
-                                            density="compact"
-                                            hide-details
-                                        />
-                                    </v-col>
-                                </v-row>
-                                <div class="d-flex justify-end mt-2">
-                                    <v-btn
-                                        color="primary"
-                                        variant="tonal"
-                                        prepend-icon="mdi-plus"
-                                        type="button"
-                                        :disabled="!canAddAvailability"
-                                        @click="addAvailability"
-                                    >
-                                        Agregar horario
-                                    </v-btn>
+                                <div class="text-caption text-medium-emphasis mb-2">
+                                    Da clic y arrastra sobre la cuadrícula para pintar los horarios disponibles de cada día.
+                                    Vuelve a hacer clic sobre un horario ya pintado para borrarlo.
                                 </div>
 
-                                <div v-if="form.availabilities.length === 0" class="text-caption text-medium-emphasis mt-2">
-                                    Sin horarios agregados. Completa día, inicio y fin, y da clic en "Agregar horario".
+                                <div class="availability-grid" @mouseleave="endDrag">
+                                    <div class="grid-row grid-header">
+                                        <div class="time-col" />
+                                        <div v-for="d in DAYS" :key="d.value" class="day-col day-col-header">
+                                            <span>{{ d.label }}</span>
+                                            <div class="day-col-actions">
+                                                <v-btn
+                                                    icon="mdi-content-copy"
+                                                    size="x-small"
+                                                    variant="text"
+                                                    density="compact"
+                                                    type="button"
+                                                    title="Copiar horario a otros días"
+                                                    @click="copySourceDay = d.value"
+                                                />
+                                                <v-btn
+                                                    icon="mdi-eraser"
+                                                    size="x-small"
+                                                    variant="text"
+                                                    density="compact"
+                                                    type="button"
+                                                    title="Borrar horario del día"
+                                                    @click="clearDay(d.value)"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div v-for="slot in SLOTS" :key="slot" class="grid-row">
+                                        <div class="time-col">{{ slotLabel(slot) }}</div>
+                                        <div
+                                            v-for="d in DAYS"
+                                            :key="d.value"
+                                            class="day-col grid-cell"
+                                            :class="{
+                                                selected: isSelected(d.value, slot),
+                                                preview:  isPreview(d.value, slot),
+                                                'hour-start': slot % 2 === 0,
+                                            }"
+                                            @mousedown="startDrag(d.value, slot)"
+                                            @mouseenter="dragOver(d.value, slot)"
+                                        />
+                                    </div>
                                 </div>
-                                <v-chip
-                                    v-for="(a, index) in form.availabilities"
-                                    :key="index"
-                                    size="small"
-                                    class="mr-1 mt-2"
-                                    color="primary"
+
+                                <!-- Copiar horario de un día a otros -->
+                                <v-alert
+                                    v-if="copySourceDay !== null"
+                                    type="info"
                                     variant="tonal"
-                                    closable
-                                    @click:close="removeAvailability(index)"
+                                    density="compact"
+                                    class="mt-3"
                                 >
-                                    {{ dayLabel(a.day_of_week) }} {{ a.start_time }} - {{ a.end_time }}
-                                </v-chip>
+                                    <div class="d-flex flex-wrap align-center ga-2">
+                                        <span>Copiar horario de <strong>{{ dayLabel(copySourceDay) }}</strong> a:</span>
+                                        <v-chip-group v-model="copyTargetDays" multiple column>
+                                            <v-chip
+                                                v-for="d in DAYS.filter((x) => x.value !== copySourceDay)"
+                                                :key="d.value"
+                                                :value="d.value"
+                                                size="small"
+                                                filter
+                                                variant="outlined"
+                                            >
+                                                {{ d.label }}
+                                            </v-chip>
+                                        </v-chip-group>
+                                        <v-spacer />
+                                        <v-btn size="small" variant="text" type="button" @click="copySourceDay = null; copyTargetDays = []">
+                                            Cancelar
+                                        </v-btn>
+                                        <v-btn size="small" color="primary" variant="tonal" type="button" :disabled="!copyTargetDays.length" @click="applyCopy">
+                                            Aplicar
+                                        </v-btn>
+                                    </div>
+                                </v-alert>
                             </v-col>
                         </v-row>
                     </v-card-text>
@@ -491,3 +578,72 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
         </v-dialog>
     </AppLayout>
 </template>
+
+<style scoped>
+.availability-grid {
+    border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+    border-radius: 4px;
+    overflow-x: auto;
+    user-select: none;
+}
+
+.grid-row {
+    display: grid;
+    grid-template-columns: 56px repeat(7, minmax(48px, 1fr));
+}
+
+.grid-header {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: rgb(var(--v-theme-surface));
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.time-col {
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+    padding: 0 6px;
+    font-size: 0.7rem;
+    color: rgba(var(--v-theme-on-surface), 0.6);
+    white-space: nowrap;
+}
+
+.day-col-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 0;
+    text-align: center;
+}
+
+.day-col-actions {
+    display: flex;
+}
+
+.grid-cell {
+    height: 16px;
+    border-top: 1px solid rgba(var(--v-border-color), 0.08);
+    border-left: 1px solid rgba(var(--v-border-color), 0.08);
+    cursor: pointer;
+    background: transparent;
+}
+
+.grid-cell.hour-start {
+    border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.grid-cell.selected {
+    background: rgb(var(--v-theme-primary));
+    opacity: 0.7;
+}
+
+.grid-cell.preview {
+    background: rgb(var(--v-theme-primary));
+    opacity: 0.35;
+}
+</style>
