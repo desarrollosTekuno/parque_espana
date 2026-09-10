@@ -93,10 +93,10 @@
                         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                             <tr>
                                 <td style="padding: 22px 24px 0; font-family: Arial, Helvetica, sans-serif; font-size: 12px; line-height: 20px; color: #475569; text-align: center;">
-                                    <p style="margin: 0 0 6px; color: #475569;">
+                                    {{-- <p style="margin: 0 0 6px; color: #475569;">
                                         ¿Dudas? Escríbenos a
                                         <a href="mailto:{{ $supportEmail ?? 'atencion@parqueespana.mx' }}" style="color: #1d4ed8; text-decoration: underline;">{{ $supportEmail ?? 'atencion@parqueespana.mx' }}</a>
-                                    </p>
+                                    </p> --}}
                                     <p style="margin: 0; color: #475569;">
                                         {{ $parkName }} · Recibiste este correo por una compra o solicitud en tu cuenta.
                                     </p>
