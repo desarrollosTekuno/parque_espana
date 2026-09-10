@@ -128,7 +128,7 @@ class GuestPassProvisioningService
             throw new \RuntimeException("La tarjeta {$dailyPassCard->id} referencia un guest_user o device que ya no existe en la base de datos");
         }
 
-        $this->accessProvisioningService->createCommand('delete_card', null, $device, [
+        $this->accessProvisioningService->createCommand('delete_card', $dailyPassCard->account_member_id, $device, [
             'cards' => [[
                 'employee_id' => $guestUser->employee_id,
                 'card_no'     => $dailyPassCard->card_no,
@@ -138,6 +138,23 @@ class GuestPassProvisioningService
         $guestUser->decrement('active_cards_count');
 
         $dailyPassCard->update(['status' => 'expired']);
+    }
+
+    /**
+     * Revoca (expira) todas las tarjetas de pase diario activas asociadas a
+     * un cargo específico — se usa cuando se cancela el pago que generó ese
+     * cargo, sin importar si el cargo vuelve a pending o se cancela por
+     * completo: en ambos casos el pase ya no debe seguir siendo válido.
+     */
+    public function revokeCardsForCharge(int $chargeId): void
+    {
+        $cards = DailyPassCard::where('charge_id', $chargeId)
+            ->where('status', 'active')
+            ->get();
+
+        foreach ($cards as $card) {
+            $this->expireCard($card);
+        }
     }
 }
 

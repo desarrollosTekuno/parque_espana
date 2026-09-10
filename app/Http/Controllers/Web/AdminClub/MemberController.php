@@ -172,7 +172,12 @@ class MemberController extends Controller
                         'can_separate_member' => (bool) ($currentMembership?->membershipType?->allows_multiple_members)
                             && (int) $account->account_members_count > 1,
                         'can_cancel_membership' => Gate::allows('members.cancel.create'),
-                        'can_create_membership' => Gate::allows('members.additional-membership.create'),
+                        // Si el socio ya tiene membresía activa en ambos parques
+                        // (paquete interclub, ver resolveGroupBillingSummary), no
+                        // hay "otro parque" que agregar — ocultar el botón evita
+                        // que se intente duplicar la membresía que ya existe.
+                        'can_create_membership' => Gate::allows('members.additional-membership.create')
+                            && !$groupBillingSummary['spans_multiple_clubs'],
                         'active_memberships' => $activeMemberships->map(function (Membership $membership) {
                             return [
                                 'id' => $membership->id,
@@ -600,6 +605,28 @@ class MemberController extends Controller
             ]);
         }
 
+        // Si el socio ya tiene membresía activa en el parque destino (paquete
+        // interclub ya armado), no hay nada que agregar — evita duplicar la
+        // membresía que ya existe. Ver Members/Index.vue: el botón ya se
+        // oculta cuando spans_multiple_clubs es true, esto es la validación
+        // de respaldo por si se entra directo a la URL.
+        $accountGroupId = $membership->account?->account_group_id;
+        $alreadyHasTargetClubMembership = $accountGroupId
+            ? Membership::query()
+                ->whereHas('account', fn (Builder $q) => $q->where('account_group_id', $accountGroupId))
+                ->where('club_id', $targetClub->id)
+                ->where('is_primary', true)
+                ->whereIn('status', ['active', 'suspended'])
+                ->exists()
+            : false;
+
+        if ($alreadyHasTargetClubMembership) {
+            return redirect()->route('members.index')->withErrors([
+                'messageError' => 'El socio ya tiene una membresía activa en ' . $targetClub->name . '.',
+                'exception' => '',
+            ]);
+        }
+
         $targetMembershipTypes = MembershipType::query()
             ->where('show_in_listing', true)
             ->where('club_id', $targetClub->id)
@@ -643,6 +670,18 @@ class MemberController extends Controller
             ->where('show_in_listing', true)
             ->where('club_id', $membership->club_id)
             ->where('id', '!=', $membership->membership_type_id)
+            // Solo tipos a los que en verdad se puede cambiar desde el
+            // actual — una regla de precio con from_membership_type_id
+            // igual al tipo actual. Sin esto, se ofrecían tipos sin ninguna
+            // transición definida (p. ej. Familiar/Individual Beneficencia
+            // Española desde Individual normal), que terminaban sin regla
+            // de precio aplicable al confirmar el cambio.
+            ->whereHas('pricingRules', function (Builder $query) use ($membership) {
+                $query->where('from_membership_type_id', $membership->membership_type_id)
+                    ->where('is_active', true)
+                    ->where(fn (Builder $q) => $q->whereNull('valid_from')->orWhere('valid_from', '<=', now()->toDateString()))
+                    ->where(fn (Builder $q) => $q->whereNull('valid_until')->orWhere('valid_until', '>=', now()->toDateString()));
+            })
             ->with([
                 'documentTypes:id,name,allowed_extensions',
                 'documentTypes.relationships:id,name',

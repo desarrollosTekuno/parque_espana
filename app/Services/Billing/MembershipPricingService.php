@@ -33,18 +33,24 @@ class MembershipPricingService
             ->where('is_primary', true)
             ->whereIn('status', ['active', 'suspended'])
             ->whereHas('account', fn (Builder $q) => $q->where('account_group_id', $accountGroupId))
-            // Solo las que YA representaban un combo interclub real (un
-            // paquete específico, interclub_package_rule_id, o la regla
+            // Se incluyen las que YA representaban un combo interclub real
+            // (un paquete específico, interclub_package_rule_id, o la regla
             // genérica marcada requires_multiple_clubs — mismo criterio que
-            // CollectionController::resolveGroupAccountIds) — una membresía
-            // que comparte grupo pero siempre fue independiente (p. ej. el
-            // mismo titular con un Individual en un parque y un Pase
-            // Mensual en otro, sin relación de precio real entre ambos)
-            // nunca tuvo tarifa de grupo que "revertir": recalcularla aquí
-            // solo arriesga sobreescribir su pricing_rule_id con uno
-            // distinto al que ya tenía, sin ninguna razón real.
+            // CollectionController::resolveGroupAccountIds) para recalcular
+            // su tarifa, y también las que quedaron "Incluida" (is_billable
+            // = false) porque una HERMANA de otro parque se quedó cobrando
+            // el total del grupo (ver MemberController::
+            // shouldSourceMembershipBecomeNonBillable) — si esa hermana es
+            // justo la que se acaba de cancelar, esta debe volver a ser
+            // facturable, aunque su propio pricing_rule_id nunca haya sido
+            // de combo. Una membresía que comparte grupo pero siempre fue
+            // independiente y facturable (p. ej. el mismo titular con un
+            // Individual en un parque y un Pase Mensual en otro, sin
+            // relación de precio real entre ambos) no cae en ninguno de los
+            // dos casos: nunca tuvo tarifa de grupo que "revertir".
             ->where(fn (Builder $scope) => $scope
                 ->whereNotNull('interclub_package_rule_id')
+                ->orWhere('is_billable', false)
                 ->orWhereHas('pricingRule', fn (Builder $pricingRule) => $pricingRule->where('requires_multiple_clubs', true)))
             ->get();
 

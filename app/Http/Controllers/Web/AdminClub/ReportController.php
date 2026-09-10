@@ -23,15 +23,8 @@ class ReportController extends Controller {
     public function index() {
 
         $clubId = (int) session('club_id');
-        $List = [
-            ['id' => 1, 'name' => 'Reporte de Cobranza'],
-            ['id' => 2, 'name' => 'Reporte de Ingresos D.P.E'],
-            ['id' => 3, 'name' => 'Resumen Administrativo Mensual de Ingresos'],
-            ['id' => 4, 'name' => 'Histórico de cortes de caja'],
-            ['id' => 5, 'name' => 'Reporte global diario de caja'],
-            ['id' => 6, 'name' => 'Reporte de CFD'],
-            ['id' => 7, 'name' => 'Reporte de cobranza por usuario'],
-        ];
+
+        $List = $this->ListReports($clubId);
 
         $cashiers = CashCut::with('cashier:id,name')
             ->where('club_id', $clubId)
@@ -49,8 +42,31 @@ class ReportController extends Controller {
         return Inertia::render('Reports/Index', compact('clubId', 'List', 'cashiers'));
     }
 
-    public function exportCollectionReport(Request $request)
-    {
+    public function ListReports($clubId) {
+        if ($clubId == 1) {
+            $List = [
+                ['id' => 1, 'name' => 'Reporte de Cobranza'],
+                ['id' => 3, 'name' => 'Resumen Administrativo Mensual de Ingresos'],
+                ['id' => 4, 'name' => 'Histórico de cortes de caja'],
+                ['id' => 5, 'name' => 'Reporte global diario de caja'],
+                ['id' => 7, 'name' => 'Reporte de cobranza por usuario'],
+            ];
+        }else {
+            $List = [
+                ['id' => 1, 'name' => 'Reporte de Cobranza'],
+                ['id' => 2, 'name' => 'Reporte de Ingresos D.P.E'],
+                ['id' => 3, 'name' => 'Resumen Administrativo Mensual de Ingresos'],
+                ['id' => 4, 'name' => 'Histórico de cortes de caja'],
+                ['id' => 5, 'name' => 'Reporte global diario de caja'],
+                ['id' => 6, 'name' => 'Reporte de CFD'],
+                ['id' => 7, 'name' => 'Reporte de cobranza por usuario'],
+            ];
+        }
+
+        return $List;
+    }
+
+    public function exportCollectionReport(Request $request) {
         $validated = $request->validate([
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
@@ -225,6 +241,7 @@ class ReportController extends Controller {
                 'payment.groupPayments.paymentMethod.clubPaymentMethods',
                 'charge.concept',
                 'charge.membership.membershipType',
+                'charge.membership.pricingRule',
                 'charge.membershipAccount.primaryHolder.member',
             ])
             ->whereHas('payment', function ($query) use ($clubId, $startDate, $endDate) {
