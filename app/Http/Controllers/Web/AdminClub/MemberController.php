@@ -670,6 +670,18 @@ class MemberController extends Controller
             ->where('show_in_listing', true)
             ->where('club_id', $membership->club_id)
             ->where('id', '!=', $membership->membership_type_id)
+            // Solo tipos a los que en verdad se puede cambiar desde el
+            // actual — una regla de precio con from_membership_type_id
+            // igual al tipo actual. Sin esto, se ofrecían tipos sin ninguna
+            // transición definida (p. ej. Familiar/Individual Beneficencia
+            // Española desde Individual normal), que terminaban sin regla
+            // de precio aplicable al confirmar el cambio.
+            ->whereHas('pricingRules', function (Builder $query) use ($membership) {
+                $query->where('from_membership_type_id', $membership->membership_type_id)
+                    ->where('is_active', true)
+                    ->where(fn (Builder $q) => $q->whereNull('valid_from')->orWhere('valid_from', '<=', now()->toDateString()))
+                    ->where(fn (Builder $q) => $q->whereNull('valid_until')->orWhere('valid_until', '>=', now()->toDateString()));
+            })
             ->with([
                 'documentTypes:id,name,allowed_extensions',
                 'documentTypes.relationships:id,name',
