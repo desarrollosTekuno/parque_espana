@@ -332,7 +332,7 @@ La mensualidad dividida 50/50 entre parques **no es un solo cargo combinado** �
 
 ## 6. Reservaciones y amenidades
 
-### POST /reservations
+### POST /reservations 
 - Auth: sí. Body: `start_datetime`/`end_datetime` (`Y-m-d H:i`), `club_id`, `amenity_resource_id`.
 - Éxito (201): `{"message": "Reservación creada correctamente.", "data": { ...ReservationResource... }}`.
 - Errores: `422` validación; `404` sin Member; `422` reglas de negocio en este orden:
@@ -388,33 +388,11 @@ La mensualidad dividida 50/50 entre parques **no es un solo cargo combinado** �
 { "id":1,"name":"string","description":"string|null","reservation_type":"daily|hourly|...","icon_url":"string|null","background_image_url":"string|null","regulation_file_url":"string|null","club_id":1,"resources":[{"id":1,"name":"string","capacity":0,"slot_duration_minutes":0,"is_active":true}] }
 ```
 
-### GET /check-in/resource/{resource}/options
-- Auth: sí. Query: `latitude` (-90..90), `longitude` (-180..180) — **required**.
-- Se llama justo al escanear el QR, antes de registrar nada: valida primero la geocerca y, si pasa, devuelve a nombre de quién se puede registrar asistencia.
-- Éxito (200):
-  ```json
-  {
-    "data": {
-      "members": [
-        {
-          "member_id": 1, "full_name": "string", "is_self": true,
-          "reservation_id": 10, "start_time": "ISO8601", "end_time": "ISO8601"
-        }
-      ]
-    }
-  }
-  ```
-  `members` incluye al propio socio y, solo si es titular primario de una cuenta familiar, a sus integrantes menores de 15 años — pero únicamente los que tengan una reservación activa hoy en este mismo recurso (dentro de `tolerancia_asistencia`, ver abajo). Un hijo sin reservación ahí simplemente no aparece. **`members` puede venir vacío** (200, no error) si nadie cumple — el cliente debe manejarlo como "no hay nada que registrar ahora".
-- Errores: `404` `{"message": "No se encontró un socio asociado a este usuario."}`; `422` sin ubicaciones configuradas; `422` `{"message": "No estás dentro del área del recurso. Acércate e intenta de nuevo.", "distance": N}` (la geocerca corta aquí, sin evaluar reservaciones).
-
 ### POST /check-in/resource/{resource}
-- Auth: sí. Body: `latitude` (-90..90), `longitude` (-180..180), `member_id` (int, required — normalmente uno de los `member_id` devueltos por `GET .../options`).
-- Vuelve a validar la geocerca primero (mismo error 422 que arriba si aplica).
-- `member_id` se resuelve con `FamilyReservationGuard::resolveReservingMember` (la misma regla usada al crear reservaciones familiares): solo puede ser el propio socio, o un integrante menor de 15 de su cuenta si quien llama es el titular primario — **ya no acepta cualquier `member_id` sin verificar relación** (antes era un hueco de seguridad: cualquiera podía marcar asistencia de cualquier `member_id`). Si no se cumple, `422` con el mensaje de `ReservationException` (p. ej. "El integrante seleccionado no pertenece a tu cuenta familiar.").
-- Éxito (200): `{"message": "¡Asistencia registrada correctamente!", "data": {"checked_in_at": "ISO8601", "resource": "string", "amenity": "string", "member": "string (nombre de quien se registró)", "reservation_id": 1}}`.
-- Errores: `404` sin reservación activa para ese `member_id` (o fuera del tiempo de tolerancia); `422` sin ubicaciones configuradas; `422` fuera de geocerca (con `distance`); `422` `member_id` no relacionado con el titular (ver arriba).
-- Radio de tolerancia de ubicación: **5 metros** (constante `MAX_DISTANCE_METERS`, no configurable).
-- Tolerancia de tiempo: la reservación solo es válida para check-in hasta `tolerancia_asistencia` minutos (`SystemVariable` por club, default **10** si no está configurada) después de su `start_datetime`. Pasado ese tiempo se responde `404` como si no existiera reservación activa. Aplica igual en `GET .../options` al filtrar candidatos.
+- Auth: sí. Body: `latitude` (-90..90), `longitude` (-180..180), `member_id` (int, required — **no se toma del token**).
+- Éxito (200): `{"message": "¡Asistencia registrada correctamente!", "data": {"checked_in_at": "ISO8601", "resource": "string", "amenity": "string", "reservation_id": 1}}`.
+- Errores: `404` sin reservación activa; `422` sin ubicaciones configuradas; `422` `{"message": "No estás dentro del área del recurso. Acércate e intenta de nuevo.", "distance": N}`.
+- Radio de tolerancia: **5 metros**. `member_id` no se valida contra el token — diseñado para kioscos/tablets compartidas.
 
 ---
 

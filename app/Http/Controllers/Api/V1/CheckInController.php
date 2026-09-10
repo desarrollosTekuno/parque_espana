@@ -58,7 +58,7 @@ class CheckInController extends Controller
                 [$holder->id],
                 (new FamilyReservationGuard())->familyMinorIds($holder, $resource->amenity->club_id)
             ));
-
+            
             $members = collect($candidateIds)
                 ->map(fn (int $memberId) => [
                     'member'      => $memberId === $holder->id ? $holder : Member::find($memberId),
@@ -70,8 +70,8 @@ class CheckInController extends Controller
                     'full_name'      => $entry['member']->full_name,
                     'is_self'        => $entry['member']->id === $holder->id,
                     'reservation_id' => $entry['reservation']->id,
-                    'start_time'     => $entry['reservation']->start_datetime,
-                    'end_time'       => $entry['reservation']->end_datetime,
+                    'start_time'     => $entry['reservation']->start_datetime->format('Y-m-d H:i:s'),
+                    'end_time'       => $entry['reservation']->end_datetime->format('Y-m-d H:i:s'),
                 ])
                 ->values();
 
@@ -129,7 +129,7 @@ class CheckInController extends Controller
 
             if (!$reservation) {
                 return $this->notFound(
-                    "No se encontró una reservación activa para hoy en este recurso, o ya pasó el tiempo de tolerancia ({$toleranceMinutes} minutos) para registrar tu asistencia."
+                    "No se encontró una reservación activa para hoy en este recurso dentro del horario permitido para registrar asistencia (desde la hora de inicio y hasta {$toleranceMinutes} minutos después)."
                 );
             }
 
@@ -156,8 +156,10 @@ class CheckInController extends Controller
     }
 
     /**
-     * Busca la reservación activa de hoy del miembro para este recurso que aún esté
-     * dentro de la tolerancia (minutos después de su hora de inicio).
+     * Busca la reservación activa de hoy del miembro para este recurso cuya hora de
+     * inicio ya haya llegado y que aún esté dentro de la tolerancia (minutos después
+     * de esa hora de inicio). No permite check-in antes de la hora de inicio ni
+     * después de vencida la tolerancia.
      */
     private function findReservation(int $memberId, AmenityResource $resource, int $toleranceMinutes): ?Reservation
     {
@@ -168,7 +170,8 @@ class CheckInController extends Controller
             ->where('reservation_status_id', ReservationStatus::ACTIVA)
             ->whereDate('start_datetime', today())
             ->get()
-            ->first(fn (Reservation $r) => $now->lte($r->start_datetime->copy()->addMinutes($toleranceMinutes)));
+            ->first(fn (Reservation $r) => $now->gte($r->start_datetime)
+                && $now->lte($r->start_datetime->copy()->addMinutes($toleranceMinutes)));
     }
 
     private function toleranceMinutes(AmenityResource $resource): int
