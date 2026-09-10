@@ -1559,27 +1559,9 @@ class CollectionController extends Controller
                 SendDailyAccessCardMail::dispatch(
                     clubId: $notification['club_id'],
                     email: $notification['email'],
-                    validFrom: $notification['valid_from'],
-                    validUntil: $notification['valid_until'],
                     cardCodes: $notification['card_codes'],
                 );
-
-                // try {
-                //     $this->mailService->send(
-                //         entityId: $notification['club_id'],
-                //         to: $notification['email'],
-                //         mailable: new DailyAccessCardMail(
-                //             club: Club::findOrFail($notification['club_id']),
-                //             validFrom: $notification['valid_from'],
-                //             validUntil: $notification['valid_until'],
-                //             cardCodes: $notification['card_codes'],
-                //         )
-                //     );
-                // } catch (\Exception $e) {
-                //     Log::warning('No se pudo enviar el ticket al visitante.', [
-                //         'error'      => $e->getMessage(),
-                //     ]);
-                // }
+                
             }
 
             // Si el pago incluyó mensualidad y la cuenta ya bajó del umbral de
