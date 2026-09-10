@@ -9,6 +9,8 @@ use Spatie\Permission\Middleware\RoleMiddleware;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -66,6 +68,23 @@ return Application::configure(basePath: dirname(__DIR__))
                     'errors'  => $e->errors(),
                 ], 422);
             }
+        });
+
+        $exceptions->render(function (HttpException $e, $request) {
+            if ($request->is('api/*')) {
+                return null; // Los handlers de API específicos ya lo manejan
+            }
+
+            $status = $e->getStatusCode();
+
+            // Solo estos códigos usan vista bonita
+            if (!in_array($status, [403, 404, 408, 419, 429, 500, 503])) {
+                return null;
+            }
+
+            return Inertia::render('Errors/Error', [
+                'status' => $status,
+            ])->toResponse($request)->setStatusCode($status);
         });
     })
     ->create();
