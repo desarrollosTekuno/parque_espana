@@ -128,6 +128,18 @@ interface Summary {
     lockers_count: number;
     total_due: number;
 }
+interface LockerAssignmentItem {
+    id: number;
+    locker_number: number | string | null;
+    category: string | null;
+    member_name: string | null;
+    year: number | null;
+    start_date: string | null;
+    end_date: string | null;
+    charge_amount: number | null;
+    charge_balance: number | null;
+    charge_status: string | null;
+}
 interface Incident {
     id: number;
     folio: string | null;
@@ -163,6 +175,7 @@ interface SearchResult {
     billing_membership_id?: number | null;
     pending_concepts?: PendingConcept[];
     summary?: Summary;
+    lockers?: LockerAssignmentItem[];
     incidents?: Incident[];
     notes?: NoteItem[];
     signals?: Signal[];
@@ -269,6 +282,26 @@ const billingMembershipId = computed(
 );
 const pendingConcepts = computed(() => result.value?.pending_concepts ?? []);
 const summary = computed(() => result.value?.summary ?? null);
+const lockers = computed(() => result.value?.lockers ?? []);
+const showLockersDialog = ref(false);
+const lockerChargeStatusLabel = (status: string | null) => {
+    const map: Record<string, string> = {
+        paid: "Pagado",
+        pending: "Pendiente",
+        partial: "Pago parcial",
+        cancelled: "Cancelado",
+    };
+    return status ? (map[status] ?? status) : "Sin cargo registrado";
+};
+const lockerChargeStatusColor = (status: string | null) => {
+    const map: Record<string, string> = {
+        paid: "success",
+        pending: "warning",
+        partial: "info",
+        cancelled: "error",
+    };
+    return status ? (map[status] ?? "default") : "default";
+};
 const incidents = computed(() => result.value?.incidents ?? []);
 const notes = ref<NoteItem[]>([]);
 const paymentDialog = ref(false);
@@ -2364,8 +2397,13 @@ const saveNote = async () => {
                             </v-col>
                             <v-col cols="6" md="3">
                                 <div class="text-caption text-medium-emphasis">Casilleros del socio</div>
-                                <div class="text-subtitle-1 font-weight-bold">
+                                <div
+                                    class="text-subtitle-1 font-weight-bold"
+                                    :class="lockers.length > 0 ? 'text-primary cursor-pointer' : ''"
+                                    @click="lockers.length > 0 && (showLockersDialog = true)"
+                                >
                                     {{ summary?.lockers_count ?? 0 }}
+                                    <v-icon v-if="lockers.length > 0" size="16" class="ml-1">mdi-eye-outline</v-icon>
                                 </div>
                             </v-col>
                             <v-col cols="6" md="3">
@@ -3253,6 +3291,63 @@ const saveNote = async () => {
                 </v-dialog>
 
                 <!-- Cuentas relacionadas (árbol de origen/derivadas) -->
+                <v-dialog v-model="showLockersDialog" max-width="520">
+                    <v-card>
+                        <v-card-title>Casilleros asignados</v-card-title>
+                        <v-card-text>
+                            <v-list density="compact">
+                                <template v-for="(l, idx) in lockers" :key="l.id">
+                                    <v-list-item>
+                                        <template #title>
+                                            Casillero {{ l.locker_number ?? "-" }}
+                                            <v-chip
+                                                v-if="l.category"
+                                                size="x-small"
+                                                variant="tonal"
+                                                class="ml-1"
+                                            >
+                                                {{ l.category }}
+                                            </v-chip>
+                                        </template>
+                                        <template #subtitle>
+                                            <div>{{ l.member_name || "Integrante sin nombre" }} · {{ l.year }}</div>
+                                            <div v-if="l.start_date || l.end_date">
+                                                Vigencia: {{ l.start_date ? new Date(`${l.start_date}T00:00:00`).toLocaleDateString("es-MX") : "-" }}
+                                                a {{ l.end_date ? new Date(`${l.end_date}T00:00:00`).toLocaleDateString("es-MX") : "-" }}
+                                            </div>
+                                        </template>
+                                        <template #append>
+                                            <div class="text-right">
+                                                <div class="text-body-2 font-weight-medium">
+                                                    {{ l.charge_amount !== null ? formatCurrency(l.charge_amount) : "-" }}
+                                                </div>
+                                                <v-chip
+                                                    size="x-small"
+                                                    variant="tonal"
+                                                    :color="lockerChargeStatusColor(l.charge_status)"
+                                                >
+                                                    {{ lockerChargeStatusLabel(l.charge_status) }}
+                                                </v-chip>
+                                            </div>
+                                        </template>
+                                    </v-list-item>
+                                    <v-divider v-if="idx < lockers.length - 1" />
+                                </template>
+                                <v-list-item v-if="!lockers.length" title="Sin casilleros asignados" />
+                            </v-list>
+                        </v-card-text>
+                        <v-card-actions>
+                            <v-spacer />
+                            <BaseButton
+                                :icon-only="false"
+                                action="cancel"
+                                text="Cerrar"
+                                @click="showLockersDialog = false"
+                            />
+                        </v-card-actions>
+                    </v-card>
+                </v-dialog>
+
                 <v-dialog v-model="showRelatedAccountsDialog" max-width="520">
                     <v-card>
                         <v-card-title>Cuentas relacionadas</v-card-title>

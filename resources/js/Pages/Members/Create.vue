@@ -1904,7 +1904,7 @@ watch(applyInscriptionDiscount, (val) => {
                                                             )
                                                         }}</span>
                                                     </div>
-                                                    <div
+                                                    <!-- <div
                                                         class="d-flex justify-space-between text-body-2 mb-1"
                                                     >
                                                         <span
@@ -1917,7 +1917,7 @@ watch(applyInscriptionDiscount, (val) => {
                                                                 pricingPreview.monthly_fee_share,
                                                             )
                                                         }}</span>
-                                                    </div>
+                                                    </div> -->
                                                     <div
                                                         class="d-flex justify-space-between text-body-2 mb-2"
                                                     >
@@ -2262,7 +2262,7 @@ watch(applyInscriptionDiscount, (val) => {
                                                             )
                                                         }}</span>
                                                     </div>
-                                                    <div
+                                                    <!-- <div
                                                         class="d-flex justify-space-between text-body-2 mb-1"
                                                     >
                                                         <span
@@ -2275,7 +2275,7 @@ watch(applyInscriptionDiscount, (val) => {
                                                                 pricingPreview.monthly_fee_share,
                                                             )
                                                         }}</span>
-                                                    </div>
+                                                    </div> -->
                                                     <div
                                                         class="d-flex justify-space-between text-body-2 mb-2"
                                                     >

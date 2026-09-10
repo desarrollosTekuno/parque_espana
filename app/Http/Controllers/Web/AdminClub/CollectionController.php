@@ -604,11 +604,44 @@ class CollectionController extends Controller
             ->count();
 
         $memberIds = $account->accountMembers()->pluck('member_id');
-        $lockersCount = $memberIds->isNotEmpty()
-            ? LockerAssignment::whereIn('member_id', $memberIds)
+        $lockerAssignments = $memberIds->isNotEmpty()
+            ? LockerAssignment::with(['locker', 'member'])
+                ->whereIn('member_id', $memberIds)
                 ->where('year', now()->year)
-                ->count()
-            : 0;
+                ->get()
+            : collect();
+        $lockersCount = $lockerAssignments->count();
+        $lockers = $lockerAssignments->map(function (LockerAssignment $assignment) {
+            // "amount_paid" en memberships.locker_assignments solo lo
+            // incrementa el módulo de cobros VIEJO (BillingController) — un
+            // casillero cobrado a través de Cobranza (este módulo) siempre
+            // se queda en 0 ahí, aunque el cargo real (concepto LOCKERS,
+            // ligado por metadata->locker_id) ya esté pagado. Por eso el
+            // estatus/saldo real se resuelve del cargo, no de ese campo.
+            $lockerCharge = Charge::query()
+                ->whereHas('concept', fn (Builder $q) => $q->where('code', 'LOCKERS'))
+                ->where('member_id', $assignment->member_id)
+                ->where('metadata->locker_id', $assignment->locker_id)
+                ->orderByDesc('id')
+                ->first();
+
+            return [
+                'id' => $assignment->id,
+                'locker_number' => $assignment->locker?->number,
+                'category' => $assignment->locker?->category,
+                'member_name' => trim(collect([
+                    $assignment->member?->first_name,
+                    $assignment->member?->last_name,
+                    $assignment->member?->second_last_name,
+                ])->filter()->implode(' ')) ?: null,
+                'year' => $assignment->year,
+                'start_date' => optional($assignment->start_date)->toDateString(),
+                'end_date' => optional($assignment->end_date)->toDateString(),
+                'charge_amount' => $lockerCharge ? (float) $lockerCharge->amount : null,
+                'charge_balance' => $lockerCharge ? (float) $lockerCharge->balance : null,
+                'charge_status' => $lockerCharge?->status,
+            ];
+        })->values();
 
         $totalDue = round((float) $pendingCharges->sum('balance'), 2);
 
@@ -683,6 +716,7 @@ class CollectionController extends Controller
                 'lockers_count' => $lockersCount,
                 'total_due' => $totalDue,
             ],
+            'lockers' => $lockers,
             'incidents' => $incidents,
             'notes' => $notes,
             'signals' => $signals,
