@@ -20,15 +20,11 @@ class SendDailyAccessCardMail implements ShouldQueue
     /**
      * @param  int  $clubId
      * @param  string  $email
-     * @param  Carbon  $validFrom
-     * @param  Carbon  $validUntil
      * @param  array<int, string>  $cardCodes
      */
     public function __construct(
         public int $clubId,
         public string $email,
-        public Carbon $validFrom,
-        public Carbon $validUntil,
         public array $cardCodes,
     ) {}
 
@@ -43,8 +39,6 @@ class SendDailyAccessCardMail implements ShouldQueue
                 to: $this->email,
                 mailable: new DailyAccessCardMail(
                     club: Club::findOrFail($this->clubId),
-                    validFrom: $this->validFrom,
-                    validUntil: $this->validUntil,
                     cardCodes: $this->cardCodes,
                 )
             );

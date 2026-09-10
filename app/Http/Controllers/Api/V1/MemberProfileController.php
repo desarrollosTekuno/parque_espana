@@ -60,6 +60,13 @@ class MemberProfileController extends Controller
 
         if (!$membership) return null;
 
+        // Un socio con membresía activa en ambos parques (paquete
+        // interclub) paga directo en caja — la app no debe ofrecer pagar en
+        // línea para esta cuenta (ver ChargePaymentController/
+        // SpeiPaymentController, que además lo rechazan del lado del
+        // servidor si de todos modos se intenta).
+        $spansMultipleClubs = $account->spansMultipleClubs();
+
         return [
             'club_id'               => $membership->club_id,
             'club_name'             => $membership->club?->name,
@@ -73,6 +80,8 @@ class MemberProfileController extends Controller
             'is_primary_holder'     => (bool) $accountMember->is_primary_holder,
             'start_date'            => $membership->start_date,
             'end_date'              => $membership->end_date,
+            'spans_multiple_clubs'  => $spansMultipleClubs,
+            'can_pay_online'        => !$spansMultipleClubs,
         ];
     }
 

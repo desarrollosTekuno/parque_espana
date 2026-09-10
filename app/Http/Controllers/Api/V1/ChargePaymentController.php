@@ -70,6 +70,14 @@ class ChargePaymentController extends Controller
             return $this->notFound('No se encontró una membresía activa en este club.');
         }
 
+        // Un socio con membresía en ambos parques (paquete interclub) paga
+        // directo en caja — la app no debe procesar el pago para esta
+        // cuenta aunque el cliente lo intente (ver MemberProfileController,
+        // que ya expone can_pay_online para que la app oculte la opción).
+        if ($account->spansMultipleClubs()) {
+            return $this->unprocessable('Esta cuenta pertenece a un paquete interclub (ambos parques). El pago debe hacerse directamente en caja.');
+        }
+
         $totalAmount = collect($validated['applications'])->sum('amount');
         $amountCents = (int) round($totalAmount * 100);
         $chargeIds   = collect($validated['applications'])->pluck('charge_id');

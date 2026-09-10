@@ -51,6 +51,13 @@ class SpeiPaymentController extends Controller
             return $this->notFound('No se encontró una membresía activa en este club.');
         }
 
+        // Un socio con membresía en ambos parques (paquete interclub) paga
+        // directo en caja — ver ChargePaymentController::store para el
+        // mismo criterio.
+        if ($account->spansMultipleClubs()) {
+            return $this->unprocessable('Esta cuenta pertenece a un paquete interclub (ambos parques). El pago debe hacerse directamente en caja.');
+        }
+
         $chargeIds = collect($validated['applications'])->pluck('charge_id');
         $charges   = Charge::whereIn('id', $chargeIds)
             ->where('membership_account_id', $account->id)

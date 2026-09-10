@@ -77,6 +77,45 @@ class MembershipAccount extends Model
         return $this->hasMany(MembershipAccountMember::class, 'membership_account_id');
     }
 
+    /**
+     * true solo si el grupo de esta cuenta (mismo titular con cuenta en más
+     * de un parque, ver account_group_id) representa un paquete interclub
+     * REAL — no basta con que el titular tenga membresía activa en más de
+     * un club: si combina, por ejemplo, una Individual del parque 1 con un
+     * Pase Mensual Individual del parque 2 sin relación de precio entre
+     * ambas, cada una sigue siendo independiente y sí se puede pagar por
+     * separado desde la app (mismo criterio que
+     * MembershipPricingService::recalculateGroupFeesAfterCancellation: solo
+     * cuenta si hay interclub_package_rule_id, billing_split_mode
+     * equal_split, o una pricing rule marcada requires_multiple_clubs).
+     * El pago de un combo real se hace directo en caja — ver
+     * MemberProfileController, ChargePaymentController y
+     * SpeiPaymentController.
+     */
+    public function spansMultipleClubs(): bool
+    {
+        if (!$this->account_group_id) {
+            return false;
+        }
+
+        $groupMemberships = Membership::query()
+            ->with('pricingRule')
+            ->where('is_primary', true)
+            ->whereIn('status', ['active', 'suspended'])
+            ->whereHas('account', fn (Builder $q) => $q->where('account_group_id', $this->account_group_id))
+            ->get();
+
+        if ($groupMemberships->pluck('club_id')->filter()->unique()->count() <= 1) {
+            return false;
+        }
+
+        return $groupMemberships->contains(
+            fn (Membership $m) => $m->interclub_package_rule_id !== null
+                || $m->billing_split_mode === 'equal_split'
+                || (bool) $m->pricingRule?->requires_multiple_clubs
+        );
+    }
+
     public function primaryHolder()
     {
         return $this->hasOne(MembershipAccountMember::class, 'membership_account_id')

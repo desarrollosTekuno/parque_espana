@@ -7,6 +7,7 @@ use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Storage;
 
 class DailyAccessCardMail extends Mailable
 {
@@ -14,14 +15,10 @@ class DailyAccessCardMail extends Mailable
 
     /**
      * @param  Club  $club
-     * @param  Carbon  $validFrom
-     * @param  Carbon  $validUntil
      * @param  array<int, string>  $cardCodes  Los card_no generados en este cobro
      */
     public function __construct(
         public Club $club,
-        public Carbon $validFrom,
-        public Carbon $validUntil,
         public array $cardCodes,
     ) {}
 
@@ -31,9 +28,12 @@ class DailyAccessCardMail extends Mailable
             ->subject("Tu acceso al club — {$this->club->name}")
             ->view('emails.daily_access_card', [
                 'club' => $this->club,
-                'validFromFormatted' => $this->validFrom->format('d/m/Y h:i A'),
-                'validUntilFormatted' => $this->validUntil->format('d/m/Y h:i A'),
                 'cardCodes' => $this->cardCodes,
+                'parkName' => $this->club->name,
+                'eyebrow' => 'Pase de acceso',
+                'parkLogo' => $this->club->logo_path
+                ? Storage::disk('spaces')->url($this->club->logo_path)
+                : null,
             ]);
     }
 }
