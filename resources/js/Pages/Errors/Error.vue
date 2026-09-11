@@ -23,6 +23,10 @@ const errorContent = computed<ErrorContent>(() => {
             title: "No pudimos encontrar lo que buscas",
             description: "La página o recurso no existe o fue movido",
         },
+        405: {
+            title: "Acción no permitida",
+            description: "El método usado no es válido para este recurso",
+        },
         408: {
             title: "La solicitud tardó demasiado",
             description: "El servidor no recibió respuesta a tiempo",
@@ -42,6 +46,10 @@ const errorContent = computed<ErrorContent>(() => {
         503: {
             title: "Servicio temporalmente no disponible",
             description: "Intenta de nuevo más tarde",
+        },
+        422: {
+            title: "No pudimos procesar tu solicitud",
+            description: "Verifica los datos e intentalo de nuevo",
         },
     };
 
@@ -80,25 +88,25 @@ const goHome = () => {
         />
 
         <!-- Contenido principal: 2 columnas -->
-        <div class="relative z-10 w-full max-w-5xl px-8 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+        <div class="relative z-10 w-full max-w-7xl px-8 grid grid-cols-1 md:grid-cols-2 gap-22 items-center">
 
             <!-- Columna izquierda: texto y botón -->
             <div class="text-center md:text-left">
-                <h1 class="text-5xl md:text-[85px] font-extrabold text-white mb-6">
+                <h1 class="text-5xl md:text-[80px] font-extrabold text-white mb-8">
                     Error {{ status }}
                 </h1>
 
-                <h2 class="text-xl md:text-[43px] font-semibold text-[#87addb] mb-4">
+                <h2 class="text-xl md:text-[35px] font-semibold text-[#87addb] mb-4">
                     {{ errorContent.title }}
                 </h2>
 
-                <p class="text-[27px] text-white font-semibold mb-10">
+                <p class="text-[21px] text-white font-semibold mb-10">
                     {{ errorContent.description }}
                 </p>
 
                 <button
+                    class="px-13 py-2 mt-13 rounded-lg bg-[#0097B2] text-white text-lg font-semibold hover:bg-cyan-700 transition"
                     @click="goHome"
-                    class="px-10 py-3 rounded-lg bg-cyan-600 text-white text-lg font-medium hover:bg-cyan-700 transition"
                 >
                     Inicio
                 </button>
