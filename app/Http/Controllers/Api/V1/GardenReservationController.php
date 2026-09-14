@@ -133,8 +133,19 @@ class GardenReservationController extends Controller
                     ? $this->createReservation($validated, $member, $request, $garden, $startDatetime, $endDatetime)
                     : null;
 
+                // El asador se reserva en el mismo horario que el jardín ligado, así que se
+                // excluye esa reservación recién creada del chequeo de traslape de horarios.
                 $grillReservation = $grill
-                    ? $this->createReservation($validated, $member, $request, $grill, $startDatetime, $endDatetime, requiresTent: false)
+                    ? $this->createReservation(
+                        $validated,
+                        $member,
+                        $request,
+                        $grill,
+                        $startDatetime,
+                        $endDatetime,
+                        requiresTent: false,
+                        excludeReservationIds: $gardenReservation ? [$gardenReservation->id] : [],
+                    )
                     : null;
 
                 if ($gardenReservation && $grillReservation) {
@@ -185,6 +196,7 @@ class GardenReservationController extends Controller
         Carbon $startDatetime,
         Carbon $endDatetime,
         ?bool $requiresTent = null,
+        array $excludeReservationIds = [],
     ): Reservation {
         $context = new ReservationContext(
             data: [
@@ -197,6 +209,7 @@ class GardenReservationController extends Controller
             amenityResource: $resource,
             member:          $member,
             user:            $request->user(),
+            excludeReservationIds: $excludeReservationIds,
         );
         (new CreateReservationValidator(includeDailyLimit: false))->validate($context);
 
