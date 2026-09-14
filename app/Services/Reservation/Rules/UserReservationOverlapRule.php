@@ -24,6 +24,8 @@ class UserReservationOverlapRule implements ReservationRule
             ->where('member_id', $member->id)
             ->where('club_id', $data['club_id'])
             ->whereNotIn('reservation_status_id', [ReservationStatus::CANCELADA])
+            ->when(!empty($context->excludeReservationIds), fn ($query) => $query
+                ->whereNotIn('id', $context->excludeReservationIds))
             ->where(function ($query) use ($start_datetime, $end_datetime) {
                 $query
                     ->where('start_datetime', '<', $end_datetime)

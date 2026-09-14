@@ -65,7 +65,7 @@ const timeToSlot = (time: string) => {
     return Math.min(Math.max(Math.round(slot), 0), TOTAL_SLOTS);
 };
 
-const slotLabel = (slot: number) => (slot % 2 === 0 ? formatTime(slotToTime(slot)) : "");
+const slotLabel = (slot: number) => slotToTime(slot);
 
 const emptyGrid = () => {
     const g: Record<number, Set<number>> = {};
@@ -508,7 +508,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                         <div
                                             v-for="d in DAYS"
                                             :key="d.value"
-                                            class="day-col grid-cell"
+                                            class="day-col grid-cell pl-1"
                                             :class="{
                                                 selected: isSelected(d.value, slot),
                                                 preview:  isPreview(d.value, slot),
@@ -589,7 +589,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
 
 .grid-row {
     display: grid;
-    grid-template-columns: 56px repeat(7, minmax(48px, 1fr));
+    grid-template-columns: 52px repeat(7, minmax(40px, 1fr));
 }
 
 .grid-header {
@@ -606,10 +606,11 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
     display: flex;
     align-items: flex-start;
     justify-content: flex-end;
-    padding: 0 6px;
+    padding: 0 8px 0 4px;
     font-size: 0.7rem;
     color: rgba(var(--v-theme-on-surface), 0.6);
     white-space: nowrap;
+    box-sizing: border-box;
 }
 
 .day-col-header {
@@ -626,7 +627,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
 }
 
 .grid-cell {
-    height: 16px;
+    height: 18px;
     border-top: 1px solid rgba(var(--v-border-color), 0.08);
     border-left: 1px solid rgba(var(--v-border-color), 0.08);
     cursor: pointer;
