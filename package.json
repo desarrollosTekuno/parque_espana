@@ -39,6 +39,7 @@
         "luxon": "^3.7.2",
         "temporal-polyfill": "^0.3.0",
         "vue-sweetalert2": "^5.0.11",
+        "vue3-lottie": "^3.3.1",
         "vue3-spinner": "^0.0.17",
         "vuetify": "^3.10.4"
     }

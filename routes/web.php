@@ -34,3 +34,7 @@ Route::middleware(['auth', 'verified'])
 // Las rutas públicas de encuesta por token (/encuesta/{slug}) fueron eliminadas.
 // La tabla survey_tokens fue removida en la migración 2026_04_23_000002.
 // Las encuestas ahora se responden exclusivamente desde la app móvil (autenticado via Sanctum).
+
+
+// TODO: Eliminar cuando termine el diseño de páginas de error
+Route::get('/test-errors/{status}', fn($status) => abort((int) $status));
