@@ -78,7 +78,7 @@ return Application::configure(basePath: dirname(__DIR__))
             $status = $e->getStatusCode();
 
             // Solo estos códigos usan vista de error personalizada
-            if (!in_array($status, [403, 404, 405, 408, 419, 429, 500, 503])) {
+            if (!in_array($status, [401, 403, 404, 405, 408, 419, 429, 500, 503])) {
                 return null;
             }
 
