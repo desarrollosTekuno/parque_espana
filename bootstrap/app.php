@@ -72,13 +72,13 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $exceptions->render(function (HttpException $e, $request) {
             if ($request->is('api/*')) {
-                return null; // Los handlers de API específicos ya lo manejan
+                return null; // Los handlers de API específicos manejan el error
             }
 
             $status = $e->getStatusCode();
 
             // Solo estos códigos usan vista de error personalizada
-            if (!in_array($status, [403, 404, 405, 408, 419, 429, 500, 503, 422])) {
+            if (!in_array($status, [403, 404, 405, 408, 419, 429, 500, 503])) {
                 return null;
             }
 
