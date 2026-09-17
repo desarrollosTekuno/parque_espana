@@ -21,6 +21,11 @@
 /storage/*.key
 /storage/pail
 /vendor
+**/graphify-out/
+/.graphifyignore
+/.mcp.json
+/.agents/skills/graphify/
+/.codex/hooks.json
 Homestead.json
 Homestead.yaml
 Thumbs.db
