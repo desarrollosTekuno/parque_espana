@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\V1\WebsiteApiController;
 use App\Http\Controllers\Api\V1\WebsiteContactController;
 use App\Http\Controllers\Api\V1\ClinicalHistoryController;
 use App\Http\Controllers\Api\V1\CommandController;
+use App\Http\Controllers\Api\V1\DailyPassController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -58,7 +59,7 @@ Route::prefix('v1')->name('api.')->group(function () {
     Route::get('/amenities/{amenityResource}/available-slots', [AmenityController::class, 'availableSlots'])->middleware('auth:sanctum');
     Route::get('/amenities/{amenity}/teachers', [AmenityController::class, 'teachers'])->middleware('auth:sanctum');
     Route::get('/amenities/{amenityResource}/classes', [AmenityController::class, 'classes'])->middleware('auth:sanctum');
-    Route::get('/clubs/{club}/amenities', [AmenityController::class, 'amenitiesByClub'])->middleware('auth:sanctum'); 
+    Route::get('/clubs/{club}/amenities', [AmenityController::class, 'amenitiesByClub'])->middleware('auth:sanctum');
 
     // Business Ads
     // Enviar solicitud de promoción desde la app
@@ -132,6 +133,10 @@ Route::prefix('v1')->name('api.')->group(function () {
             Route::delete('/{source}', [PaymentSourceController::class, 'destroy']);
             Route::patch('/{source}/set-default', [PaymentSourceController::class, 'setDefault']);
         });
+
+        // Registro de pases diarios
+        Route::post('/daily-passes', [DailyPassController::class, 'store']);
+
     });
 
     // Perfil del socio
@@ -185,9 +190,8 @@ Route::prefix('v1')->name('api.')->group(function () {
         Route::patch('/{source}/set-default', [PaymentSourceController::class, 'setDefault']);
     });
 
-
     // Control de Access Devices
-    Route::post('device-commands', [CommandController::class, 'store']);
+    // Route::post('device-commands', [CommandController::class, 'store']); // Solo pruebas
     Route::get('device-commands', [CommandController::class, 'show'])->middleware('auth:sanctum');
     Route::patch('device-commands/{command}/status', [CommandController::class, 'updateStatus'])->middleware('auth:sanctum');
 
