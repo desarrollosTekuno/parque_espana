@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('last_name', 150);
             $table->string('phone', 30)->nullable();
 
-            $table->foreignId('scheduled_day_pass_id')->constrained('devices.scheduled_day_passes')->cascadeOnDelete();
+            $table->foreignId('scheduled_daily_pass_id')->constrained('devices.scheduled_daily_passes')->cascadeOnDelete();
 
             $table->timestamps();
         });

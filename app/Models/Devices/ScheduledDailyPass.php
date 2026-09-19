@@ -16,9 +16,14 @@ class ScheduledDailyPass extends Model {
     protected $guarded = ['id', 'created_at', 'updated_at'];
     protected $dates = ['deleted_at'];
 
+    protected $casts = [
+        'visit_date' => 'date',
+        'processed_at' => 'datetime',
+    ];
+
     public function visitors()
     {
-        return $this->hasMany(ScheduledDailyPassVisitor::class, 'scheduled_day_pass_id');
+        return $this->hasMany(ScheduledDailyPassVisitor::class, 'scheduled_daily_pass_id');
     }
 
     public function club()

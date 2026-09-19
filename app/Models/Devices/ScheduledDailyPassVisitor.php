@@ -15,6 +15,6 @@ class ScheduledDailyPassVisitor extends Model {
     protected $dates = ['deleted_at'];
 
     public function scheduledDayPass() {
-        return $this->belongsTo(ScheduledDailyPass::class, 'scheduled_day_pass_id');
+        return $this->belongsTo(ScheduledDailyPass::class, 'scheduled_daily_pass_id');
     }
 }
