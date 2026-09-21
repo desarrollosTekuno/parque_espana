@@ -156,6 +156,72 @@ class GuestPassProvisioningService
             $this->expireCard($card);
         }
     }
+
+    /**
+     * Genera el card_no y crea el registro en scheduled/pending — sin avisar
+     * todavía al dispositivo. Se usa para pases de fecha futura: el número
+     * ya existe (para poder mandarlo por correo de inmediato), pero la
+     * activación real en el dispositivo la hace activateScheduledCard(),
+     * cuando llegue el día (ver cron ProcessScheduledDailyPasses).
+     */
+    public function scheduleCard(int $clubId, Carbon $validUntil, ?int $accountMemberId = null, ?int $chargeId = null): string 
+    {
+        $devices = Device::where('club_id', $clubId)
+            ->where('status', 'active')
+            ->get();
+
+        if ($devices->isEmpty()) {
+            throw new \RuntimeException("No hay dispositivos activos para el club_id {$clubId}");
+        }
+
+        $cardNo = $this->accessProvisioningService->generateUniqueCardNumber();
+
+        foreach ($devices as $device) {
+            DailyPassCard::create([
+                'device_id' => $device->id,
+                'guest_user_id' => null,
+                'card_no' => $cardNo,
+                'account_member_id' => $accountMemberId,
+                'charge_id' => $chargeId,
+                'valid_until' => $validUntil,
+                'status' => 'scheduled',
+            ]);
+        }
+
+        return $cardNo;
+    }
+
+    /**
+     * Activa en el dispositivo una tarjeta que ya estaba programada
+     * (scheduled) — usado por el cron el día de la visita. Reutiliza el
+     * card_no y el device_id que ya se habían asignado desde scheduleCard();
+     * solo resuelve el guest_user y manda el comando en este momento.
+     */
+    public function activateScheduledCard(DailyPassCard $scheduledCard, int $clubId): void
+    {
+        $device = $scheduledCard->device;
+
+        if (!$device) {
+            throw new \RuntimeException("La tarjeta programada {$scheduledCard->id} no tiene un dispositivo asignado.");
+        }
+    
+        $guestUser = $this->findOrCreateAvailableGuestUser($device);
+    
+        $this->accessProvisioningService->createCommand('create_card', $scheduledCard->account_member_id, $device, [
+            'cards' => [[
+                'employee_id' => $guestUser->employee_id,
+                'card_no' => $scheduledCard->card_no,
+            ]],
+        ]);
+    
+        $guestUser->increment('active_cards_count');
+    
+        $scheduledCard->update([
+            'guest_user_id' => $guestUser->id,
+            'status' => 'active',
+        ]);
+    }
+
 }
 
 
