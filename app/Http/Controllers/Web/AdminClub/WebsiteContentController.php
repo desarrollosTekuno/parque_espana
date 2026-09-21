@@ -111,6 +111,7 @@ class WebsiteContentController extends Controller {
             'images.required' => 'Selecciona al menos una imagen.',
             'images.max' => 'El carrusel puede tener máximo 5 imágenes.',
             'images.*.image' => 'Uno de los archivos no es una imagen válida.',
+            'images.*.uploaded' => 'Una de las imágenes no se pudo cargar. Verifica que pese máximo 5 MB.',
             'images.*.mimes' => 'Las imágenes deben ser JPG, PNG o WebP.',
             'images.*.max' => 'Cada imagen debe pesar máximo 5 MB.',
             'images.*.dimensions' => 'Cada imagen debe medir al menos 1200 × 800 px.',
@@ -175,6 +176,7 @@ class WebsiteContentController extends Controller {
             'category.max' => 'La categoría debe tener máximo 30 caracteres.',
             'image.required' => 'Selecciona una imagen.',
             'image.image' => 'El archivo seleccionado no es una imagen válida.',
+            'image.uploaded' => 'La imagen no se pudo cargar. Verifica que pese máximo 5 MB.',
             'image.mimes' => 'La imagen debe ser JPG, PNG o WebP.',
             'image.max' => 'La imagen debe pesar máximo 5 MB.',
             'image.dimensions' => 'La imagen debe medir al menos 750 × 1000 px.',
@@ -278,6 +280,7 @@ class WebsiteContentController extends Controller {
         ], [
             'image.required' => 'Selecciona una imagen.',
             'image.image' => 'El archivo seleccionado no es una imagen válida.',
+            'image.uploaded' => 'La imagen no se pudo cargar. Verifica que pese máximo 5 MB.',
             'image.mimes' => 'La imagen debe ser JPG, PNG o WebP.',
             'image.max' => 'La imagen debe pesar máximo 5 MB.',
             'image.dimensions' => 'La imagen debe medir al menos 1200 × 800 px.',

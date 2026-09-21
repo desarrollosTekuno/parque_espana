@@ -41,6 +41,7 @@ const savingVirtualTourImages = ref(false);
 const virtualTourImageError = ref("");
 const today = new Date().toLocaleDateString("en-CA");
 const editingCarouselImage = ref<any | null>(null);
+const maxImageSizeBytes = 5 * 1024 * 1024;
 
 /* ====================== useForm ====================== */
 const form = useForm<{ images: File[]; descriptions: string[] }>({
@@ -78,10 +79,26 @@ const openFilePicker = () => {
 };
 
 const addFiles = (files: File[]) => {
-    const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+    const imageFiles = files.filter((file) => ["image/jpeg", "image/png", "image/webp"].includes(file.type));
+    const invalidFile = files.find((file) => !["image/jpeg", "image/png", "image/webp"].includes(file.type));
+    const oversizedFile = imageFiles.find((file) => file.size > maxImageSizeBytes);
     const available = 5 - props.carouselImages.length - form.images.length;
 
     form.clearErrors();
+
+    if (invalidFile) {
+        customToastSwal({
+            title: "Selecciona una imagen en formato JPG, PNG o WebP",
+            icon: "warning",
+        });
+    }
+
+    if (oversizedFile) {
+        customToastSwal({
+            title: `La imagen ${oversizedFile.name} pesa más de 5 MB. Selecciona una imagen más ligera.`,
+            icon: "warning",
+        });
+    }
 
     if (imageFiles.length > available) {
         customToastSwal({
@@ -90,7 +107,10 @@ const addFiles = (files: File[]) => {
         });
     }
 
-    form.images = [...form.images, ...imageFiles.slice(0, Math.max(available, 0))];
+    form.images = [
+        ...form.images,
+        ...imageFiles.filter((file) => file.size <= maxImageSizeBytes).slice(0, Math.max(available, 0)),
+    ];
 };
 
 const selectFiles = (event: Event) => {
@@ -200,9 +220,23 @@ const openCardFilePicker = () => {
 
 const selectCardFiles = (event: Event) => {
     const input = event.target as HTMLInputElement;
-    const file = Array.from(input.files ?? []).find((item) => item.type.startsWith("image/"));
+    const selectedFile = Array.from(input.files ?? [])[0];
     cardForm.clearErrors();
-    cardForm.image = file ?? null;
+
+    if (!selectedFile || !["image/jpeg", "image/png", "image/webp"].includes(selectedFile.type)) {
+        customToastSwal({
+            title: "Selecciona una imagen en formato JPG, PNG o WebP",
+            icon: "warning",
+        });
+    } else if (selectedFile.size > maxImageSizeBytes) {
+        customToastSwal({
+            title: `La imagen ${selectedFile.name} pesa más de 5 MB. Selecciona una imagen más ligera.`,
+            icon: "warning",
+        });
+    } else {
+        cardForm.image = selectedFile;
+    }
+
     input.value = "";
 };
 
@@ -261,7 +295,25 @@ const selectVirtualTourSlot = (category: string, title: string) => {
 
 const selectVirtualTourFile = (event: Event) => {
     const input = event.target as HTMLInputElement;
-    const file = Array.from(input.files ?? []).find((item) => item.type.startsWith("image/"));
+    const file = Array.from(input.files ?? [])[0];
+
+    if (!file || !["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+        customToastSwal({
+            title: "Selecciona una imagen en formato JPG, PNG o WebP",
+            icon: "warning",
+        });
+        input.value = "";
+        return;
+    }
+
+    if (file.size > maxImageSizeBytes) {
+        customToastSwal({
+            title: `La imagen ${file.name} pesa más de 5 MB. Selecciona una imagen más ligera.`,
+            icon: "warning",
+        });
+        input.value = "";
+        return;
+    }
 
     if (file) {
         const index = pendingVirtualTourImages.value.findIndex((item) => {
