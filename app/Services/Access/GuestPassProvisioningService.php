@@ -164,7 +164,7 @@ class GuestPassProvisioningService
      * activación real en el dispositivo la hace activateScheduledCard(),
      * cuando llegue el día (ver cron ProcessScheduledDailyPasses).
      */
-    public function scheduleCard(int $clubId, Carbon $validUntil, ?int $accountMemberId = null, ?int $chargeId = null): string 
+    public function scheduleCard(int $clubId, Carbon $validUntil, ?int $accountMemberId = null, ?int $chargeId = null): string
     {
         $devices = Device::where('club_id', $clubId)
             ->where('status', 'active')
@@ -197,25 +197,25 @@ class GuestPassProvisioningService
      * card_no y el device_id que ya se habían asignado desde scheduleCard();
      * solo resuelve el guest_user y manda el comando en este momento.
      */
-    public function activateScheduledCard(DailyPassCard $scheduledCard, int $clubId): void
+    public function activateScheduledCard(DailyPassCard $scheduledCard): void
     {
         $device = $scheduledCard->device;
 
         if (!$device) {
             throw new \RuntimeException("La tarjeta programada {$scheduledCard->id} no tiene un dispositivo asignado.");
         }
-    
+
         $guestUser = $this->findOrCreateAvailableGuestUser($device);
-    
+
         $this->accessProvisioningService->createCommand('create_card', $scheduledCard->account_member_id, $device, [
             'cards' => [[
                 'employee_id' => $guestUser->employee_id,
                 'card_no' => $scheduledCard->card_no,
             ]],
         ]);
-    
+
         $guestUser->increment('active_cards_count');
-    
+
         $scheduledCard->update([
             'guest_user_id' => $guestUser->id,
             'status' => 'active',
