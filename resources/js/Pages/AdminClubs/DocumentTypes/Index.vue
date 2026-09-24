@@ -291,9 +291,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
             <v-row>
                 <v-col cols="12">
                     <v-data-table-server
-                        fixed-header
                         hover
-                        height="560px"
                         :headers="headers"
                         :items="items"
                         :items-length="total"
@@ -335,7 +333,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                             <div v-if="item.relationships.length === 0" class="text-caption text-medium-emphasis">
                                 N/A
                             </div>
-                            <div v-else class="d-flex flex-wrap ga-1 py-1">
+                            <div v-else class="flex-wrap py-1 d-flex ga-1">
                                 <v-chip
                                     v-for="rel in item.relationships"
                                     :key="rel.id"
@@ -350,7 +348,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
 
                         <!-- Extensiones -->
                         <template #item.allowed_extensions="{ item }">
-                            <div v-if="extensionsList(item.allowed_extensions).length" class="d-flex flex-wrap ga-1 py-1">
+                            <div v-if="extensionsList(item.allowed_extensions).length" class="flex-wrap py-1 d-flex ga-1">
                                 <v-chip
                                     v-for="ext in extensionsList(item.allowed_extensions)"
                                     :key="ext"
@@ -418,6 +416,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                     label="Código"
                                     :rules="[required]"
                                     :error-messages="form.errors.code"
+                                    disabled
                                 />
                             </v-col>
 
@@ -476,10 +475,10 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
 
                             <!-- Rango de edad -->
                             <v-col cols="12">
-                                <div class="text-subtitle-2 font-weight-bold mb-1">
+                                <div class="mb-1 text-subtitle-2 font-weight-bold">
                                     Restricción de edad
                                 </div>
-                                <p class="text-caption text-medium-emphasis mb-3">
+                                <p class="mb-3 text-caption text-medium-emphasis">
                                     Dejar en blanco si aplica a cualquier edad.
                                     Ejemplo: INE → edad mínima 18.
                                 </p>
