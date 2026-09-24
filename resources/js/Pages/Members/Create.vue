@@ -22,6 +22,25 @@ import { useDisplay } from "vuetify";
 
 const page = usePage<any>();
 const can = page.props.auth.permissions;
+
+// ─── Teléfono: bloquea caracteres no numéricos y limita a 10 dígitos ─────────
+const PHONE_ALLOWED_CONTROL_KEYS = [
+    "Backspace", "Delete", "ArrowLeft", "ArrowRight",
+    "Tab", "Enter", "Home", "End", "Control", "Meta", "Shift",
+];
+const blockNonDigit = (e: KeyboardEvent) => {
+    if (e.ctrlKey || e.metaKey) return; // permitir Ctrl+C, Ctrl+V, Ctrl+A
+    if (!PHONE_ALLOWED_CONTROL_KEYS.includes(e.key) && !/^\d$/.test(e.key)) {
+        e.preventDefault();
+    }
+};
+/** Limpia el texto pegado: solo extrae dígitos hasta el máximo permitido */
+const handlePhonePaste = (e: ClipboardEvent, setValue: (value: string) => void, maxLen = 10) => {
+    e.preventDefault();
+    const raw = e.clipboardData?.getData("text/plain") ?? "";
+    setValue(raw.replace(/\D/g, "").slice(0, maxLen));
+};
+
 interface Props {
     membershipTypes?: MembershipType[];
     originMembershipTypes?: MembershipType[];
@@ -2873,6 +2892,7 @@ watch(applyInscriptionDiscount, (val) => {
                                                     <v-text-field
                                                         v-model="member.phone"
                                                         label="Teléfono *"
+                                                        maxlength="10"
                                                         :rules="
                                                             member.is_primary_holder
                                                                 ? [
@@ -2883,6 +2903,8 @@ watch(applyInscriptionDiscount, (val) => {
                                                                       validatePhone,
                                                                   ]
                                                         "
+                                                        @keydown="blockNonDigit"
+                                                        @paste="e => handlePhonePaste(e, (v) => (member.phone = v))"
                                                     />
                                                 </v-col>
 
@@ -3137,7 +3159,10 @@ watch(applyInscriptionDiscount, (val) => {
                                                                 .company_phone
                                                         "
                                                         label="Teléfono de la empresa"
+                                                        maxlength="10"
                                                         :rules="[validatePhone]"
+                                                        @keydown="blockNonDigit"
+                                                        @paste="e => handlePhonePaste(e, (v) => (member.employment.company_phone = v))"
                                                     />
                                                 </v-col>
                                             </v-row>

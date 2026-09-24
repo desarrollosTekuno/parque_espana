@@ -406,7 +406,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
         </v-data-table-server>
 
         <!-- Modal crear / editar -->
-        <v-dialog v-model="showModal" max-width="820">
+        <v-dialog v-model="showModal" max-width="820" scrollable>
             <v-form ref="formSendRef" @submit.prevent="save">
                 <v-card :title="form.id ? 'Editar entrenador' : 'Nuevo entrenador'">
                     <v-card-text>

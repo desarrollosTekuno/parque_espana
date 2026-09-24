@@ -75,7 +75,7 @@ class ClinicalHistoryRequest extends FormRequest
                 'social_security_number'   => ['nullable', 'digits:11'],
                 'medical_insurance'        => ['nullable', 'string', 'max:255'],
                 'insurance_company'        => ['nullable', 'string', 'max:255'],
-                'insurance_policy_number'  => ['nullable', 'string', 'max:100'],
+                'insurance_policy_number'  => ['nullable', 'string', 'max:15'],
                 'insurance_mobile'         => ['nullable', 'digits:10'],
         ];
     }

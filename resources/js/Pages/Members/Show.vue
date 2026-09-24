@@ -777,6 +777,9 @@ const clinicalPhoneRule = (v: string | null) =>
 const clinicalNssRule = (v: string | null) =>
     !v || /^\d{11}$/.test(v) || 'El NSS debe tener exactamente 11 dígitos';
 
+const clinicalPolicyRule = (v: string | null) =>
+    !v || v.length <= 15 || 'Máximo 15 caracteres';
+
 // Bloquea cualquier tecla que no sea dígito (permite teclas de control)
 const ALLOWED_CONTROL_KEYS = [
     'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight',
@@ -2043,6 +2046,8 @@ console.log(can)
                                                         label="No. de Póliza"
                                                         density="compact"
                                                         variant="outlined"
+                                                        maxlength="15"
+                                                        :rules="[clinicalPolicyRule]"
                                                     />
                                                 </v-col>
                                                 <v-col cols="12" sm="4">
