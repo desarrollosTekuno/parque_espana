@@ -108,8 +108,29 @@ const edit = (data: any) => {
     form.name = data.name;
     form.code = data.code;
     form.sort_order = data.sort_order;
-    form.is_active = Boolean(data.is_active);
+    form.is_active = true;
     showModal.value = true;
+};
+
+const destroy = (data: any) => {
+    customConfirmSwal({ title: "Esta segur@ que desea eliminar este registro?" }).then((result) => {
+        if (result.isConfirmed) {
+            form.delete(route("feedback-priorities.destroy", data.id), {
+                preserveScroll: true,
+                onSuccess: () => {
+                    customToastSwal({ title: page.props.flash.success || "", icon: "success" });
+                    fetchItems();
+                },
+                onError: () => {
+                    customToastSwal({
+                        title: `Error: ${form.errors.messageError ?? ""}`,
+                        text: `${form.errors.exception ?? ""}`,
+                        icon: "error",
+                    });
+                },
+            });
+        }
+    });
 };
 
 const save = () => {
@@ -153,27 +174,6 @@ const save = () => {
                 });
             },
         });
-    });
-};
-
-const destroy = (data: any) => {
-    customConfirmSwal({ title: "Esta segur@ que desea eliminar este registro?" }).then((result) => {
-        if (result.isConfirmed) {
-            form.delete(route("feedback-priorities.destroy", data.id), {
-                preserveScroll: true,
-                onSuccess: () => {
-                    customToastSwal({ title: page.props.flash.success || "", icon: "success" });
-                    fetchItems();
-                },
-                onError: () => {
-                    customToastSwal({
-                        title: `Error: ${form.errors.messageError ?? ""}`,
-                        text: `${form.errors.exception ?? ""}`,
-                        icon: "error",
-                    });
-                },
-            });
-        }
     });
 };
 
@@ -283,15 +283,6 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                     min="0"
                                     :rules="[required, integerRule]"
                                     :error-messages="form.errors.sort_order"
-                                />
-                            </v-col>
-
-                            <v-col cols="12">
-                                <v-switch
-                                    v-model="form.is_active"
-                                    label="Activo"
-                                    color="success"
-                                    :error-messages="form.errors.is_active"
                                 />
                             </v-col>
                         </v-row>

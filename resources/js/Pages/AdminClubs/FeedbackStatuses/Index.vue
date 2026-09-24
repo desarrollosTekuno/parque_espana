@@ -2,7 +2,7 @@
 import AppLayout from "@/Layouts/AppLayout.vue";
 import BaseButton from "@/Components/BaseButton.vue";
 import { required, maxLength, alphaNumeric } from "@/constants/validationRules";
-import { customConfirmSwal, customToastSwal } from "@/utils/swal";
+import { customToastSwal } from "@/utils/swal";
 import { Head, router, useForm, usePage } from "@inertiajs/vue3";
 import { debounce } from "lodash";
 import { ref, watch } from "vue";
@@ -117,7 +117,7 @@ const edit = (data: any) => {
     form.code = data.code;
     form.color = data.color;
     form.sort_order = data.sort_order;
-    form.is_active = Boolean(data.is_active);
+    form.is_active = true;
     showModal.value = true;
 };
 
@@ -165,27 +165,6 @@ const save = () => {
     });
 };
 
-const destroy = (data: any) => {
-    customConfirmSwal({ title: "Esta segur@ que desea eliminar este registro?" }).then((result) => {
-        if (result.isConfirmed) {
-            form.delete(route("feedback-statuses.destroy", data.id), {
-                preserveScroll: true,
-                onSuccess: () => {
-                    customToastSwal({ title: page.props.flash.success || "", icon: "success" });
-                    fetchItems();
-                },
-                onError: () => {
-                    customToastSwal({
-                        title: `Error: ${form.errors.messageError ?? ""}`,
-                        text: `${form.errors.exception ?? ""}`,
-                        icon: "error",
-                    });
-                },
-            });
-        }
-    });
-};
-
 const close = () => {
     form.reset();
     form.clearErrors();
@@ -202,13 +181,6 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
         <template #header> Estatus de feedback </template>
 
         <template #options>
-            <BaseButton
-                v-if="can.includes('feedback-statuses.store')"
-                variant="elevated"
-                :icon-only="false"
-                @click="create"
-                action="add"
-            />
         </template>
 
         <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
@@ -259,12 +231,6 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 action="edit"
                                 @click="edit(item)"
                             />
-
-                            <BaseButton
-                                v-if="can.includes('feedback-statuses.destroy')"
-                                action="delete"
-                                @click="destroy(item)"
-                            />
                         </template>
                     </v-data-table-server>
                 </v-col>
@@ -289,6 +255,9 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 <v-text-field
                                     v-model="form.code"
                                     label="Codigo"
+                                    :disabled="!!form.id"
+                                    :hint="form.id ? 'El código no se puede modificar una vez creado el estatus.' : undefined"
+                                    persistent-hint
                                     :rules="[required, codeRule, maxLength(10)]"
                                     :error-messages="form.errors.code"
                                 />
@@ -304,7 +273,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                     :error-messages="form.errors.sort_order"
                                 />
                             </v-col>
-                            
+
                             <v-col cols="12" md="6">
                                 <v-color-picker
                                     v-model="form.color"
@@ -312,15 +281,6 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                     placeholder="#6B7280"
                                     :rules="[hexColorRule, maxLength(20)]"
                                     :error-messages="form.errors.color"
-                                />
-                            </v-col>
-
-                            <v-col cols="12">
-                                <v-switch
-                                    v-model="form.is_active"
-                                    label="Activo"
-                                    color="success"
-                                    :error-messages="form.errors.is_active"
                                 />
                             </v-col>
                         </v-row>
