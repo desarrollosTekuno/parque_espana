@@ -9,6 +9,7 @@ use App\Models\Administrator\Club;
 use App\Models\Billing\Charge;
 use App\Models\Billing\ChargeConcept;
 use App\Models\Billing\PaymentMethod;
+use App\Models\Devices\DailyPassCard;
 use App\Models\Devices\ScheduledDailyPass;
 use App\Models\Members\Member;
 use App\Models\Members\MemberPaymentSource;
@@ -157,13 +158,7 @@ class DailyPassController extends Controller {
                     'status' => 'pending',
                 ]);
     
-                foreach ($validated['visitors'] as $visitor) {
-                    $scheduledDailyPass->visitors()->create([
-                        'first_name' => $visitor['first_name'],
-                        'last_name' => $visitor['last_name'],
-                        'phone' => $visitor['phone'] ?? null,
-                    ]);
-                }
+                
     
                 // Cobrar de inmediato si se proporcionó tarjeta y hay monto
                 $paid = false;
@@ -205,27 +200,33 @@ class DailyPassController extends Controller {
                 }
     
                 $cardCodes = [];
+                $visitDateEnd = $visitDate->copy()->endOfDay();
     
-                if ($isToday) {
-                    for ($i = 0; $i < $quantity; $i++) {
-                        $cardCodes[] = $this->guestPassProvisioningService->provisionDayPass(
+                foreach ($validated['visitors'] as $visitor) {
+                    if ($isToday) {
+                        $cardNo = $this->guestPassProvisioningService->provisionDayPass(
                             clubId: $club->id,
                             validUntil: now()->addDay(),
                             accountMemberId: $accountMember->id,
                             chargeId: $charge->id,
                         );
-                    }
-                } else {
-                    $visitDateEnd = $visitDate->copy()->endOfDay();
-    
-                    for ($i = 0; $i < $quantity; $i++) {
-                        $cardCodes[] = $this->guestPassProvisioningService->scheduleCard(
+                    } else {
+                        $cardNo = $this->guestPassProvisioningService->scheduleCard(
                             clubId: $club->id,
                             validUntil: $visitDateEnd,
                             accountMemberId: $accountMember->id,
                             chargeId: $charge->id,
                         );
                     }
+                
+                    $scheduledDailyPass->visitors()->create([
+                        'first_name' => $visitor['first_name'],
+                        'last_name' => $visitor['last_name'],
+                        'phone' => $visitor['phone'] ?? null,
+                        'card_no' => $cardNo,
+                    ]);
+                
+                    $cardCodes[] = $cardNo;
                 }
     
                 $scheduledDailyPass->update([
@@ -295,6 +296,116 @@ class DailyPassController extends Controller {
         } catch (\Exception $e) {
             report($e);
             return $this->serverError('Ocurrió un error al calcular el precio.');
+        }
+    }
+
+    public function index(Request $request, Club $club)
+    {
+        try {
+            $member = Member::where('user_id', $request->user()->id)->first();
+    
+            if (!$member) {
+                return $this->unprocessable('No se encontró el registro de socio para este usuario.');
+            }
+    
+            $member->load('accountMemberships.membershipAccount');
+            $accountMember = $member->accountMemberships
+                ->first(fn ($am) => (int) $am->membershipAccount?->club_id === (int) $club->id);
+    
+            if (!$accountMember) {
+                return $this->unprocessable('El socio no tiene una cuenta de membresía en este club.');
+            }
+    
+            $passes = ScheduledDailyPass::where('club_id', $club->id)
+                ->where('account_member_id', $accountMember->id)
+                ->where('status', 'processed')
+                ->with(['visitors', 'charge'])
+                ->orderByDesc('visit_date')
+                ->get();
+    
+            $today = Carbon::today();
+    
+            $data = $passes->map(function ($pass) use ($today) {
+                $cardStatus = DailyPassCard::where('charge_id', $pass->charge_id)
+                    ->value('status');
+    
+                $visitDate = Carbon::parse($pass->visit_date);
+    
+                $displayStatus = match (true) {
+                    $cardStatus === 'scheduled' => 'programado',
+                    $cardStatus === 'active' && !$visitDate->isBefore($today) => 'vigente',
+                    default => 'usado',
+                };
+    
+                return [
+                    'id' => $pass->id,
+                    'visit_date' => $pass->visit_date->toDateString(),
+                    'quantity' => $pass->visitors->count(),
+                    'total_amount' => $pass->charge->amount ?? 0,
+                    'status' => $displayStatus,
+                ];
+            });
+    
+            return $this->ok($data);
+    
+        } catch (\Exception $e) {
+            report($e);
+            return $this->serverError('Ocurrió un error al consultar los pases diarios.');
+        }
+    }
+
+    public function show(Request $request, Club $club, ScheduledDailyPass $dailyPass)
+    {
+        try {
+            $member = Member::where('user_id', $request->user()->id)->first();
+    
+            if (!$member) {
+                return $this->unprocessable('No se encontró el registro de socio para este usuario.');
+            }
+    
+            $member->load('accountMemberships.membershipAccount');
+            $accountMember = $member->accountMemberships
+                ->first(fn ($am) => (int) $am->membershipAccount?->club_id === (int) $club->id);
+    
+            if (!$accountMember) {
+                return $this->unprocessable('El socio no tiene una cuenta de membresía en este club.');
+            }
+    
+            if ($dailyPass->club_id !== $club->id ||
+                $dailyPass->account_member_id !== $accountMember->id) {
+                return $this->notFound('Pase diario no encontrado.');
+            }
+    
+            $dailyPass->load('visitors', 'charge');
+    
+            $cardStatus = DailyPassCard::where('charge_id', $dailyPass->charge_id)
+                ->value('status');
+    
+            $today = Carbon::today();
+            $visitDate = Carbon::parse($dailyPass->visit_date);
+    
+            $displayStatus = match (true) {
+                $cardStatus === 'scheduled' => 'programado',
+                $cardStatus === 'active' && !$visitDate->isBefore($today) => 'vigente',
+                default => 'usado',
+            };
+    
+            return $this->ok([
+                'id' => $dailyPass->id,
+                'visit_date' => $dailyPass->visit_date->toDateString(),
+                'status' => $displayStatus,
+                'total_amount' => $dailyPass->charge?->amount ?? 0,
+                'visitors' => $dailyPass->visitors->map(fn ($v) => [
+                    'first_name' => $v->first_name,
+                    'last_name' => $v->last_name,
+                    'phone' => $v->phone,
+                    'access_code' => $v->card_no,
+                ]),
+            ]);
+    
+        } catch (\Exception $e) {
+            report($e);
+            return $this->serverError('Ocurrió un error al consultar el pase diario.');
         }
     }
 }

@@ -137,6 +137,8 @@ Route::prefix('v1')->name('api.')->group(function () {
         // Registro de pases diarios
         Route::post('/daily-passes', [DailyPassController::class, 'store']);
         Route::get('/daily-passes/pricing', [DailyPassController::class, 'pricing']);
+        Route::get('/daily-passes', [DailyPassController::class, 'index']);
+        Route::get('/daily-passes/{dailyPass}', [DailyPassController::class, 'show']);
 
     });
 
