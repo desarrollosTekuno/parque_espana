@@ -89,11 +89,7 @@ class FeedbackCategoryController extends Controller {
     public function update(Request $request, $id) {
         $request->validate([
             'name' => 'required|string|max:120',
-            'code' => ['required', 'string', 'max:60', 'regex:/^[A-Za-zÀ-ÿ0-9,\s]+$/u', Rule::unique(Category::class, 'code')->ignore($id)],
             'description' => 'nullable|string|max:500',
-            'is_active' => 'required|boolean',
-        ], [
-            'code.regex' => 'El codigo solo permite letras, numeros, comas y espacios.',
         ]);
 
         try {
@@ -101,9 +97,7 @@ class FeedbackCategoryController extends Controller {
 
             $category->update([
                 'name' => $request->name,
-                'code' => $request->code,
                 'description' => $request->description,
-                'is_active' => $request->is_active,
             ]);
 
             return back()->with('success', 'Categoría actualizada correctamente');

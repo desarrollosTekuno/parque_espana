@@ -20,7 +20,6 @@ interface FeedbackStatus {
     name: string;
     code: string;
     color: string | null;
-    sort_order: number | null;
     is_active: boolean;
 }
 
@@ -37,7 +36,6 @@ const form = useForm<FeedbackStatus>({
     name: "",
     code: "",
     color: "#6B7280",
-    sort_order: 0,
     is_active: true,
 });
 
@@ -46,11 +44,6 @@ const codeRule = (v: string) =>
 
 const hexColorRule = (v: string) =>
     !v || /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(v) || "El color debe ser hexadecimal valido";
-
-const integerRule = (v: number | string | null) => {
-    if (v === null || v === "") return "El campo es requerido";
-    return /^\d+$/.test(String(v)) || "Solo se permiten numeros enteros";
-};
 
 const headers = [
     { title: "ID", key: "id" },
@@ -105,7 +98,6 @@ const create = () => {
     form.reset();
     form.clearErrors();
     form.color = "#6B7280";
-    form.sort_order = 0;
     form.is_active = true;
     showModal.value = true;
 };
@@ -116,8 +108,7 @@ const edit = (data: any) => {
     form.name = data.name;
     form.code = data.code;
     form.color = data.color;
-    form.sort_order = data.sort_order;
-    form.is_active = true;
+    form.is_active = data.is_active;
     showModal.value = true;
 };
 
@@ -237,7 +228,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
             </v-row>
         </div>
 
-        <v-dialog v-model="showModal" max-width="760" persistent>
+        <v-dialog v-model="showModal" max-width="600" persistent>
             <v-form @submit.prevent="save" ref="formSendRef">
                 <v-card prepend-icon="mdi-progress-check" :title="form.id ? 'Editar estatus' : 'Crear estatus'">
                     <v-card-text class="h-full overflow-y-auto">
@@ -263,24 +254,15 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 />
                             </v-col>
 
-                            <v-col cols="12" md="6">
-                                <v-text-field
-                                    v-model.number="form.sort_order"
-                                    label="Orden"
-                                    type="number"
-                                    min="0"
-                                    :rules="[required, integerRule]"
-                                    :error-messages="form.errors.sort_order"
-                                />
-                            </v-col>
-
-                            <v-col cols="12" md="6">
+                            <v-col cols="12" md="12">
                                 <v-color-picker
+                                    width="100%"
                                     v-model="form.color"
                                     label="Color (hex)"
                                     placeholder="#6B7280"
                                     :rules="[hexColorRule, maxLength(20)]"
                                     :error-messages="form.errors.color"
+                                    hide-inputs
                                 />
                             </v-col>
                         </v-row>

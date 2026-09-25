@@ -86,9 +86,7 @@ class FeedbackTicketTypeController extends Controller {
     public function update(Request $request, $id) {
         $request->validate([
             'name' => 'required|string|max:65',
-            'code' => 'required|string|max:60',
             'description' => 'nullable|string|max:500',
-            'is_active' => 'required|boolean',
         ]);
 
         try {
@@ -96,9 +94,7 @@ class FeedbackTicketTypeController extends Controller {
 
             $ticketType->update([
                 'name' => $request->name,
-                'code' => $request->code,
                 'description' => $request->description,
-                'is_active' => $request->is_active,
             ]);
 
             return back()->with('success', 'Tipo de ticket actualizado correctamente');

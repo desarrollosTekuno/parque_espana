@@ -244,14 +244,14 @@ Route::get('/surveys/{survey}/results/export-pdf', [SurveyResultController::clas
 
 
 // =========== FEEDBACK ============
-Route::resource('/feedback-categories', FeedbackCategoryController::class)->only(['index', 'store', 'update', 'destroy'])->names('feedback-categories');
+Route::resource('/feedback-categories', FeedbackCategoryController::class)->only(['index', 'store', 'update'])->names('feedback-categories');
 Route::resource('/feedback', FeedbackController::class)->only(['index', 'store', 'update', 'destroy'])->names('feedback');
 Route::patch('/feedback/{feedback}/cancel', [FeedbackController::class, 'cancelTicket'])->name('feedback.cancel');
 Route::get('/feedback-management', [FeedbackManagementController::class, 'index'])->name('feedback-management.index');
 Route::patch('/feedback-management/{feedback}', [FeedbackManagementController::class, 'update'])->name('feedback-management.update');
-Route::resource('/feedback-ticket-types', FeedbackTicketTypeController::class)->only(['index', 'store', 'update', 'destroy'])->names('feedback-ticket-types');
-Route::resource('/feedback-statuses', FeedbackStatusController::class)->only(['index', 'store', 'update', 'destroy'])->names('feedback-statuses');
-Route::resource('/feedback-priorities', FeedbackPriorityController::class)->only(['index', 'store', 'update', 'destroy'])->names('feedback-priorities');
+Route::resource('/feedback-ticket-types', FeedbackTicketTypeController::class)->only(['index', 'store', 'update'])->names('feedback-ticket-types');
+Route::resource('/feedback-statuses', FeedbackStatusController::class)->only(['index', 'store', 'update'])->names('feedback-statuses');
+Route::resource('/feedback-priorities', FeedbackPriorityController::class)->only(['index', 'store', 'update'])->names('feedback-priorities');
 
 // members
 Route::get('/members/{membership}/additional-membership/create', [MemberController::class, 'createAdditionalMembership'])

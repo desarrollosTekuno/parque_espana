@@ -19,7 +19,6 @@ interface FeedbackPriority {
     id: number | null;
     name: string;
     code: string;
-    sort_order: number | null;
     is_active: boolean;
 }
 
@@ -35,16 +34,10 @@ const form = useForm<FeedbackPriority>({
     id: null,
     name: "",
     code: "",
-    sort_order: 0,
     is_active: true,
 });
 
 const codeRule = (v: string) => !v || /^[A-Za-z0-9_]+$/.test(v) || "Solo se permiten letras, numeros y guion bajo (_)";
-
-const integerRule = (v: number | string | null) => {
-    if (v === null || v === "") return "El campo es requerido";
-    return /^\d+$/.test(String(v)) || "Solo se permiten numeros enteros";
-};
 
 const headers = [
     { title: "ID", key: "id" },
@@ -97,7 +90,6 @@ const fetchItems = async () => {
 const create = () => {
     form.reset();
     form.clearErrors();
-    form.sort_order = 0;
     form.is_active = true;
     showModal.value = true;
 };
@@ -107,8 +99,7 @@ const edit = (data: any) => {
     form.id = data.id;
     form.name = data.name;
     form.code = data.code;
-    form.sort_order = data.sort_order;
-    form.is_active = true;
+    form.is_active = data.is_active;
     showModal.value = true;
 };
 
@@ -193,13 +184,6 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
         <template #header> Prioridades de feedback </template>
 
         <template #options>
-            <BaseButton
-                v-if="can.includes('feedback-priorities.store')"
-                variant="elevated"
-                :icon-only="false"
-                @click="create"
-                action="add"
-            />
         </template>
 
         <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
@@ -240,12 +224,6 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 action="edit"
                                 @click="edit(item)"
                             />
-
-                            <BaseButton
-                                v-if="can.includes('feedback-priorities.destroy')"
-                                action="delete"
-                                @click="destroy(item)"
-                            />
                         </template>
                     </v-data-table-server>
                 </v-col>
@@ -272,17 +250,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                     label="Codigo"
                                     :rules="[required, codeRule, maxLength(10)]"
                                     :error-messages="form.errors.code"
-                                />
-                            </v-col>
-
-                            <v-col cols="12" md="6">
-                                <v-text-field
-                                    v-model.number="form.sort_order"
-                                    label="Orden"
-                                    type="number"
-                                    min="0"
-                                    :rules="[required, integerRule]"
-                                    :error-messages="form.errors.sort_order"
+                                    :disabled="!!form.id"
                                 />
                             </v-col>
                         </v-row>

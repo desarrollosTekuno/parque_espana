@@ -62,7 +62,6 @@ class FeedbackStatusController extends Controller {
             'name' => ['required', 'string', 'max:35', 'regex:/^[A-Za-zÀ-ÿ0-9,\s]+$/u'],
             'code' => ['required', 'string', 'max:30', 'regex:/^[A-Za-z0-9_]+$/', Rule::unique(Status::class, 'code')],
             'color' => ['nullable', 'string', 'max:20', 'regex:/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/'],
-            'sort_order' => 'required|integer|min:0',
             'is_active' => 'boolean',
         ], [
             'name.regex' => 'El nombre solo permite letras, numeros, comas y espacios.',
@@ -75,7 +74,6 @@ class FeedbackStatusController extends Controller {
                 'name' => $request->name,
                 'code' => $request->code,
                 'color' => $request->color,
-                'sort_order' => $request->sort_order,
                 'is_active' => $request->boolean('is_active', true),
             ]);
 
@@ -94,13 +92,9 @@ class FeedbackStatusController extends Controller {
     public function update(Request $request, $id) {
         $request->validate([
             'name' => ['required', 'string', 'max:35', 'regex:/^[A-Za-zÀ-ÿ0-9,\s]+$/u'],
-            'code' => ['required', 'string', 'max:30', 'regex:/^[A-Za-z0-9_]+$/', Rule::unique(Status::class, 'code')->ignore($id)],
             'color' => ['nullable', 'string', 'max:20', 'regex:/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/'],
-            'sort_order' => 'required|integer|min:0',
-            'is_active' => 'required|boolean',
         ], [
             'name.regex' => 'El nombre solo permite letras, numeros, comas y espacios.',
-            'code.regex' => 'El codigo solo permite letras, numeros y guion bajo (_).',
             'color.regex' => 'El color debe estar en formato hexadecimal valido.',
         ]);
 
@@ -109,10 +103,7 @@ class FeedbackStatusController extends Controller {
 
             $status->update([
                 'name' => $request->name,
-                'code' => $request->code,
                 'color' => $request->color,
-                'sort_order' => $request->sort_order,
-                'is_active' => $request->is_active,
             ]);
 
             return back()->with('success', 'Estatus actualizado correctamente');

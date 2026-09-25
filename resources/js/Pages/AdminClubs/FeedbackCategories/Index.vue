@@ -101,7 +101,7 @@ const edit = (data: any) => {
     form.name = data.name;
     form.code = data.code;
     form.description = data.description;
-    form.is_active = true;
+    form.is_active = data.is_active;
     showModal.value = true;
 };
 
@@ -248,12 +248,6 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                 action="edit"
                                 @click="edit(item)"
                             />
-
-                            <BaseButton
-                                v-if="can.includes('feedback-categories.destroy')"
-                                action="delete"
-                                @click="destroy(item)"
-                            />
                         </template>
                     </v-data-table-server>
                 </v-col>
@@ -283,6 +277,7 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
                                     label="Código"
                                     :rules="[required, alphaNumeric, maxLength(10)]"
                                     :error-messages="form.errors.code"
+                                    :disabled="!!form.id"
                                 />
                             </v-col>
 

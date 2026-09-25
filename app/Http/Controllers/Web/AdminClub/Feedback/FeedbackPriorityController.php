@@ -60,7 +60,6 @@ class FeedbackPriorityController extends Controller {
         $request->validate([
             'name' => ['required', 'string', 'max:25'],
             'code' => ['required', 'string', 'max:25'],
-            'sort_order' => 'required|integer|min:0',
             'is_active' => 'boolean',
         ]);
 
@@ -68,7 +67,6 @@ class FeedbackPriorityController extends Controller {
             Priority::create([
                 'name' => $request->name,
                 'code' => $request->code,
-                'sort_order' => $request->sort_order,
                 'is_active' => $request->boolean('is_active', true),
             ]);
 
@@ -86,10 +84,7 @@ class FeedbackPriorityController extends Controller {
 
     public function update(Request $request, $id) {
         $request->validate([
-            'name' => 'required', 'string', 'max:30',
-            'code' => 'required', 'string', 'max:10',
-            'sort_order' => 'required|integer|min:0',
-            'is_active' => 'required|boolean',
+            'name' => 'required|string|max:25',
         ]);
 
         try {
@@ -97,9 +92,6 @@ class FeedbackPriorityController extends Controller {
 
             $priority->update([
                 'name' => $request->name,
-                'code' => $request->code,
-                'sort_order' => $request->sort_order,
-                'is_active' => $request->is_active,
             ]);
 
             return back()->with('success', 'Prioridad actualizada correctamente');
