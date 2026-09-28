@@ -35,7 +35,7 @@ class ReservationController extends Controller {
         $this->middleware('permission:reservations.index')->only('index');
         $this->middleware('permission:reservations.store')->only('store');
         $this->middleware('permission:reservations.cancel')->only('cancel');
-        $this->middleware('permission:reservations.update')->only('update');
+        $this->middleware('permission:reservations.update')->only(['update', 'checkIn']);
     }
 
     public function index(Request $request)
@@ -304,6 +304,25 @@ class ReservationController extends Controller {
             return redirect()->back()->withErrors([
                 'messageError' => 'Ocurrió un error al cancelar la reservación',
                 'exception' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public function checkIn(Reservation $reservation)
+    {
+        try {
+            if ($reservation->reservation_status_id !== ReservationStatus::ACTIVA) {
+                throw new \Exception('Solo se puede registrar asistencia a reservaciones activas.');
+            }
+
+            $reservation->update([
+                'reservation_status_id' => ReservationStatus::ASISTENCIA,
+            ]);
+
+            return redirect()->back()->with('success', 'Asistencia registrada correctamente');
+        } catch (\Exception $e) {
+            return redirect()->back()->withErrors([
+                'messageError' => $e->getMessage(),
             ]);
         }
     }

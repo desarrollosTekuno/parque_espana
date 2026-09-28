@@ -22,6 +22,7 @@ class Announcement extends Model {
         'title',
         'content',
         'type',
+        'status',
         'image',
         'is_active',
         'publish_at',

@@ -82,6 +82,8 @@ Route::get('/reservations/calendar', [ReservationController::class, 'calendar'])
     ->name('reservations.calendar');
 Route::post('/reservations/{reservation}/cancel', [ReservationController::class, 'cancel'])
     ->name('reservations.cancel');
+Route::put('/reservations/{reservation}/checkin', [ReservationController::class, 'checkIn'])
+    ->name('reservations.checkin');
 Route::get('/amenity-resource/{amenityResource}/slots', [ReservationController::class, 'slots'])
     ->name('reservations.slots');
 Route::get('/attendance', [AttendanceController::class, 'index'])->name('attendance.index');

@@ -195,6 +195,34 @@ const clearFilters = () => {
     }
 };
 
+const registerAttendance = (data: any) => {
+    customConfirmSwal({
+        title: "¿Registrar asistencia para esta reservación?",
+        confirmButtonText: "Sí, registrar",
+        cancelButtonText: "No",
+    }).then((result) => {
+        if (result.isConfirmed) {
+            router.put(route("reservations.checkin", data.id), {}, {
+                onSuccess: (page) => {
+                    const flash = page.props.flash || {}
+                    if (flash.messageError) {
+                        customToastSwal({
+                            title: flash.messageError,
+                            icon: "error"
+                        })
+                        return
+                    }
+                    customToastSwal({
+                        title: flash.success || "Asistencia registrada",
+                        icon: "success"
+                    })
+                    fetchItems()
+                }
+            });
+        }
+    });
+};
+
 const cancel = (data: any) => {
     customConfirmSwal({
         title: "¿Está segur@ que desea cancelar este registro?",
@@ -681,6 +709,15 @@ const maxDate = computed(() => {
                                     </template>
 
                                     <template #item.actions="{ item }">
+                                        <BaseButton
+                                            v-if="can.includes('reservations.update')"
+                                            @click="registerAttendance(item)"
+                                            action="checkin"
+                                            icon="mdi-check-circle-outline"
+                                            color="success"
+                                            text="Registrar asistencia"
+                                            :disabled="item.reservation_status_id != activeStatus"
+                                        />
                                         <BaseButton
                                             @click="cancel(item)"
                                             action="cancel"

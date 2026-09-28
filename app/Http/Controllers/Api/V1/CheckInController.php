@@ -18,6 +18,9 @@ class CheckInController extends Controller
 {
     private const MAX_DISTANCE_METERS = 5;
 
+    /** Margen máximo por imprecisión del GPS del dispositivo que se suma al rango permitido. */
+    private const MAX_GPS_ERROR_METERS = 10;
+
     /** Tolerancia (minutos) por defecto si el club no tiene configurada 'tolerancia_asistencia'. */
     private const DEFAULT_TOLERANCE_MINUTES = 10;
 
@@ -33,12 +36,14 @@ class CheckInController extends Controller
             $request->validate([
                 'latitude'  => 'required|numeric|between:-90,90',
                 'longitude' => 'required|numeric|between:-180,180',
+                'accuracy'  => 'nullable|numeric|min:0',
             ]);
 
             $distanceError = $this->checkWithinRange(
                 $resource,
                 (float) $request->input('latitude'),
-                (float) $request->input('longitude')
+                (float) $request->input('longitude'),
+                $request->filled('accuracy') ? (float) $request->input('accuracy') : null
             );
 
             if ($distanceError) {
@@ -93,13 +98,15 @@ class CheckInController extends Controller
             $request->validate([
                 'latitude'  => 'required|numeric|between:-90,90',
                 'longitude' => 'required|numeric|between:-180,180',
+                'accuracy'  => 'nullable|numeric|min:0',
                 'member_id' => 'required|integer',
             ]);
 
             $distanceError = $this->checkWithinRange(
                 $resource,
                 (float) $request->input('latitude'),
-                (float) $request->input('longitude')
+                (float) $request->input('longitude'),
+                $request->filled('accuracy') ? (float) $request->input('accuracy') : null
             );
 
             if ($distanceError) {
@@ -186,7 +193,7 @@ class CheckInController extends Controller
      * de error si el recurso no tiene ubicaciones activas o si está fuera del rango permitido;
      * devuelve null cuando la validación pasa.
      */
-    private function checkWithinRange(AmenityResource $resource, float $latitude, float $longitude)
+    private function checkWithinRange(AmenityResource $resource, float $latitude, float $longitude, ?float $accuracy = null)
     {
         $activeLocations = $resource->locations()->where('active', true)->get();
 
@@ -198,7 +205,9 @@ class CheckInController extends Controller
             return $this->haversine($latitude, $longitude, (float) $location->latitude, (float) $location->longitude);
         });
 
-        if ($minDistance > self::MAX_DISTANCE_METERS) {
+        $allowed = self::MAX_DISTANCE_METERS + min(max($accuracy ?? 0, 0), self::MAX_GPS_ERROR_METERS);
+
+        if ($minDistance > $allowed) {
             return response()->json([
                 'message'  => 'No estás dentro del área del recurso. Acércate e intenta de nuevo.',
                 'distance' => round($minDistance),
