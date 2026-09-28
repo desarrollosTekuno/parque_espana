@@ -197,7 +197,8 @@ class ReservationController extends Controller
             $paginator = $query->orderBy('start_datetime', $sort)->paginate($perPage);
 
             $today   = Carbon::now()->startOfDay();
-            $grouped = collect($paginator->items())
+            $items   = $this->mergeLinkedGardenReservations(collect($paginator->items()));
+            $grouped = $items
                 ->groupBy(fn (Reservation $r) => $r->start_datetime->format('Y-m-d'))
                 ->map(function ($items, $date) use ($today) {
                     $date = Carbon::parse($date);
@@ -223,6 +224,42 @@ class ReservationController extends Controller
             report($e);
             return $this->serverError('Ocurrió un error al obtener las reservaciones.');
         }
+    }
+
+    /**
+     * Un jardín reservado junto con un asador se guarda como dos registros ligados
+     * (uno por amenity_resource, ver {@see \App\Http\Controllers\Api\V1\GardenReservationController::store}).
+     * Para el listado se muestran como una sola tarjeta: se conserva el registro del
+     * jardín y se le anexa el nombre del asador; el registro del asador se descarta.
+     */
+    private function mergeLinkedGardenReservations(\Illuminate\Support\Collection $items): \Illuminate\Support\Collection
+    {
+        $byId = $items->keyBy('id');
+        $grillNameByGardenId = [];
+        $hiddenIds = [];
+
+        foreach ($items as $reservation) {
+            if (!$reservation->linked_reservation_id || !$byId->has($reservation->linked_reservation_id)) {
+                continue;
+            }
+
+            $isGrill = str_starts_with($reservation->amenityResource?->name ?? '', 'Asador');
+            if (!$isGrill) {
+                continue;
+            }
+
+            $garden = $byId->get($reservation->linked_reservation_id);
+            $grillNameByGardenId[$garden->id] = $reservation->amenityResource?->name;
+            $hiddenIds[] = $reservation->id;
+        }
+
+        return $items->reject(fn (Reservation $r) => in_array($r->id, $hiddenIds))
+            ->each(function (Reservation $r) use ($grillNameByGardenId) {
+                if (isset($grillNameByGardenId[$r->id]) && $r->amenityResource) {
+                    $r->amenityResource->name .= ' + ' . $grillNameByGardenId[$r->id];
+                }
+            })
+            ->values();
     }
 
     /**

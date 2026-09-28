@@ -406,10 +406,10 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
         </v-data-table-server>
 
         <!-- Modal crear / editar -->
-        <v-dialog v-model="showModal" max-width="820">
+        <v-dialog v-model="showModal" max-width="820" scrollable>
             <v-form ref="formSendRef" @submit.prevent="save">
                 <v-card :title="form.id ? 'Editar entrenador' : 'Nuevo entrenador'">
-                    <v-card-text>
+                    <v-card-text class="coach-modal-content">
                         <v-row>
                             <v-col cols="6">
                                 <v-text-field
@@ -580,6 +580,10 @@ watch([options, search], debounce(fetchItems, 400), { deep: true });
 </template>
 
 <style scoped>
+.coach-modal-content {
+    max-height: 70vh;
+}
+
 .availability-grid {
     border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
     border-radius: 4px;
