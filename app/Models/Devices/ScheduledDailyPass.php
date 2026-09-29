@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\Administrator\Club;
+use App\Models\Billing\Charge;
 use App\Models\Memberships\MembershipAccountMember;
 
 class ScheduledDailyPass extends Model {
@@ -34,5 +35,10 @@ class ScheduledDailyPass extends Model {
     public function accountMember()
     {
         return $this->belongsTo(MembershipAccountMember::class, 'account_member_id');
+    }
+
+    public function charge()
+    {
+        return $this->belongsTo(Charge::class, 'charge_id');
     }
 }
