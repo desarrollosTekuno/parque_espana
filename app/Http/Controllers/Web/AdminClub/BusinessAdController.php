@@ -10,6 +10,7 @@ use App\Models\AdminClub\BusinessAd;
 use App\Models\AdminClub\PhysicalAd;
 use App\Models\AdminClub\PhysicalAdSize;
 use App\Models\Billing\ChargeConcept;
+use App\Models\Memberships\Membership;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -94,25 +95,41 @@ class BusinessAdController extends Controller {
         try {
             DB::beginTransaction();
 
-            $ad = BusinessAd::with('member.accountMemberships.membershipAccount.memberships')
+            $ad = BusinessAd::with('member.accountMemberships')
+                ->lockForUpdate()
                 ->findOrFail($id);
-            $ad->update([
-                'status_id' => 3, // approved
-                'approved_at' => now()
-            ]);
+
+            // Solo se aprueba una solicitud pendiente: evita duplicar el
+            // cargo si se da clic dos veces o el anuncio ya avanzó de estado.
+            if ($ad->status_id !== 1) {
+                throw new \Exception('Solo se pueden aprobar anuncios pendientes.');
+            }
 
             if (!$ad->member) {
                 throw new \Exception('El anuncio no tiene miembro asociado');
             }
 
-            $accountMembership = $ad->member->accountMemberships()->first();
-            if (!$accountMembership) {
-                throw new \Exception('El usuario no tiene cuenta de membresía');
-            }
-            $membership = $accountMembership->membershipAccount->memberships->first();
+            // El cargo debe colgar de la membresía del socio EN EL PARQUE del
+            // anuncio (no de la primera que encuentre): al cobrar,
+            // PaymentRegistrationService::ensureChargesBelongToClub compara
+            // charge->membership->club_id contra el parque de la caja, y
+            // Cobranza agrupa el renglón por ese mismo club.
+            $accountIds = $ad->member->accountMemberships->pluck('membership_account_id');
+            $membership = Membership::query()
+                ->whereIn('membership_account_id', $accountIds)
+                ->where('club_id', $ad->club_id)
+                ->whereIn('status', ['active', 'suspended'])
+                ->orderByDesc('is_primary')
+                ->first();
             if (!$membership) {
-                throw new \Exception('No se encontró membership');
+                throw new \Exception('El socio no tiene una membresía activa en el parque de este anuncio.');
             }
+            $accountMembership = (object) ['membership_account_id' => $membership->membership_account_id];
+
+            $ad->update([
+                'status_id' => 3, // approved
+                'approved_at' => now()
+            ]);
             $concept = ChargeConcept::query()
                 ->with('clubAmounts')
                 ->where('code', 'BUSINESS_AD')
@@ -125,7 +142,7 @@ class BusinessAdController extends Controller {
 
             Charge::create([
                 'membership_account_id' => $accountMembership->membership_account_id,
-                'membership_id' => $membership->id ?? null,
+                'membership_id' => $membership->id,
                 'member_id' => $ad->member_id,
                 'concept_id' => $concept->id,
                 'description' => $concept->description,

@@ -1476,11 +1476,18 @@ class CollectionController extends Controller
             }
 
             $dailyAccessNotifications = [];
+            // Cargos ya existentes que "Agregar concepto de cobro" localizó y
+            // agregó al pago (ver el bloque BUSINESS_AD más abajo) — hay que
+            // sumarlos a $existingChargeIds después de la transacción para
+            // que el bloque de "Anuncios de negocio" también los considere,
+            // igual que si hubieran venido de la tabla de Cargos.
+            $linkedChargeIds = [];
 
             $payments = DB::transaction(function () use (
                 $account, $clubId, $existing, $newItems, $cafeteriaCheckouts,
                 $membership, $memberId, $validated, $request, $accountClubIds,
-                $groupAccountIds, $annualYear, $annualRule, &$dailyAccessNotifications
+                $groupAccountIds, $annualYear, $annualRule, &$dailyAccessNotifications,
+                &$linkedChargeIds
             ) {
                 $applications = $existing
                     ->map(fn ($item) => [
@@ -1515,9 +1522,52 @@ class CollectionController extends Controller
 
                 // Genera un cargo pendiente por cada concepto nuevo y lo agrega
                 // a la lista de aplicaciones a su monto total.
+                //
+                // Cargos ya existentes que "Agregar concepto de cobro" debe
+                // LOCALIZAR y cobrar en vez de duplicar — actualmente solo
+                // BUSINESS_AD: el único cargo válido de un anuncio de negocio
+                // es el que genera Web/AdminClub/BusinessAdController::approve
+                // al aprobarlo (ligado vía metadata.business_ad_id). Antes,
+                // capturar aquí "BUSINESS_AD" creaba un cargo nuevo y
+                // desligado: el socio pagaba, pero el cargo real seguía
+                // pendiente y el anuncio nunca pasaba a Publicado (ver
+                // publishPaidBusinessAds/el bloque de "Anuncios de negocio"
+                // más abajo, que solo publica a partir de ESE cargo).
+                $linkedConceptCodes = ['BUSINESS_AD'];
+                $existingChargeIds = $existing->pluck('charge_id')->map(fn ($id) => (int) $id)->all();
+
                 foreach ($newItems as $item) {
                     $concept = ChargeConcept::find($item['concept_id']);
                     $quantity = isset($item['quantity']) ? (int) $item['quantity'] : 1;
+
+                    if (in_array($concept?->code, $linkedConceptCodes, true)) {
+                        $linkedCharges = Charge::query()
+                            ->whereIn('status', ['pending', 'partial'])
+                            ->whereNotNull('metadata->business_ad_id')
+                            ->where('membership_account_id', $account?->id)
+                            ->whereNotIn('id', $existingChargeIds)
+                            ->orderBy('id')
+                            ->limit(max($quantity, 1))
+                            ->lockForUpdate()
+                            ->get();
+
+                        if ($linkedCharges->count() < max($quantity, 1)) {
+                            throw ValidationException::withMessages([
+                                'new_items' => "El socio solo tiene {$linkedCharges->count()} anuncio(s) aprobado(s) pendiente(s) de pago (se indicó cantidad {$quantity}).",
+                            ]);
+                        }
+
+                        foreach ($linkedCharges as $linkedCharge) {
+                            $applications[] = [
+                                'charge_id' => $linkedCharge->id,
+                                'amount' => round((float) $linkedCharge->balance, 2),
+                            ];
+                            $existingChargeIds[] = $linkedCharge->id;
+                            $linkedChargeIds[] = $linkedCharge->id;
+                        }
+
+                        continue;
+                    }
 
                     // Si el concepto no permite capturar el importe a mano
                     // (billing.concepts.allows_manual_amount=false, ver
@@ -1683,7 +1733,13 @@ class CollectionController extends Controller
             // (BusinessAdController::approve, que deja status_id=3 y
             // metadata.business_ad_id en el cargo), se marca como
             // publicado — mismo criterio que BillingController::storePayment.
-            $existingChargeIds = $existing->pluck('charge_id')->map(fn ($id) => (int) $id);
+            // Incluye tanto los cargos tomados de la tabla de Cargos
+            // (existing_charges) como los que "Agregar concepto de cobro"
+            // localizó para BUSINESS_AD ($linkedChargeIds, ver arriba).
+            $existingChargeIds = $existing->pluck('charge_id')
+                ->map(fn ($id) => (int) $id)
+                ->merge($linkedChargeIds)
+                ->unique();
 
             if ($existingChargeIds->isNotEmpty()) {
                 $businessAdIds = Charge::whereIn('id', $existingChargeIds)

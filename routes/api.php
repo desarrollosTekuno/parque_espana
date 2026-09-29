@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\V1\ReservationController;
 use App\Http\Controllers\Api\V1\GardenReservationController;
 use App\Http\Controllers\Api\V1\BusinessAdController;
 use App\Http\Controllers\Api\V1\BusinessCategoryController;
+use App\Http\Controllers\Api\V1\AnnouncementController;
 use App\Http\Controllers\Api\V1\ClubContactInfoController;
 use App\Http\Controllers\Api\V1\ReservationGuestController;
 use App\Http\Controllers\Api\V1\SurveyController;
@@ -65,10 +66,19 @@ Route::prefix('v1')->name('api.')->group(function () {
     // Enviar solicitud de promoción desde la app
     Route::post('/business-ads', [BusinessAdController::class, 'store'])->middleware('auth:sanctum');
 
+    // Mis publicaciones (todas, cualquier estado) y reactivar una vencida
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/my-business-ads', [BusinessAdController::class, 'mine']);
+        Route::post('/business-ads/{businessAd}/reactivate', [BusinessAdController::class, 'reactivate']);
+    });
+
     // Agrupadas por club
     Route::middleware('auth:sanctum')->prefix('clubs/{club}')->group(function () {
         // Mostrar categorías de negocios en la pantalla principal de la app
         Route::get('/business-categories', [BusinessCategoryController::class, 'index']);
+
+        // Noticias/avisos publicados (carrusel de inicio de la app)
+        Route::get('/announcements', [AnnouncementController::class, 'index']);
 
         // =================================== Pagina web =====================================
         Route::get('/website/carousel', [WebsiteApiController::class, 'carousel']);
@@ -140,7 +150,12 @@ Route::prefix('v1')->name('api.')->group(function () {
     });
 
     // Perfil del socio
-    Route::get('/my-profile', [MemberProfileController::class, 'show'])->middleware('auth:sanctum');
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/my-profile', [MemberProfileController::class, 'show']);
+        Route::put('/my-profile', [MemberProfileController::class, 'update']);
+        Route::post('/my-profile/photo', [MemberProfileController::class, 'updatePhoto']);
+        Route::post('/change-password', [MemberProfileController::class, 'changePassword']);
+    });
 
     // Tokens FCM para notificaciones push
     Route::middleware('auth:sanctum')->group(function () {

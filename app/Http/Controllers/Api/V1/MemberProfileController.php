@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Members\Member;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 
 class MemberProfileController extends Controller
 {
@@ -19,9 +21,7 @@ class MemberProfileController extends Controller
             'club_id' => ['sometimes', 'integer', 'min:1'],
         ]);
 
-        $member = Member::where('user_id', $request->user()->id)
-            ->with(['primaryAddress.country', 'primaryAddress.state', 'primaryAddress.city'])
-            ->first();
+        $member = $this->memberForUser($request);
 
         if (!$member) {
             return $this->notFound('No se encontró un perfil de socio asociado a este usuario.');
@@ -34,6 +34,93 @@ class MemberProfileController extends Controller
         }
 
         return $this->ok($data);
+    }
+
+    /**
+     * PUT /api/v1/my-profile
+     *
+     * Actualiza los datos personales editables desde la app: nombre y correo
+     * (identidad de acceso, tabla users). El resto de los datos del socio
+     * (teléfono, domicilio, etc.) no se editan desde aquí.
+     */
+    public function update(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'name'  => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+        ]);
+
+        $user->forceFill($validated)->save();
+
+        $member = $this->memberForUser($request);
+        if ($member) {
+            $member->forceFill(['email' => $validated['email']])->save();
+        }
+
+        return $this->success('Datos actualizados correctamente.', $member ? $this->formatMember($member) : null);
+    }
+
+    /**
+     * POST /api/v1/my-profile/photo
+     *
+     * Sube la foto de perfil a Digital Ocean Spaces y actualiza
+     * users.profile_photo_path.
+     */
+    public function updatePhoto(Request $request): JsonResponse
+    {
+        $request->validate([
+            'photo' => ['required', 'image', 'max:4096'],
+        ]);
+
+        $user = $request->user();
+        $previousPath = $user->profile_photo_path;
+
+        $path = $request->file('photo')->store('profile-photos', 'spaces');
+
+        $user->forceFill(['profile_photo_path' => $path])->save();
+
+        if ($previousPath) {
+            Storage::disk('spaces')->delete($previousPath);
+        }
+
+        return $this->success('Foto de perfil actualizada correctamente.', [
+            'photo_url' => Storage::disk('spaces')->temporaryUrl($path, now()->addMinutes(30)),
+        ]);
+    }
+
+    /**
+     * POST /api/v1/change-password
+     */
+    public function changePassword(Request $request): JsonResponse
+    {
+        $request->validate([
+            'current_password' => ['required', 'string'],
+            'password'         => ['required', 'string', 'min:8', 'confirmed'],
+        ]);
+
+        $user = $request->user();
+
+        if (!Hash::check($request->current_password, $user->password)) {
+            return $this->unprocessable('La contraseña actual es incorrecta.');
+        }
+
+        $user->forceFill(['password' => Hash::make($request->password)])->save();
+
+        // Cierra el resto de sesiones activas, conservando la actual.
+        $user->tokens()
+            ->where('id', '!=', $request->user()->currentAccessToken()->id)
+            ->delete();
+
+        return $this->success('Contraseña actualizada correctamente.');
+    }
+
+    private function memberForUser(Request $request): ?Member
+    {
+        return Member::where('user_id', $request->user()->id)
+            ->with(['primaryAddress.country', 'primaryAddress.state', 'primaryAddress.city'])
+            ->first();
     }
 
     private function getMembershipForClub(Member $member, int $clubId): ?array
@@ -88,14 +175,18 @@ class MemberProfileController extends Controller
     private function formatMember(Member $member): array
     {
         $address = $member->primaryAddress;
+        $user    = $member->user;
 
         return [
             'id'               => $member->id,
-            'full_name'        => $member->full_name,
+            // full_name/email reflejan la identidad de acceso (tabla users)
+            // cuando existe, para que los cambios hechos desde "editar datos
+            // personales" en la app se vean reflejados aquí.
+            'full_name'        => $user?->name ?? $member->full_name,
             'first_name'       => $member->first_name,
             'last_name'        => $member->last_name,
             'second_last_name' => $member->second_last_name,
-            'email'            => $member->email,
+            'email'            => $user?->email ?? $member->email,
             'phone'            => $member->phone,
             'birthdate'        => $member->birthdate,
             'age'              => $member->age,
@@ -113,10 +204,14 @@ class MemberProfileController extends Controller
 
     private function resolvePhotoUrl(Member $member): ?string
     {
-        if (!$member->photo_path) return null;
+        // La foto subida desde "modificar foto de perfil" (users.profile_photo_path)
+        // tiene prioridad sobre la foto capturada en el expediente del socio.
+        $path = $member->user?->profile_photo_path ?? $member->photo_path;
+
+        if (!$path) return null;
 
         return Storage::disk('spaces')->temporaryUrl(
-            $member->photo_path,
+            $path,
             now()->addMinutes(30)
         );
     }

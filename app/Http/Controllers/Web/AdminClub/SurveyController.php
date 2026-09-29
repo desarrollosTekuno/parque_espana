@@ -11,6 +11,7 @@ use App\Models\AdminClub\Survey;
 use App\Models\AdminClub\SurveyQuestion;
 use App\Models\AdminClub\SurveyQuestionOption;
 use App\Rules\ExistsInSchema;
+use App\Jobs\SendBulkNotificationJob;
 
 class SurveyController extends Controller
 {
@@ -137,6 +138,8 @@ class SurveyController extends Controller
         try {
             DB::beginTransaction();
 
+            $wasActive = $survey->status === 'active';
+
             $survey->update([
                 'title'       => $request->title,
                 'description' => $request->description,
@@ -144,6 +147,12 @@ class SurveyController extends Controller
             ]);
 
             DB::commit();
+
+            // Al pasar de borrador a activa, avisa a los socios del club; al
+            // tocar la notificación la app abre esta encuesta.
+            if (!$wasActive && $survey->status === 'active') {
+                $this->notifyNewSurvey($survey);
+            }
 
             return back()->with('success', 'Encuesta actualizada correctamente');
         } catch (\Exception $e) {
@@ -301,6 +310,26 @@ class SurveyController extends Controller
     // ─────────────────────────────────────────
     //  HELPERS
     // ─────────────────────────────────────────
+
+    private function notifyNewSurvey(Survey $survey): void
+    {
+        try {
+            SendBulkNotificationJob::dispatch(
+                'club',
+                (int) $survey->club_id,
+                'Nueva encuesta disponible',
+                $survey->title,
+                [
+                    'screen'    => 'survey',
+                    'type'      => 'new_survey',
+                    'survey_id' => (string) $survey->id,
+                    'club_id'   => (string) $survey->club_id,
+                ],
+            );
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
 
     private function generateUniqueSlug(): string
     {

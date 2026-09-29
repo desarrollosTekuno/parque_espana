@@ -76,6 +76,7 @@ class AnnouncementController extends Controller
     {
         $request->validate([
             'images.*' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
+            'status'   => 'nullable|in:draft,published',
         ]);
 
         try {
@@ -93,6 +94,7 @@ class AnnouncementController extends Controller
                 'title'      => $request->title,
                 'content'    => $request->content,
                 'type'       => $request->type,
+                'status'     => $request->status ?? 'draft',
                 'image'      => $imagePath,
                 'is_active'  => $request->boolean('is_active', true),
                 'publish_at' => $request->publish_at ? Carbon::parse($request->publish_at) : null,
@@ -114,6 +116,7 @@ class AnnouncementController extends Controller
     {
         $request->validate([
             'images.*' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
+            'status'   => 'nullable|in:draft,published',
         ]);
 
         try {
@@ -137,6 +140,7 @@ class AnnouncementController extends Controller
                 'title'      => $request->title,
                 'content'    => $request->content,
                 'type'       => $request->type,
+                'status'     => $request->status ?? $announcement->status,
                 'image'      => $imagePath,
                 'is_active'  => $request->boolean('is_active', true),
                 'publish_at' => $request->publish_at ? Carbon::parse($request->publish_at) : null,
