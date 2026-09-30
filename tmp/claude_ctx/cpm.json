@@ -1,0 +1,86 @@
+[
+    {
+        "club": "Parque España I",
+        "metodo": "Efectivo",
+        "is_active": true,
+        "display_order": 1,
+        "internal_key": null
+    },
+    {
+        "club": "Parque España I",
+        "metodo": "Transferencia",
+        "is_active": true,
+        "display_order": 2,
+        "internal_key": null
+    },
+    {
+        "club": "Parque España I",
+        "metodo": "Pago en app",
+        "is_active": true,
+        "display_order": 3,
+        "internal_key": null
+    },
+    {
+        "club": "Parque España I",
+        "metodo": "Cheque",
+        "is_active": true,
+        "display_order": 4,
+        "internal_key": null
+    },
+    {
+        "club": "Parque España I",
+        "metodo": "Tarjeta de crédito",
+        "is_active": true,
+        "display_order": 5,
+        "internal_key": null
+    },
+    {
+        "club": "Parque España I",
+        "metodo": "Tarjeta de débito",
+        "is_active": true,
+        "display_order": 6,
+        "internal_key": null
+    },
+    {
+        "club": "Parque España II",
+        "metodo": "Efectivo",
+        "is_active": true,
+        "display_order": 1,
+        "internal_key": null
+    },
+    {
+        "club": "Parque España II",
+        "metodo": "Transferencia",
+        "is_active": true,
+        "display_order": 2,
+        "internal_key": null
+    },
+    {
+        "club": "Parque España II",
+        "metodo": "Pago en app",
+        "is_active": true,
+        "display_order": 3,
+        "internal_key": null
+    },
+    {
+        "club": "Parque España II",
+        "metodo": "Cheque",
+        "is_active": true,
+        "display_order": 4,
+        "internal_key": null
+    },
+    {
+        "club": "Parque España II",
+        "metodo": "Tarjeta de crédito",
+        "is_active": true,
+        "display_order": 5,
+        "internal_key": null
+    },
+    {
+        "club": "Parque España II",
+        "metodo": "Tarjeta de débito",
+        "is_active": true,
+        "display_order": 6,
+        "internal_key": null
+    }
+]

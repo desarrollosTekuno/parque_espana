@@ -1,0 +1,2852 @@
+{
+    "clubs": [
+        {
+            "id": 1,
+            "code": "PE1",
+            "name": "Parque España I",
+            "applies_iva": false,
+            "is_active": true
+        },
+        {
+            "id": 2,
+            "code": "PE2",
+            "name": "Parque España II",
+            "applies_iva": true,
+            "is_active": true
+        }
+    ],
+    "types": [
+        {
+            "id": 1,
+            "club": "PE1",
+            "code": "PE1_SOL",
+            "name": "Solidaria",
+            "allows_multiple_members": false,
+            "requires_origin_family": true,
+            "validity_months": null,
+            "show_in_listing": false
+        },
+        {
+            "id": 2,
+            "club": "PE1",
+            "code": "PE1_IND",
+            "name": "Individual",
+            "allows_multiple_members": false,
+            "requires_origin_family": false,
+            "validity_months": null,
+            "show_in_listing": true
+        },
+        {
+            "id": 3,
+            "club": "PE1",
+            "code": "PE1_FAM",
+            "name": "Familiar",
+            "allows_multiple_members": true,
+            "requires_origin_family": false,
+            "validity_months": null,
+            "show_in_listing": true
+        },
+        {
+            "id": 4,
+            "club": "PE1",
+            "code": "PE1_SOL_BEN",
+            "name": "Solidaria(Beneficencia Española)",
+            "allows_multiple_members": false,
+            "requires_origin_family": true,
+            "validity_months": null,
+            "show_in_listing": false
+        },
+        {
+            "id": 5,
+            "club": "PE1",
+            "code": "PE1_IND_BEN",
+            "name": "Individual(Beneficencia Española)",
+            "allows_multiple_members": false,
+            "requires_origin_family": false,
+            "validity_months": null,
+            "show_in_listing": true
+        },
+        {
+            "id": 6,
+            "club": "PE1",
+            "code": "PE1_FAM_BEN",
+            "name": "Familiar(Beneficencia Española)",
+            "allows_multiple_members": true,
+            "requires_origin_family": false,
+            "validity_months": null,
+            "show_in_listing": true
+        },
+        {
+            "id": 7,
+            "club": "PE2",
+            "code": "PE2_SOL_ASC",
+            "name": "Solidaria(Ascendencia Española)",
+            "allows_multiple_members": false,
+            "requires_origin_family": true,
+            "validity_months": null,
+            "show_in_listing": false
+        },
+        {
+            "id": 8,
+            "club": "PE2",
+            "code": "PE2_IND_ASC",
+            "name": "Individual(Ascendencia Española)",
+            "allows_multiple_members": false,
+            "requires_origin_family": false,
+            "validity_months": null,
+            "show_in_listing": true
+        },
+        {
+            "id": 9,
+            "club": "PE2",
+            "code": "PE2_FAM_ASC",
+            "name": "Familiar(Ascendencia Española)",
+            "allows_multiple_members": true,
+            "requires_origin_family": false,
+            "validity_months": null,
+            "show_in_listing": true
+        },
+        {
+            "id": 10,
+            "club": "PE2",
+            "code": "PE2_SOL_EXT",
+            "name": "Solidaria(Externos)",
+            "allows_multiple_members": false,
+            "requires_origin_family": true,
+            "validity_months": null,
+            "show_in_listing": false
+        },
+        {
+            "id": 11,
+            "club": "PE2",
+            "code": "PE2_IND_EXT",
+            "name": "Individual(Externos)",
+            "allows_multiple_members": false,
+            "requires_origin_family": false,
+            "validity_months": null,
+            "show_in_listing": true
+        },
+        {
+            "id": 12,
+            "club": "PE2",
+            "code": "PE2_FAM_EXT",
+            "name": "Familiar(Externos)",
+            "allows_multiple_members": true,
+            "requires_origin_family": false,
+            "validity_months": null,
+            "show_in_listing": true
+        },
+        {
+            "id": 13,
+            "club": "PE2",
+            "code": "PE2_SOL_BEN",
+            "name": "Solidaria(Beneficencia Española)",
+            "allows_multiple_members": false,
+            "requires_origin_family": true,
+            "validity_months": null,
+            "show_in_listing": false
+        },
+        {
+            "id": 14,
+            "club": "PE2",
+            "code": "PE2_IND_BEN",
+            "name": "Individual(Beneficencia Española)",
+            "allows_multiple_members": false,
+            "requires_origin_family": false,
+            "validity_months": null,
+            "show_in_listing": true
+        },
+        {
+            "id": 15,
+            "club": "PE2",
+            "code": "PE2_FAM_BEN",
+            "name": "Familiar(Beneficencia Española)",
+            "allows_multiple_members": true,
+            "requires_origin_family": false,
+            "validity_months": null,
+            "show_in_listing": true
+        },
+        {
+            "id": 16,
+            "club": "PE2",
+            "code": "PE2_SOL_DOC",
+            "name": "Solidaria(Doctores Beneficencia Española)",
+            "allows_multiple_members": false,
+            "requires_origin_family": true,
+            "validity_months": null,
+            "show_in_listing": false
+        },
+        {
+            "id": 17,
+            "club": "PE2",
+            "code": "PE2_IND_DOC",
+            "name": "Individual(Doctores Beneficencia Española)",
+            "allows_multiple_members": false,
+            "requires_origin_family": false,
+            "validity_months": null,
+            "show_in_listing": true
+        },
+        {
+            "id": 18,
+            "club": "PE2",
+            "code": "PE2_FAM_DOC",
+            "name": "Familiar(Doctores Beneficencia Española)",
+            "allows_multiple_members": true,
+            "requires_origin_family": false,
+            "validity_months": null,
+            "show_in_listing": true
+        },
+        {
+            "id": 19,
+            "club": "PE2",
+            "code": "PE2_PM_IND",
+            "name": "Pase Mensual Individual",
+            "allows_multiple_members": false,
+            "requires_origin_family": false,
+            "validity_months": 12,
+            "show_in_listing": true
+        },
+        {
+            "id": 20,
+            "club": "PE2",
+            "code": "PE2_PM_FAM",
+            "name": "Pase Mensual Familiar",
+            "allows_multiple_members": true,
+            "requires_origin_family": false,
+            "validity_months": 12,
+            "show_in_listing": true
+        },
+        {
+            "id": 21,
+            "club": "PE2",
+            "code": "PE2_SOL_PE1",
+            "name": "Solidaria (Paquete Parque España 1)",
+            "allows_multiple_members": false,
+            "requires_origin_family": true,
+            "validity_months": null,
+            "show_in_listing": false
+        },
+        {
+            "id": 22,
+            "club": "PE2",
+            "code": "PE2_IND_PE1",
+            "name": "Individual (Paquete Parque España 1)",
+            "allows_multiple_members": false,
+            "requires_origin_family": false,
+            "validity_months": null,
+            "show_in_listing": true
+        },
+        {
+            "id": 23,
+            "club": "PE2",
+            "code": "PE2_FAM_PE1",
+            "name": "Familiar (Paquete Parque España 1)",
+            "allows_multiple_members": true,
+            "requires_origin_family": false,
+            "validity_months": null,
+            "show_in_listing": true
+        }
+    ],
+    "concepts": [
+        {
+            "id": 1,
+            "code": "PHYSICAL_AD",
+            "name": "Anuncio Físico",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 2,
+            "code": "GUEST_LIST",
+            "name": "Pase por día",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 3,
+            "code": "MONTHLY_FEE",
+            "name": "CUOTA MENSUALIDAD",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": true,
+            "is_active": true
+        },
+        {
+            "id": 4,
+            "code": "MONTHLY_FEE_INTERMEDIATE",
+            "name": "CUOTA MENSUALIDAD INTERMEDIO",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": true,
+            "is_active": true
+        },
+        {
+            "id": 5,
+            "code": "MONTHLY_FEE_PASS",
+            "name": "CUOTA MENS. PASE",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": true,
+            "is_active": true
+        },
+        {
+            "id": 6,
+            "code": "MONTHLY_FEE_PASS_INTERMEDIATE",
+            "name": "CUOTA MENS. PASE  INTERMEDIO",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": true,
+            "is_active": true
+        },
+        {
+            "id": 7,
+            "code": "MONTHLY_FEE_PARKS",
+            "name": " Cuota Mens Parques",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": true,
+            "is_active": true
+        },
+        {
+            "id": 8,
+            "code": "MONTHLY_FEE_PARKS_INTERMEDIATE",
+            "name": "  Cuota Mens Parques Intermedio",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": true,
+            "is_active": true
+        },
+        {
+            "id": 9,
+            "code": "MONTHLY_FEE_PARKS_FI",
+            "name": "Cuota Mens Parqes F\/I",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": true,
+            "is_active": true
+        },
+        {
+            "id": 10,
+            "code": "INSCRIPTION",
+            "name": "CUOTA INSCRIPCION",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": true,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 11,
+            "code": "BUSINESS_AD",
+            "name": "Cuota prom. pub.",
+            "default_amount": "200.00",
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 12,
+            "code": "LOCKERS",
+            "name": "CUOTA CASILLERO",
+            "default_amount": "1100.00",
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 13,
+            "code": "GUEST_LIST",
+            "name": "Lista de invitados",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 14,
+            "code": "CAFETERIA_PASS",
+            "name": "Cafetería",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 15,
+            "code": "OTHER",
+            "name": "Otros",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 16,
+            "code": "EVENT",
+            "name": "Evento",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 17,
+            "code": "01A",
+            "name": "Cuota anual 2018 pago anticipado",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 18,
+            "code": "01B",
+            "name": "Cuota mensualidad",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 19,
+            "code": "03",
+            "name": "Cuota credencial",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 20,
+            "code": "031",
+            "name": "Cuota repo. credencia",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 21,
+            "code": "CUOTA_INSCRIPCION_ESPANOLES",
+            "name": "Cuota insc. españoles",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 22,
+            "code": "CUOTA_INSCRIPCION_BENEFICENCIA",
+            "name": "Cuota insc. beneficen",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 23,
+            "code": "CUOTA_INSCRIPCION_PARQUE_I",
+            "name": "Cuota ins parq. i",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 24,
+            "code": "CUOTA_REINSCRIPCION",
+            "name": "Cuota reinscripción",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 25,
+            "code": "CUOTA_ADEUDO_ANTERIOR",
+            "name": "Cuota adeudo anterior",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 26,
+            "code": "CUOTA_ADEUDO_AMBOS_PARQUES",
+            "name": "Cuota adeudo ambos pa",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 27,
+            "code": "063",
+            "name": "Cuota mens parcial",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 28,
+            "code": "07",
+            "name": "Mov. canc.",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 29,
+            "code": "CUOTA_PERMISO",
+            "name": "Cuota permiso",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 30,
+            "code": "CUOTA_75_PERMISO",
+            "name": "Cuota 75%permiso",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 31,
+            "code": "092",
+            "name": "Cuota permiso ambos parques",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 32,
+            "code": "093",
+            "name": "Cuota 75% permiso ambos parques",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 33,
+            "code": "09I",
+            "name": "Cuota permiso intermedio",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 34,
+            "code": "10",
+            "name": "Cuota cred. gimnasio",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 35,
+            "code": "11",
+            "name": "Cuota insc.traspaso",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 36,
+            "code": "12",
+            "name": "Cuota mantto.",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 37,
+            "code": "120",
+            "name": "Cuota mantto.",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 38,
+            "code": "121",
+            "name": "Cuota mantto.",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 39,
+            "code": "122",
+            "name": "Cuota mantto.",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 40,
+            "code": "12A",
+            "name": "Cuota mantto.",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 41,
+            "code": "12B",
+            "name": "Cuota mantto.",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 42,
+            "code": "12C",
+            "name": "Cuota mantto.",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 43,
+            "code": "12D",
+            "name": "Cuota mantto.",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 44,
+            "code": "12E",
+            "name": "Cuota mantto.",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 45,
+            "code": "12F",
+            "name": "Cuota mantto.",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 46,
+            "code": "12G",
+            "name": "Cuota mantto.",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 47,
+            "code": "12H",
+            "name": "Cuota mantto.",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 48,
+            "code": "12I",
+            "name": "Cuota mantto.",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 49,
+            "code": "12J",
+            "name": "Cuota mantto.",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 50,
+            "code": "12K",
+            "name": "Cuota mantto.",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 51,
+            "code": "12L",
+            "name": "Cuota mantto.",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 52,
+            "code": "12M",
+            "name": "Cuota mantto.",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 53,
+            "code": "12N",
+            "name": "Cuota mantto.",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 54,
+            "code": "12O",
+            "name": "Cuota mantto.",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 55,
+            "code": "12P",
+            "name": "Cuota mantto.",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 56,
+            "code": "12Q",
+            "name": "Cuota mantto.",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 57,
+            "code": "12R",
+            "name": "Cuota mantto.",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 58,
+            "code": "12S",
+            "name": "Cuota mantto.",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 59,
+            "code": "12T",
+            "name": "Cuota mantto.",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 60,
+            "code": "12U",
+            "name": "Cuota mantto.",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 61,
+            "code": "12V",
+            "name": "Cuota mantto.",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 62,
+            "code": "12W",
+            "name": "Cuota mantto.",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 63,
+            "code": "12X",
+            "name": "Cuota mantto.",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 64,
+            "code": "12Y",
+            "name": "Cuota mantto.",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 65,
+            "code": "12Z",
+            "name": "Cuota mantto.",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 66,
+            "code": "13",
+            "name": "Cuota calcomania",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 67,
+            "code": "14",
+            "name": "Cuota insc. est. inf.",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 68,
+            "code": "15",
+            "name": "Cuota % est. infantil",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 69,
+            "code": "COMISION_CHEQUE_REBOTADO",
+            "name": "Comision ch. rebot",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 70,
+            "code": "17",
+            "name": "Cuota varios - pub.",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 71,
+            "code": "18",
+            "name": "Comision rechazo tc",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 72,
+            "code": "20",
+            "name": "Cuota pase diario",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 73,
+            "code": "22",
+            "name": "Cuota pase infantil",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 74,
+            "code": "23",
+            "name": "Cuota pase comida",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 75,
+            "code": "30",
+            "name": "Cuota renta",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 76,
+            "code": "31",
+            "name": "Cancela renta",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 77,
+            "code": "32",
+            "name": "Iva renta",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 78,
+            "code": "33",
+            "name": "Cuota anuncio ofici",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 79,
+            "code": "332",
+            "name": "Cuota 2 anuncio ofici",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 80,
+            "code": "333",
+            "name": "Cuota 4 anuncio oficio",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 81,
+            "code": "34",
+            "name": "Cuota anuncio c carta",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 82,
+            "code": "342",
+            "name": "Cuota 2 anuncio c cart",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 83,
+            "code": "343",
+            "name": "Cuota 3 anuncio c cart",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 84,
+            "code": "344",
+            "name": "Cuota 4 anuncio c cart",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 85,
+            "code": "345",
+            "name": "Cuota 5 anuncio c cart",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 86,
+            "code": "346",
+            "name": "Cuota 6 anuncio c cart",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 87,
+            "code": "34D",
+            "name": "Cuota anuncio c dcart",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 88,
+            "code": "34T",
+            "name": "Cuota 4 anuncio doble carta",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 89,
+            "code": "35",
+            "name": "Cuota anuncio c 1\/2c",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 90,
+            "code": "36",
+            "name": "Cuota renta sombrilla",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 91,
+            "code": "37",
+            "name": "Cuota anuncio revista",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 92,
+            "code": "40",
+            "name": "Cuota act. dep.",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 93,
+            "code": "50",
+            "name": "Cuota renta raquetas",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 94,
+            "code": "500",
+            "name": "Cuota c.v. color",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 95,
+            "code": "501",
+            "name": "Cuota insc.c.v.colori",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 96,
+            "code": "502",
+            "name": "Cuota gtos c.v.colori",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 97,
+            "code": "51",
+            "name": "Cuota billar",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 98,
+            "code": "510",
+            "name": "Cuota insc. futbol dp",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 99,
+            "code": "511",
+            "name": "Cuota insc. futbol p1",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 100,
+            "code": "541",
+            "name": "Cuota tenis",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 101,
+            "code": "542",
+            "name": "Cuota natacion",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 102,
+            "code": "543",
+            "name": "Cuota curso de verano",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 103,
+            "code": "544",
+            "name": "Cuota flamenco",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 104,
+            "code": "545",
+            "name": "Cuota tae kwon do",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 105,
+            "code": "546",
+            "name": "Cuota futbol dp",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 106,
+            "code": "548",
+            "name": "Cuota futbol p1",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 107,
+            "code": "549",
+            "name": "Cuota jazz",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 108,
+            "code": "550",
+            "name": "Cuota inv. cur.verano",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 109,
+            "code": "551",
+            "name": "Cuota p1 curs.verano",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 110,
+            "code": "553",
+            "name": "Cuota spininng",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 111,
+            "code": "554",
+            "name": "Cuota yoga",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 112,
+            "code": "555",
+            "name": "Cuota clase spining",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 113,
+            "code": "556",
+            "name": "Cuota nat. est. inf.",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 114,
+            "code": "557",
+            "name": "Cuota visita spa",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 115,
+            "code": "558",
+            "name": "Cuota sem c ver",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 116,
+            "code": "559",
+            "name": "Cuota sem c ver p1",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 117,
+            "code": "560",
+            "name": "Cuota sem c ver invit",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 118,
+            "code": "561",
+            "name": "Cuota voleibol",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 119,
+            "code": "562",
+            "name": "Cuota zumba",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 120,
+            "code": "60",
+            "name": "Cuota intercambio",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 121,
+            "code": "70",
+            "name": "Cuota mantto. local",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 122,
+            "code": "703",
+            "name": "Cuota mantto. local 3",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 123,
+            "code": "707",
+            "name": "Cuota mantto. local 7",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 124,
+            "code": "708",
+            "name": "Cuota mantto. local 8",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 125,
+            "code": "709",
+            "name": "Cuota mantto. local 9",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 126,
+            "code": "710",
+            "name": "Cuota mantto. local 10",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 127,
+            "code": "711",
+            "name": "Cuota mantto. local 11",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 128,
+            "code": "712",
+            "name": "Cuota mantto. local 12",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 129,
+            "code": "713",
+            "name": "Cuota mantto. local 13",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 130,
+            "code": "714",
+            "name": "Cuota mantto. local 14",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 131,
+            "code": "715",
+            "name": "Cuota mantto. local 15",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 132,
+            "code": "716",
+            "name": "Cuota mantto. local 16",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 133,
+            "code": "717",
+            "name": "Cuota mantto. local 17",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 134,
+            "code": "718",
+            "name": "Cuota mantto. local 18",
+            "default_amount": null,
+            "is_recurring": true,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 135,
+            "code": "799",
+            "name": "Uso de espacio de instalaciones",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 136,
+            "code": "B01",
+            "name": "Servicio de med. de rehabilitación",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 137,
+            "code": "B02",
+            "name": "Servivio de med. de rehabilitación revaloración",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 138,
+            "code": "B03",
+            "name": "Electromiografía 2 extremidades",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 139,
+            "code": "B04",
+            "name": "Electromiografía 4 extremidades",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 140,
+            "code": "B05",
+            "name": "Aplicación toxina botulínica",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 141,
+            "code": "B06",
+            "name": "Infiltración",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 142,
+            "code": "B07",
+            "name": "Sesión de fisioterapia",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 143,
+            "code": "B08",
+            "name": "Aplicación de tape",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 144,
+            "code": "B09",
+            "name": "Paq. 10 sesiones de fisioterapia",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 145,
+            "code": "CE",
+            "name": "Cuota %cons emp h ext",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 146,
+            "code": "CM",
+            "name": "Cargo por mora",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 147,
+            "code": "CP",
+            "name": "Cuota % consumo parqu",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 148,
+            "code": "CHEQUE_REBOTADO_PARQUE2",
+            "name": "Cheque rebotado",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 149,
+            "code": "CHEQUE_REBOTADO_PARQUE1",
+            "name": "Cheque rebotado parque 1",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 150,
+            "code": "CTC",
+            "name": "Comis. t. de c.",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 151,
+            "code": "D01",
+            "name": "Devolucion inscripcion",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 152,
+            "code": "DE",
+            "name": "Descuento",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 153,
+            "code": "IF",
+            "name": "Cuota indiv. a fam.",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 154,
+            "code": "PE",
+            "name": "Pago por usuarios del parque i",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 155,
+            "code": "PS",
+            "name": "Cuota % sky",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 156,
+            "code": "VA",
+            "name": "Venta de activo",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 157,
+            "code": "VR",
+            "name": "Cuota desperfectos",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        },
+        {
+            "id": 158,
+            "code": "X01",
+            "name": "Publicidad",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 159,
+            "code": "X03",
+            "name": "Cuota anuncio revista",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 160,
+            "code": "X04",
+            "name": "Otros servicios",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 161,
+            "code": "X07",
+            "name": "Patrocinio",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": true
+        },
+        {
+            "id": 162,
+            "code": "PHYSICAL_AD",
+            "name": "Anuncio Físico",
+            "default_amount": null,
+            "is_recurring": false,
+            "allows_partial_payments": false,
+            "requires_account": true,
+            "applies_iva": false,
+            "splits_between_parks": false,
+            "is_active": false
+        }
+    ],
+    "payment_methods": [
+        {
+            "id": 1,
+            "code": "CASH",
+            "name": "Efectivo",
+            "provider": null,
+            "affects_cash_cut": true,
+            "show_in_billing": true,
+            "is_active": true
+        },
+        {
+            "id": 2,
+            "code": "BANK_TRANSFER",
+            "name": "Transferencia",
+            "provider": null,
+            "affects_cash_cut": true,
+            "show_in_billing": true,
+            "is_active": true
+        },
+        {
+            "id": 3,
+            "code": "APP_PAYMENT",
+            "name": "Pago en app",
+            "provider": "conekta",
+            "affects_cash_cut": true,
+            "show_in_billing": false,
+            "is_active": true
+        },
+        {
+            "id": 4,
+            "code": "CHECK",
+            "name": "Cheque",
+            "provider": null,
+            "affects_cash_cut": true,
+            "show_in_billing": true,
+            "is_active": true
+        },
+        {
+            "id": 5,
+            "code": "CREDIT_CARD",
+            "name": "Tarjeta de crédito",
+            "provider": null,
+            "affects_cash_cut": true,
+            "show_in_billing": true,
+            "is_active": true
+        },
+        {
+            "id": 6,
+            "code": "DEBIT_CARD",
+            "name": "Tarjeta de débito",
+            "provider": null,
+            "affects_cash_cut": true,
+            "show_in_billing": true,
+            "is_active": true
+        }
+    ],
+    "relationships": [
+        {
+            "id": 1,
+            "name": "Titular",
+            "created_at": "2026-09-29 17:07:06",
+            "updated_at": "2026-09-29 17:07:06"
+        },
+        {
+            "id": 2,
+            "name": "Cónyuge",
+            "created_at": "2026-09-29 17:07:06",
+            "updated_at": "2026-09-29 17:07:06"
+        },
+        {
+            "id": 3,
+            "name": "Hijo(a)",
+            "created_at": "2026-09-29 17:07:06",
+            "updated_at": "2026-09-29 17:07:06"
+        },
+        {
+            "id": 4,
+            "name": "Madre",
+            "created_at": "2026-09-29 17:07:06",
+            "updated_at": "2026-09-29 17:07:06"
+        }
+    ],
+    "roles": [
+        {
+            "id": 1,
+            "name": "socio_titular",
+            "description": null,
+            "ctx": "App Móvil - Parque España 1"
+        },
+        {
+            "id": 2,
+            "name": "socio_dependiente",
+            "description": null,
+            "ctx": "App Móvil - Parque España 1"
+        },
+        {
+            "id": 3,
+            "name": "socio_titular",
+            "description": null,
+            "ctx": "App Móvil - Parque España 2"
+        },
+        {
+            "id": 4,
+            "name": "socio_dependiente",
+            "description": null,
+            "ctx": "App Móvil - Parque España 2"
+        },
+        {
+            "id": 5,
+            "name": "superadmin",
+            "description": "Super Administrador",
+            "ctx": "Web"
+        },
+        {
+            "id": 6,
+            "name": "admin_club",
+            "description": "Administrador del club",
+            "ctx": "Web"
+        },
+        {
+            "id": 7,
+            "name": "Gerente Cobranza Parque I",
+            "description": "Rol para persona encargada de la cobranza a nivel administrativo",
+            "ctx": "Web"
+        },
+        {
+            "id": 8,
+            "name": "Gerente Cobranza Parque II",
+            "description": "Rol para persona encargada de la cobranza a nivel administrativo",
+            "ctx": "Web"
+        },
+        {
+            "id": 9,
+            "name": "Amenidades, publicidad, reservaciones Parque I",
+            "description": "Rol para amenidades, publicidad, reservaciones, encuestas, del Parque I",
+            "ctx": "Web"
+        },
+        {
+            "id": 10,
+            "name": "Amenidades, publicidad, reservaciones Parque II",
+            "description": "Rol para amenidades, publicidad, reservaciones, encuestas, del Parque II",
+            "ctx": "Web"
+        },
+        {
+            "id": 11,
+            "name": "Cobranza",
+            "description": "Rol para persona encargada de la cobranza",
+            "ctx": "Web"
+        }
+    ],
+    "contexts": [
+        {
+            "id": 1,
+            "name": "Web",
+            "value": "web",
+            "created_at": "2026-09-29 17:06:13",
+            "updated_at": "2026-09-29 17:06:13"
+        },
+        {
+            "id": 2,
+            "name": "Api",
+            "value": "api",
+            "created_at": "2026-09-29 17:06:13",
+            "updated_at": "2026-09-29 17:06:13"
+        },
+        {
+            "id": 3,
+            "name": "App Móvil - Parque España 1",
+            "value": "mobile_club_1",
+            "created_at": "2026-09-29 17:06:13",
+            "updated_at": "2026-09-29 17:06:13"
+        },
+        {
+            "id": 4,
+            "name": "App Móvil - Parque España 2",
+            "value": "mobile_club_2",
+            "created_at": "2026-09-29 17:06:13",
+            "updated_at": "2026-09-29 17:06:13"
+        }
+    ],
+    "cancellation_reasons": [
+        {
+            "code": "nonpayment",
+            "name": "Falta de Pago"
+        },
+        {
+            "code": "death",
+            "name": "Defunción"
+        },
+        {
+            "code": "divorce",
+            "name": "Divorcio"
+        },
+        {
+            "code": "expulsion",
+            "name": "Expulsión"
+        },
+        {
+            "code": "permit",
+            "name": "Permiso"
+        },
+        {
+            "code": "voluntary",
+            "name": "Voluntaria"
+        }
+    ],
+    "separation_reasons": [
+        {
+            "code": "divorce",
+            "name": "Divorcio",
+            "requires_document": true
+        }
+    ],
+    "res_status": [
+        {
+            "id": 1,
+            "name": "ACTIVA"
+        },
+        {
+            "id": 2,
+            "name": "CANCELADA"
+        },
+        {
+            "id": 3,
+            "name": "FINALIZADA"
+        },
+        {
+            "id": 4,
+            "name": "INASISTENCIA"
+        },
+        {
+            "id": 5,
+            "name": "ASISTIDO"
+        }
+    ],
+    "files": [
+        {
+            "code": "SOL_USER_CL",
+            "name": "Solicitud de usuario con logo",
+            "module": "Administración",
+            "is_required": true
+        },
+        {
+            "code": "SOL_USER_SL",
+            "name": "Solicitud de usuario sin logo",
+            "module": "Administración",
+            "is_required": true
+        },
+        {
+            "code": "SOL_PERMISO",
+            "name": "Solicitud de permiso",
+            "module": "Administración",
+            "is_required": true
+        },
+        {
+            "code": "SOL_LOCKER",
+            "name": "Solicitud de locker",
+            "module": "Administración",
+            "is_required": true
+        }
+    ],
+    "res_vars": [
+        {
+            "name": "dias_para_crear_reserva",
+            "value": "2",
+            "club_id": 1
+        },
+        {
+            "name": "dias_para_cancelar_reserva",
+            "value": "2",
+            "club_id": 1
+        },
+        {
+            "name": "horas_suspension_reserva",
+            "value": "48",
+            "club_id": 1
+        },
+        {
+            "name": "feedback_notification_email",
+            "value": "notificaciones@parquesespana.com",
+            "club_id": 1
+        },
+        {
+            "name": "tolerancia_asistencia",
+            "value": "10",
+            "club_id": 1
+        },
+        {
+            "name": "reservaciones_por_dia",
+            "value": "1",
+            "club_id": 2
+        },
+        {
+            "name": "tolerancia_asistencia",
+            "value": "10",
+            "club_id": 2
+        },
+        {
+            "name": "cancelaciones_por_semana",
+            "value": "1",
+            "club_id": 2
+        },
+        {
+            "name": "feedback_notification_email",
+            "value": "notificaciones@parquesespana.com",
+            "club_id": 2
+        }
+    ],
+    "gl_vars": [
+        {
+            "code": "MAX_GUESTS",
+            "name": "Máximo de invitados",
+            "value": "100",
+            "club_id": 1
+        },
+        {
+            "code": "NORMAL_PRICE",
+            "name": "Costo por invitado normal",
+            "value": "300",
+            "club_id": 1
+        },
+        {
+            "code": "SPECIAL_PRICE",
+            "name": "Costo por invitado especial",
+            "value": "150",
+            "club_id": 1
+        },
+        {
+            "code": "MAX_GUESTS",
+            "name": "Máximo de invitados",
+            "value": "12",
+            "club_id": 2
+        },
+        {
+            "code": "NORMAL_PRICE",
+            "name": "Costo por invitado normal",
+            "value": "400",
+            "club_id": 2
+        },
+        {
+            "code": "SPECIAL_PRICE",
+            "name": "Costo por invitado especial",
+            "value": "200",
+            "club_id": 2
+        },
+        {
+            "code": "MIN_AGE",
+            "name": "Edad mínima para pagar",
+            "value": "3",
+            "club_id": 1
+        },
+        {
+            "code": "MAX_AGE",
+            "name": "Edad máxima para pagar",
+            "value": "6",
+            "club_id": 1
+        },
+        {
+            "code": "MIN_AGE",
+            "name": "Edad mínima para pagar",
+            "value": "3",
+            "club_id": 2
+        },
+        {
+            "code": "MAX_AGE",
+            "name": "Edad máxima para pagar",
+            "value": "6",
+            "club_id": 2
+        }
+    ],
+    "app_vars": [
+        {
+            "name": "default_user_password",
+            "value": "parque26",
+            "club_id": null
+        }
+    ],
+    "doc_types": [
+        {
+            "code": "INSCRIPTION_DISCOUNT",
+            "name": "Comprobante de descuento de inscripción",
+            "is_club_specific": false
+        },
+        {
+            "code": "acta_nacimiento_espanola",
+            "name": "Acta de Nacimiento Española",
+            "is_club_specific": false
+        },
+        {
+            "code": "acta_matrimonio",
+            "name": "Acta de Matrimonio o Concubinato",
+            "is_club_specific": false
+        },
+        {
+            "code": "acta_nacimiento",
+            "name": "Acta de Nacimiento",
+            "is_club_specific": false
+        },
+        {
+            "code": "fotografia_infantil",
+            "name": "Fotografía Infantil",
+            "is_club_specific": false
+        },
+        {
+            "code": "constancia_trabajo",
+            "name": "Constancia de Trabajo",
+            "is_club_specific": false
+        },
+        {
+            "code": "constancia_estudios",
+            "name": "Constancia de Estudios",
+            "is_club_specific": false
+        },
+        {
+            "code": "carta_recomendacion",
+            "name": "Carta de Recomendación",
+            "is_club_specific": true
+        },
+        {
+            "code": "ine",
+            "name": "INE",
+            "is_club_specific": false
+        },
+        {
+            "code": "comprobante_domicilio",
+            "name": "Comprobante de Domicilio",
+            "is_club_specific": false
+        },
+        {
+            "code": "carta_baja",
+            "name": "Carta de Baja",
+            "is_club_specific": false
+        },
+        {
+            "code": "documento_permiso_ausencia",
+            "name": "Documento de Permiso por Ausencia",
+            "is_club_specific": false
+        },
+        {
+            "code": "carta_no_adeudo",
+            "name": "Carta de No Adeudo",
+            "is_club_specific": false
+        },
+        {
+            "code": "carta_doctor_activo",
+            "name": "Carta de Doctor Activo",
+            "is_club_specific": false
+        },
+        {
+            "code": "recibo_pe1_sin_adeudo",
+            "name": "Recibo del Parque España I sin Adeudo",
+            "is_club_specific": false
+        },
+        {
+            "code": "acta_divorcio",
+            "name": "Acta de Divorcio",
+            "is_club_specific": false
+        },
+        {
+            "code": "formato_solicitud_usuario",
+            "name": "Formato de Solicitud del Usuario",
+            "is_club_specific": true
+        }
+    ],
+    "accounts": [
+        {
+            "membership_number": "TEST-001",
+            "internal_account_number": null,
+            "account_type": "family",
+            "status": "active",
+            "account_group_id": null,
+            "billing_backfill_floor": null
+        },
+        {
+            "membership_number": "TEST-002",
+            "internal_account_number": null,
+            "account_type": "family",
+            "status": "active",
+            "account_group_id": null,
+            "billing_backfill_floor": null
+        },
+        {
+            "membership_number": "TEST-003",
+            "internal_account_number": null,
+            "account_type": "individual",
+            "status": "active",
+            "account_group_id": null,
+            "billing_backfill_floor": null
+        },
+        {
+            "membership_number": "TEST-004",
+            "internal_account_number": null,
+            "account_type": "family",
+            "status": "active",
+            "account_group_id": null,
+            "billing_backfill_floor": null
+        },
+        {
+            "membership_number": "TEST-005",
+            "internal_account_number": null,
+            "account_type": "family",
+            "status": "active",
+            "account_group_id": null,
+            "billing_backfill_floor": null
+        },
+        {
+            "membership_number": "TEST-006",
+            "internal_account_number": null,
+            "account_type": "family",
+            "status": "active",
+            "account_group_id": null,
+            "billing_backfill_floor": null
+        },
+        {
+            "membership_number": "TEST-007",
+            "internal_account_number": null,
+            "account_type": "family",
+            "status": "active",
+            "account_group_id": null,
+            "billing_backfill_floor": null
+        },
+        {
+            "membership_number": "TEST-008",
+            "internal_account_number": null,
+            "account_type": "individual",
+            "status": "active",
+            "account_group_id": null,
+            "billing_backfill_floor": null
+        },
+        {
+            "membership_number": "TEST-015",
+            "internal_account_number": null,
+            "account_type": "individual",
+            "status": "active",
+            "account_group_id": null,
+            "billing_backfill_floor": null
+        },
+        {
+            "membership_number": "TEST-009",
+            "internal_account_number": null,
+            "account_type": "individual",
+            "status": "active",
+            "account_group_id": 1,
+            "billing_backfill_floor": null
+        },
+        {
+            "membership_number": "TEST-010",
+            "internal_account_number": null,
+            "account_type": "family",
+            "status": "active",
+            "account_group_id": 1,
+            "billing_backfill_floor": null
+        },
+        {
+            "membership_number": "TEST-011",
+            "internal_account_number": null,
+            "account_type": "family",
+            "status": "active",
+            "account_group_id": 2,
+            "billing_backfill_floor": null
+        },
+        {
+            "membership_number": "TEST-012",
+            "internal_account_number": null,
+            "account_type": "family",
+            "status": "active",
+            "account_group_id": 2,
+            "billing_backfill_floor": null
+        },
+        {
+            "membership_number": "TEST-013",
+            "internal_account_number": null,
+            "account_type": "family",
+            "status": "active",
+            "account_group_id": 3,
+            "billing_backfill_floor": null
+        },
+        {
+            "membership_number": "TEST-014",
+            "internal_account_number": null,
+            "account_type": "family",
+            "status": "active",
+            "account_group_id": 3,
+            "billing_backfill_floor": null
+        }
+    ],
+    "ad_statuses": [
+        {
+            "name": "Pendiente"
+        },
+        {
+            "name": "Rechazado"
+        },
+        {
+            "name": "Aprobado"
+        },
+        {
+            "name": "Pagado"
+        },
+        {
+            "name": "Publicado"
+        },
+        {
+            "name": "Expirado"
+        }
+    ],
+    "feedback_cats": [
+        {
+            "code": "FACILITIES",
+            "name": "INSTALACIONES"
+        },
+        {
+            "code": "SERVICE",
+            "name": "SERVICIO"
+        },
+        {
+            "code": "AMENITIES",
+            "name": "AMENIDADES"
+        },
+        {
+            "code": "ACCESS",
+            "name": "ACCESO"
+        },
+        {
+            "code": "PAYMENTS",
+            "name": "PAGOS"
+        },
+        {
+            "code": "EVENTS",
+            "name": "EVENTOS"
+        },
+        {
+            "code": "GUESTS",
+            "name": "INVITADOS"
+        },
+        {
+            "code": "LOCKERS",
+            "name": "LOCKERS"
+        },
+        {
+            "code": "APP",
+            "name": "APLICACIÓN"
+        },
+        {
+            "code": "GENERAL_SUGGESTION",
+            "name": "SUGERENCIA GENERAL"
+        },
+        {
+            "code": "CAFETERIA",
+            "name": "CAFETERÍA"
+        },
+        {
+            "code": "CLEANLINESS",
+            "name": "LIMPIEZA"
+        }
+    ]
+}

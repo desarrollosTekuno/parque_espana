@@ -1,0 +1,88 @@
+{
+    "users": [
+        {
+            "id": 1,
+            "name": "Superadministrador",
+            "email": "superadmin@tekuno.mx",
+            "code": null,
+            "roles": "superadmin [Web]",
+            "clubs": null,
+            "es_socio": 0
+        },
+        {
+            "id": 2,
+            "name": "Administrador del Club",
+            "email": "antoniotoxquisosa@hotmail.com",
+            "code": null,
+            "roles": "admin_club [Web]",
+            "clubs": "Parque España I, Parque España II",
+            "es_socio": 0
+        },
+        {
+            "id": 3,
+            "name": "Usuario API Web",
+            "email": "apiuser@tekuno.mx",
+            "code": null,
+            "roles": null,
+            "clubs": null,
+            "es_socio": 0
+        }
+    ],
+    "roles": [
+        {
+            "name": "socio_titular",
+            "description": null,
+            "ctx": "App Móvil - Parque España 1"
+        },
+        {
+            "name": "socio_dependiente",
+            "description": null,
+            "ctx": "App Móvil - Parque España 1"
+        },
+        {
+            "name": "socio_titular",
+            "description": null,
+            "ctx": "App Móvil - Parque España 2"
+        },
+        {
+            "name": "socio_dependiente",
+            "description": null,
+            "ctx": "App Móvil - Parque España 2"
+        },
+        {
+            "name": "superadmin",
+            "description": "Super Administrador",
+            "ctx": "Web"
+        },
+        {
+            "name": "admin_club",
+            "description": "Administrador del club",
+            "ctx": "Web"
+        },
+        {
+            "name": "Gerente Cobranza Parque I",
+            "description": "Rol para persona encargada de la cobranza a nivel administrativo",
+            "ctx": "Web"
+        },
+        {
+            "name": "Gerente Cobranza Parque II",
+            "description": "Rol para persona encargada de la cobranza a nivel administrativo",
+            "ctx": "Web"
+        },
+        {
+            "name": "Amenidades, publicidad, reservaciones Parque I",
+            "description": "Rol para amenidades, publicidad, reservaciones, encuestas, del Parque I",
+            "ctx": "Web"
+        },
+        {
+            "name": "Amenidades, publicidad, reservaciones Parque II",
+            "description": "Rol para amenidades, publicidad, reservaciones, encuestas, del Parque II",
+            "ctx": "Web"
+        },
+        {
+            "name": "Cobranza",
+            "description": "Rol para persona encargada de la cobranza",
+            "ctx": "Web"
+        }
+    ]
+}
