@@ -1,0 +1,76 @@
+{
+    "resumen": [
+        {
+            "club": "PE1",
+            "category": "caballeros",
+            "status": "disponible",
+            "n": 1400,
+            "min_num": 1,
+            "max_num": 1400
+        },
+        {
+            "club": "PE1",
+            "category": "damas",
+            "status": "disponible",
+            "n": 582,
+            "min_num": 1,
+            "max_num": 582
+        },
+        {
+            "club": "PE1",
+            "category": "ninas",
+            "status": "disponible",
+            "n": 65,
+            "min_num": 1,
+            "max_num": 65
+        },
+        {
+            "club": "PE1",
+            "category": "ninos",
+            "status": "disponible",
+            "n": 65,
+            "min_num": 1,
+            "max_num": 65
+        },
+        {
+            "club": "PE2",
+            "category": "caballeros",
+            "status": "disponible",
+            "n": 1926,
+            "min_num": 1,
+            "max_num": 1926
+        },
+        {
+            "club": "PE2",
+            "category": "damas",
+            "status": "disponible",
+            "n": 1170,
+            "min_num": 1,
+            "max_num": 1170
+        },
+        {
+            "club": "PE2",
+            "category": "ninas",
+            "status": "disponible",
+            "n": 288,
+            "min_num": 1,
+            "max_num": 288
+        },
+        {
+            "club": "PE2",
+            "category": "ninos",
+            "status": "disponible",
+            "n": 242,
+            "min_num": 1,
+            "max_num": 242
+        }
+    ],
+    "concepto": [
+        {
+            "code": "LOCKERS",
+            "name": "CUOTA CASILLERO",
+            "default_amount": "1100.00"
+        }
+    ],
+    "importes_club": []
+}
