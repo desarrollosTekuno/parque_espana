@@ -40,4 +40,16 @@ return [
         'api_key' => env('COUNTRY_STATE_CITY_API_KEY'),
     ],
 
+    'flickr' => [
+        'base_url' => env('FLICKR_BASE_URL', 'https://www.flickr.com/services/rest/'),
+        'PE1' => [
+            'api_key' => env('FLICKR_API_KEY'),
+            'user_id' => env('FLICKR_USER_ID'),
+        ],
+        'PE2' => [
+            'api_key' => env('FLICKR_API_KEY_2'),
+            'user_id' => env('FLICKR_USER_ID_2'),
+        ],
+    ],
+
 ];
