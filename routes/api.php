@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\V1\GardenReservationController;
 use App\Http\Controllers\Api\V1\BusinessAdController;
 use App\Http\Controllers\Api\V1\BusinessCategoryController;
 use App\Http\Controllers\Api\V1\AnnouncementController;
+use App\Http\Controllers\Api\V1\GalleryController;
 use App\Http\Controllers\Api\V1\ClubContactInfoController;
 use App\Http\Controllers\Api\V1\ReservationGuestController;
 use App\Http\Controllers\Api\V1\SurveyController;
@@ -79,6 +80,10 @@ Route::prefix('v1')->name('api.')->group(function () {
 
         // Noticias/avisos publicados (carrusel de inicio de la app)
         Route::get('/announcements', [AnnouncementController::class, 'index']);
+
+        // Galeria de fotos (Flickr) del modulo de Eventos de la app
+        Route::get('/gallery/albums', [GalleryController::class, 'albums']);
+        Route::get('/gallery/albums/{photosetId}', [GalleryController::class, 'photos']);
 
         // =================================== Pagina web =====================================
         Route::get('/website/carousel', [WebsiteApiController::class, 'carousel']);

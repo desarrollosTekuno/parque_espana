@@ -6,6 +6,7 @@ use App\Models\DeviceToken;
 use App\Models\Memberships\Membership;
 use Illuminate\Support\Facades\Log;
 use Kreait\Firebase\Contract\Messaging;
+use Kreait\Firebase\Messaging\ApnsConfig;
 use Kreait\Firebase\Messaging\CloudMessage;
 use Kreait\Firebase\Messaging\Notification;
 use Kreait\Firebase\Exception\MessagingException;
@@ -64,7 +65,8 @@ class FirebaseService
         $message = CloudMessage::new()
             ->toTopic($topic)
             ->withNotification(Notification::create($title, $body))
-            ->withData($stringData);
+            ->withData($stringData)
+            ->withApnsConfig($this->buildApnsConfig($title, $body, $stringData));
 
         try {
             $this->messaging->send($message);
@@ -201,7 +203,8 @@ class FirebaseService
 
         $message = CloudMessage::new()
             ->withNotification(Notification::create($title, $body))
-            ->withData($stringData);
+            ->withData($stringData)
+            ->withApnsConfig($this->buildApnsConfig($title, $body, $stringData));
 
         try {
             $report = $this->messaging->sendMulticast($message, $tokens);
@@ -225,6 +228,36 @@ class FirebaseService
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Config explícita de APNs para que la notificación en verdad llegue a
+     * iOS. Firebase documenta que copia el `notification` genérico a
+     * `aps.alert` cuando no se manda uno explícito, pero confirmado en vivo
+     * contra un iPhone real eso NO sucede en la práctica: el push se acepta
+     * sin error y nunca llega al dispositivo. Armar `aps.alert`/`sound`/
+     * `apns-push-type` a mano es lo que sí entrega.
+     *
+     * También se duplica `$stringData` como campos sueltos del payload de
+     * APNs (`withDataField`) — en iOS, `RemoteMessage.data` (lo que la app
+     * usa para decidir a dónde navegar al tocar la notificación) se arma a
+     * partir del payload real de APNs, no del campo `data` genérico del
+     * mensaje FCM. Sin esto, `type`/los IDs para deep linking no llegaban
+     * en iOS aunque el push sí se recibiera.
+     */
+    private function buildApnsConfig(string $title, string $body, array $stringData): ApnsConfig
+    {
+        $apnsConfig = ApnsConfig::new()
+            ->withHeader('apns-push-type', 'alert')
+            ->withApsField('alert', ['title' => $title, 'body' => $body])
+            ->withDefaultSound()
+            ->withImmediatePriority();
+
+        foreach ($stringData as $key => $value) {
+            $apnsConfig = $apnsConfig->withDataField($key, (string) $value);
+        }
+
+        return $apnsConfig;
     }
 
     /**

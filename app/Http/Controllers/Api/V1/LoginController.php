@@ -5,11 +5,14 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\DeviceToken;
 use App\Models\Members\Member;
+use App\Services\FirebaseService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class LoginController extends Controller
 {
+    public function __construct(private FirebaseService $firebase) {}
+
     public function login(Request $request)
     {
         $request->validate([
@@ -54,6 +57,8 @@ class LoginController extends Controller
                 DeviceToken::where('token', $fcmToken)
                     ->where('user_id', $request->user()->id)
                     ->update(['is_active' => false]);
+
+                $this->firebase->unsubscribeTokenFromUserClubs($fcmToken, $request->user()->id);
             }
 
             $request->user()->currentAccessToken()->delete();

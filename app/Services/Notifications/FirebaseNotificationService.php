@@ -4,6 +4,7 @@ namespace App\Services\Notifications;
 
 use Kreait\Firebase\Contract\Messaging;
 use Kreait\Firebase\Exception\MessagingException;
+use Kreait\Firebase\Messaging\ApnsConfig;
 use Kreait\Firebase\Messaging\CloudMessage;
 use Kreait\Firebase\Messaging\Notification;
 
@@ -20,7 +21,8 @@ class FirebaseNotificationService {
         $message = CloudMessage::new()
             ->toToken($token)
             ->withNotification(Notification::create($title, $body))
-            ->withData($data);
+            ->withData($data)
+            ->withApnsConfig($this->buildApnsConfig($title, $body, $data));
 
         $this->messaging->send($message);
     }
@@ -36,9 +38,14 @@ class FirebaseNotificationService {
             ];
         }
 
+        $data = collect($data)
+            ->map(fn ($value) => is_scalar($value) ? (string) $value : json_encode($value))
+            ->toArray();
+
         $message = CloudMessage::new()
             ->withNotification(Notification::create($title, $body))
-            ->withData($data);
+            ->withData($data)
+            ->withApnsConfig($this->buildApnsConfig($title, $body, $data));
 
         $report = $this->messaging->sendMulticast($message, $tokens);
 
@@ -67,6 +74,29 @@ class FirebaseNotificationService {
         $this->messaging->validateRegistrationTokens([$token]);
 
         return true;
+    }
+
+    /**
+     * Config explícita de APNs — sin esto, el push se acepta sin error pero
+     * nunca llega a iOS (confirmado en vivo contra un iPhone real: Firebase
+     * documenta que copia el `notification` genérico a `aps.alert`, pero en
+     * la práctica no sucede). También se duplica `$data` como campos
+     * sueltos del payload de APNs, porque en iOS `RemoteMessage.data` se
+     * arma del payload real de APNs, no del campo `data` genérico del
+     * mensaje FCM — mismo criterio que FirebaseService::buildApnsConfig.
+     */
+    private function buildApnsConfig(string $title, string $body, array $data): ApnsConfig {
+        $apnsConfig = ApnsConfig::new()
+            ->withHeader('apns-push-type', 'alert')
+            ->withApsField('alert', ['title' => $title, 'body' => $body])
+            ->withDefaultSound()
+            ->withImmediatePriority();
+
+        foreach ($data as $key => $value) {
+            $apnsConfig = $apnsConfig->withDataField($key, (string) $value);
+        }
+
+        return $apnsConfig;
     }
 
 }
