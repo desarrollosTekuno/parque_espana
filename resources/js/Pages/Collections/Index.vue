@@ -241,6 +241,9 @@ const round2 = (value: number) => Math.round(value * 100) / 100;
 const searchTerm = ref("");
 const searching = ref(false);
 const result = ref<SearchResult | null>(null);
+const damageAmount = ref<number | null>(null);
+const damageDescription = ref("");
+const savingDamageCharge = ref(false);
 
 // Venta "sin cuenta": conceptos marcados requires_account=false (p. ej. un
 // pase diario a un visitante sin socio ligado) se pueden cobrar sin buscar
@@ -256,6 +259,8 @@ const setWalkInMode = (value: boolean) => {
     result.value = null;
     notes.value = [];
     cobros.value = [];
+    damageAmount.value = null;
+    damageDescription.value = "";
     resetNewItem();
     paymentDialog.value = false;
     manualPaymentOverride.value = null;
@@ -281,6 +286,9 @@ const billingMembershipId = computed(
     () => result.value?.billing_membership_id ?? null,
 );
 const pendingConcepts = computed(() => result.value?.pending_concepts ?? []);
+const pendingDamageConcept = computed(() =>
+    pendingConcepts.value.find((concept) => concept.concept_code === "CD"),
+);
 const summary = computed(() => result.value?.summary ?? null);
 const lockers = computed(() => result.value?.lockers ?? []);
 const showLockersDialog = ref(false);
@@ -422,6 +430,8 @@ const runSearch = async () => {
             result.value = null;
             notes.value = [];
             cobros.value = [];
+            damageAmount.value = null;
+            damageDescription.value = "";
             customToastSwal({
                 title: data.message || "Socio no encontrado.",
                 icon: "info",
@@ -433,6 +443,8 @@ const runSearch = async () => {
         notes.value = data.notes ?? [];
         // Al cambiar de socio, se reinicia la lista de cobros y el pago.
         cobros.value = [];
+        damageAmount.value = null;
+        damageDescription.value = "";
         resetNewItem();
         paymentDialog.value = false;
     } catch (e: any) {
@@ -444,6 +456,43 @@ const runSearch = async () => {
         });
     } finally {
         searching.value = false;
+    }
+};
+
+const saveDamageCharge = async () => {
+    if (!account.value || !damageAmount.value || damageAmount.value < 0.01) {
+        customToastSwal({ title: "Captura un importe mayor a cero.", icon: "warning" });
+        return;
+    }
+
+    const confirmation = await customConfirmSwal({
+        title: "¿Registrar cargo por daños materiales?",
+        text: `Se cargará ${formatCurrency(damageAmount.value)} a la cuenta ${account.value.membership_number} y quedará pendiente de pago.`,
+        icon: "question",
+        confirmText: "Sí, registrar",
+        cancelText: "Cancelar",
+    });
+
+    if (!confirmation?.isConfirmed) return;
+
+    savingDamageCharge.value = true;
+    try {
+        const { data } = await window.axios.post(route("collections.material-damage.store"), {
+            membership_account_id: account.value.id,
+            amount: damageAmount.value,
+            description: damageDescription.value || null,
+        });
+        damageAmount.value = null;
+        damageDescription.value = "";
+        await runSearch();
+        customToastSwal({ title: data.message, icon: "success" });
+    } catch (error: any) {
+        customToastSwal({
+            title: error?.response?.data?.message || "No se pudo registrar el cargo.",
+            icon: "error",
+        });
+    } finally {
+        savingDamageCharge.value = false;
     }
 };
 
@@ -574,7 +623,7 @@ const resetNewItem = () => {
 const availableConceptOptions = computed(() =>
     walkInMode.value
         ? props.conceptOptions.filter((c) => !c.requires_account)
-        : props.conceptOptions,
+        : props.conceptOptions.filter((c) => c.code !== "CD"),
 );
 
 const conceptSelectItems = computed(() =>
@@ -2019,6 +2068,16 @@ const printPreviewedTicket = async () => {
 const registerPayment = async () => {
     if ((!walkInMode.value && !account.value) || !cobroClub.value || !configuredPayment.value) return;
 
+    if (pendingDamageConcept.value && cobros.value.some((line) =>
+        line.type !== "existing" || line.concept_id !== pendingDamageConcept.value?.concept_id
+    )) {
+        customToastSwal({
+            title: "Primero liquida el cargo por daños materiales en un cobro separado.",
+            icon: "warning",
+        });
+        return;
+    }
+
     const payload = configuredPayment.value;
 
     const result = await customConfirmSwal({
@@ -2263,6 +2322,43 @@ const saveNote = async () => {
                     </v-card-text>
                 </v-card>
 
+                <v-card v-if="account && can.includes('collections.store')">
+                    <v-card-title>Cargo por daños materiales</v-card-title>
+                    <v-card-text>
+                        <v-alert v-if="pendingDamageConcept" type="warning" variant="tonal" class="mb-4">
+                            Esta cuenta tiene {{ formatCurrency(pendingDamageConcept.balance) }} pendiente por daños materiales. Liquida este cargo antes de cobrar otros conceptos.
+                        </v-alert>
+                        <v-row align="center">
+                            <v-col cols="12" md="3">
+                                <v-number-input
+                                    v-model="damageAmount"
+                                    label="Importe del daño"
+                                    prefix="$"
+                                    min="0.01"
+                                    hide-details="auto"
+                                />
+                            </v-col>
+                            <v-col cols="12" md="6">
+                                <v-text-field
+                                    v-model="damageDescription"
+                                    label="Descripción del daño (opcional)"
+                                    maxlength="255"
+                                    hide-details="auto"
+                                />
+                            </v-col>
+                            <v-col cols="12" md="3">
+                                <BaseButton
+                                    :icon-only="false"
+                                    action="save"
+                                    text="Registrar cargo pendiente"
+                                    :loading="savingDamageCharge"
+                                    @click="saveDamageCharge"
+                                />
+                            </v-col>
+                        </v-row>
+                    </v-card-text>
+                </v-card>
+
                 <!-- Tabla 1: cargos pendientes — no aplica en venta sin cuenta. -->
                 <v-card v-if="!walkInMode">
                     <v-card-title>Cargos </v-card-title>
@@ -2355,7 +2451,17 @@ const saveNote = async () => {
                         </template>
                         <template #item.actions="{ item }">
                             <BaseButton
-                                v-if="isConceptOtherClub(item)"
+                                v-if="can.includes('collections.store') && item.concept_code === 'CD' && !isConceptOtherClub(item)"
+                                :icon-only="false"
+                                action="add"
+                                icon="mdi-plus"
+                                text="Agregar al cobro"
+                                variant="tonal"
+                                :disabled="isChargesInCobros(item.charges[0]?.id ?? null)"
+                                @click="addPendingToCobros(item)"
+                            />
+                            <BaseButton
+                                v-else-if="isConceptOtherClub(item)"
                                 :icon-only="true"
                                 icon="mdi-lock-outline"
                                 variant="text"

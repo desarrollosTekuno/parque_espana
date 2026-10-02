@@ -26,6 +26,7 @@ use App\Services\Access\MembershipDelinquencyService;
 use App\Services\AdminClub\CafeteriaCheckoutService;
 use App\Services\Billing\AnnualPaymentService;
 use App\Services\Billing\MembershipChargeService;
+use App\Services\Billing\MaterialDamagePaymentGuard;
 use App\Services\Billing\PaymentRegistrationService;
 use App\Services\Email\MailService;
 use Carbon\Carbon;
@@ -1254,12 +1255,60 @@ class CollectionController extends Controller
         ]);
     }
 
+    /** Registra el cargo de daños sin cobrarlo. */
+    public function storeMaterialDamageCharge(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'membership_account_id' => ['required', new ExistsInSchema('memberships', 'accounts', 'id')],
+            'amount' => ['required', 'numeric', 'min:0.01', 'max:9999999999.99'],
+            'description' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $account = MembershipAccount::query()
+            ->with('primaryHolder')
+            ->where('club_id', session('club_id'))
+            ->where('status', '!=', 'cancelled')
+            ->findOrFail($validated['membership_account_id']);
+
+        $membership = Membership::query()
+            ->where('membership_account_id', $account->id)
+            ->where('club_id', session('club_id'))
+            ->where('is_primary', true)
+            ->whereIn('status', ['active', 'suspended'])
+            ->firstOrFail();
+
+        $concept = ChargeConcept::query()
+            ->where('code', 'CD')
+            ->where('is_active', true)
+            ->firstOrFail();
+
+        Charge::create([
+            'membership_account_id' => $account->id,
+            'membership_id' => $membership->id,
+            'member_id' => $account->primaryHolder?->member_id,
+            'concept_id' => $concept->id,
+            'description' => ($validated['description'] ?? null) ?: $concept->name,
+            'amount' => round((float) $validated['amount'], 2),
+            'balance' => round((float) $validated['amount'], 2),
+            'issue_date' => now()->toDateString(),
+            'due_date' => now()->toDateString(),
+            'allows_partial_payments' => false,
+            'status' => 'pending',
+            'metadata' => [
+                'charge_origin' => 'material_damage',
+                'created_by' => $request->user()?->id,
+            ],
+        ]);
+
+        return response()->json(['message' => 'Cargo por daños materiales registrado como pendiente.']);
+    }
+
     /**
      * Efectúa el cobro: genera los cargos de los conceptos nuevos capturados
      * y aplica el pago (cargos existentes + nuevos) reutilizando el servicio
      * de registro de pagos. Es una operación atómica.
      */
-    public function storePayment(Request $request): JsonResponse
+    public function storePayment(Request $request, MaterialDamagePaymentGuard $damageGuard): JsonResponse
     {
         try {
             $validated = $request->validate([
@@ -1370,6 +1419,12 @@ class CollectionController extends Controller
                 $account = MembershipAccount::query()
                     ->with('primaryHolder.member')
                     ->findOrFail($accountId);
+
+                $damageGuard->ensureCanPay(
+                    $account->id,
+                    $existing->all(),
+                    $newItems->isNotEmpty() || $cafeteriaCheckouts->isNotEmpty() || $annualRequest !== null
+                );
 
                 // Todas las cuentas del grupo del socio (una por parque, ver
                 // resolveGroupAccountIds) y los parques donde tiene membresía

@@ -14,12 +14,14 @@ use App\Models\Billing\Payment;
 use App\Models\Billing\PaymentApplication;
 use App\Models\Billing\PaymentMethod;
 use App\Models\Members\Member;
+use App\Services\Billing\MaterialDamagePaymentGuard;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class DayPassController extends Controller
@@ -146,7 +148,7 @@ class DayPassController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(Request $request, MaterialDamagePaymentGuard $damageGuard)
     {
         $clubId = (int) session('club_id');
         // El módulo de Cobranza agrega el pase a la lista de cobros para
@@ -242,6 +244,10 @@ class DayPassController extends Controller
                 ?? $member->accountMemberships->first();
             if (! $accountMembership) {
                 throw new \Exception('El socio no tiene una cuenta de membresía activa.');
+            }
+
+            if (!$deferred) {
+                $damageGuard->ensureCanPay($accountMembership->membership_account_id);
             }
 
             $membership = $accountMembership->membershipAccount->memberships->first();
@@ -370,6 +376,10 @@ class DayPassController extends Controller
 
             return back()->with('success', 'Pase por día registrado y ticket enviado al socio correctamente.');
 
+        } catch (ValidationException $e) {
+            DB::rollBack();
+
+            return back()->withErrors(['messageError' => collect($e->errors())->flatten()->first()]);
         } catch (\Exception $e) {
             DB::rollBack();
             report($e);

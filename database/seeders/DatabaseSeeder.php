@@ -50,6 +50,7 @@ class DatabaseSeeder extends Seeder
             InterclubPackageRuleSeeder::class,
             BillingConceptSeeder::class,
             LockerSeeder::class,
+            MaterialDamageConceptSeeder::class,
 
             FeedbackCategoriesSeeder::class,
             FeedbackTicketTypesSeeder::class,
