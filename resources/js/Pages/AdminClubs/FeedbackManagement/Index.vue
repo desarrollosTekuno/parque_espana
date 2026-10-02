@@ -428,8 +428,8 @@ watch([options, search, statusFilter, priorityFilter], debounce(fetchItems, 400)
         </div>
 
         <v-dialog v-model="showDetailModal" max-width="1280" scrollable>
-            <v-card v-if="selectedTicket" rounded="xl" elevation="12" class="overflow-hidden">
-                <div class="px-6 py-5 bg-white">
+            <v-card v-if="selectedTicket" rounded="xl" elevation="12" class="feedback-detail-card overflow-hidden">
+                <div class="feedback-detail-header px-6 py-5 bg-white">
                     <div class="d-flex align-start justify-space-between ga-4">
                         <div>
                             <div class="flex-wrap d-flex align-center ga-3">
@@ -489,7 +489,7 @@ watch([options, search, statusFilter, priorityFilter], debounce(fetchItems, 400)
 
                 <v-divider />
 
-                <v-card-text class="pa-0">
+                <v-card-text class="feedback-detail-content pa-0">
                     <v-row no-gutters>
                         <v-col cols="12" md="6" class="pt-2 pa-4 bg-grey-lighten-5">
                             <v-card rounded="xl" elevation="0" class="mb-5 border">
@@ -807,7 +807,7 @@ watch([options, search, statusFilter, priorityFilter], debounce(fetchItems, 400)
 
                 <v-divider />
 
-                <v-card-actions class="flex-wrap justify-end px-6 py-4 d-flex ga-2">
+                <v-card-actions class="feedback-detail-footer flex-wrap justify-end px-6 py-4 d-flex ga-2">
                     <BaseButton
                         text="Pasar a proceso"
                         action="save"
@@ -930,3 +930,22 @@ watch([options, search, statusFilter, priorityFilter], debounce(fetchItems, 400)
         </v-dialog>
     </AppLayout>
 </template>
+
+<style scoped>
+.feedback-detail-card {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 48px);
+}
+
+.feedback-detail-header,
+.feedback-detail-footer {
+    flex: 0 0 auto;
+}
+
+.feedback-detail-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+}
+</style>
