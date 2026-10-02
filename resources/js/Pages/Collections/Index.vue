@@ -186,7 +186,9 @@ interface SearchResult {
  *  y salidas de cafetería aún no confirmadas). */
 interface CobroLine {
     key: string;
-    type: "existing" | "new" | "cafeteria_checkout" | "annual";
+    // "damage": cargo por daños materiales (CD) nuevo. No se cobra: al
+    // confirmar se registra como pendiente (ver registerDamageCharge).
+    type: "existing" | "new" | "cafeteria_checkout" | "annual" | "damage";
     concept_label: string;
     detail: string;
     amount: number;
@@ -241,8 +243,6 @@ const round2 = (value: number) => Math.round(value * 100) / 100;
 const searchTerm = ref("");
 const searching = ref(false);
 const result = ref<SearchResult | null>(null);
-const damageAmount = ref<number | null>(null);
-const damageDescription = ref("");
 const savingDamageCharge = ref(false);
 
 // Venta "sin cuenta": conceptos marcados requires_account=false (p. ej. un
@@ -259,8 +259,6 @@ const setWalkInMode = (value: boolean) => {
     result.value = null;
     notes.value = [];
     cobros.value = [];
-    damageAmount.value = null;
-    damageDescription.value = "";
     resetNewItem();
     paymentDialog.value = false;
     manualPaymentOverride.value = null;
@@ -430,8 +428,6 @@ const runSearch = async () => {
             result.value = null;
             notes.value = [];
             cobros.value = [];
-            damageAmount.value = null;
-            damageDescription.value = "";
             customToastSwal({
                 title: data.message || "Socio no encontrado.",
                 icon: "info",
@@ -443,8 +439,6 @@ const runSearch = async () => {
         notes.value = data.notes ?? [];
         // Al cambiar de socio, se reinicia la lista de cobros y el pago.
         cobros.value = [];
-        damageAmount.value = null;
-        damageDescription.value = "";
         resetNewItem();
         paymentDialog.value = false;
     } catch (e: any) {
@@ -459,15 +453,61 @@ const runSearch = async () => {
     }
 };
 
-const saveDamageCharge = async () => {
-    if (!account.value || !damageAmount.value || damageAmount.value < 0.01) {
-        customToastSwal({ title: "Captura un importe mayor a cero.", icon: "warning" });
+// ── Cargo por daños materiales (CD) en la lista de cobros ──
+
+/** true si el renglón de la lista es un CD (uno nuevo por registrar, o uno
+ *  pendiente que se va a pagar). */
+const isDamageLine = (line: CobroLine): boolean => {
+    if (line.type === "damage") {
+        return true;
+    }
+    const lineConcept = props.conceptOptions.find((c) => c.id === line.concept_id);
+    return line.type === "existing" && lineConcept?.code === "CD";
+};
+
+/**
+ * Revisa si se puede agregar algo a la lista de cobros. Regla del CD:
+ *  - Si la lista ya tiene un CD, no se puede agregar nada más.
+ *  - Un CD solo se puede agregar con la lista vacía (va solo).
+ *  - Si el socio debe un CD, no se puede agregar ningún otro concepto.
+ * Muestra el aviso y regresa true cuando hay que bloquear.
+ *
+ * @param addingDamage true si lo que se quiere agregar es un CD.
+ */
+const blockedByDamage = (addingDamage: boolean): boolean => {
+    let message: string | null = null;
+
+    if (cobros.value.some(isDamageLine)) {
+        message = "Ya hay un cargo por daños materiales en la lista. Regístralo o quítalo antes de agregar otro concepto.";
+    } else if (addingDamage && cobros.value.length > 0) {
+        message = "El cargo por daños materiales va solo. Quita los demás conceptos de la lista para agregarlo.";
+    } else if (!addingDamage && pendingDamageConcept.value) {
+        message = "Primero liquida el cargo por daños materiales en un cobro separado.";
+    }
+
+    if (message === null) {
+        return false;
+    }
+
+    customToastSwal({ title: message, icon: "warning" });
+    return true;
+};
+
+/**
+ * Botón "Registrar daño material": registra el CD de la lista como cargo
+ * PENDIENTE (no se cobra). Después aparece en la tabla "Cargos" y bloquea
+ * los demás cobros hasta que se pague.
+ */
+const registerDamageCharge = async () => {
+    const damageLine = cobros.value.find((line) => line.type === "damage");
+
+    if (!account.value || !damageLine) {
         return;
     }
 
     const confirmation = await customConfirmSwal({
-        title: "¿Registrar cargo por daños materiales?",
-        text: `Se cargará ${formatCurrency(damageAmount.value)} a la cuenta ${account.value.membership_number} y quedará pendiente de pago.`,
+        title: "¿Registrar daño material?",
+        text: `Se cargará ${formatCurrency(damageLine.amount)} a la cuenta ${account.value.membership_number} y quedará pendiente de pago.`,
         icon: "question",
         confirmText: "Sí, registrar",
         cancelText: "Cancelar",
@@ -479,11 +519,10 @@ const saveDamageCharge = async () => {
     try {
         const { data } = await window.axios.post(route("collections.material-damage.store"), {
             membership_account_id: account.value.id,
-            amount: damageAmount.value,
-            description: damageDescription.value || null,
+            amount: damageLine.amount,
+            description: damageLine.description || null,
         });
-        damageAmount.value = null;
-        damageDescription.value = "";
+        cobros.value = [];
         await runSearch();
         customToastSwal({ title: data.message, icon: "success" });
     } catch (error: any) {
@@ -555,6 +594,9 @@ const addPendingToCobros = (concept: PendingConcept) => {
     if (concept.concept_id === null || isChargesInCobros(firstChargeId)) {
         return;
     }
+    if (blockedByDamage(concept.concept_code === "CD")) {
+        return;
+    }
     clearAnnualLineIfPresent();
 
     // Solo la mensualidad puede repartirse entre parques (is_multi_club);
@@ -623,7 +665,7 @@ const resetNewItem = () => {
 const availableConceptOptions = computed(() =>
     walkInMode.value
         ? props.conceptOptions.filter((c) => !c.requires_account)
-        : props.conceptOptions.filter((c) => c.code !== "CD"),
+        : props.conceptOptions,
 );
 
 const conceptSelectItems = computed(() =>
@@ -698,6 +740,13 @@ const selectedConcept = computed(() =>
 );
 const isLockerConcept = computed(
     () => selectedConcept.value?.code?.toUpperCase() === "LOCKERS",
+);
+
+// Cargo por daños materiales (CD): se captura como cualquier concepto (solo
+// importe y descripción) y entra a la lista como renglón "damage"; al final
+// se registra como pendiente, no se cobra (ver registerDamageCharge).
+const isDamageConcept = computed(
+    () => selectedConcept.value?.code?.toUpperCase() === "CD",
 );
 
 // ── Mensualidad desde "Agregar concepto de cobro" ──
@@ -880,6 +929,7 @@ watch(monthlyFeeMonthsCount, () => {
 
 const addMonthlyFeeMonths = async () => {
     if (!account.value) return;
+    if (blockedByDamage(false)) return;
     if (!monthlyFeeMonthsCount.value || monthlyFeeMonthsCount.value < 1) {
         customToastSwal({ title: "Indica cuántos meses quieres agregar.", icon: "warning" });
         return;
@@ -961,6 +1011,7 @@ const addMonthlyFeeMonths = async () => {
 const confirmAnnualFeePaymentFromPanel = () => {
     const preview = annualPaymentPreview.value;
     if (!preview || preview.payment_amount <= 0) return;
+    if (blockedByDamage(false)) return;
 
     const hadExistingMonthly = cobros.value.some((l) => l.type === "annual" || l.type === "existing");
 
@@ -1127,6 +1178,7 @@ watch(inscriptionQuantity, (value) => {
 
 const addInscriptionCharges = async () => {
     if (!account.value) return;
+    if (blockedByDamage(false)) return;
     if (!inscriptionQuantity.value || inscriptionQuantity.value < 1) {
         customToastSwal({ title: "Indica la cantidad a cobrar.", icon: "warning" });
         return;
@@ -1316,13 +1368,7 @@ const canAssignLocker = computed(
 );
 
 const assignLocker = async () => {
-    if (pendingDamageConcept.value) {
-        customToastSwal({
-            title: "Primero liquida el cargo por daños materiales en un cobro separado.",
-            icon: "warning",
-        });
-        return;
-    }
+    if (blockedByDamage(false)) return;
     if (!account.value || !canAssignLocker.value) {
         customToastSwal({
             title: "Completa integrante, categoría, casillero y comprobante.",
@@ -1490,13 +1536,7 @@ const canSubmitDayPass = computed(
 );
 
 const submitDayPass = async () => {
-    if (pendingDamageConcept.value) {
-        customToastSwal({
-            title: "Primero liquida el cargo por daños materiales en un cobro separado.",
-            icon: "warning",
-        });
-        return;
-    }
+    if (blockedByDamage(false)) return;
     if (!account.value?.holder_member_id || !canSubmitDayPass.value) {
         customToastSwal({
             title: "Completa la fecha y los datos de todos los visitantes.",
@@ -1794,6 +1834,35 @@ const newTotal = computed(() =>
 );
 
 const addNewItemToCobros = () => {
+    if (blockedByDamage(isDamageConcept.value)) {
+        return;
+    }
+
+    // Cargo por daños materiales (CD): entra a la lista como renglón "damage".
+    // Con él en la lista no se puede agregar nada más, y el botón final dice
+    // "Registrar daño material" (lo deja pendiente, no lo cobra).
+    if (isDamageConcept.value && selectedConcept.value) {
+        const amount = round2(Number(newItem.value.importe ?? 0));
+
+        if (amount < 0.01) {
+            customToastSwal({ title: "Captura el importe del daño.", icon: "warning" });
+            return;
+        }
+
+        cobros.value.push({
+            key: `damage-${Date.now()}`,
+            type: "damage",
+            concept_id: selectedConcept.value.id,
+            concept_label: `${selectedConcept.value.internal_key} ${selectedConcept.value.name}`,
+            description: newItem.value.description.trim() || null,
+            detail: newItem.value.description.trim() || "Quedará pendiente de pago",
+            amount,
+        });
+
+        resetNewItem();
+        return;
+    }
+
     const concept = availableConceptOptions.value.find(
         (c) => c.id === newItem.value.concept_id,
     );
@@ -1838,6 +1907,19 @@ const addNewItemToCobros = () => {
 
 // Tabla 2: lista de cobros
 const cobros = ref<CobroLine[]>([]);
+
+// true si la lista tiene un CD nuevo: el botón final dice "Registrar daño
+// material" y no se cobra (ver registerDamageCharge).
+const isRegisteringDamage = computed(() =>
+    cobros.value.some((line) => line.type === "damage"),
+);
+
+// true si hay un CD de por medio (el socio lo debe, o ya está en la lista):
+// se oculta la captura de "Agregar concepto de cobro", porque mientras tanto
+// no se puede agregar nada más. La lista de cobros sigue visible.
+const damageLocksCapture = computed(
+    () => !!pendingDamageConcept.value || cobros.value.some(isDamageLine),
+);
 const cobrosHeaders = [
     { title: "Concepto", key: "concept_label", sortable: false },
     { title: "Detalle", key: "detail", sortable: false },
@@ -2080,10 +2162,19 @@ const printPreviewedTicket = async () => {
 };
 
 const registerPayment = async () => {
+    // Lista con un CD nuevo: el botón es "Registrar daño material" — no se
+    // cobra, se registra como cargo pendiente.
+    if (isRegisteringDamage.value) {
+        await registerDamageCharge();
+        return;
+    }
+
     if ((!walkInMode.value && !account.value) || !cobroClub.value || !configuredPayment.value) return;
 
+    // Las salidas de cafetería no cuentan (son de visitantes, no del socio).
     if (pendingDamageConcept.value && cobros.value.some((line) =>
-        line.type !== "existing" || line.concept_id !== pendingDamageConcept.value?.concept_id
+        line.type !== "cafeteria_checkout" &&
+        (line.type !== "existing" || line.concept_id !== pendingDamageConcept.value?.concept_id)
     )) {
         customToastSwal({
             title: "Primero liquida el cargo por daños materiales en un cobro separado.",
@@ -2336,42 +2427,10 @@ const saveNote = async () => {
                     </v-card-text>
                 </v-card>
 
-                <v-card v-if="account && can.includes('collections.store')">
-                    <v-card-title>Cargo por daños materiales</v-card-title>
-                    <v-card-text>
-                        <v-alert v-if="pendingDamageConcept" type="warning" variant="tonal" class="mb-4">
-                            Esta cuenta tiene {{ formatCurrency(pendingDamageConcept.balance) }} pendiente por daños materiales. Liquida este cargo antes de cobrar otros conceptos.
-                        </v-alert>
-                        <v-row align="center">
-                            <v-col cols="12" md="3">
-                                <v-number-input
-                                    v-model="damageAmount"
-                                    label="Importe del daño"
-                                    prefix="$"
-                                    min="0.01"
-                                    hide-details="auto"
-                                />
-                            </v-col>
-                            <v-col cols="12" md="6">
-                                <v-text-field
-                                    v-model="damageDescription"
-                                    label="Descripción del daño (opcional)"
-                                    maxlength="255"
-                                    hide-details="auto"
-                                />
-                            </v-col>
-                            <v-col cols="12" md="3">
-                                <BaseButton
-                                    :icon-only="false"
-                                    action="save"
-                                    text="Registrar cargo pendiente"
-                                    :loading="savingDamageCharge"
-                                    @click="saveDamageCharge"
-                                />
-                            </v-col>
-                        </v-row>
-                    </v-card-text>
-                </v-card>
+                <!-- Aviso: el socio debe un cargo por daños materiales (CD). -->
+                <v-alert v-if="!walkInMode && pendingDamageConcept" type="warning" variant="tonal">
+                    Esta cuenta tiene {{ formatCurrency(pendingDamageConcept.balance) }} pendiente por daños materiales. Liquida este cargo antes de cobrar otros conceptos.
+                </v-alert>
 
                 <!-- Tabla 1: cargos pendientes — no aplica en venta sin cuenta. -->
                 <v-card v-if="!walkInMode">
@@ -2403,6 +2462,15 @@ const saveNote = async () => {
                                 variant="tonal"
                             >
                                 Ambos parques
+                            </v-chip>
+                            <v-chip
+                                v-if="item.concept_code === 'CD'"
+                                size="x-small"
+                                class="ml-2"
+                                color="orange"
+                                variant="flat"
+                            >
+                                Daños materiales
                             </v-chip>
                             <v-tooltip v-if="item.is_up_to_date" location="top">
                                 <template #activator="{ props: tooltipProps }">
@@ -2464,6 +2532,7 @@ const saveNote = async () => {
                             <span class="font-weight-bold">{{ formatCurrency(item.balance) }}</span>
                         </template>
                         <template #item.actions="{ item }">
+                            <!-- Solo el CD tiene "Agregar al cobro": se paga solo, antes que lo demás. -->
                             <BaseButton
                                 v-if="can.includes('collections.store') && item.concept_code === 'CD' && !isConceptOtherClub(item)"
                                 :icon-only="false"
@@ -2536,11 +2605,13 @@ const saveNote = async () => {
                     </v-card-text>
                 </v-card>
 
-                <!-- Captura de concepto nuevo -->
+                <!-- Captura de concepto nuevo. Si hay un CD de por medio se
+                     oculta la captura (no se puede agregar nada más) y solo
+                     queda la lista de cobros. -->
                 <v-card>
-                    <v-card-title>Agregar concepto de cobro</v-card-title>
+                    <v-card-title>{{ damageLocksCapture ? "Cobro" : "Agregar concepto de cobro" }}</v-card-title>
                     <v-card-text>
-                        <v-row no-gutters class="ga-2">
+                        <v-row v-if="!damageLocksCapture" no-gutters class="ga-2">
                             <v-col cols="12" md="2">
                                 <v-autocomplete
                                     v-model="newItem.concept_id"
@@ -2564,6 +2635,9 @@ const saveNote = async () => {
                                         :persistent-hint="selectedConcept !== null && !selectedConcept.allows_manual_amount"
                                     />
                                 </v-col>
+                                <!-- Cantidad, subtotal, descuento, IVA y total no aplican al
+                                     cargo por daños materiales (CD): solo se captura el importe. -->
+                                <template v-if="!isDamageConcept">
                                 <v-col cols="6" md="1">
                                     <v-number-input
                                         v-model="newItem.cantidad"
@@ -2610,6 +2684,7 @@ const saveNote = async () => {
                                         hide-details="auto"
                                     />
                                 </v-col>
+                                </template>
                                 <v-col cols="6" md="2" class="d-flex align-center">
                                     <BaseButton
                                         :icon-only="false"
@@ -3270,6 +3345,16 @@ const saveNote = async () => {
                                         <template #item.concept_label="{ item }">
                                             <span class="font-weight-medium">{{ item.concept_label }}</span>
                                             <v-chip
+                                                v-if="item.type === 'damage'"
+                                                size="x-small"
+                                                class="ml-2"
+                                                color="orange"
+                                                variant="flat"
+                                            >
+                                                Daño material
+                                            </v-chip>
+                                            <v-chip
+                                                v-else
                                                 size="x-small"
                                                 class="ml-2"
                                                 :color="item.type === 'new' ? 'success' : 'info'"
@@ -3306,8 +3391,19 @@ const saveNote = async () => {
                                     </v-data-table>
                                     <v-divider />
                                     <v-card-text>
+                                        <!-- Un daño material no se cobra: se registra como pendiente. -->
                                         <v-alert
-                                            v-if="cobros.length && !manualPaymentOverride"
+                                            v-if="isRegisteringDamage"
+                                            type="warning"
+                                            variant="tonal"
+                                            density="compact"
+                                            class="mb-3"
+                                        >
+                                            El cargo por daños materiales se registrará como pendiente de pago.
+                                            Hasta que se pague, el socio no podrá pagar ningún otro concepto.
+                                        </v-alert>
+                                        <v-alert
+                                            v-else-if="cobros.length && !manualPaymentOverride"
                                             type="info"
                                             variant="tonal"
                                             density="compact"
@@ -3321,7 +3417,7 @@ const saveNote = async () => {
                                         <div class="d-flex flex-wrap justify-space-between align-center ga-4">
                                             <div class="d-flex align-center ga-2">
                                                 <span class="text-subtitle-1 font-weight-bold">
-                                                    Total a cobrar
+                                                    {{ isRegisteringDamage ? "Total del daño" : "Total a cobrar" }}
                                                 </span>
                                                 <span class="text-h5 font-weight-bold text-primary">
                                                     {{ formatCurrency(cobrosTotal) }}
@@ -3336,17 +3432,18 @@ const saveNote = async () => {
                                                     icon="mdi-cash-check"
                                                     :text="manualPaymentOverride ? 'Corregir métodos de pago' : 'Configurar método(s) de pago'"
                                                     variant="tonal"
-                                                    :disabled="!cobros.length || paying"
+                                                    :disabled="!cobros.length || paying || isRegisteringDamage"
                                                     @click="openPaymentDialog"
                                                 />
+                                                <!-- Con un CD nuevo en la lista, registra el daño (pendiente) en vez de cobrar. -->
                                                 <BaseButton
                                                     v-if="can.includes('collections.store')"
                                                     :icon-only="false"
                                                     action="save"
                                                     icon="mdi-check-circle-outline"
-                                                    text="Registrar cobro"
-                                                    :loading="paying"
-                                                    :disabled="!configuredPayment"
+                                                    :text="isRegisteringDamage ? 'Registrar daño material' : 'Registrar cobro'"
+                                                    :loading="paying || savingDamageCharge"
+                                                    :disabled="isRegisteringDamage ? false : !configuredPayment"
                                                     @click="registerPayment"
                                                 />
                                                 <BaseButton

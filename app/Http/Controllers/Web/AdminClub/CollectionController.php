@@ -1428,10 +1428,12 @@ class CollectionController extends Controller
                     ->with('primaryHolder.member')
                     ->findOrFail($accountId);
 
+                // Las salidas de cafetería no cuentan: son de visitantes sin
+                // número de socio, no del socio que debe el CD.
                 $damageGuard->ensureCanPay(
                     $account->id,
                     $existing->all(),
-                    $newItems->isNotEmpty() || $cafeteriaCheckouts->isNotEmpty() || $annualRequest !== null
+                    $newItems->isNotEmpty() || $annualRequest !== null
                 );
 
                 // Todas las cuentas del grupo del socio (una por parque, ver

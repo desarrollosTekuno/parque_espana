@@ -24,7 +24,6 @@ use App\Models\Members\MemberDocument;
 use App\Rules\ExistsInSchema;
 use App\Services\Billing\AnnualPaymentService;
 use App\Services\Billing\MembershipChargeService;
-use App\Services\Billing\MaterialDamagePaymentGuard;
 use App\Services\Billing\PaymentRegistrationService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -288,7 +287,7 @@ class BillingController extends Controller {
         }
     }
 
-    public function storePayment(Request $request, MaterialDamagePaymentGuard $damageGuard)
+    public function storePayment(Request $request)
     {
         try {
             $validated = $request->validate([
@@ -312,8 +311,6 @@ class BillingController extends Controller {
                 ->where('id', $validated['payment_method_id'])
                 ->where('is_active', true)
                 ->firstOrFail();
-
-            $damageGuard->ensureCanPay($account->id, $validated['applications']);
 
             $payment = $this->paymentRegistrationService->register(
                 account: $account,
@@ -682,7 +679,7 @@ class BillingController extends Controller {
         ]);
     }
 
-    public function storeAnnualPayment(Request $request, MaterialDamagePaymentGuard $damageGuard)
+    public function storeAnnualPayment(Request $request)
     {
         try {
             $validated = $request->validate([
@@ -701,8 +698,6 @@ class BillingController extends Controller {
             $paymentMethod = PaymentMethod::where('id', $validated['payment_method_id'])->where('is_active', true)->firstOrFail();
             $year          = (int) $validated['year'];
             $clubId        = (int) $validated['club_id'];
-
-            $damageGuard->ensureCanPay($account->id);
 
             $allowed = ClubPaymentMethod::where('club_id', $clubId)
                 ->where('payment_method_id', $paymentMethod->id)

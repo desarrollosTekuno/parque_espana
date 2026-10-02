@@ -10,7 +10,6 @@ use App\Models\Billing\Payment;
 use App\Models\Billing\PaymentApplication;
 use App\Models\Billing\PaymentMethod;
 use App\Models\Members\Member;
-use App\Services\Billing\MaterialDamagePaymentGuard;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -52,7 +51,7 @@ class PhysicalAdController extends Controller
         return response()->json($members);
     }
 
-    public function store(Request $request, MaterialDamagePaymentGuard $damageGuard)
+    public function store(Request $request)
     {
         $clubId = (int) session('club_id');
 
@@ -86,8 +85,6 @@ class PhysicalAdController extends Controller
             if (!$accountMembership) {
                 throw new \Exception('El socio no tiene una cuenta de membresía activa.');
             }
-
-            $damageGuard->ensureCanPay($accountMembership->membership_account_id);
 
             $membership = $accountMembership->membershipAccount->memberships->first();
 
