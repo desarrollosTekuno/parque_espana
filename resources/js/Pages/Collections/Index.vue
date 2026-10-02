@@ -1316,6 +1316,13 @@ const canAssignLocker = computed(
 );
 
 const assignLocker = async () => {
+    if (pendingDamageConcept.value) {
+        customToastSwal({
+            title: "Primero liquida el cargo por daños materiales en un cobro separado.",
+            icon: "warning",
+        });
+        return;
+    }
     if (!account.value || !canAssignLocker.value) {
         customToastSwal({
             title: "Completa integrante, categoría, casillero y comprobante.",
@@ -1483,6 +1490,13 @@ const canSubmitDayPass = computed(
 );
 
 const submitDayPass = async () => {
+    if (pendingDamageConcept.value) {
+        customToastSwal({
+            title: "Primero liquida el cargo por daños materiales en un cobro separado.",
+            icon: "warning",
+        });
+        return;
+    }
     if (!account.value?.holder_member_id || !canSubmitDayPass.value) {
         customToastSwal({
             title: "Completa la fecha y los datos de todos los visitantes.",

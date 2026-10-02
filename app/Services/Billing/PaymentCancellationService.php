@@ -175,6 +175,13 @@ class PaymentCancellationService
             return;
         }
 
+        // El cargo por daños materiales no se puede anular: solo se revierte el pago.
+        if ($charge->concept?->code === 'CD') {
+            throw ValidationException::withMessages([
+                'payment' => 'El cargo por daños materiales no se puede cancelar; cancela solo el pago.',
+            ]);
+        }
+
         $charge->update([
             'status' => 'cancelled',
             'cancelled_at' => $now,

@@ -3,12 +3,13 @@
 namespace App\Services\Billing;
 
 use App\Models\Billing\Charge;
+use App\Models\Memberships\MembershipAccount;
 use Illuminate\Validation\ValidationException;
 
 class MaterialDamagePaymentGuard {
     public function ensureCanPay(int $accountId, array $applications = [], bool $includesOtherConcepts = false): void {
         $pendingDamageCharges = Charge::query()
-            ->where('membership_account_id', $accountId)
+            ->whereIn('membership_account_id', $this->relatedAccountIds($accountId))
             ->whereHas('concept', fn ($query) => $query->withTrashed()->where('code', 'CD'))
             ->whereIn('status', ['pending', 'partial'])
             ->where('balance', '>', 0)
@@ -35,5 +36,16 @@ class MaterialDamagePaymentGuard {
                 ]);
             }
         }
+    }
+
+    /** Cuentas del usuario en ambos parques (mismo account_group_id). */
+    public function relatedAccountIds(int $accountId): array {
+        $groupId = MembershipAccount::query()->whereKey($accountId)->value('account_group_id');
+
+        if (!$groupId) {
+            return [$accountId];
+        }
+
+        return MembershipAccount::query()->where('account_group_id', $groupId)->pluck('id')->all();
     }
 }

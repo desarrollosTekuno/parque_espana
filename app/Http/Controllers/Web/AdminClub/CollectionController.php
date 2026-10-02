@@ -325,10 +325,14 @@ class CollectionController extends Controller
         // conceptos (casilleros, etc.): esos sí deben poder cobrarse aunque
         // su vencimiento sea próximo, no tienen un mecanismo de "adelantar
         // pago" que deje huérfanos.
+        // El cargo por daños materiales (CD) se muestra desde ambos parques:
+        // bloquea los cobros en cualquiera de ellos (ver MaterialDamagePaymentGuard).
+        $damageAccountIds = app(MaterialDamagePaymentGuard::class)->relatedAccountIds($account->id);
+
         $pendingCharges = Charge::query()
             ->with(['concept', 'membership.club'])
             ->whereIn('status', ['pending', 'partial'])
-            ->where(function (Builder $query) use ($groupAccountIds, $account) {
+            ->where(function (Builder $query) use ($groupAccountIds, $account, $damageAccountIds) {
                 $query->where(
                     fn (Builder $comboMonthly) => $comboMonthly
                         ->whereIn('membership_account_id', $groupAccountIds)
@@ -360,6 +364,10 @@ class CollectionController extends Controller
                     fn (Builder $other) => $other
                         ->where('membership_account_id', $account->id)
                         ->whereHas('concept', fn (Builder $c) => $c->whereNotIn('code', MembershipChargeService::MONTHLY_FEE_FAMILY_CODES))
+                )->orWhere(
+                    fn (Builder $damage) => $damage
+                        ->whereIn('membership_account_id', $damageAccountIds)
+                        ->whereHas('concept', fn (Builder $c) => $c->where('code', 'CD'))
                 );
             })
             ->orderByRaw('CASE WHEN due_date IS NULL THEN 1 ELSE 0 END')

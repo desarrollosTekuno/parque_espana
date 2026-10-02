@@ -13,7 +13,7 @@ class MaterialDamageConceptSeeder extends Seeder
             ['code' => 'CD'],
             [
                 'internal_key' => 'CD',
-                'name' => 'Cargo por daños materiales',
+                'name' => 'CARGO POR DAÑOS MATERIALES',
                 'description' => null,
                 'default_amount' => null,
                 'allows_manual_amount' => true,
