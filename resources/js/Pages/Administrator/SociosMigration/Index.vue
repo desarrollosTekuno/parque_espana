@@ -17,6 +17,7 @@ const token = ref("");
 const report = ref<{
     counts: Record<string, number>;
     errors: Array<{ sheet: string; row: number | null; field: string; message: string; origin: string }>;
+    warnings?: Array<{ sheet: string; row: number | null; field: string; message: string }>;
 } | null>(null);
 
 /* ====================== Computed ====================== */
@@ -120,6 +121,16 @@ const importFile = async () => {
                         <tbody>
                             <tr v-for="(issue, index) in report.errors" :key="`error-${index}`">
                                 <td>{{ issue.sheet }}</td><td>{{ issue.row ?? '—' }}</td><td>{{ issue.field }}</td><td>{{ issue.origin ?? 'Validación técnica' }}</td><td>{{ issue.message }}</td>
+                            </tr>
+                        </tbody>
+                    </v-table>
+
+                    <h3 v-if="report.warnings?.length" class="mb-2">Avisos (no detienen la carga)</h3>
+                    <v-table v-if="report.warnings?.length" density="compact" class="mb-5">
+                        <thead><tr><th>Pestaña</th><th>Fila</th><th>Campo</th><th>Aviso</th></tr></thead>
+                        <tbody>
+                            <tr v-for="(issue, index) in report.warnings" :key="`warning-${index}`">
+                                <td>{{ issue.sheet }}</td><td>{{ issue.row ?? '—' }}</td><td>{{ issue.field }}</td><td>{{ issue.message }}</td>
                             </tr>
                         </tbody>
                     </v-table>

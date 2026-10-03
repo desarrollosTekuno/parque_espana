@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Web\Administrator;
 
 use App\Services\Migration\Socios\SociosMigrationService;
-use App\Services\Migration\Socios\SociosTemplateReviewService;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Storage;
@@ -13,7 +12,6 @@ use Inertia\Inertia;
 class SociosMigrationController extends Controller
 {
     public function __construct(
-        private SociosTemplateReviewService $reviewService,
         private SociosMigrationService $migrationService
     ) {
         $this->middleware('permission:socios-migration.index')->only('index');
@@ -42,17 +40,22 @@ class SociosMigrationController extends Controller
         $path = $request->file('file')->store('migration-previews', 'local');
         $fullPath = Storage::disk('local')->path($path);
         try {
-            $report = $this->reviewService->review($fullPath);
-            try {
-                $this->migrationService->run($fullPath, true, $request->boolean('sin_personal'));
-            } catch (\Throwable $e) {
-                $report['errors'][] = [
-                    'sheet' => 'Validación de carga',
-                    'row' => null,
-                    'field' => 'ARCHIVO',
-                    'message' => $e->getMessage(),
-                    'origin' => 'Validación técnica',
-                ];
+            // Todas las reglas de la plantilla, con pestaña, fila y campo
+            $report = $this->migrationService->review($fullPath, $request->boolean('sin_personal'));
+            if ($report['errors'] === []) {
+                // Sin errores: simulacion completa dentro de una transaccion que se revierte
+                try {
+                    $this->migrationService->run($fullPath, true, $request->boolean('sin_personal'));
+                    $report['warnings'] = $this->migrationService->warnings();
+                } catch (\Throwable $e) {
+                    $report['errors'][] = [
+                        'sheet' => 'Validación de carga',
+                        'row' => null,
+                        'field' => 'ARCHIVO',
+                        'message' => $e->getMessage(),
+                        'origin' => 'Validación técnica',
+                    ];
+                }
             }
         } catch (\Throwable $e) {
             Storage::disk('local')->delete($path);
@@ -80,7 +83,7 @@ class SociosMigrationController extends Controller
 
         $fullPath = Storage::disk('local')->path($preview['path']);
         try {
-            $report = $this->reviewService->review($fullPath);
+            $report = $this->migrationService->review($fullPath, (bool) $preview['sin_personal']);
             if ($report['errors'] !== []) {
                 return response()->json(['message' => 'El archivo tiene errores que deben corregirse.', 'report' => $report], 422);
             }
@@ -88,7 +91,11 @@ class SociosMigrationController extends Controller
             Storage::disk('local')->delete($preview['path']);
             $request->session()->forget('socios_migration_preview');
 
-            return response()->json(['message' => 'Primera fase cargada correctamente.', 'counts' => $counts]);
+            return response()->json([
+                'message' => 'Primera fase cargada correctamente.',
+                'counts' => $counts,
+                'warnings' => $this->migrationService->warnings(),
+            ]);
         } catch (\Throwable $e) {
             report($e);
             return response()->json(['message' => 'No se pudo cargar el archivo: ' . $e->getMessage()], 422);

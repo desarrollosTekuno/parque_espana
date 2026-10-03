@@ -7,7 +7,7 @@ use Illuminate\Console\Command;
 
 class ImportSocios extends Command
 {
-    protected $signature = 'migrate:socios {file : Plantilla_Migracion_Cliente.xlsx} {--dry-run : Validar y revertir los cambios} {--sin-personal : Omitir la pestaña Personal}';
+    protected $signature = 'migrate:socios {file : Plantilla_Migracion_Cliente.xlsx} {--dry-run : Validar y revertir los cambios} {--sin-personal : Omitir la pestaña Personal} {--archivos= : Carpeta con CANCELACIONES/... (por defecto database/data/ARCHIVOS)} {--disco=spaces : Disco donde se suben las cartas de baja}';
 
     protected $description = 'Carga personal, socios, cuentas, membresías e integrantes desde la plantilla del cliente';
 
@@ -21,7 +21,13 @@ class ImportSocios extends Command
         }
 
         try {
-            $counts = $service->run($file, (bool) $this->option('dry-run'), (bool) $this->option('sin-personal'));
+            $counts = $service->run(
+                $file,
+                (bool) $this->option('dry-run'),
+                (bool) $this->option('sin-personal'),
+                $this->option('archivos') ?: null,
+                (string) $this->option('disco')
+            );
         } catch (\Throwable $e) {
             $this->error($e->getMessage());
             return self::FAILURE;
@@ -29,6 +35,10 @@ class ImportSocios extends Command
 
         foreach ($counts as $name => $count) {
             $this->line("{$name}: {$count}");
+        }
+
+        foreach ($service->warnings() as $warning) {
+            $this->warn("Aviso · {$warning['sheet']} fila " . ($warning['row'] ?? '-') . " · {$warning['field']}: {$warning['message']}");
         }
 
         $this->info($this->option('dry-run') ? 'Simulación terminada; no se guardaron datos.' : 'Carga de socios terminada.');
