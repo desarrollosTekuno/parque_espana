@@ -28,6 +28,12 @@ class PermissionSeeder extends Seeder
             ['module' => 'Administración', 'name' => 'users.destroy', 'description' => 'Eliminar usuarios', 'contexts' => ['web']],
             ['module' => 'Administración', 'name' => 'conekta-credentials.index', 'description' => 'Ver credenciales de Conekta por parque', 'contexts' => ['web']],
             ['module' => 'Administración', 'name' => 'conekta-credentials.update', 'description' => 'Actualizar credenciales de Conekta por parque', 'contexts' => ['web']],
+            ['module' => 'Administración', 'name' => 'socios-migration.index', 'description' => 'Ver carga temporal de socios', 'contexts' => ['web']],
+            ['module' => 'Administración', 'name' => 'socios-migration.preview', 'description' => 'Revisar plantilla de socios', 'contexts' => ['web']],
+            ['module' => 'Administración', 'name' => 'socios-migration.import', 'description' => 'Cargar plantilla de socios', 'contexts' => ['web']],
+            ['module' => 'Administración', 'name' => 'dinero-migration.index', 'description' => 'Ver carga histórica de dinero', 'contexts' => ['web']],
+            ['module' => 'Administración', 'name' => 'dinero-migration.preview', 'description' => 'Revisar cargos y pagos históricos', 'contexts' => ['web']],
+            ['module' => 'Administración', 'name' => 'dinero-migration.import', 'description' => 'Cargar cargos y pagos históricos', 'contexts' => ['web']],
 
             // Clubes
             ['module' => 'Clubes', 'name' => 'clubs.index', 'description' => 'Ver clubes', 'contexts' => ['web']],

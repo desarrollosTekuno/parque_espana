@@ -30,6 +30,20 @@ const routes: Routing[] = [
         group: null,
     },
     {
+        name: ["socios-migration.index"],
+        title: "Carga de socios",
+        icon: "mdi-file-upload-outline",
+        value: "socios-migration",
+        group: null,
+    },
+    {
+        name: ["dinero-migration.index"],
+        title: "Carga histórica de dinero",
+        icon: "mdi-cash-clock",
+        value: "dinero-migration",
+        group: null,
+    },
+    {
         name: ["club-settings.edit"],
         title: "Mi Club",
         icon: "mdi-office-building-cog",

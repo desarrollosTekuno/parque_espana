@@ -169,11 +169,21 @@ class SociosMigrationService
             }
         }
 
+        $holderIds = collect($data['Integrantes'])
+            ->filter(fn ($row) => $this->key($row['ES TITULAR']) === 'SI')
+            ->pluck('ID DE USUARIO')
+            ->all();
+
         foreach ($data['Usuarios'] as $row) {
             $id = $row['ID DE USUARIO'];
             $label = "Usuarios fila {$row['_row']}";
             if ($id === '' || $row['NOMBRE'] === '' || $row['APELLIDO PATERNO'] === '') {
                 $errors[] = "{$label}: faltan ID, nombre o apellido.";
+            }
+            if ($row['CORREO'] === '') {
+                $errors[] = in_array($id, $holderIds, true)
+                    ? "{$label}: el correo del titular es obligatorio."
+                    : "{$label}: el correo del usuario es obligatorio.";
             }
             if ($id !== '' && isset($memberIds[$id])) {
                 $errors[] = "{$label}: ID DE USUARIO duplicado ({$id}).";
@@ -197,6 +207,16 @@ class SociosMigrationService
             }
             if ($number !== '' && isset($accountNumbers[$number])) {
                 $errors[] = "{$label}: NUMERO DE CUENTA duplicado ({$number}).";
+            }
+            $bill = $this->key($row['GENERA COBRO']);
+            if (!in_array($bill, ['SI', 'NO'], true)) {
+                $errors[] = "{$label}: GENERA COBRO es obligatorio; escriba SI o NO.";
+            }
+            if ($bill === 'SI' && (!is_numeric($row['CUOTA MENSUAL']) || (float) $row['CUOTA MENSUAL'] <= 0)) {
+                $errors[] = "{$label}: CUOTA MENSUAL es obligatoria y mayor que cero cuando GENERA COBRO es SI.";
+            }
+            if ($bill === 'NO' && $row['CUOTA MENSUAL'] !== '' && (!is_numeric($row['CUOTA MENSUAL']) || (float) $row['CUOTA MENSUAL'] != 0)) {
+                $errors[] = "{$label}: CUOTA MENSUAL debe estar vacía o en cero cuando GENERA COBRO es NO.";
             }
             if ($number !== '') {
                 $accountNumbers[$number] = true;
@@ -384,7 +404,7 @@ class SociosMigrationService
                 default => throw new RuntimeException("{$label}: INDIVIDUAL O FAMILIAR inválido."),
             };
             $fee = $row['CUOTA MENSUAL'] !== '' ? $this->amount($row['CUOTA MENSUAL'], $label) : 0;
-            $billable = $row['GENERA COBRO'] === '' ? true : $this->yesNo($row['GENERA COBRO'], $label);
+            $billable = $this->yesNo($row['GENERA COBRO'], $label);
             if ($row['FECHA DE TERMINO'] !== '' && !$this->dateIsValid($row['FECHA DE TERMINO'])) {
                 throw new RuntimeException("{$label}: fecha de término inválida.");
             }

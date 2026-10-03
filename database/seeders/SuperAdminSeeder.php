@@ -48,6 +48,12 @@ class SuperAdminSeeder extends Seeder
             'clubs.destroy',
             'conekta-credentials.index',
             'conekta-credentials.update',
+            'socios-migration.index',
+            'socios-migration.preview',
+            'socios-migration.import',
+            'dinero-migration.index',
+            'dinero-migration.preview',
+            'dinero-migration.import',
         );
         $superadmin->syncPermissions($superadminPermissions);
     }
